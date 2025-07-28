@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Codenix - Build with AI</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.4.12/ace.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .ace_editor {
+            height: 100%;
+            width: 100%;
+        }
+        .resizer {
+            background-color: #4A5568;
+            cursor: col-resize;
+            width: 6px;
+            flex-shrink: 0;
+            transition: background-color 0.2s;
+            z-index: 10;
+        }
+        .resizer:hover {
+            background-color: #718096;
+        }
+        .resizing {
+            user-select: none;
+        }
+        .tooltip {
+            position: relative;
+            display: inline-block;
+        }
+        .tooltip .tooltiptext {
+            visibility: hidden;
+            width: 120px;
+            background-color: #1f2937;
+            color: #fff;
+            text-align: center;
+            border-radius: 6px;
+            padding: 5px 0;
+            position: absolute;
+            z-index: 1;
+            bottom: 125%;
+            left: 50%;
+            margin-left: -60px;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        .tooltip:hover .tooltiptext {
+            visibility: visible;
+            opacity: 1;
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-white flex flex-col h-screen">
+
+    <!-- Header -->
+    <header class="bg-gray-800/50 backdrop-blur-sm border-b border-gray-700 p-4 flex justify-between items-center z-20 flex-shrink-0">
+        <div class="flex items-center space-x-3">
+            <svg class="w-8 h-8 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path></svg>
+            <h1 class="text-2xl font-bold">Codenix</h1>
+        </div>
+        <div class="flex items-center space-x-4">
+            <div class="flex items-center space-x-2">
+                <label for="model-select" class="text-sm font-medium">Model:</label>
+                <select id="model-select" class="bg-gray-700 border border-gray-600 rounded-md px-3 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all duration-200">
+                    <option value="codenix">Codenix (Gemini-Summarized)</option>
+                    <option value="gemini">Gemini</option>
+                    <option value="deepseek">DeepSeek (Mock)</option>
+                    <option value="edenai">Eden AI (Mock)</option>
+                    <option value="replicate">Replicate (Mock)</option>
+                    <option value="grok">Grok (Mock)</option>
+                </select>
+            </div>
+            <div class="tooltip">
+                <button id="run-button" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-md flex items-center space-x-2 transition-all duration-200 transform hover:scale-105">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    <span>Run</span>
+                </button>
+                <span class="tooltiptext">Run Code</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="flex-1 flex overflow-hidden">
+        <!-- Left Panel: Chat -->
+        <div id="chat-panel" class="bg-gray-800/60 flex flex-col">
+            <div class="p-4 border-b border-gray-700 flex-shrink-0 flex justify-between items-center">
+                <h2 class="text-lg font-semibold">Chat</h2>
+                <div class="tooltip">
+                    <button id="clear-chat-button" class="text-gray-400 hover:text-white transition-colors">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                    </button>
+                     <span class="tooltiptext">Clear Chat</span>
+                </div>
+            </div>
+            <div id="chat-history" class="flex-1 overflow-y-auto p-4 space-y-4">
+                <!-- Welcome message is now added dynamically -->
+            </div>
+            <div class="p-4 border-t border-gray-700 flex-shrink-0">
+                <div class="flex">
+                    <input type="text" id="chat-input" class="flex-1 bg-gray-700 border border-gray-600 rounded-l-md p-2 focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="e.g., a snake game">
+                    <button id="send-button" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-r-md transition-colors duration-200">Send</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="resizer" id="resizer-1"></div>
+
+        <!-- Middle Panel: Workplace (Code Editor) -->
+        <div id="workplace-panel" class="bg-gray-800 flex flex-col">
+            <div class="p-4 flex justify-between items-center border-b border-gray-700 flex-shrink-0">
+                <h2 class="text-lg font-semibold">Workplace</h2>
+                <div class="tooltip">
+                    <button id="copy-code-button" class="bg-gray-700 hover:bg-gray-600 text-white font-bold py-1 px-3 rounded-md flex items-center space-x-2 transition-colors duration-200">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+                        <span>Copy</span>
+                    </button>
+                    <span class="tooltiptext">Copy Code</span>
+                </div>
+            </div>
+            <div id="editor" class="flex-1 rounded-b-lg"></div>
+        </div>
+
+        <div class="resizer" id="resizer-2"></div>
+
+        <!-- Right Panel: Live Preview -->
+        <div id="preview-panel" class="bg-gray-800/60 flex flex-col">
+            <div class="p-4 border-b border-gray-700 flex-shrink-0">
+                <h2 class="text-lg font-semibold">Live Preview</h2>
+            </div>
+            <div class="flex-1 bg-white overflow-hidden">
+                <iframe id="preview-frame" class="w-full h-full border-0"></iframe>
+            </div>
+        </div>
+    </main>
+    
+    <!-- Loading Modal -->
+    <div id="loading-modal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center z-50">
+        <div class="bg-gray-800 p-6 rounded-lg flex flex-col items-center space-y-4">
+            <div class="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-400"></div>
+            <p id="loading-text" class="text-lg">Generating code...</p>
+        </div>
+    </div>
+
+
+    <script>
+        window.onload = function() {
+            // --- DOM Element References ---
+            const chatHistoryEl = document.getElementById('chat-history');
+            const chatInput = document.getElementById('chat-input');
+            const sendButton = document.getElementById('send-button');
+            const clearChatButton = document.getElementById('clear-chat-button');
+            const runButton = document.getElementById('run-button');
+            const modelSelect = document.getElementById('model-select');
+            const copyCodeButton = document.getElementById('copy-code-button');
+            const previewFrame = document.getElementById('preview-frame');
+            const loadingModal = document.getElementById('loading-modal');
+            const loadingText = document.getElementById('loading-text');
+
+            // --- State Management ---
+            let chatMessages = [];
+
+            // --- Initialize Ace Editor ---
+            const editor = ace.edit("editor");
+            editor.setTheme("ace/theme/monokai");
+            editor.session.setMode("ace/mode/html");
+            editor.setValue(`<!-- Your generated code will appear here -->`, -1);
+
+            // --- Panel Resizing Logic ---
+            const chatPanel = document.getElementById('chat-panel');
+            const workplacePanel = document.getElementById('workplace-panel');
+            const previewPanel = document.getElementById('preview-panel');
+            const resizer1 = document.getElementById('resizer-1');
+            const resizer2 = document.getElementById('resizer-2');
+
+            chatPanel.style.flex = '0 0 25%';
+            workplacePanel.style.flex = '1 1 0';
+            previewPanel.style.flex = '0 0 33%';
+
+            function initResizer(resizer, leftPanel, rightPanel) {
+                resizer.addEventListener('mousedown', function(e) {
+                    e.preventDefault();
+                    document.body.classList.add('resizing');
+                    let startX = e.clientX;
+                    let startLeftWidth = leftPanel.offsetWidth;
+                    let startRightWidth = rightPanel.offsetWidth;
+
+                    function onMouseMove(e) {
+                        const deltaX = e.clientX - startX;
+                        const newLeftWidth = startLeftWidth + deltaX;
+                        const newRightWidth = startRightWidth - deltaX;
+                        if (newLeftWidth > 150 && newRightWidth > 150) {
+                            leftPanel.style.flexBasis = newLeftWidth + 'px';
+                            rightPanel.style.flexBasis = newRightWidth + 'px';
+                        }
+                    }
+
+                    function onMouseUp() {
+                        document.body.classList.remove('resizing');
+                        document.removeEventListener('mousemove', onMouseMove);
+                        document.removeEventListener('mouseup', onMouseUp);
+                        editor.resize();
+                    }
+
+                    document.addEventListener('mousemove', onMouseMove);
+                    document.addEventListener('mouseup', onMouseUp);
+                });
+            }
+
+            initResizer(resizer1, chatPanel, workplacePanel);
+            initResizer(resizer2, workplacePanel, previewPanel);
+
+            // --- API Configuration ---
+            const apiKeys = {
+                gemini: 'AIzaSyABR4lJ7IPeouxabOOATxmwXgRZmjNYcms',
+                replicate: 'r8_XNpcUOl2EcDoasEUAmmLDy7HhSCjosr3IPIiS',
+                grok: 'xai-xCsiYoL1EtpN4zUyEytoitzVfjJW8D93Dk4IRKb8vYSYAOPJ7LgZ1CrJHzdyx7CjONxk67abRYdbj2kQ',
+                edenai: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiZTRkZThkODctYTViYy00OTJhLThlMDUtNzQyZjljYWNmZDc3IiwidHlwZSI6ImFwaV90b2tlbiJ9.uV5q_zmNC5-3WdZy6pT9GSnLASKBWoqYhj2XRGVJ8zE',
+                deepseek: 'sk-874e06df9c8c4a2b965e43f4ab112a2d'
+            };
+
+            // --- Core Application Logic ---
+            const handleSendMessage = async () => {
+                const prompt = chatInput.value.trim();
+                if (!prompt) return;
+
+                addMessage(prompt, 'user');
+                chatInput.value = '';
+                showLoading(true, 'Thinking...');
+
+                try {
+                    const selectedModel = modelSelect.value;
+                    let finalCode = '';
+                    if (selectedModel === 'codenix') {
+                        finalCode = await generateWithCodenix(prompt);
+                    } else {
+                        finalCode = await generateCode(prompt, selectedModel);
+                    }
+                    editor.setValue(finalCode, -1);
+                    updatePreview(finalCode);
+                    addMessage("Here is the code I generated.", 'model');
+                } catch (error) {
+                    console.error("Error generating code:", error);
+                    addMessage(`Sorry, an error occurred: ${error.message}`, 'system');
+                    editor.setValue(`// An error occurred: ${error.message}`, -1);
+                } finally {
+                    showLoading(false);
+                }
+            };
+
+            const generateWithCodenix = async (prompt) => {
+                const modelsToQuery = ['gemini', 'deepseek', 'edenai', 'replicate', 'grok'];
+                const results = await Promise.all(modelsToQuery.map(model => {
+                    showLoading(true, `Querying ${model}...`);
+                    return generateCode(prompt, model).catch(e => `// ${model} Error: ${e.message}`);
+                }));
+
+                const summaryPrompt = `You are an expert code synthesizer. Your task is to combine the best elements from the following code snippets to fulfill the user's request: "${prompt}". Create a single, complete, and superior HTML file.\n\n` +
+                    modelsToQuery.map((model, index) => `--- ${model.toUpperCase()}'S CODE ---\n${results[index]}`).join('\n\n');
+                
+                try {
+                    showLoading(true, 'Synthesizing results with Gemini...');
+                    const geminiSummary = await generateWithGemini(summaryPrompt, true);
+                    addMessage('Codenix has synthesized the best code for you using Gemini.', 'system');
+                    return geminiSummary;
+                } catch (geminiError) {
+                    console.error("Gemini summarization failed:", geminiError);
+                    addMessage('Gemini summarization failed. The API might be temporarily unavailable.', 'system');
+                    return `<!-- Gemini summarization failed. Error: ${geminiError.message} -->`;
+                }
+            };
+
+            const generateCode = async (prompt, model) => {
+                addMessage(`Requesting code from ${model}...`, 'system', true);
+                
+                const instruction = `The user wants to build: "${prompt}". Generate a complete, single-file HTML response. Include all necessary CSS and JavaScript in the HTML file. Use TailwindCSS for styling if possible.`;
+                const historyForAPI = chatMessages.filter(m => m.role !== 'system').map(m => ({
+                    role: m.role === 'model' ? 'assistant' : 'user',
+                    content: m.text
+                }));
+                
+                historyForAPI.push({ role: 'user', content: instruction });
+
+                switch (model) {
+                    case 'gemini': 
+                        const geminiHistory = historyForAPI.map(m => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] }));
+                        return await generateWithGemini(geminiHistory);
+                    case 'deepseek':
+                        return await generateWithDeepSeek(prompt);
+                    case 'edenai': 
+                        return await generateWithEdenAI(prompt);
+                    case 'replicate': return await generateWithReplicate(prompt);
+                    case 'grok': return await generateWithGrok(prompt);
+                    default: throw new Error('Invalid model selected');
+                }
+            };
+            
+            // --- API Implementation ---
+            async function generateWithGemini(history, isSynthesis = false) {
+                const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKeys.gemini}`;
+                const payload = { contents: isSynthesis ? [{role: 'user', parts: [{text: history}]}] : history };
+                
+                try {
+                    const response = await fetch(url, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    if (!response.ok) {
+                        throw new Error(`API request failed with status ${response.status}`);
+                    }
+                    const result = await response.json();
+                    let code = result.candidates[0].content.parts[0].text;
+                    code = code.replace(/^```html\s*|```\s*$/g, '').trim();
+                    return code;
+                } catch (error) {
+                    console.error('Gemini API Error:', error);
+                    throw error;
+                }
+            }
+
+            // FIX: Converted DeepSeek to a mock function to prevent 402 errors.
+            async function generateWithDeepSeek(prompt) {
+                await new Promise(r => setTimeout(r, 1000));
+                return `<!-- Mock DeepSeek Response for: ${prompt} -->\n<!-- NOTE: The live DeepSeek API is disabled due to a billing issue with the provided key. -->`;
+            }
+            
+            async function generateWithEdenAI(prompt) {
+                await new Promise(r => setTimeout(r, 1000));
+                return `<!-- Mock Eden AI Response for: ${prompt} -->`;
+            }
+            
+            // Mock functions for other APIs
+            async function generateWithReplicate(prompt) { await new Promise(r => setTimeout(r, 1000)); return `<!-- Mock Replicate Response for: ${prompt} -->`; }
+            async function generateWithGrok(prompt) { await new Promise(r => setTimeout(r, 1000)); return `<!-- Mock Grok Response for: ${prompt} -->`; }
+
+            // --- UI Helper Functions ---
+            const addMessage = (text, sender, isHidden = false) => {
+                if (!isHidden) {
+                    const messageDiv = document.createElement('div');
+                    const p = document.createElement('p');
+                    p.textContent = text;
+                    p.className = 'text-sm break-words';
+
+                    const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                    const timeDiv = document.createElement('div');
+                    timeDiv.className = 'text-xs text-gray-400 mt-1 text-right';
+                    timeDiv.textContent = `${sender.charAt(0).toUpperCase() + sender.slice(1)} at ${time}`;
+
+                    if (sender === 'user') {
+                        messageDiv.className = 'bg-indigo-600 p-3 rounded-lg self-end max-w-xs';
+                    } else {
+                        messageDiv.className = 'bg-gray-700 p-3 rounded-lg max-w-xs';
+                    }
+                    
+                    messageDiv.appendChild(p);
+                    messageDiv.appendChild(timeDiv);
+                    chatHistoryEl.appendChild(messageDiv);
+                    chatHistoryEl.scrollTop = chatHistoryEl.scrollHeight;
+                }
+                
+                chatMessages.push({ role: sender, text: text });
+            };
+
+            const updatePreview = (code) => {
+                const srcDoc = `<html><body>${code}</body><script>${editor.session.getMode().$id === 'ace/mode/html' ? '' : 'document.body.style.whiteSpace = "pre-wrap";'}<\/script></html>`;
+                previewFrame.srcdoc = srcDoc;
+            };
+            
+            const showLoading = (isLoading, text = 'Generating code...') => {
+                loadingText.textContent = text;
+                loadingModal.classList.toggle('hidden', !isLoading);
+            };
+
+            const clearChat = () => {
+                chatMessages = [];
+                chatHistoryEl.innerHTML = '';
+                addMessage("Welcome to Codenix! How can I help you build today?", 'system');
+                editor.setValue(`<!-- Your generated code will appear here -->`, -1);
+                updatePreview('');
+            };
+
+            // --- Event Listeners ---
+            sendButton.addEventListener('click', handleSendMessage);
+            chatInput.addEventListener('keypress', (e) => e.key === 'Enter' && handleSendMessage());
+            clearChatButton.addEventListener('click', clearChat);
+            runButton.addEventListener('click', () => updatePreview(editor.getValue()));
+            copyCodeButton.addEventListener('click', () => {
+                const code = editor.getValue();
+                const textarea = document.createElement('textarea');
+                textarea.value = code;
+                document.body.appendChild(textarea);
+                textarea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textarea);
+                copyCodeButton.querySelector('span').textContent = 'Copied!';
+                setTimeout(() => { copyCodeButton.querySelector('span').textContent = 'Copy'; }, 2000);
+            });
+            
+            // --- Initial Setup ---
+            clearChat();
+            const placeholders = ["a responsive portfolio website", "a javascript calculator", "a weather app with a search bar", "a to-do list with local storage"];
+            let placeholderIndex = 0;
+            setInterval(() => {
+                placeholderIndex = (placeholderIndex + 1) % placeholders.length;
+                chatInput.placeholder = `e.g., ${placeholders[placeholderIndex]}`;
+            }, 3000);
+        };
+    </script>
+
+</body>
+</html>
