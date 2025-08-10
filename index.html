@@ -3,27 +3,27 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Codenix - Build with AI</title>
+    <title>Codenix Pro - Build with AI</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.4.12/ace.js"></script>
     <style>
         body {
             font-family: 'Inter', sans-serif;
+            overflow: hidden;
         }
         .ace_editor {
             height: 100%;
             width: 100%;
         }
-        .resizer {
+        .resizer-col {
             background-color: #4A5568;
             cursor: col-resize;
             width: 6px;
             flex-shrink: 0;
-            transition: background-color 0.2s;
             z-index: 10;
         }
-        .resizer:hover {
+        .resizer-col:hover {
             background-color: #718096;
         }
         .resizing {
@@ -53,365 +53,434 @@
             visibility: visible;
             opacity: 1;
         }
+        .file-item {
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .file-item.active {
+            background-color: #4a5568;
+        }
+        .file-item:hover {
+            background-color: #2d3748;
+        }
+        .header-icon-btn {
+            background-color: #4a5568;
+            color: #e2e8f0;
+            border-radius: 5px;
+            padding: 6px;
+            transition: background-color 0.2s, opacity 0.2s;
+        }
+        .header-icon-btn:hover {
+            background-color: #718096;
+        }
+        .modal-overlay {
+            background-color: rgba(0, 0, 0, 0.7);
+        }
+        #console-panel {
+            height: 160px; /* Smaller console */
+            backdrop-filter: blur(4px);
+        }
+        #console-panel .log-message {
+            font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+            padding: 4px 8px;
+            border-bottom: 1px solid #2d3748;
+            font-size: 0.8rem;
+        }
+        #console-panel .log-error {
+            background-color: rgba(127, 29, 29, 0.5);
+            color: #fca5a5;
+        }
+        #console-panel .log-warn {
+            background-color: rgba(113, 63, 18, 0.5);
+            color: #fdba74;
+        }
     </style>
 </head>
 <body class="bg-gray-900 text-white flex flex-col h-screen">
 
     <!-- Header -->
-    <header class="bg-gray-800/50 backdrop-blur-sm border-b border-gray-700 p-4 flex justify-between items-center z-20 flex-shrink-0">
-        <div class="flex items-center space-x-3">
-            <svg class="w-8 h-8 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path></svg>
-            <h1 class="text-2xl font-bold">Codenix</h1>
+    <header class="bg-gray-800/50 backdrop-blur-sm border-b border-gray-700 p-3 md:p-4 flex justify-between items-center z-20 flex-shrink-0">
+        <div class="flex items-center space-x-2 md:space-x-3">
+            <svg class="w-7 h-7 md:w-8 md:h-8 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path></svg>
+            <h1 class="text-xl md:text-2xl font-bold">Codenix Pro</h1>
         </div>
-        <div class="flex items-center space-x-4">
-            <div class="flex items-center space-x-2">
+        <div class="flex items-center space-x-2 md:space-x-4">
+            <div class="hidden md:flex items-center space-x-2">
                 <label for="model-select" class="text-sm font-medium">Model:</label>
-                <select id="model-select" class="bg-gray-700 border border-gray-600 rounded-md px-3 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all duration-200">
-                    <option value="codenix">Codenix (Gemini-Summarized)</option>
-                    <option value="gemini">Gemini</option>
+                <select id="model-select" class="bg-gray-700 border border-gray-600 rounded-md px-3 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    <option value="codenix">Codenix (Synthesized)</option>
+                    <option value="gemini">Gemini 1.5 Flash</option>
+                    <option value="openrouter">OpenRouter</option>
                     <option value="deepseek">DeepSeek (Mock)</option>
-                    <option value="edenai">Eden AI (Mock)</option>
-                    <option value="replicate">Replicate (Mock)</option>
-                    <option value="grok">Grok (Mock)</option>
                 </select>
             </div>
-            <div class="tooltip">
-                <button id="run-button" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-md flex items-center space-x-2 transition-all duration-200 transform hover:scale-105">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                    <span>Run</span>
-                </button>
-                <span class="tooltiptext">Run Code</span>
+            <div class="flex items-center space-x-2 border-l border-gray-600 pl-2 md:pl-4">
+                 <div class="tooltip"><button id="toggle-files-button" class="header-icon-btn"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path></svg></button><span class="tooltiptext">Toggle Files</span></div>
+                 <div class="tooltip"><button id="toggle-chat-button" class="header-icon-btn lg:hidden"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path></svg></button><span class="tooltiptext">Toggle Chat</span></div>
             </div>
+            <div class="tooltip"><button id="run-button" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-md flex items-center space-x-2 transition-all duration-200 transform hover:scale-105"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg><span>Run</span></button><span class="tooltiptext">Run Code</span></div>
         </div>
     </header>
 
-    <!-- Main Content -->
-    <main class="flex-1 flex overflow-hidden">
+    <!-- Main Content Area -->
+    <main class="flex-1 flex flex-col lg:flex-row overflow-hidden">
+        <!-- Far-Left Panel: Files -->
+        <div id="file-panel" class="bg-gray-800/60 flex flex-col w-full lg:w-auto lg:basis-1/5 h-1/3 lg:h-full"><div class="p-4 border-b border-gray-700 flex-shrink-0 flex justify-between items-center"><h2 class="text-lg font-semibold">Files</h2><div class="tooltip"><button id="add-file-button" class="text-gray-400 hover:text-white transition-colors"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg></button><span class="tooltiptext">New File</span></div></div><div id="file-list" class="flex-1 overflow-y-auto p-2 space-y-1"></div></div>
+        <div class="resizer-col hidden lg:flex" id="resizer-0"></div>
         <!-- Left Panel: Chat -->
-        <div id="chat-panel" class="bg-gray-800/60 flex flex-col">
-            <div class="p-4 border-b border-gray-700 flex-shrink-0 flex justify-between items-center">
-                <h2 class="text-lg font-semibold">Chat</h2>
-                <div class="tooltip">
-                    <button id="clear-chat-button" class="text-gray-400 hover:text-white transition-colors">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
-                    </button>
-                     <span class="tooltiptext">Clear Chat</span>
-                </div>
-            </div>
-            <div id="chat-history" class="flex-1 overflow-y-auto p-4 space-y-4">
-                <!-- Welcome message is now added dynamically -->
-            </div>
-            <div class="p-4 border-t border-gray-700 flex-shrink-0">
-                <div class="flex">
-                    <input type="text" id="chat-input" class="flex-1 bg-gray-700 border border-gray-600 rounded-l-md p-2 focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="e.g., a snake game">
-                    <button id="send-button" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-r-md transition-colors duration-200">Send</button>
-                </div>
-            </div>
-        </div>
-
-        <div class="resizer" id="resizer-1"></div>
-
+        <div id="chat-panel" class="bg-gray-800/60 flex-col w-full lg:w-auto lg:basis-1/4 h-2/3 lg:h-full hidden lg:flex"><div class="p-4 border-b border-gray-700 flex-shrink-0 flex justify-between items-center"><h2 class="text-lg font-semibold">Chat</h2><div class="tooltip"><button id="clear-chat-button" class="text-gray-400 hover:text-white transition-colors"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg></button><span class="tooltiptext">Clear Chat</span></div></div><div id="chat-history" class="flex-1 overflow-y-auto p-4 space-y-4"></div><div class="p-4 border-t border-gray-700 flex-shrink-0"><div class="flex"><input type="text" id="chat-input" class="flex-1 bg-gray-700 border border-gray-600 rounded-l-md p-2 focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="e.g., a snake game"><button id="send-button" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-r-md transition-colors duration-200">Send</button></div></div></div>
+        <div class="resizer-col hidden lg:flex" id="resizer-1"></div>
         <!-- Middle Panel: Workplace (Code Editor) -->
-        <div id="workplace-panel" class="bg-gray-800 flex flex-col">
-            <div class="p-4 flex justify-between items-center border-b border-gray-700 flex-shrink-0">
-                <h2 class="text-lg font-semibold">Workplace</h2>
-                <div class="tooltip">
-                    <button id="copy-code-button" class="bg-gray-700 hover:bg-gray-600 text-white font-bold py-1 px-3 rounded-md flex items-center space-x-2 transition-colors duration-200">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
-                        <span>Copy</span>
-                    </button>
-                    <span class="tooltiptext">Copy Code</span>
-                </div>
-            </div>
-            <div id="editor" class="flex-1 rounded-b-lg"></div>
-        </div>
-
-        <div class="resizer" id="resizer-2"></div>
-
+        <div id="workplace-panel" class="bg-gray-800 flex flex-col flex-1"><div class="p-4 flex justify-between items-center border-b border-gray-700 flex-shrink-0"><h2 class="text-lg font-semibold">Workplace</h2><div class="tooltip"><button id="copy-code-button" class="bg-gray-700 hover:bg-gray-600 text-white font-bold py-1 px-3 rounded-md flex items-center space-x-2 transition-colors duration-200"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg><span>Copy</span></button><span class="tooltiptext">Copy Code</span></div></div><div id="editor" class="flex-1 rounded-b-lg"></div></div>
+        <div class="resizer-col hidden lg:flex" id="resizer-2"></div>
         <!-- Right Panel: Live Preview -->
-        <div id="preview-panel" class="bg-gray-800/60 flex flex-col">
-            <div class="p-4 border-b border-gray-700 flex-shrink-0">
-                <h2 class="text-lg font-semibold">Live Preview</h2>
-            </div>
-            <div class="flex-1 bg-white overflow-hidden">
-                <iframe id="preview-frame" class="w-full h-full border-0"></iframe>
-            </div>
-        </div>
+        <div id="preview-panel" class="bg-gray-800/60 flex flex-col flex-1 relative"><div class="p-4 border-b border-gray-700 flex-shrink-0"><h2 class="text-lg font-semibold">Live Preview</h2></div><div class="flex-1 bg-white overflow-auto"><iframe id="preview-frame" class="w-full h-full border-0"></iframe></div><!-- Console is now inside the preview panel --> <div id="console-panel" class="bg-gray-900/80 flex-col absolute bottom-0 left-0 right-0 hidden"><div class="p-2 border-b border-gray-700 flex-shrink-0 flex justify-between items-center"><h2 class="text-md font-semibold text-red-400">Console</h2><button id="clear-console-button" class="text-gray-400 hover:text-white transition-colors text-xs">Clear</button></div><div id="console-output" class="flex-1 overflow-y-auto p-1"></div></div></div>
     </main>
     
-    <!-- Loading Modal -->
-    <div id="loading-modal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center z-50">
-        <div class="bg-gray-800 p-6 rounded-lg flex flex-col items-center space-y-4">
-            <div class="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-400"></div>
-            <p id="loading-text" class="text-lg">Generating code...</p>
-        </div>
-    </div>
-
+    <!-- Modals -->
+    <div id="loading-modal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center z-50"><div class="bg-gray-800 p-6 rounded-lg flex flex-col items-center space-y-4"><div class="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-400"></div><p id="loading-text" class="text-lg">Generating code...</p></div></div>
+    <div id="new-file-modal" class="hidden fixed inset-0 modal-overlay flex items-center justify-center z-50"><div class="bg-gray-800 p-6 rounded-lg shadow-xl w-full max-w-md"><h3 class="text-lg font-semibold mb-4">Create New File</h3><div><label for="new-file-name" class="block text-sm font-medium text-gray-300 mb-1">Filename</label><input type="text" id="new-file-name" class="w-full bg-gray-700 border border-gray-600 rounded-md p-2 focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="index.html"></div><div class="mt-6 flex justify-end space-x-3"><button id="cancel-new-file" class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-md transition-colors">Cancel</button><button id="confirm-new-file" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-md transition-colors">Create</button></div></div></div>
 
     <script>
-        window.onload = function() {
+        document.addEventListener('DOMContentLoaded', function() {
             // --- DOM Element References ---
-            const chatHistoryEl = document.getElementById('chat-history');
-            const chatInput = document.getElementById('chat-input');
-            const sendButton = document.getElementById('send-button');
-            const clearChatButton = document.getElementById('clear-chat-button');
-            const runButton = document.getElementById('run-button');
-            const modelSelect = document.getElementById('model-select');
-            const copyCodeButton = document.getElementById('copy-code-button');
-            const previewFrame = document.getElementById('preview-frame');
-            const loadingModal = document.getElementById('loading-modal');
-            const loadingText = document.getElementById('loading-text');
-
-            // --- State Management ---
-            let chatMessages = [];
+            const dom = {
+                filePanel: document.getElementById('file-panel'),
+                fileList: document.getElementById('file-list'),
+                addFileButton: document.getElementById('add-file-button'),
+                chatPanel: document.getElementById('chat-panel'),
+                chatHistory: document.getElementById('chat-history'),
+                chatInput: document.getElementById('chat-input'),
+                sendButton: document.getElementById('send-button'),
+                clearChatButton: document.getElementById('clear-chat-button'),
+                workplacePanel: document.getElementById('workplace-panel'),
+                previewPanel: document.getElementById('preview-panel'),
+                consolePanel: document.getElementById('console-panel'),
+                consoleOutput: document.getElementById('console-output'),
+                clearConsoleButton: document.getElementById('clear-console-button'),
+                runButton: document.getElementById('run-button'),
+                modelSelect: document.getElementById('model-select'),
+                copyCodeButton: document.getElementById('copy-code-button'),
+                previewFrame: document.getElementById('preview-frame'),
+                loadingModal: document.getElementById('loading-modal'),
+                loadingText: document.getElementById('loading-text'),
+                resizer0: document.getElementById('resizer-0'),
+                resizer1: document.getElementById('resizer-1'),
+                resizer2: document.getElementById('resizer-2'),
+                toggleFilesButton: document.getElementById('toggle-files-button'),
+                toggleChatButton: document.getElementById('toggle-chat-button'),
+                newFileModal: document.getElementById('new-file-modal'),
+                newFileNameInput: document.getElementById('new-file-name'),
+                confirmNewFileButton: document.getElementById('confirm-new-file'),
+                cancelNewFileButton: document.getElementById('cancel-new-file'),
+            };
 
             // --- Initialize Ace Editor ---
             const editor = ace.edit("editor");
             editor.setTheme("ace/theme/monokai");
             editor.session.setMode("ace/mode/html");
-            editor.setValue(`<!-- Your generated code will appear here -->`, -1);
+            editor.on('change', () => {
+                if (state.activeFileId) {
+                    const activeFile = state.files.find(f => f.id === state.activeFileId);
+                    if (activeFile) activeFile.content = editor.getValue();
+                }
+            });
 
-            // --- Panel Resizing Logic ---
-            const chatPanel = document.getElementById('chat-panel');
-            const workplacePanel = document.getElementById('workplace-panel');
-            const previewPanel = document.getElementById('preview-panel');
-            const resizer1 = document.getElementById('resizer-1');
-            const resizer2 = document.getElementById('resizer-2');
-
-            chatPanel.style.flex = '0 0 25%';
-            workplacePanel.style.flex = '1 1 0';
-            previewPanel.style.flex = '0 0 33%';
-
-            function initResizer(resizer, leftPanel, rightPanel) {
-                resizer.addEventListener('mousedown', function(e) {
-                    e.preventDefault();
-                    document.body.classList.add('resizing');
-                    let startX = e.clientX;
-                    let startLeftWidth = leftPanel.offsetWidth;
-                    let startRightWidth = rightPanel.offsetWidth;
-
-                    function onMouseMove(e) {
-                        const deltaX = e.clientX - startX;
-                        const newLeftWidth = startLeftWidth + deltaX;
-                        const newRightWidth = startRightWidth - deltaX;
-                        if (newLeftWidth > 150 && newRightWidth > 150) {
-                            leftPanel.style.flexBasis = newLeftWidth + 'px';
-                            rightPanel.style.flexBasis = newRightWidth + 'px';
-                        }
-                    }
-
-                    function onMouseUp() {
-                        document.body.classList.remove('resizing');
-                        document.removeEventListener('mousemove', onMouseMove);
-                        document.removeEventListener('mouseup', onMouseUp);
-                        editor.resize();
-                    }
-
-                    document.addEventListener('mousemove', onMouseMove);
-                    document.addEventListener('mouseup', onMouseUp);
-                });
-            }
-
-            initResizer(resizer1, chatPanel, workplacePanel);
-            initResizer(resizer2, workplacePanel, previewPanel);
+            // --- State Management ---
+            let state = { files: [], activeFileId: null, chatMessages: [] };
 
             // --- API Configuration ---
             const apiKeys = {
                 gemini: 'AIzaSyABR4lJ7IPeouxabOOATxmwXgRZmjNYcms',
-                replicate: 'r8_XNpcUOl2EcDoasEUAmmLDy7HhSCjosr3IPIiS',
-                grok: 'xai-xCsiYoL1EtpN4zUyEytoitzVfjJW8D93Dk4IRKb8vYSYAOPJ7LgZ1CrJHzdyx7CjONxk67abRYdbj2kQ',
-                edenai: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiZTRkZThkODctYTViYy00OTJhLThlMDUtNzQyZjljYWNmZDc3IiwidHlwZSI6ImFwaV90b2tlbiJ9.uV5q_zmNC5-3WdZy6pT9GSnLASKBWoqYhj2XRGVJ8zE',
-                deepseek: 'sk-874e06df9c8c4a2b965e43f4ab112a2d'
+                openrouter: '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',
             };
 
-            // --- Core Application Logic ---
-            const handleSendMessage = async () => {
-                const prompt = chatInput.value.trim();
-                if (!prompt) return;
+            // --- Panel Resizing Logic ---
+            const initResizer = (resizer, panelA, panelB) => {
+                resizer.addEventListener('mousedown', (e) => {
+                    e.preventDefault();
+                    document.body.classList.add('resizing');
+                    const onMouseMove = (moveEvent) => {
+                        const totalWidth = panelA.offsetWidth + panelB.offsetWidth;
+                        const newPanelAWidth = moveEvent.clientX - panelA.getBoundingClientRect().left;
+                        if (newPanelAWidth > 150 && totalWidth - newPanelAWidth > 150) {
+                            panelA.style.flexBasis = newPanelAWidth + 'px';
+                            panelB.style.flexBasis = (totalWidth - newPanelAWidth) + 'px';
+                        }
+                        editor.resize();
+                    };
+                    const onMouseUp = () => {
+                        document.body.classList.remove('resizing');
+                        document.removeEventListener('mousemove', onMouseMove);
+                        document.removeEventListener('mouseup', onMouseUp);
+                    };
+                    document.addEventListener('mousemove', onMouseMove);
+                    document.addEventListener('mouseup', onMouseUp);
+                });
+            };
+            
+            // --- UI Helper Functions ---
+            const showLoading = (isLoading, text = 'Generating code...') => {
+                dom.loadingText.textContent = text;
+                dom.loadingModal.classList.toggle('hidden', !isLoading);
+            };
 
-                addMessage(prompt, 'user');
-                chatInput.value = '';
-                showLoading(true, 'Thinking...');
+            const addChatMessage = (text, sender) => {
+                const messageDiv = document.createElement('div');
+                messageDiv.className = sender === 'user' ? 'bg-indigo-600 p-3 rounded-lg self-end max-w-xs md:max-w-md' : 'bg-gray-700 p-3 rounded-lg max-w-xs md:max-w-md';
+                const p = document.createElement('p');
+                p.textContent = text;
+                p.className = 'text-sm break-words';
+                messageDiv.appendChild(p);
+                dom.chatHistory.appendChild(messageDiv);
+                dom.chatHistory.scrollTop = dom.chatHistory.scrollHeight;
+                state.chatMessages.push({ role: sender, text: text });
+            };
+            
+            // --- Console Logic ---
+            const addLogToConsole = (logData) => {
+                const { type, message } = logData;
+                if (type === 'error') {
+                    dom.consolePanel.style.display = 'flex'; // Show console ONLY on error
+                }
+                const logEntry = document.createElement('div');
+                logEntry.className = `log-message log-${type}`;
+                const textNode = document.createTextNode(message);
+                logEntry.appendChild(textNode);
 
-                try {
-                    const selectedModel = modelSelect.value;
-                    let finalCode = '';
-                    if (selectedModel === 'codenix') {
-                        finalCode = await generateWithCodenix(prompt);
+                if (type === 'error') {
+                    const solveButton = document.createElement('button');
+                    solveButton.textContent = 'Solve Issue';
+                    solveButton.className = 'ml-4 bg-red-800 hover:bg-red-700 text-white text-xs font-bold py-1 px-2 rounded';
+                    solveButton.onclick = () => handleSolveIssue(message);
+                    logEntry.appendChild(solveButton);
+                }
+                dom.consoleOutput.appendChild(logEntry);
+                dom.consoleOutput.scrollTop = dom.consoleOutput.scrollHeight;
+            };
+
+            window.addEventListener('message', (event) => {
+                if (event.source === dom.previewFrame.contentWindow && event.data.type === 'console') {
+                    addLogToConsole(event.data.log);
+                }
+            });
+
+            const clearConsole = () => {
+                dom.consoleOutput.innerHTML = '';
+                dom.consolePanel.style.display = 'none'; // Hide console when clearing
+            };
+
+            // --- File Management ---
+            const renderFileList = () => {
+                dom.fileList.innerHTML = '';
+                state.files.forEach(file => {
+                    const fileDiv = document.createElement('div');
+                    fileDiv.className = `file-item p-2 rounded-md text-sm flex justify-between items-center ${file.id === state.activeFileId ? 'active' : ''}`;
+                    fileDiv.textContent = file.name;
+                    fileDiv.dataset.id = file.id;
+                    fileDiv.onclick = () => switchFile(file.id);
+                    dom.fileList.appendChild(fileDiv);
+                });
+            };
+
+            const switchFile = (fileId) => {
+                if (fileId === state.activeFileId) return;
+                state.activeFileId = fileId;
+                const file = state.files.find(f => f.id === fileId);
+                if (file) {
+                    editor.setValue(file.content, -1);
+                    const mode = file.name.endsWith('.js') ? 'javascript' : (file.name.endsWith('.css') ? 'css' : 'html');
+                    editor.session.setMode(`ace/mode/${mode}`);
+                }
+                renderFileList();
+                updatePreview();
+            };
+
+            const handleConfirmNewFile = () => {
+                const fileName = dom.newFileNameInput.value.trim();
+                if (fileName) {
+                    const newFile = { id: `file_${Date.now()}`, name: fileName, content: `<!-- ${fileName} -->` };
+                    state.files.push(newFile);
+                    switchFile(newFile.id);
+                    dom.newFileModal.classList.add('hidden');
+                    dom.newFileNameInput.value = '';
+                }
+            };
+
+            const setCodeForActiveFile = (code) => {
+                if (!state.activeFileId && state.files.length > 0) state.activeFileId = state.files[0].id;
+                const activeFile = state.files.find(f => f.id === state.activeFileId);
+                if (activeFile) {
+                    activeFile.content = code;
+                    editor.setValue(code, -1);
+                    renderFileList();
+                    updatePreview();
+                } else {
+                    addChatMessage("Error: No active file selected. Please create a file first.", "system");
+                }
+            };
+
+            const updatePreview = () => {
+                clearConsole();
+                const activeFile = state.files.find(f => f.id === state.activeFileId);
+                const code = activeFile ? activeFile.content : '';
+                const consoleInterceptor = `<script>
+                    const originalConsole = {...window.console};
+                    const postLog = (type, args) => {
+                        const message = Array.from(args).map(arg => typeof arg === 'object' ? JSON.stringify(arg, null, 2) : arg).join(' ');
+                        window.parent.postMessage({ type: 'console', log: { type, message } }, '*');
+                    };
+                    window.console.log = (...args) => { originalConsole.log(...args); postLog('log', args); };
+                    window.console.warn = (...args) => { originalConsole.warn(...args); postLog('warn', args); };
+                    window.console.error = (...args) => { originalConsole.error(...args); postLog('error', args); };
+                    window.onerror = (message, source, lineno, colno, error) => {
+                        postLog('error', [message]);
+                        return true;
+                    };
+                <\/script>`;
+                dom.previewFrame.srcdoc = `<html><head><script src="https://cdn.tailwindcss.com"><\/script>${consoleInterceptor}</head><body>${code}</body></html>`;
+            };
+
+            // --- API Call Logic ---
+            const createAPIPrompt = (prompt) => `The user wants to build: "${prompt}". Generate a complete, single-file HTML response. Include all necessary CSS (using TailwindCSS classes) and JavaScript in the HTML file. Ensure the code is production-ready, well-commented, and fully functional. Do not wrap the code in markdown backticks.`;
+
+            async function generateWithGemini(prompt) {
+                const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKeys.gemini}`;
+                const payload = { contents: [{ role: 'user', parts: [{ text: prompt }] }] };
+                const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                if (!response.ok) throw new Error(`Gemini API Error: ${response.statusText}`);
+                const result = await response.json();
+                return result.candidates[0].content.parts[0].text.replace(/^```(html|javascript|css)?\s*|```\s*$/g, '').trim();
+            }
+
+            async function generateWithOpenRouter(prompt) {
+                const url = `https://openrouter.ai/api/v1/chat/completions`;
+                const payload = { model: "google/gemini-flash-1.5", messages: [{ role: "user", content: prompt }] };
+                const response = await fetch(url, { method: 'POST', headers: { 'Authorization': `Bearer ${apiKeys.openrouter}`, 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                if (!response.ok) throw new Error(`OpenRouter API Error: ${response.statusText}`);
+                const result = await response.json();
+                return result.choices[0].message.content.replace(/^```(html|javascript|css)?\s*|```\s*$/g, '').trim();
+            }
+
+            async function generateWithDeepSeekMock(prompt) {
+                await new Promise(r => setTimeout(r, 500));
+                return `<!-- Mock DeepSeek Response for: ${prompt} -->\n<h1>DeepSeek Mock</h1>\n<p>This is a placeholder response.</p>`;
+            }
+            
+            const generateCode = (prompt, model) => {
+                const apiPrompt = createAPIPrompt(prompt);
+                switch (model) {
+                    case 'gemini': return generateWithGemini(apiPrompt);
+                    case 'openrouter': return generateWithOpenRouter(apiPrompt);
+                    case 'deepseek': return generateWithDeepSeekMock(apiPrompt);
+                    default: throw new Error('Invalid model selected');
+                }
+            };
+
+            const generateWithCodenix = async (prompt) => {
+                const modelsToQuery = ['gemini', 'openrouter', 'deepseek'];
+                addChatMessage("Codenix mode activated. Querying all available models...", "system");
+                const results = await Promise.allSettled(modelsToQuery.map(model => {
+                    showLoading(true, `Querying ${model}...`);
+                    return generateCode(prompt, model);
+                }));
+                const successfulResults = [];
+                results.forEach((result, index) => {
+                    const modelName = modelsToQuery[index];
+                    if (result.status === 'fulfilled') {
+                        successfulResults.push({ model: modelName, code: result.value });
+                        addChatMessage(`✅ Successfully received code from ${modelName}.`, "system");
                     } else {
-                        finalCode = await generateCode(prompt, selectedModel);
+                        addChatMessage(`❌ Failed to get code from ${modelName}: ${result.reason.message}`, "system");
                     }
-                    editor.setValue(finalCode, -1);
-                    updatePreview(finalCode);
-                    addMessage("Here is the code I generated.", 'model');
+                });
+                if (successfulResults.length === 0) throw new Error("All models failed.");
+                const synthesisPrompt = `You are an expert code synthesizer. Your task is to analyze and combine the best elements from the following code snippets to fulfill the user's request: "${prompt}". Create a single, complete, and superior HTML file that is clean, functional, and well-styled with TailwindCSS. Do not include markdown backticks in your final response.\n\n` + successfulResults.map(res => `--- CODE FROM ${res.model.toUpperCase()} ---\n${res.code}`).join('\n\n');
+                try {
+                    showLoading(true, 'Synthesizing results with Gemini...');
+                    const finalCode = await generateWithGemini(synthesisPrompt);
+                    addChatMessage('Codenix has synthesized the best code for you.', 'system');
+                    return finalCode;
+                } catch (e) {
+                    addChatMessage(`Gemini synthesis failed: ${e.message}. Returning the best available result.`, "system");
+                    return successfulResults[0].code;
+                }
+            };
+
+            // --- Main Application Logic ---
+            const handleSendMessage = async () => {
+                const prompt = dom.chatInput.value.trim();
+                if (!prompt || state.files.length === 0) return;
+                addChatMessage(prompt, 'user');
+                dom.chatInput.value = '';
+                showLoading(true, 'Thinking...');
+                try {
+                    const selectedModel = dom.modelSelect.value;
+                    const finalCode = selectedModel === 'codenix' ? await generateWithCodenix(prompt) : await generateCode(prompt, selectedModel);
+                    setCodeForActiveFile(finalCode);
+                    addChatMessage(`Here is the code I generated with ${selectedModel}. It's now in your active file.`, 'system');
                 } catch (error) {
                     console.error("Error generating code:", error);
-                    addMessage(`Sorry, an error occurred: ${error.message}`, 'system');
-                    editor.setValue(`// An error occurred: ${error.message}`, -1);
+                    addChatMessage(`Sorry, an error occurred: ${error.message}`, "system");
                 } finally {
                     showLoading(false);
                 }
             };
 
-            const generateWithCodenix = async (prompt) => {
-                const modelsToQuery = ['gemini', 'deepseek', 'edenai', 'replicate', 'grok'];
-                const results = await Promise.all(modelsToQuery.map(model => {
-                    showLoading(true, `Querying ${model}...`);
-                    return generateCode(prompt, model).catch(e => `// ${model} Error: ${e.message}`);
-                }));
-
-                const summaryPrompt = `You are an expert code synthesizer. Your task is to combine the best elements from the following code snippets to fulfill the user's request: "${prompt}". Create a single, complete, and superior HTML file.\n\n` +
-                    modelsToQuery.map((model, index) => `--- ${model.toUpperCase()}'S CODE ---\n${results[index]}`).join('\n\n');
-                
-                try {
-                    showLoading(true, 'Synthesizing results with Gemini...');
-                    const geminiSummary = await generateWithGemini(summaryPrompt, true);
-                    addMessage('Codenix has synthesized the best code for you using Gemini.', 'system');
-                    return geminiSummary;
-                } catch (geminiError) {
-                    console.error("Gemini summarization failed:", geminiError);
-                    addMessage('Gemini summarization failed. The API might be temporarily unavailable.', 'system');
-                    return `<!-- Gemini summarization failed. Error: ${geminiError.message} -->`;
+            const handleSolveIssue = async (errorMessage) => {
+                const activeFile = state.files.find(f => f.id === state.activeFileId);
+                if (!activeFile) {
+                    addChatMessage("Cannot solve issue: No active file.", "system");
+                    return;
                 }
-            };
-
-            const generateCode = async (prompt, model) => {
-                addMessage(`Requesting code from ${model}...`, 'system', true);
-                
-                const instruction = `The user wants to build: "${prompt}". Generate a complete, single-file HTML response. Include all necessary CSS and JavaScript in the HTML file. Use TailwindCSS for styling if possible.`;
-                const historyForAPI = chatMessages.filter(m => m.role !== 'system').map(m => ({
-                    role: m.role === 'model' ? 'assistant' : 'user',
-                    content: m.text
-                }));
-                
-                historyForAPI.push({ role: 'user', content: instruction });
-
-                switch (model) {
-                    case 'gemini': 
-                        const geminiHistory = historyForAPI.map(m => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] }));
-                        return await generateWithGemini(geminiHistory);
-                    case 'deepseek':
-                        return await generateWithDeepSeek(prompt);
-                    case 'edenai': 
-                        return await generateWithEdenAI(prompt);
-                    case 'replicate': return await generateWithReplicate(prompt);
-                    case 'grok': return await generateWithGrok(prompt);
-                    default: throw new Error('Invalid model selected');
-                }
-            };
-            
-            // --- API Implementation ---
-            async function generateWithGemini(history, isSynthesis = false) {
-                const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKeys.gemini}`;
-                const payload = { contents: isSynthesis ? [{role: 'user', parts: [{text: history}]}] : history };
-                
+                addChatMessage("Attempting to debug the error with AI...", "system");
+                showLoading(true, "Debugging with AI...");
+                const debugPrompt = `I encountered an error in my code.
+Error message: "${errorMessage}"
+Here is the full code from the file "${activeFile.name}":
+\`\`\`
+${activeFile.content}
+\`\`\`
+Please provide a fixed version of the code. Only return the complete, corrected code, without any explanations or markdown backticks.`;
                 try {
-                    const response = await fetch(url, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(payload)
-                    });
-                    if (!response.ok) {
-                        throw new Error(`API request failed with status ${response.status}`);
-                    }
-                    const result = await response.json();
-                    let code = result.candidates[0].content.parts[0].text;
-                    code = code.replace(/^```html\s*|```\s*$/g, '').trim();
-                    return code;
+                    const fixedCode = await generateWithGemini(debugPrompt);
+                    setCodeForActiveFile(fixedCode);
+                    addChatMessage("I've attempted a fix for the error. The code in your active file has been updated. Please run it again to see if the issue is resolved.", "system");
                 } catch (error) {
-                    console.error('Gemini API Error:', error);
-                    throw error;
+                    console.error("Debug failed:", error);
+                    addChatMessage(`The AI debugger failed: ${error.message}`, "system");
+                } finally {
+                    showLoading(false);
                 }
-            }
-
-            // FIX: Converted DeepSeek to a mock function to prevent 402 errors.
-            async function generateWithDeepSeek(prompt) {
-                await new Promise(r => setTimeout(r, 1000));
-                return `<!-- Mock DeepSeek Response for: ${prompt} -->\n<!-- NOTE: The live DeepSeek API is disabled due to a billing issue with the provided key. -->`;
-            }
-            
-            async function generateWithEdenAI(prompt) {
-                await new Promise(r => setTimeout(r, 1000));
-                return `<!-- Mock Eden AI Response for: ${prompt} -->`;
-            }
-            
-            // Mock functions for other APIs
-            async function generateWithReplicate(prompt) { await new Promise(r => setTimeout(r, 1000)); return `<!-- Mock Replicate Response for: ${prompt} -->`; }
-            async function generateWithGrok(prompt) { await new Promise(r => setTimeout(r, 1000)); return `<!-- Mock Grok Response for: ${prompt} -->`; }
-
-            // --- UI Helper Functions ---
-            const addMessage = (text, sender, isHidden = false) => {
-                if (!isHidden) {
-                    const messageDiv = document.createElement('div');
-                    const p = document.createElement('p');
-                    p.textContent = text;
-                    p.className = 'text-sm break-words';
-
-                    const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                    const timeDiv = document.createElement('div');
-                    timeDiv.className = 'text-xs text-gray-400 mt-1 text-right';
-                    timeDiv.textContent = `${sender.charAt(0).toUpperCase() + sender.slice(1)} at ${time}`;
-
-                    if (sender === 'user') {
-                        messageDiv.className = 'bg-indigo-600 p-3 rounded-lg self-end max-w-xs';
-                    } else {
-                        messageDiv.className = 'bg-gray-700 p-3 rounded-lg max-w-xs';
-                    }
-                    
-                    messageDiv.appendChild(p);
-                    messageDiv.appendChild(timeDiv);
-                    chatHistoryEl.appendChild(messageDiv);
-                    chatHistoryEl.scrollTop = chatHistoryEl.scrollHeight;
-                }
-                
-                chatMessages.push({ role: sender, text: text });
-            };
-
-            const updatePreview = (code) => {
-                const srcDoc = `<html><body>${code}</body><script>${editor.session.getMode().$id === 'ace/mode/html' ? '' : 'document.body.style.whiteSpace = "pre-wrap";'}<\/script></html>`;
-                previewFrame.srcdoc = srcDoc;
             };
             
-            const showLoading = (isLoading, text = 'Generating code...') => {
-                loadingText.textContent = text;
-                loadingModal.classList.toggle('hidden', !isLoading);
-            };
+            const initializeApp = () => {
+                initResizer(dom.resizer0, dom.filePanel, dom.chatPanel);
+                initResizer(dom.resizer1, dom.chatPanel, dom.workplacePanel);
+                initResizer(dom.resizer2, dom.workplacePanel, dom.previewPanel);
 
-            const clearChat = () => {
-                chatMessages = [];
-                chatHistoryEl.innerHTML = '';
-                addMessage("Welcome to Codenix! How can I help you build today?", 'system');
-                editor.setValue(`<!-- Your generated code will appear here -->`, -1);
-                updatePreview('');
+                const initialFile = { id: `file_${Date.now()}`, name: "index.html", content: `<!-- Welcome to Codenix Pro! -->\n<h1 class="text-2xl p-4">Hello World</h1>\n<button class="bg-blue-500 text-white p-2 rounded-md ml-4" onclick="testError()">Test Error</button>\n<script>\n  function testError(){\n    consoel.log('This will cause an error');\n  }\n<\/script>` };
+                state.files.push(initialFile);
+                switchFile(initialFile.id);
+                addChatMessage("Welcome to Codenix Pro! The UI is now responsive and the console only appears on error. How can I help?", 'system');
             };
 
             // --- Event Listeners ---
-            sendButton.addEventListener('click', handleSendMessage);
-            chatInput.addEventListener('keypress', (e) => e.key === 'Enter' && handleSendMessage());
-            clearChatButton.addEventListener('click', clearChat);
-            runButton.addEventListener('click', () => updatePreview(editor.getValue()));
-            copyCodeButton.addEventListener('click', () => {
-                const code = editor.getValue();
-                const textarea = document.createElement('textarea');
-                textarea.value = code;
-                document.body.appendChild(textarea);
-                textarea.select();
-                document.execCommand('copy');
-                document.body.removeChild(textarea);
-                copyCodeButton.querySelector('span').textContent = 'Copied!';
-                setTimeout(() => { copyCodeButton.querySelector('span').textContent = 'Copy'; }, 2000);
-            });
+            dom.sendButton.addEventListener('click', handleSendMessage);
+            dom.chatInput.addEventListener('keypress', (e) => e.key === 'Enter' && handleSendMessage());
+            dom.clearChatButton.addEventListener('click', () => { dom.chatHistory.innerHTML = ''; state.chatMessages = []; addChatMessage("Chat cleared.", 'system'); });
+            dom.addFileButton.addEventListener('click', () => { dom.newFileModal.classList.remove('hidden'); dom.newFileNameInput.focus(); });
+            dom.runButton.addEventListener('click', updatePreview);
+            dom.copyCodeButton.addEventListener('click', () => navigator.clipboard.writeText(editor.getValue()).then(() => { dom.copyCodeButton.querySelector('span').textContent = 'Copied!'; setTimeout(() => { dom.copyCodeButton.querySelector('span').textContent = 'Copy'; }, 2000); }));
+            dom.toggleFilesButton.addEventListener('click', () => dom.filePanel.classList.toggle('hidden'));
+            dom.toggleChatButton.addEventListener('click', () => dom.chatPanel.classList.toggle('hidden'));
+            dom.clearConsoleButton.addEventListener('click', clearConsole);
+            dom.confirmNewFileButton.addEventListener('click', handleConfirmNewFile);
+            dom.cancelNewFileButton.addEventListener('click', () => dom.newFileModal.classList.add('hidden'));
+            dom.newFileNameInput.addEventListener('keypress', (e) => e.key === 'Enter' && handleConfirmNewFile());
             
-            // --- Initial Setup ---
-            clearChat();
-            const placeholders = ["a responsive portfolio website", "a javascript calculator", "a weather app with a search bar", "a to-do list with local storage"];
-            let placeholderIndex = 0;
-            setInterval(() => {
-                placeholderIndex = (placeholderIndex + 1) % placeholders.length;
-                chatInput.placeholder = `e.g., ${placeholders[placeholderIndex]}`;
-            }, 3000);
-        };
+            initializeApp();
+        });
     </script>
-
 </body>
 </html>
