@@ -7,6 +7,8 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.4.12/ace.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
     <style>
         body {
             font-family: 'Inter', sans-serif;
@@ -98,6 +100,16 @@
                     <option value="deepseek">DeepSeek (Mock)</option>
                 </select>
             </div>
+            <!-- Agent Mode Button -->
+            <a href="agent.html" id="agent-mode-button" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-md flex items-center space-x-2 transition-all duration-200 transform hover:scale-105">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 8v8m-4-5v5m-4-2v2m-2 4h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                <span class="hidden md:inline">Agent Mode</span>
+            </a>
+            <!-- Publish Button -->
+            <button id="publish-button" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-md flex items-center space-x-2 transition-all duration-200 transform hover:scale-105">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                <span class="hidden md:inline">Publish</span>
+            </button>
             <button id="run-button" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-md flex items-center space-x-2 transition-all duration-200 transform hover:scale-105"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg><span class="hidden md:inline">Run</span></button>
         </div>
     </header>
@@ -160,6 +172,28 @@
     <!-- Modals -->
     <div id="loading-modal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center z-50"><div class="bg-gray-800 p-6 rounded-lg flex flex-col items-center space-y-4"><div class="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-400"></div><p id="loading-text" class="text-lg">Generating code...</p></div></div>
     <div id="new-file-modal" class="hidden fixed inset-0 modal-overlay flex items-center justify-center z-50"><div class="bg-gray-800 p-6 rounded-lg shadow-xl w-full max-w-md"><h3 class="text-lg font-semibold mb-4">Create New File</h3><div><label for="new-file-name" class="block text-sm font-medium text-gray-300 mb-1">Filename</label><input type="text" id="new-file-name" class="w-full bg-gray-700 border border-gray-600 rounded-md p-2 focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="index.html"></div><div class="mt-6 flex justify-end space-x-3"><button id="cancel-new-file" class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-md transition-colors">Cancel</button><button id="confirm-new-file" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-md transition-colors">Create</button></div></div></div>
+    <!-- Publish Modal -->
+    <div id="publish-modal" class="hidden fixed inset-0 modal-overlay flex items-center justify-center z-50">
+        <div class="bg-gray-800 p-6 rounded-lg shadow-xl w-full max-w-lg">
+            <h3 class="text-lg font-semibold mb-4">Project Published</h3>
+            <p class="text-gray-300 mb-4">Your project is ready to be shared or downloaded.</p>
+            <div class="mb-4">
+                <label for="share-url" class="block text-sm font-medium text-gray-300 mb-1">Shareable Preview URL</label>
+                <div class="flex">
+                    <input type="text" id="share-url" readonly class="w-full bg-gray-700 border border-gray-600 rounded-l-md p-2 text-sm text-gray-400">
+                    <button id="copy-url-button" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-3 rounded-r-md">Copy</button>
+                </div>
+            </div>
+            <div class="mt-6 flex justify-between items-center">
+                <button id="download-zip-button" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-md flex items-center space-x-2">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                    <span>Download .zip</span>
+                </button>
+                <button id="close-publish-modal" class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-md transition-colors">Close</button>
+            </div>
+        </div>
+    </div>
+
 
     <script>
         document.addEventListener('DOMContentLoaded', function() {
@@ -174,6 +208,7 @@
                 consoleOutput: document.getElementById('console-output'),
                 clearConsoleButton: document.getElementById('clear-console-button'),
                 runButton: document.getElementById('run-button'),
+                publishButton: document.getElementById('publish-button'),
                 modelSelect: document.getElementById('model-select'),
                 copyCodeButton: document.getElementById('copy-code-button'),
                 previewFrame: document.getElementById('preview-frame'),
@@ -196,6 +231,11 @@
                 confirmNewFileButton: document.getElementById('confirm-new-file'),
                 cancelNewFileButton: document.getElementById('cancel-new-file'),
                 mobileNav: document.getElementById('mobile-nav'),
+                publishModal: document.getElementById('publish-modal'),
+                shareUrlInput: document.getElementById('share-url'),
+                copyUrlButton: document.getElementById('copy-url-button'),
+                downloadZipButton: document.getElementById('download-zip-button'),
+                closePublishModalButton: document.getElementById('close-publish-modal'),
             };
 
             const allPanels = [dom.filePanel, dom.chatPanel, dom.workplacePanel, dom.previewPanel];
@@ -216,8 +256,8 @@
 
             // --- API Configuration ---
             const apiKeys = {
-                gemini: 'AIzaSyABR4lJ7IPeouxabOOATxmwXgRZmjNYcms',
-                openrouter: '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',
+                gemini: 'YOUR_GEMINI_API_KEY', // IMPORTANT: Replace with your actual key
+                openrouter: 'YOUR_OPENROUTER_API_KEY', // IMPORTANT: Replace with your actual key
             };
 
             // --- Panel Resizing Logic (Desktop) ---
@@ -326,7 +366,7 @@
                 const file = state.files.find(f => f.id === fileId);
                 if (file) {
                     editor.setValue(file.content, -1);
-                    const mode = file.name.endsWith('.js') ? 'javascript' : (file.name.endsWith('.css') ? 'css' : 'html');
+                    const mode = getAceMode(file.name);
                     editor.session.setMode(`ace/mode/${mode}`);
                 }
                 renderFileList();
@@ -356,22 +396,76 @@
                     addChatMessage("Error: No active file selected. Please create a file first.", "system");
                 }
             };
+            
+            // --- Helper functions for file types ---
+            const getMimeType = (filename) => {
+                if (filename.endsWith('.html')) return 'text/html';
+                if (filename.endsWith('.css')) return 'text/css';
+                if (filename.endsWith('.js')) return 'application/javascript';
+                return 'text/plain';
+            };
+
+            const getAceMode = (filename) => {
+                if (filename.endsWith('.js')) return 'javascript';
+                if (filename.endsWith('.css')) return 'css';
+                if (filename.endsWith('.json')) return 'json';
+                return 'html';
+            };
+
+            // --- Preview & Publish Logic ---
+            const createSelfContainedHtml = () => {
+                let htmlFile = state.files.find(f => f.name.toLowerCase() === 'index.html');
+                if (!htmlFile) {
+                    htmlFile = state.files.find(f => f.id === state.activeFileId);
+                    if (!htmlFile) return '<h1>No HTML file found to preview.</h1>';
+                }
+
+                let htmlContent = htmlFile.content;
+
+                state.files.forEach(file => {
+                    if (file.id !== htmlFile.id) {
+                        const blob = new Blob([file.content], { type: getMimeType(file.name) });
+                        const blobUrl = URL.createObjectURL(blob);
+                        const regex = new RegExp(`(src|href)=["'](./)?${file.name}["']`, 'g');
+                        htmlContent = htmlContent.replace(regex, `$1="${blobUrl}"`);
+                    }
+                });
+                return htmlContent;
+            };
 
             const updatePreview = () => {
                 clearConsole();
-                const activeFile = state.files.find(f => f.id === state.activeFileId);
-                const code = activeFile ? activeFile.content : '';
                 const consoleInterceptor = `<script>
                     window.onerror = (message, source, lineno, colno, error) => {
-                        window.parent.postMessage({ type: 'console', log: { type: 'error', message } }, '*');
+                        window.parent.postMessage({ type: 'console', log: { type: 'error', message: \`\${message} (\${source.split('/').pop()}:\${lineno})\` } }, '*');
                         return true;
                     };
                 <\/script>`;
-                dom.previewFrame.srcdoc = `<html><head><script src="https://cdn.tailwindcss.com"><\/script>${consoleInterceptor}</head><body>${code}</body></html>`;
+                const finalHtml = createSelfContainedHtml();
+                dom.previewFrame.srcdoc = `<html><head>${consoleInterceptor}</head><body>${finalHtml}</body></html>`;
+            };
+
+            const handlePublish = () => {
+                const finalHtml = createSelfContainedHtml();
+                // Encode the HTML content and create a Data URI for true portability.
+                const dataUri = `data:text/html;charset=utf-8,${encodeURIComponent(finalHtml)}`;
+                dom.shareUrlInput.value = dataUri;
+                
+                const zip = new JSZip();
+                state.files.forEach(file => {
+                    zip.file(file.name, file.content);
+                });
+                dom.downloadZipButton.onclick = () => {
+                    zip.generateAsync({ type: "blob" }).then(function(content) {
+                        saveAs(content, "codenix-project.zip");
+                    });
+                };
+
+                dom.publishModal.classList.remove('hidden');
             };
 
             // --- API Call Logic ---
-            const createAPIPrompt = (prompt) => `The user wants to build: "${prompt}". Generate a complete, single-file HTML response. Include all necessary CSS (using TailwindCSS classes) and JavaScript in the HTML file. Ensure the code is production-ready, well-commented, and fully functional. Do not wrap the code in markdown backticks.`;
+            const createAPIPrompt = (prompt) => `The user wants to build: "${prompt}". Generate a complete, single-file HTML response. Include all necessary CSS (using TailwindCSS classes via the CDN script) and JavaScript in the HTML file. Ensure the code is production-ready, well-commented, and fully functional. Do not wrap the code in markdown backticks.`;
 
             async function generateWithGemini(prompt) {
                 const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKeys.gemini}`;
@@ -429,7 +523,11 @@
             const handleSendMessage = async () => {
                 const chatInput = window.innerWidth < 1024 ? dom.chatInputMobile : dom.chatInputDesktop;
                 const prompt = chatInput.value.trim();
-                if (!prompt || state.files.length === 0) return;
+                if (!prompt) return;
+                if (state.files.length === 0) {
+                    addChatMessage("Please create a file first before asking for code.", "system");
+                    return;
+                }
                 
                 addChatMessage(prompt, 'user');
                 chatInput.value = '';
@@ -486,11 +584,39 @@
                 initResizer(dom.resizer1, dom.chatPanel, dom.workplacePanel);
                 initResizer(dom.resizer2, dom.workplacePanel, dom.previewPanel);
 
-                const initialFile = { id: `file_${Date.now()}`, name: "index.html", content: `<!-- Welcome to Codenix Pro! -->\n<h1 class="text-2xl p-4">Hello World</h1>\n<button class="bg-blue-500 text-white p-2 rounded-md ml-4" onclick="testError()">Test Error</button>\n<script>\n  function testError(){\n    consoel.log('This will cause an error');\n  }\n<\/script>` };
-                state.files.push(initialFile);
-                switchFile(initialFile.id);
+                const htmlFile = { id: `file_${Date.now()}`, name: "index.html", content: `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Project</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <h1>Hello World!</h1>
+    <p>Welcome to Codenix Pro!</p>
+    <button onclick="showAlert()">Click Me</button>
+    <script src="script.js"><\/script>
+</body>
+</html>` };
+                const cssFile = { id: `file_${Date.now()+1}`, name: "style.css", content: `body {
+    font-family: sans-serif;
+    background-color: #f0f0f0;
+    color: #333;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    text-align: center;
+}` };
+                const jsFile = { id: `file_${Date.now()+2}`, name: "script.js", content: `function showAlert() {
+    alert("Button clicked from script.js!");
+}` };
+
+                state.files.push(htmlFile, cssFile, jsFile);
+                switchFile(htmlFile.id);
                 
-                addChatMessage("Welcome to Codenix Pro! The UI is now fully responsive. How can I help?", 'system');
+                addChatMessage("Welcome to Codenix Pro! I've set up a sample project with linked HTML, CSS, and JS files. How can I help?", 'system');
                 handleResize();
             };
 
@@ -505,6 +631,14 @@
                 if (window.innerWidth < 1024) {
                     setActiveView('preview-panel');
                 }
+            });
+            dom.publishButton.addEventListener('click', handlePublish);
+            dom.closePublishModalButton.addEventListener('click', () => dom.publishModal.classList.add('hidden'));
+            dom.copyUrlButton.addEventListener('click', () => {
+                dom.shareUrlInput.select();
+                document.execCommand('copy');
+                dom.copyUrlButton.textContent = 'Copied!';
+                setTimeout(() => { dom.copyUrlButton.textContent = 'Copy'; }, 2000);
             });
             dom.copyCodeButton.addEventListener('click', () => navigator.clipboard.writeText(editor.getValue()).then(() => { dom.copyCodeButton.querySelector('span').textContent = 'Copied!'; setTimeout(() => { dom.copyCodeButton.querySelector('span').textContent = 'Copy'; }, 2000); }));
             dom.clearConsoleButton.addEventListener('click', clearConsole);
