@@ -50,7 +50,7 @@
                 <input type="password" id="signup-password" placeholder="Password" class="w-full p-3 bg-gray-700 rounded-md border border-gray-600 focus:outline-none focus:ring-2 focus:ring-purple-500" required>
                 <button type="submit" class="w-full p-3 bg-purple-600 hover:bg-purple-700 rounded-md font-bold transition">Sign Up</button>
             </form>
-            <p class="text-center text-gray-400 mt-4">Already have an account? <a href="#" onclick="showView('login-view')" class="text-purple-400 hover:underline">Log In</a></p>
+            <p class="text-center text-gray-400 mt-4">Already have an account? <a href="#" onclick="showView('login-view', true)" class="text-purple-400 hover:underline">Log In</a></p>
         </div>
 
         <!-- Login View -->
@@ -71,99 +71,112 @@
     </div>
 
     <script>
-        const supabaseUrl = 'https://qngaezufoxwzklohhiat.supabase.co';
-        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFuZ2FlenVmb3h3emtsb2hoaWF0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTUyNTE1NzcsImV4cCI6MjA3MDgyNzU3N30.4z8RjrPPJ5sqIjbn17h0fdK-V9owLTQN6-JzeAoivxk';
-        const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+        document.addEventListener('DOMContentLoaded', () => {
+            const supabaseUrl = 'https://qngaezufoxwzklohhiat.supabase.co';
+            const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFuZ2FlenVmb3h3emtsb2hoaWF0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTUyNTE1NzcsImV4cCI6MjA3MDgyNzU3N30.4z8RjrPPJ5sqIjbn17h0fdK-V9owLTQN6-JzeAoivxk';
+            const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
 
-        const planView = document.getElementById('plan-view');
-        const signupView = document.getElementById('signup-view');
-        const loginView = document.getElementById('login-view');
-        const verificationCodeContainer = document.getElementById('verification-code-container');
-        const errorMessage = document.getElementById('error-message');
-        
-        let selectedPlan = 'free';
+            const planView = document.getElementById('plan-view');
+            const signupView = document.getElementById('signup-view');
+            const loginView = document.getElementById('login-view');
+            const verificationCodeContainer = document.getElementById('verification-code-container');
+            const errorMessage = document.getElementById('error-message');
+            
+            let selectedPlan = 'free';
 
-        function showView(viewId) {
-            planView.classList.add('hidden');
-            signupView.classList.add('hidden');
-            loginView.classList.add('hidden');
-            document.getElementById(viewId).classList.remove('hidden');
-        }
+            window.showView = function(viewId, isFreeLogin = false) {
+                if (isFreeLogin) {
+                    selectedPlan = 'free';
+                }
+                planView.classList.add('hidden');
+                signupView.classList.add('hidden');
+                loginView.classList.add('hidden');
+                document.getElementById(viewId).classList.remove('hidden');
 
-        function selectPlan(plan) {
-            selectedPlan = plan;
-            if (plan === 'free') {
-                showView('signup-view');
-            } else {
-                verificationCodeContainer.classList.remove('hidden');
-                showView('login-view');
+                if (viewId === 'login-view' && selectedPlan !== 'free') {
+                    verificationCodeContainer.classList.remove('hidden');
+                } else {
+                    verificationCodeContainer.classList.add('hidden');
+                }
             }
-        }
 
-        // Sign Up Logic
-        document.getElementById('signup-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            errorMessage.textContent = '';
-            const email = document.getElementById('signup-email').value;
-            const password = document.getElementById('signup-password').value;
+            window.selectPlan = function(plan) {
+                selectedPlan = plan;
+                if (plan === 'free') {
+                    showView('signup-view');
+                } else {
+                    showView('login-view');
+                }
+            }
 
-            const { data, error } = await supabase.auth.signUp({
-                email,
-                password,
-                options: {
-                    data: {
-                        plan: 'free',
+            // Sign Up Logic
+            document.getElementById('signup-form').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                errorMessage.textContent = '';
+                const email = document.getElementById('signup-email').value;
+                const password = document.getElementById('signup-password').value;
+
+                const { data, error } = await supabase.auth.signUp({
+                    email,
+                    password,
+                    options: {
+                        data: {
+                            plan: 'free',
+                        }
                     }
+                });
+
+                if (error) {
+                    errorMessage.textContent = error.message;
+                } else {
+                    alert('Sign up successful! Please check your email to verify your account.');
+                    showView('login-view', true);
                 }
             });
 
-            if (error) {
-                errorMessage.textContent = error.message;
-            } else {
-                alert('Sign up successful! Please check your email to verify your account.');
-                showView('login-view');
-            }
-        });
+            // Login Logic
+            document.getElementById('login-form').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                errorMessage.textContent = '';
+                const email = document.getElementById('login-email').value;
+                const password = document.getElementById('login-password').value;
+                const verificationCode = document.getElementById('verification-code').value;
 
-        // Login Logic
-        document.getElementById('login-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            errorMessage.textContent = '';
-            const email = document.getElementById('login-email').value;
-            const password = document.getElementById('login-password').value;
-            const verificationCode = document.getElementById('verification-code').value;
+                const { data: { user }, error } = await supabase.auth.signInWithPassword({ email, password });
 
-            const { data: { user }, error } = await supabase.auth.signInWithPassword({ email, password });
-
-            if (error) {
-                errorMessage.textContent = error.message;
-                return;
-            }
-
-            if (selectedPlan !== 'free') {
-                const { data: profile, error: profileError } = await supabase
-                    .from('profiles')
-                    .select('verification_code, plan')
-                    .eq('id', user.id)
-                    .single();
-
-                if (profileError || !profile) {
-                    errorMessage.textContent = 'Could not retrieve user profile. Please contact support.';
+                if (error) {
+                    errorMessage.textContent = error.message;
                     return;
                 }
-                
-                if (profile.verification_code !== verificationCode) {
-                     errorMessage.textContent = 'Invalid verification code.';
-                     return;
+
+                if (selectedPlan !== 'free') {
+                    if (!verificationCode) {
+                        errorMessage.textContent = 'Verification code is required for this plan.';
+                        return;
+                    }
+                    const { data: profile, error: profileError } = await supabase
+                        .from('profiles')
+                        .select('verification_code, plan')
+                        .eq('id', user.id)
+                        .single();
+
+                    if (profileError || !profile) {
+                        errorMessage.textContent = 'Could not retrieve user profile. Please contact support.';
+                        return;
+                    }
+                    
+                    if (profile.verification_code !== verificationCode) {
+                         errorMessage.textContent = 'Invalid verification code.';
+                         return;
+                    }
+                    
+                    if (profile.plan !== selectedPlan) {
+                        await supabase.from('profiles').update({ plan: selectedPlan }).eq('id', user.id);
+                    }
                 }
                 
-                // Update plan if necessary
-                if (profile.plan !== selectedPlan) {
-                    await supabase.from('profiles').update({ plan: selectedPlan }).eq('id', user.id);
-                }
-            }
-            
-            window.location.href = 'agent.html';
+                window.location.href = 'agent.html';
+            });
         });
     </script>
 </body>
