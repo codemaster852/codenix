@@ -245,6 +245,15 @@
                 const prompt = dom.chatInput.value.trim();
                 if (!prompt) return;
 
+                const TOKEN_COST = 3000;
+                if (!canUseTokens(TOKEN_COST)) {
+                    addMessage("You are out of tokens for this period. Please upgrade your plan or wait for your tokens to refresh.", 'ai');
+                    dom.chatInput.disabled = true;
+                    dom.sendButton.disabled = true;
+                    return;
+                }
+                await deductTokens(TOKEN_COST);
+
                 addMessage(prompt, 'user');
                 conversationHistory.push({role: 'user', text: prompt});
                 dom.chatInput.value = '';
@@ -257,11 +266,6 @@
             };
 
             async function callApi(model, prompt, jsonSchema = null) {
-                const TOKEN_COST = 3000;
-                if (!canUseTokens(TOKEN_COST)) {
-                    throw new Error("You have insufficient tokens for this action.");
-                }
-
                 let url, payload, headers;
 
                 if (model === 'gemini') {
@@ -311,7 +315,6 @@
                         text = result.choices[0].message.content;
                     }
 
-                    await deductTokens(TOKEN_COST);
                     return jsonSchema ? JSON.parse(text) : text.replace(/^```(html|javascript|css|json)?\s*|```\s*$/g, '').trim();
                 } catch (error) {
                     console.error("API Call Failed:", error);
@@ -579,7 +582,7 @@
             }
 
             async function deductTokens(amount) {
-                if (userProfile.plan === 'unlimited') return;
+                if (userProfile.plan === 'unlimited' || amount === 0) return;
 
                 const newTotal = userProfile.tokens_used + amount;
                 const { error } = await supabase
