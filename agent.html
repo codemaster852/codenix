@@ -163,7 +163,8 @@
             const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFuZ2FlenVmb3h3emtsb2hoaWF0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTUyNTE1NzcsImV4cCI6MjA3MDgyNzU3N30.4z8RjrPPJ5sqIjbn17h0fdK-V9owLTQN6-JzeAoivxk';
             const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
 
-            const GEMINI_API_KEY = "AIzaSyBMVUXGdF56RKxJh-E_cJaITZwwHtKGNjA"; 
+            const GEMINI_API_KEY = "AIzaSyBMVUXGdF56RKxJh-E_cJaITZwwHtKGNjA";
+            const DEEPSEEK_API_KEY = "sk-ad74271315714512b770c962a522190d";
 
             let projectFiles = [];
             let conversationHistory = [];
@@ -241,10 +242,6 @@
             };
 
             const handleSend = async () => {
-                if (!GEMINI_API_KEY) {
-                    addMessage("Error: Gemini API Key is not set. Please add your key to the script.", "ai");
-                    return;
-                }
                 const prompt = dom.chatInput.value.trim();
                 if (!prompt) return;
 
@@ -252,46 +249,68 @@
                 conversationHistory.push({role: 'user', text: prompt});
                 dom.chatInput.value = '';
                 
-                if (agentState === 'idle' || agentState === 'refining') {
+                if (agentState === 'idle' || agentState === 'awaiting_approval') {
                     await runAgentPlanner();
+                } else if (agentState === 'refining') {
+                    await runAgentRefiner(prompt);
                 }
             };
 
-            async function callGeminiAPI(prompt, jsonSchema = null) {
-                // Token check before every API call
+            async function callApi(model, prompt, jsonSchema = null) {
                 if (!canUseTokens(1)) {
                     throw new Error("You have insufficient tokens for this action.");
                 }
 
-                const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${GEMINI_API_KEY}`;
-                const payload = {
-                    contents: [{ role: 'user', parts: [{ text: prompt }] }]
-                };
-                if (jsonSchema) {
-                    payload.generationConfig = {
-                        responseMimeType: "application/json",
-                        responseSchema: jsonSchema
+                let url, payload, headers;
+
+                if (model === 'gemini') {
+                    url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${GEMINI_API_KEY}`;
+                    headers = { 'Content-Type': 'application/json' };
+                    payload = { contents: [{ role: 'user', parts: [{ text: prompt }] }] };
+                    if (jsonSchema) {
+                        payload.generationConfig = {
+                            responseMimeType: "application/json",
+                            responseSchema: jsonSchema
+                        };
+                    }
+                } else if (model === 'deepseek') {
+                    url = 'https://api.deepseek.com/chat/completions';
+                    headers = {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${DEEPSEEK_API_KEY}`
                     };
+                    payload = {
+                        model: "deepseek-chat",
+                        messages: [{ role: "user", content: prompt }]
+                    };
+                    if (jsonSchema) {
+                        payload.response_format = { type: "json_object" };
+                    }
+                } else {
+                    throw new Error("Invalid model specified");
                 }
+
                 try {
                     const response = await fetch(url, {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: headers,
                         body: JSON.stringify(payload)
                     });
                     if (!response.ok) {
-                         const errorBody = await response.text();
-                        throw new Error(`Gemini API Error: ${response.statusText} - ${errorBody}`);
+                        const errorBody = await response.text();
+                        throw new Error(`API Error (${model}): ${response.statusText} - ${errorBody}`);
                     }
                     const result = await response.json();
-                     if (!result.candidates || result.candidates.length === 0) {
-                        throw new Error("API returned no candidates. The response might be blocked.");
-                    }
-                    const text = result.candidates[0].content.parts[0].text;
                     
-                    // Deduct tokens on successful call
-                    await deductTokens(1);
+                    let text;
+                    if (model === 'gemini') {
+                        if (!result.candidates || result.candidates.length === 0) throw new Error("Gemini API returned no candidates.");
+                        text = result.candidates[0].content.parts[0].text;
+                    } else { // deepseek
+                        text = result.choices[0].message.content;
+                    }
 
+                    await deductTokens(1);
                     return jsonSchema ? JSON.parse(text) : text.replace(/^```(html|javascript|css|json)?\s*|```\s*$/g, '').trim();
                 } catch (error) {
                     console.error("API Call Failed:", error);
@@ -317,7 +336,7 @@
                     };
                     const fullConversation = conversationHistory.map(m => `${m.role}: ${m.text}`).join('\n');
                     const planPrompt = `Based on the user's request history, create a comprehensive project plan. User request history:\n${fullConversation}\n\nProvide a detailed plan in markdown, a to-do list, and a list of necessary filenames.`;
-                    const projectPlan = await callGeminiAPI(planPrompt, planSchema);
+                    const projectPlan = await callApi('gemini', planPrompt, planSchema);
                     
                     planMessage.innerHTML = planMessage.innerHTML.replace('Analyzing request...', `✅ Plan complete. Please review.`);
                     planMessage.querySelector('svg').style.animation = 'none';
@@ -391,7 +410,7 @@
                     updateFileList();
 
                     const codePrompt = `The user wants to build a project based on this plan: "${projectPlan.plan}". The full file list is: [${projectPlan.files.join(', ')}]. Generate the complete, production-ready code for the file named "${file.name}". Ensure it is well-commented and works with the other files. Only return the raw code, with no explanations or markdown backticks.`;
-                    file.content = await callGeminiAPI(codePrompt);
+                    file.content = await callApi('gemini', codePrompt);
                     
                     file.isGenerating = false;
                     updateFileList();
@@ -404,10 +423,53 @@
                     }
                 }
 
-                addMessage('Project generation complete! You can now send it to the editor or publish it.', 'ai');
+                addMessage('Project generation complete! You can now ask for changes or send it to the editor.', 'ai');
+                conversationHistory.push({role: 'ai', text: 'Project generation complete! You can now ask for changes or send it to the editor.'});
                 dom.sendToEditorContainer.classList.remove('hidden');
                 dom.publishButton.classList.remove('hidden');
-                agentState = 'idle';
+                agentState = 'refining';
+                dom.chatInput.disabled = false;
+                dom.sendButton.disabled = false;
+            };
+
+            const runAgentRefiner = async (prompt) => {
+                agentState = 'refining';
+                dom.chatInput.disabled = true;
+                dom.sendButton.disabled = true;
+
+                try {
+                    const fileListString = projectFiles.map(f => f.name).join(', ');
+                    const thought = addMessage('Analyzing which file to modify...', 'ai', true);
+                    const fileTargetPrompt = `Given the following list of files [${fileListString}], which file would you modify to address this user request: "${prompt}"? Respond with only the filename.`;
+                    const targetFile = await callApi('deepseek', fileTargetPrompt);
+                    
+                    const fileToEdit = projectFiles.find(f => f.name === targetFile);
+                    if (!fileToEdit) {
+                        throw new Error(`Model suggested a file that doesn't exist: ${targetFile}`);
+                    }
+
+                    thought.innerHTML = thought.innerHTML.replace('Analyzing which file...', `Okay, I need to modify \`${targetFile}\`. Generating new code...`);
+
+                    fileToEdit.isGenerating = true;
+                    updateFileList();
+
+                    const refinementPrompt = `The user wants to modify a project. Their request is: "${prompt}". Here is the original code for the file \`${targetFile}\`:\n\n\`\`\`\n${fileToEdit.content}\n\`\`\`\n\nPlease provide the complete, updated code for this file that incorporates the user's request. Only return the raw, updated code with no explanations or markdown backticks.`;
+                    const updatedCode = await callApi('gemini', refinementPrompt);
+
+                    fileToEdit.content = updatedCode;
+                    fileToEdit.isGenerating = false;
+                    updateFileList();
+                    updatePreview();
+                    thought.remove();
+                    addMessage(`I've updated \`${targetFile}\` with your changes.`, 'ai');
+
+                } catch(error) {
+                    addMessage(`Sorry, I ran into an error while refining the code: ${error.message}`, 'ai');
+                } finally {
+                    agentState = 'refining';
+                    dom.chatInput.disabled = false;
+                    dom.sendButton.disabled = false;
+                }
             };
 
             const updatePreview = () => {
