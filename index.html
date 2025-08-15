@@ -256,7 +256,7 @@
 
             // --- API Configuration ---
             const apiKeys = {
-                gemini: 'YOUR_GEMINI_API_KEY', // IMPORTANT: Replace with your actual key
+                gemini: 'AIzaSyBMVUXGdF56RKxJh-E_cJaITZwwHtKGNjA',
                 openrouter: 'YOUR_OPENROUTER_API_KEY', // IMPORTANT: Replace with your actual key
             };
 
@@ -447,7 +447,6 @@
 
             const handlePublish = () => {
                 const finalHtml = createSelfContainedHtml();
-                // Encode the HTML content and create a Data URI for true portability.
                 const dataUri = `data:text/html;charset=utf-8,${encodeURIComponent(finalHtml)}`;
                 dom.shareUrlInput.value = dataUri;
                 
@@ -580,11 +579,34 @@
             };
 
             const initializeApp = () => {
+                // Check if there's a project from agent mode
+                const agentProjectData = localStorage.getItem('codenix-agent-project');
+                if (agentProjectData) {
+                    try {
+                        const agentFiles = JSON.parse(agentProjectData);
+                        state.files = agentFiles.map((f, i) => ({ ...f, id: `file_${Date.now() + i}` }));
+                        if (state.files.length > 0) {
+                            const htmlFile = state.files.find(f => f.name === 'index.html') || state.files[0];
+                           switchFile(htmlFile.id);
+                        }
+                        localStorage.removeItem('codenix-agent-project'); // Clear after loading
+                        addChatMessage("Project loaded from Agent Mode!", 'system');
+                    } catch(e) {
+                        console.error("Failed to load project from agent mode:", e);
+                        loadDefaultProject();
+                    }
+                } else {
+                    loadDefaultProject();
+                }
+
                 initResizer(dom.resizer0, dom.filePanel, dom.chatPanel);
                 initResizer(dom.resizer1, dom.chatPanel, dom.workplacePanel);
                 initResizer(dom.resizer2, dom.workplacePanel, dom.previewPanel);
+                handleResize();
+            };
 
-                const htmlFile = { id: `file_${Date.now()}`, name: "index.html", content: `<!DOCTYPE html>
+            const loadDefaultProject = () => {
+                 const htmlFile = { id: `file_${Date.now()}`, name: "index.html", content: `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -615,9 +637,7 @@
 
                 state.files.push(htmlFile, cssFile, jsFile);
                 switchFile(htmlFile.id);
-                
-                addChatMessage("Welcome to Codenix Pro! I've set up a sample project with linked HTML, CSS, and JS files. How can I help?", 'system');
-                handleResize();
+                addChatMessage("Welcome to Codenix Pro! I've set up a sample project. How can I help?", 'system');
             };
 
             // --- Event Listeners ---
