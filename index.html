@@ -3,678 +3,441 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Codenix Pro - Build with AI</title>
+    <title>Nix 1 - General Model Chat</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.4.12/ace.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
     <style>
         body {
             font-family: 'Inter', sans-serif;
-            overflow: hidden;
         }
-        .ace_editor {
-            height: 100%;
-            width: 100%;
+        .chat-container::-webkit-scrollbar {
+            width: 8px;
         }
-        .resizer-col {
-            background-color: #374151;
-            cursor: col-resize;
-            width: 6px;
-            flex-shrink: 0;
-            z-index: 10;
+        .chat-container::-webkit-scrollbar-track {
+            background: #f1f1f1;
         }
-        .resizer-col:hover {
-            background-color: #4b5563;
+        .chat-container::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 4px;
         }
-        .resizing {
-            user-select: none;
+        .chat-container::-webkit-scrollbar-thumb:hover {
+            background: #555;
         }
-        .file-item {
-            cursor: pointer;
-            transition: background-color 0.2s;
+        .loader {
+            width: 1rem;
+            height: 1rem;
+            border: 2px solid currentColor;
+            border-right-color: transparent;
+            border-radius: 50%;
+            display: inline-block;
+            animation: spin .4s linear infinite;
         }
-        .file-item.active {
-            background-color: #4a5568;
-        }
-        .file-item:hover {
-            background-color: #2d3748;
-        }
-        .modal-overlay {
-            background-color: rgba(0, 0, 0, 0.7);
-        }
-        #console-panel {
-            height: 160px;
-            backdrop-filter: blur(4px);
-        }
-        #console-panel .log-message {
-            font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
-            padding: 4px 8px;
-            border-bottom: 1px solid #2d3748;
-            font-size: 0.8rem;
-        }
-        #console-panel .log-error {
-            background-color: rgba(127, 29, 29, 0.5);
-            color: #fca5a5;
-        }
-        .mobile-nav-btn {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            padding: 4px 0;
-            color: #9ca3af;
-            transition: color 0.2s;
-        }
-        .mobile-nav-btn.active {
-            color: #818cf8;
-        }
-        .mobile-nav-btn .label {
-            font-size: 0.7rem;
-            margin-top: 2px;
-        }
-        .panel-container {
-            display: flex;
-            flex-direction: column;
-            width: 100%;
-            height: 100%;
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
         }
     </style>
 </head>
 <body class="bg-gray-900 text-white flex flex-col h-screen">
 
-    <!-- Header -->
-    <header id="main-header" class="bg-gray-800/50 backdrop-blur-sm border-b border-gray-700 p-3 md:p-4 flex justify-between items-center z-20 flex-shrink-0">
-        <div class="flex items-center space-x-2 md:space-x-3">
-            <svg class="w-7 h-7 md:w-8 md:h-8 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path></svg>
-            <h1 class="text-xl md:text-2xl font-bold">Codenix Pro</h1>
-        </div>
-        <div class="flex items-center space-x-2 md:space-x-4">
-            <div class="hidden md:flex items-center space-x-2">
-                <label for="model-select" class="text-sm font-medium">Model:</label>
-                <select id="model-select" class="bg-gray-700 border border-gray-600 rounded-md px-3 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                    <option value="codenix">Codenix (Synthesized)</option>
-                    <option value="gemini">Gemini 1.5 Flash</option>
-                    <option value="openrouter">OpenRouter</option>
-                    <option value="deepseek">DeepSeek (Mock)</option>
-                </select>
-            </div>
-            <!-- Agent Mode Button -->
-            <a href="agent.html" id="agent-mode-button" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-md flex items-center space-x-2 transition-all duration-200 transform hover:scale-105">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 8v8m-4-5v5m-4-2v2m-2 4h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
-                <span class="hidden md:inline">Agent Mode</span>
-            </a>
-            <!-- Publish Button -->
-            <button id="publish-button" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-md flex items-center space-x-2 transition-all duration-200 transform hover:scale-105">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
-                <span class="hidden md:inline">Publish</span>
-            </button>
-            <button id="run-button" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-md flex items-center space-x-2 transition-all duration-200 transform hover:scale-105"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg><span class="hidden md:inline">Run</span></button>
-        </div>
-    </header>
+    <div class="flex-1 flex flex-col p-4 md:p-6 max-w-4xl w-full mx-auto">
+        <header class="mb-4 text-center">
+            <h1 class="text-3xl font-bold bg-gradient-to-r from-purple-400 to-pink-500 text-transparent bg-clip-text">Nix 1</h1>
+            <p class="text-gray-400">Your General Model Assistant. Use / for commands.</p>
+        </header>
 
-    <!-- Main Content Area -->
-    <main class="flex-1 flex lg:flex-row overflow-y-auto lg:overflow-hidden pb-28 lg:pb-0">
-        <!-- Far-Left Panel: Files -->
-        <div id="file-panel" class="panel-container lg:basis-1/5 hidden lg:flex">
-            <div class="p-4 border-b border-gray-700 hidden lg:flex flex-shrink-0 justify-between items-center"><h2 class="text-lg font-semibold">Files</h2></div>
-            <div id="file-list" class="flex-1 overflow-y-auto p-2 space-y-1"></div>
-            <div class="p-2 border-t border-gray-700"><button id="add-file-button" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-md">Add New File</button></div>
-        </div>
-        <div class="resizer-col hidden lg:flex" id="resizer-0"></div>
-        <!-- Left Panel: Chat -->
-        <div id="chat-panel" class="panel-container lg:basis-1/4 hidden lg:flex">
-            <div id="chat-history" class="flex-1 overflow-y-auto p-4 space-y-4"></div>
-            <!-- Desktop chat input -->
-            <div class="p-2 border-t border-gray-700 flex-shrink-0 hidden lg:block">
-                <div class="flex items-center bg-gray-700 rounded-md">
-                    <input type="text" id="chat-input-desktop" class="flex-1 bg-transparent p-2 focus:outline-none" placeholder="Ask me to code something...">
-                    <button id="clear-chat-button-desktop" class="text-gray-400 hover:text-white p-2"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg></button>
-                    <button id="send-button-desktop" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold p-2 rounded-r-md transition-colors duration-200"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path></svg></button>
+        <!-- Chat Container -->
+        <div id="chat-container" class="flex-1 overflow-y-auto space-y-6 pr-2">
+            <!-- Initial Greeting -->
+            <div class="flex items-start gap-3">
+                <div class="bg-indigo-500 p-2 rounded-full">
+                     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6 text-white"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>
+                </div>
+                <div class="bg-gray-800 rounded-lg p-4 max-w-lg">
+                    <p>Hello! I'm Nix 1. How can I assist you today? You can ask me anything, or try one of my special commands: <strong>/image</strong>, <strong>/voice</strong>, <strong>/deepresearch</strong>, or <strong>/qr</strong>.</p>
                 </div>
             </div>
         </div>
-        <div class="resizer-col hidden lg:flex" id="resizer-1"></div>
-        <!-- Middle Panel: Workplace (Code Editor) -->
-        <div id="workplace-panel" class="panel-container flex-1 hidden lg:flex">
-             <div class="p-4 border-b border-gray-700 hidden lg:flex flex-shrink-0 justify-between items-center"><h2 class="text-lg font-semibold">Workplace</h2><button id="copy-code-button" class="bg-gray-700 hover:bg-gray-600 text-white font-bold py-1 px-3 rounded-md flex items-center space-x-2"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg><span>Copy</span></button></div>
-            <div id="editor" class="flex-1"></div>
-        </div>
-        <div class="resizer-col hidden lg:flex" id="resizer-2"></div>
-        <!-- Right Panel: Live Preview -->
-        <div id="preview-panel" class="panel-container flex-1 relative hidden lg:flex">
-            <div class="flex-1 bg-white overflow-auto"><iframe id="preview-frame" class="w-full h-full border-0"></iframe></div>
-            <div id="console-panel" class="bg-gray-900/80 flex-col absolute bottom-0 left-0 right-0 hidden">
-                <div class="p-2 border-b border-gray-700 flex-shrink-0 flex justify-between items-center"><h2 class="text-md font-semibold text-red-400">Console</h2><button id="clear-console-button" class="text-gray-400 hover:text-white transition-colors text-xs">Clear</button></div>
-                <div id="console-output" class="flex-1 overflow-y-auto p-1"></div>
-            </div>
-        </div>
-    </main>
-    
-    <!-- Mobile Chat Input -->
-    <div id="mobile-chat-input-container" class="lg:hidden fixed bottom-14 left-0 right-0 bg-gray-800 p-2 border-t border-gray-700 z-20">
-        <div class="flex items-center bg-gray-700 rounded-md">
-            <input type="text" id="chat-input-mobile" class="flex-1 bg-transparent p-2 focus:outline-none" placeholder="Ask AI...">
-             <button id="clear-chat-button-mobile" class="text-gray-400 hover:text-white p-2"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg></button>
-            <button id="send-button-mobile" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold p-2 rounded-r-md transition-colors duration-200"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path></svg></button>
-        </div>
-    </div>
 
-    <!-- Mobile Navigation -->
-    <nav id="mobile-nav" class="lg:hidden fixed bottom-0 left-0 right-0 bg-gray-800 border-t border-gray-700 flex justify-around p-1 z-30">
-        <button data-view="file-panel" class="mobile-nav-btn"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path></svg><span class="label">Files</span></button>
-        <button data-view="chat-panel" class="mobile-nav-btn"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path></svg><span class="label">Chat</span></button>
-        <button data-view="workplace-panel" class="mobile-nav-btn active"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path></svg><span class="label">Code</span></button>
-        <button data-view="preview-panel" class="mobile-nav-btn"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg><span class="label">Preview</span></button>
-    </nav>
-    
-    <!-- Modals -->
-    <div id="loading-modal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center z-50"><div class="bg-gray-800 p-6 rounded-lg flex flex-col items-center space-y-4"><div class="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-400"></div><p id="loading-text" class="text-lg">Generating code...</p></div></div>
-    <div id="new-file-modal" class="hidden fixed inset-0 modal-overlay flex items-center justify-center z-50"><div class="bg-gray-800 p-6 rounded-lg shadow-xl w-full max-w-md"><h3 class="text-lg font-semibold mb-4">Create New File</h3><div><label for="new-file-name" class="block text-sm font-medium text-gray-300 mb-1">Filename</label><input type="text" id="new-file-name" class="w-full bg-gray-700 border border-gray-600 rounded-md p-2 focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="index.html"></div><div class="mt-6 flex justify-end space-x-3"><button id="cancel-new-file" class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-md transition-colors">Cancel</button><button id="confirm-new-file" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-md transition-colors">Create</button></div></div></div>
-    <!-- Publish Modal -->
-    <div id="publish-modal" class="hidden fixed inset-0 modal-overlay flex items-center justify-center z-50">
-        <div class="bg-gray-800 p-6 rounded-lg shadow-xl w-full max-w-lg">
-            <h3 class="text-lg font-semibold mb-4">Project Published</h3>
-            <p class="text-gray-300 mb-4">Your project is ready to be shared or downloaded.</p>
-            <div class="mb-4">
-                <label for="share-url" class="block text-sm font-medium text-gray-300 mb-1">Shareable Preview URL</label>
-                <div class="flex">
-                    <input type="text" id="share-url" readonly class="w-full bg-gray-700 border border-gray-600 rounded-l-md p-2 text-sm text-gray-400">
-                    <button id="copy-url-button" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-3 rounded-r-md">Copy</button>
-                </div>
-            </div>
-            <div class="mt-6 flex justify-between items-center">
-                <button id="download-zip-button" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-md flex items-center space-x-2">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
-                    <span>Download .zip</span>
+        <!-- Command Suggestions -->
+        <div id="command-suggestions" class="hidden bg-gray-800 border border-gray-700 rounded-lg p-2 mt-2">
+             <p class="text-sm text-gray-400 mb-2">Commands:</p>
+             <div id="command-list" class="space-y-1">
+                 <div class="p-2 rounded-md hover:bg-gray-700 cursor-pointer" data-command="/image"><strong>/image</strong> &lt;prompt&gt; - Generate an image.</div>
+                 <div class="p-2 rounded-md hover:bg-gray-700 cursor-pointer" data-command="/voice"><strong>/voice</strong> &lt;prompt&gt; - Generate voice audio.</div>
+                 <div class="p-2 rounded-md hover:bg-gray-700 cursor-pointer" data-command="/deepresearch"><strong>/deepresearch</strong> &lt;prompt&gt; - Perform grounded research.</div>
+                 <div class="p-2 rounded-md hover:bg-gray-700 cursor-pointer" data-command="/qr"><strong>/qr</strong> &lt;text&gt; - Generate a QR code.</div>
+             </div>
+        </div>
+        
+        <!-- Input Form -->
+        <div class="mt-4 border-t border-gray-700 pt-4">
+            <form id="chat-form" class="flex items-center gap-3">
+                <textarea id="chat-input" class="flex-1 bg-gray-800 border border-gray-700 rounded-lg p-3 focus:ring-2 focus:ring-indigo-500 focus:outline-none resize-none" placeholder="Type your message or a command..." rows="1"></textarea>
+                <button type="submit" id="send-button" class="bg-indigo-600 hover:bg-indigo-700 text-white rounded-full p-3 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
                 </button>
-                <button id="close-publish-modal" class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-md transition-colors">Close</button>
-            </div>
+            </form>
         </div>
     </div>
-
 
     <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            // --- DOM Element References ---
-            const dom = {
-                mainHeader: document.getElementById('main-header'),
-                filePanel: document.getElementById('file-panel'),
-                chatPanel: document.getElementById('chat-panel'),
-                workplacePanel: document.getElementById('workplace-panel'),
-                previewPanel: document.getElementById('preview-panel'),
-                consolePanel: document.getElementById('console-panel'),
-                consoleOutput: document.getElementById('console-output'),
-                clearConsoleButton: document.getElementById('clear-console-button'),
-                runButton: document.getElementById('run-button'),
-                publishButton: document.getElementById('publish-button'),
-                modelSelect: document.getElementById('model-select'),
-                copyCodeButton: document.getElementById('copy-code-button'),
-                previewFrame: document.getElementById('preview-frame'),
-                loadingModal: document.getElementById('loading-modal'),
-                loadingText: document.getElementById('loading-text'),
-                resizer0: document.getElementById('resizer-0'),
-                resizer1: document.getElementById('resizer-1'),
-                resizer2: document.getElementById('resizer-2'),
-                addFileButton: document.getElementById('add-file-button'),
-                fileList: document.getElementById('file-list'),
-                chatHistory: document.getElementById('chat-history'),
-                chatInputDesktop: document.getElementById('chat-input-desktop'),
-                sendButtonDesktop: document.getElementById('send-button-desktop'),
-                clearChatButtonDesktop: document.getElementById('clear-chat-button-desktop'),
-                chatInputMobile: document.getElementById('chat-input-mobile'),
-                sendButtonMobile: document.getElementById('send-button-mobile'),
-                clearChatButtonMobile: document.getElementById('clear-chat-button-mobile'),
-                newFileModal: document.getElementById('new-file-modal'),
-                newFileNameInput: document.getElementById('new-file-name'),
-                confirmNewFileButton: document.getElementById('confirm-new-file'),
-                cancelNewFileButton: document.getElementById('cancel-new-file'),
-                mobileNav: document.getElementById('mobile-nav'),
-                publishModal: document.getElementById('publish-modal'),
-                shareUrlInput: document.getElementById('share-url'),
-                copyUrlButton: document.getElementById('copy-url-button'),
-                downloadZipButton: document.getElementById('download-zip-button'),
-                closePublishModalButton: document.getElementById('close-publish-modal'),
-            };
+        const chatContainer = document.getElementById('chat-container');
+        const chatForm = document.getElementById('chat-form');
+        const chatInput = document.getElementById('chat-input');
+        const sendButton = document.getElementById('send-button');
+        const commandSuggestions = document.getElementById('command-suggestions');
+        const commandList = document.getElementById('command-list');
+        
+        // Using the API key provided by the user for this specific environment.
+        const GEMINI_API_KEY = "AIzaSyAzoJbY93o00CRxdF7pTcTZVYRL7CheV7E";
 
-            const allPanels = [dom.filePanel, dom.chatPanel, dom.workplacePanel, dom.previewPanel];
-
-            // --- Initialize Ace Editor ---
-            const editor = ace.edit("editor");
-            editor.setTheme("ace/theme/monokai");
-            editor.session.setMode("ace/mode/html");
-            editor.on('change', () => {
-                if (state.activeFileId) {
-                    const activeFile = state.files.find(f => f.id === state.activeFileId);
-                    if (activeFile) activeFile.content = editor.getValue();
-                }
-            });
-
-            // --- State Management ---
-            let state = { files: [], activeFileId: null, chatMessages: [] };
-
-            // --- API Configuration ---
-            const apiKeys = {
-                gemini: 'AIzaSyBMVUXGdF56RKxJh-E_cJaITZwwHtKGNjA',
-                openrouter: 'YOUR_OPENROUTER_API_KEY', // IMPORTANT: Replace with your actual key
-            };
-
-            // --- Panel Resizing Logic (Desktop) ---
-            const initResizer = (resizer, panelA, panelB) => {
-                resizer.addEventListener('mousedown', (e) => {
-                    e.preventDefault();
-                    document.body.classList.add('resizing');
-                    const onMouseMove = (moveEvent) => {
-                        const totalWidth = panelA.offsetWidth + panelB.offsetWidth;
-                        const newPanelAWidth = moveEvent.clientX - panelA.getBoundingClientRect().left;
-                        if (newPanelAWidth > 150 && totalWidth - newPanelAWidth > 150) {
-                            panelA.style.flexBasis = newPanelAWidth + 'px';
-                            panelB.style.flexBasis = (totalWidth - newPanelAWidth) + 'px';
-                        }
-                        editor.resize();
-                    };
-                    const onMouseUp = () => {
-                        document.body.classList.remove('resizing');
-                        document.removeEventListener('mousemove', onMouseMove);
-                        document.removeEventListener('mouseup', onMouseUp);
-                    };
-                    document.addEventListener('mousemove', onMouseMove);
-                    document.addEventListener('mouseup', onMouseUp);
-                });
-            };
-            
-            // --- UI Helper Functions ---
-            const showLoading = (isLoading, text = 'Generating code...') => {
-                dom.loadingText.textContent = text;
-                dom.loadingModal.classList.toggle('hidden', !isLoading);
-            };
-
-            const addChatMessage = (text, sender) => {
-                const messageDiv = document.createElement('div');
-                messageDiv.className = sender === 'user' ? 'bg-indigo-600 p-3 rounded-lg self-end max-w-xs md:max-w-md' : 'bg-gray-700 p-3 rounded-lg max-w-xs md:max-w-md';
-                const p = document.createElement('p');
-                p.textContent = text;
-                p.className = 'text-sm break-words';
-                messageDiv.appendChild(p);
-                dom.chatHistory.appendChild(messageDiv);
-                dom.chatHistory.scrollTop = dom.chatHistory.scrollHeight;
-                state.chatMessages.push({ role: sender, text: text });
-            };
-
-            // --- View Logic ---
-            const setActiveView = (viewId) => {
-                if (window.innerWidth < 1024) { // Mobile view
-                    allPanels.forEach(p => p.classList.add('hidden'));
-                    document.getElementById(viewId)?.classList.remove('hidden');
-                    dom.mainHeader.style.display = viewId === 'preview-panel' ? 'none' : 'flex';
-                }
-                dom.mobileNav.querySelectorAll('.mobile-nav-btn').forEach(btn => {
-                    btn.classList.toggle('active', btn.dataset.view === viewId);
-                });
-                editor.resize();
-            };
-            
-            // --- Console Logic ---
-            const addLogToConsole = (logData) => {
-                const { type, message } = logData;
-                if (type === 'error') {
-                    dom.consolePanel.style.display = 'flex';
-                }
-                const logEntry = document.createElement('div');
-                logEntry.className = `log-message log-error`;
-                const textNode = document.createTextNode(message);
-                logEntry.appendChild(textNode);
-
-                const solveButton = document.createElement('button');
-                solveButton.textContent = 'Solve';
-                solveButton.className = 'ml-4 bg-red-800 hover:bg-red-700 text-white text-xs font-bold py-1 px-2 rounded';
-                solveButton.onclick = () => handleSolveIssue(message);
-                logEntry.appendChild(solveButton);
-                
-                dom.consoleOutput.appendChild(logEntry);
-                dom.consoleOutput.scrollTop = dom.consoleOutput.scrollHeight;
-            };
-
-            window.addEventListener('message', (event) => {
-                if (event.source === dom.previewFrame.contentWindow && event.data.type === 'console' && event.data.log.type === 'error') {
-                    addLogToConsole(event.data.log);
-                }
-            });
-
-            const clearConsole = () => {
-                dom.consoleOutput.innerHTML = '';
-                dom.consolePanel.style.display = 'none';
-            };
-
-            // --- File Management ---
-            const renderFileList = () => {
-                dom.fileList.innerHTML = '';
-                state.files.forEach(file => {
-                    const fileDiv = document.createElement('div');
-                    fileDiv.className = `file-item p-2 rounded-md text-sm flex justify-between items-center ${file.id === state.activeFileId ? 'active' : ''}`;
-                    fileDiv.textContent = file.name;
-                    fileDiv.dataset.id = file.id;
-                    fileDiv.onclick = () => switchFile(file.id);
-                    dom.fileList.appendChild(fileDiv);
-                });
-            };
-
-            const switchFile = (fileId) => {
-                if (fileId === state.activeFileId) return;
-                state.activeFileId = fileId;
-                const file = state.files.find(f => f.id === fileId);
-                if (file) {
-                    editor.setValue(file.content, -1);
-                    const mode = getAceMode(file.name);
-                    editor.session.setMode(`ace/mode/${mode}`);
-                }
-                renderFileList();
-                updatePreview();
-            };
-
-            const handleConfirmNewFile = () => {
-                const fileName = dom.newFileNameInput.value.trim();
-                if (fileName) {
-                    const newFile = { id: `file_${Date.now()}`, name: fileName, content: `<!-- ${fileName} -->` };
-                    state.files.push(newFile);
-                    switchFile(newFile.id);
-                    dom.newFileModal.classList.add('hidden');
-                    dom.newFileNameInput.value = '';
-                }
-            };
-
-            const setCodeForActiveFile = (code) => {
-                if (!state.activeFileId && state.files.length > 0) state.activeFileId = state.files[0].id;
-                const activeFile = state.files.find(f => f.id === state.activeFileId);
-                if (activeFile) {
-                    activeFile.content = code;
-                    editor.setValue(code, -1);
-                    renderFileList();
-                    updatePreview();
-                } else {
-                    addChatMessage("Error: No active file selected. Please create a file first.", "system");
-                }
-            };
-            
-            // --- Helper functions for file types ---
-            const getMimeType = (filename) => {
-                if (filename.endsWith('.html')) return 'text/html';
-                if (filename.endsWith('.css')) return 'text/css';
-                if (filename.endsWith('.js')) return 'application/javascript';
-                return 'text/plain';
-            };
-
-            const getAceMode = (filename) => {
-                if (filename.endsWith('.js')) return 'javascript';
-                if (filename.endsWith('.css')) return 'css';
-                if (filename.endsWith('.json')) return 'json';
-                return 'html';
-            };
-
-            // --- Preview & Publish Logic ---
-            const createSelfContainedHtml = () => {
-                let htmlFile = state.files.find(f => f.name.toLowerCase() === 'index.html');
-                if (!htmlFile) {
-                    htmlFile = state.files.find(f => f.id === state.activeFileId);
-                    if (!htmlFile) return '<h1>No HTML file found to preview.</h1>';
-                }
-
-                let htmlContent = htmlFile.content;
-
-                state.files.forEach(file => {
-                    if (file.id !== htmlFile.id) {
-                        const blob = new Blob([file.content], { type: getMimeType(file.name) });
-                        const blobUrl = URL.createObjectURL(blob);
-                        const regex = new RegExp(`(src|href)=["'](./)?${file.name}["']`, 'g');
-                        htmlContent = htmlContent.replace(regex, `$1="${blobUrl}"`);
-                    }
-                });
-                return htmlContent;
-            };
-
-            const updatePreview = () => {
-                clearConsole();
-                const consoleInterceptor = `<script>
-                    window.onerror = (message, source, lineno, colno, error) => {
-                        window.parent.postMessage({ type: 'console', log: { type: 'error', message: \`\${message} (\${source.split('/').pop()}:\${lineno})\` } }, '*');
-                        return true;
-                    };
-                <\/script>`;
-                const finalHtml = createSelfContainedHtml();
-                dom.previewFrame.srcdoc = `<html><head>${consoleInterceptor}</head><body>${finalHtml}</body></html>`;
-            };
-
-            const handlePublish = () => {
-                const finalHtml = createSelfContainedHtml();
-                const dataUri = `data:text/html;charset=utf-8,${encodeURIComponent(finalHtml)}`;
-                dom.shareUrlInput.value = dataUri;
-                
-                const zip = new JSZip();
-                state.files.forEach(file => {
-                    zip.file(file.name, file.content);
-                });
-                dom.downloadZipButton.onclick = () => {
-                    zip.generateAsync({ type: "blob" }).then(function(content) {
-                        saveAs(content, "codenix-project.zip");
-                    });
-                };
-
-                dom.publishModal.classList.remove('hidden');
-            };
-
-            // --- API Call Logic ---
-            const createAPIPrompt = (prompt) => `The user wants to build: "${prompt}". Generate a complete, single-file HTML response. Include all necessary CSS (using TailwindCSS classes via the CDN script) and JavaScript in the HTML file. Ensure the code is production-ready, well-commented, and fully functional. Do not wrap the code in markdown backticks.`;
-
-            async function generateWithGemini(prompt) {
-                const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKeys.gemini}`;
-                const payload = { contents: [{ role: 'user', parts: [{ text: prompt }] }] };
-                const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-                if (!response.ok) throw new Error(`Gemini API Error: ${response.statusText}`);
-                const result = await response.json();
-                return result.candidates[0].content.parts[0].text.replace(/^```(html|javascript|css)?\s*|```\s*$/g, '').trim();
-            }
-
-            async function generateWithOpenRouter(prompt) {
-                const url = `https://openrouter.ai/api/v1/chat/completions`;
-                const payload = { model: "google/gemini-flash-1.5", messages: [{ role: "user", content: prompt }] };
-                const response = await fetch(url, { method: 'POST', headers: { 'Authorization': `Bearer ${apiKeys.openrouter}`, 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-                if (!response.ok) throw new Error(`OpenRouter API Error: ${response.statusText}`);
-                const result = await response.json();
-                return result.choices[0].message.content.replace(/^```(html|javascript|css)?\s*|```\s*$/g, '').trim();
-            }
-
-            async function generateWithDeepSeekMock(prompt) {
-                await new Promise(r => setTimeout(r, 500));
-                return `<!-- Mock DeepSeek Response for: ${prompt} -->\n<h1>DeepSeek Mock</h1>\n<p>This is a placeholder response.</p>`;
-            }
-            
-            const generateCode = (prompt, model) => {
-                const apiPrompt = createAPIPrompt(prompt);
-                switch (model) {
-                    case 'gemini': return generateWithGemini(apiPrompt);
-                    case 'openrouter': return generateWithOpenRouter(apiPrompt);
-                    case 'deepseek': return generateWithDeepSeekMock(apiPrompt);
-                    default: throw new Error('Invalid model selected');
-                }
-            };
-
-            const generateWithCodenix = async (prompt) => {
-                const modelsToQuery = ['gemini', 'openrouter', 'deepseek'];
-                addChatMessage("Codenix mode activated. Querying all available models...", "system");
-                const results = await Promise.allSettled(modelsToQuery.map(model => generateCode(prompt, model)));
-                const successfulResults = results.filter(r => r.status === 'fulfilled').map(r => r.value);
-                if (successfulResults.length === 0) throw new Error("All models failed.");
-                addChatMessage(`✅ Synthesizing code from ${successfulResults.length} models...`, "system");
-                const synthesisPrompt = `You are an expert code synthesizer. Your task is to analyze and combine the best elements from the following code snippets to fulfill the user's request: "${prompt}". Create a single, complete, and superior HTML file that is clean, functional, and well-styled with TailwindCSS. Do not include markdown backticks in your final response.\n\n` + successfulResults.map((code, i) => `--- CODE FROM MODEL ${i+1} ---\n${code}`).join('\n\n');
-                try {
-                    showLoading(true, 'Synthesizing results with Gemini...');
-                    const finalCode = await generateWithGemini(synthesisPrompt);
-                    addChatMessage('Codenix has synthesized the best code for you.', 'system');
-                    return finalCode;
-                } catch (e) {
-                    addChatMessage(`Gemini synthesis failed: ${e.message}. Returning the best available result.`, "system");
-                    return successfulResults[0];
-                }
-            };
-
-            // --- Main Application Logic ---
-            const handleSendMessage = async () => {
-                const chatInput = window.innerWidth < 1024 ? dom.chatInputMobile : dom.chatInputDesktop;
-                const prompt = chatInput.value.trim();
-                if (!prompt) return;
-                if (state.files.length === 0) {
-                    addChatMessage("Please create a file first before asking for code.", "system");
-                    return;
-                }
-                
-                addChatMessage(prompt, 'user');
-                chatInput.value = '';
-                showLoading(true, 'Thinking...');
-                try {
-                    const selectedModel = dom.modelSelect.value;
-                    const finalCode = selectedModel === 'codenix' ? await generateWithCodenix(prompt) : await generateCode(prompt, selectedModel);
-                    setCodeForActiveFile(finalCode);
-                    addChatMessage(`Here is the code I generated with ${selectedModel}.`, 'system');
-                } catch (error) {
-                    addChatMessage(`Sorry, an error occurred: ${error.message}`, "system");
-                } finally {
-                    showLoading(false);
-                }
-            };
-
-            const handleSolveIssue = async (errorMessage) => {
-                const activeFile = state.files.find(f => f.id === state.activeFileId);
-                if (!activeFile) return;
-                addChatMessage("Attempting to debug the error with AI...", "system");
-                showLoading(true, "Debugging with AI...");
-                const debugPrompt = `I encountered an error in my code. Error message: "${errorMessage}". Here is the full code from the file "${activeFile.name}":\n\`\`\`\n${activeFile.content}\n\`\`\`\nPlease provide a fixed version of the code. Only return the complete, corrected code, without any explanations or markdown backticks.`;
-                try {
-                    const fixedCode = await generateWithGemini(debugPrompt);
-                    setCodeForActiveFile(fixedCode);
-                    addChatMessage("I've attempted a fix. The code has been updated. Please run it again.", "system");
-                } catch (error) {
-                    addChatMessage(`The AI debugger failed: ${error.message}`, "system");
-                } finally {
-                    showLoading(false);
-                }
-            };
-            
-            const handleResize = () => {
-                if (window.innerWidth < 1024) {
-                    const currentActive = document.querySelector('.mobile-nav-btn.active')?.dataset.view || 'workplace-panel';
-                    setActiveView(currentActive);
-                } else {
-                    allPanels.forEach(p => p.classList.add('lg:flex'));
-                    allPanels.forEach(p => p.classList.remove('hidden'));
-                    dom.mainHeader.style.display = 'flex';
-                }
-                 editor.resize();
-            };
-            
-            const clearChatHistory = () => {
-                dom.chatHistory.innerHTML = '';
-                state.chatMessages = [];
-                addChatMessage("Chat cleared.", 'system');
-            };
-
-            const initializeApp = () => {
-                // Check if there's a project from agent mode
-                const agentProjectData = localStorage.getItem('codenix-agent-project');
-                if (agentProjectData) {
-                    try {
-                        const agentFiles = JSON.parse(agentProjectData);
-                        state.files = agentFiles.map((f, i) => ({ ...f, id: `file_${Date.now() + i}` }));
-                        if (state.files.length > 0) {
-                            const htmlFile = state.files.find(f => f.name === 'index.html') || state.files[0];
-                           switchFile(htmlFile.id);
-                        }
-                        localStorage.removeItem('codenix-agent-project'); // Clear after loading
-                        addChatMessage("Project loaded from Agent Mode!", 'system');
-                    } catch(e) {
-                        console.error("Failed to load project from agent mode:", e);
-                        loadDefaultProject();
-                    }
-                } else {
-                    loadDefaultProject();
-                }
-
-                initResizer(dom.resizer0, dom.filePanel, dom.chatPanel);
-                initResizer(dom.resizer1, dom.chatPanel, dom.workplacePanel);
-                initResizer(dom.resizer2, dom.workplacePanel, dom.previewPanel);
-                handleResize();
-            };
-
-            const loadDefaultProject = () => {
-                 const htmlFile = { id: `file_${Date.now()}`, name: "index.html", content: `<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>My Project</title>
-    <link rel="stylesheet" href="style.css">
-</head>
-<body>
-    <h1>Hello World!</h1>
-    <p>Welcome to Codenix Pro!</p>
-    <button onclick="showAlert()">Click Me</button>
-    <script src="script.js"><\/script>
-</body>
-</html>` };
-                const cssFile = { id: `file_${Date.now()+1}`, name: "style.css", content: `body {
-    font-family: sans-serif;
-    background-color: #f0f0f0;
-    color: #333;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    height: 100vh;
-    text-align: center;
-}` };
-                const jsFile = { id: `file_${Date.now()+2}`, name: "script.js", content: `function showAlert() {
-    alert("Button clicked from script.js!");
-}` };
-
-                state.files.push(htmlFile, cssFile, jsFile);
-                switchFile(htmlFile.id);
-                addChatMessage("Welcome to Codenix Pro! I've set up a sample project. How can I help?", 'system');
-            };
-
-            // --- Event Listeners ---
-            [dom.sendButtonDesktop, dom.sendButtonMobile].forEach(btn => btn.addEventListener('click', handleSendMessage));
-            [dom.chatInputDesktop, dom.chatInputMobile].forEach(input => input.addEventListener('keypress', (e) => e.key === 'Enter' && handleSendMessage()));
-            [dom.clearChatButtonDesktop, dom.clearChatButtonMobile].forEach(btn => btn.addEventListener('click', clearChatHistory));
-            
-            dom.addFileButton.addEventListener('click', () => { dom.newFileModal.classList.remove('hidden'); dom.newFileNameInput.focus(); });
-            dom.runButton.addEventListener('click', () => {
-                updatePreview();
-                if (window.innerWidth < 1024) {
-                    setActiveView('preview-panel');
-                }
-            });
-            dom.publishButton.addEventListener('click', handlePublish);
-            dom.closePublishModalButton.addEventListener('click', () => dom.publishModal.classList.add('hidden'));
-            dom.copyUrlButton.addEventListener('click', () => {
-                dom.shareUrlInput.select();
-                document.execCommand('copy');
-                dom.copyUrlButton.textContent = 'Copied!';
-                setTimeout(() => { dom.copyUrlButton.textContent = 'Copy'; }, 2000);
-            });
-            dom.copyCodeButton.addEventListener('click', () => navigator.clipboard.writeText(editor.getValue()).then(() => { dom.copyCodeButton.querySelector('span').textContent = 'Copied!'; setTimeout(() => { dom.copyCodeButton.querySelector('span').textContent = 'Copy'; }, 2000); }));
-            dom.clearConsoleButton.addEventListener('click', clearConsole);
-            dom.confirmNewFileButton.addEventListener('click', handleConfirmNewFile);
-            dom.cancelNewFileButton.addEventListener('click', () => dom.newFileModal.classList.add('hidden'));
-            dom.newFileNameInput.addEventListener('keypress', (e) => e.key === 'Enter' && handleConfirmNewFile());
-            dom.mobileNav.addEventListener('click', (e) => {
-                const navButton = e.target.closest('.mobile-nav-btn');
-                if (navButton) {
-                    setActiveView(navButton.dataset.view);
-                }
-            });
-            window.addEventListener('resize', handleResize);
-            
-            initializeApp();
+        chatForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            handleSendMessage();
         });
+
+        chatInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                handleSendMessage();
+            }
+        });
+
+        chatInput.addEventListener('input', () => {
+            // Auto-resize textarea
+            chatInput.style.height = 'auto';
+            chatInput.style.height = (chatInput.scrollHeight) + 'px';
+
+            // Smart command filtering
+            const value = chatInput.value.trim();
+            if (value.startsWith('/')) {
+                const query = value.substring(1).toLowerCase();
+                const commands = commandList.querySelectorAll('[data-command]');
+                let visibleCommands = 0;
+                
+                commands.forEach(cmd => {
+                    const commandName = cmd.dataset.command.substring(1);
+                    if (commandName.startsWith(query)) {
+                        cmd.style.display = '';
+                        visibleCommands++;
+                    } else {
+                        cmd.style.display = 'none';
+                    }
+                });
+
+                if (visibleCommands > 0) {
+                    commandSuggestions.classList.remove('hidden');
+                } else {
+                    commandSuggestions.classList.add('hidden');
+                }
+
+            } else {
+                commandSuggestions.classList.add('hidden');
+            }
+        });
+
+
+        commandList.addEventListener('click', (e) => {
+            const commandItem = e.target.closest('[data-command]');
+            if (commandItem) {
+                chatInput.value = commandItem.dataset.command + ' ';
+                commandSuggestions.classList.add('hidden');
+                chatInput.focus();
+            }
+        });
+
+        async function handleSendMessage() {
+            const message = chatInput.value.trim();
+            if (!message) return;
+
+            addMessageToChat('user', message);
+            chatInput.value = '';
+            chatInput.style.height = 'auto';
+            commandSuggestions.classList.add('hidden');
+            setLoading(true);
+
+            try {
+                if (message.startsWith('/image ')) {
+                    const prompt = message.substring(7);
+                    await generateImage(prompt);
+                } else if (message.startsWith('/voice ')) {
+                    const prompt = message.substring(7);
+                    await generateVoice(prompt);
+                } else if (message.startsWith('/deepresearch ')) {
+                    const prompt = message.substring(14);
+                    await generateDeepResearch(prompt);
+                } else if (message.startsWith('/qr ')) {
+                    const prompt = message.substring(4);
+                    generateQrCode(prompt);
+                }
+                else {
+                    await generateText(message);
+                }
+            } catch (error) {
+                console.error("API Error:", error);
+                const placeholder = document.getElementById('bot-placeholder');
+                if (placeholder) {
+                    updateBotMessage(`Sorry, an error occurred: ${error.message}`);
+                } else {
+                    addMessageToChat('bot', `Sorry, an error occurred: ${error.message}`);
+                }
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        function addMessageToChat(sender, content) {
+            const messageDiv = document.createElement('div');
+            let messageHTML = '';
+
+            if (sender === 'user') {
+                messageHTML = `
+                    <div class="flex items-start gap-3 justify-end">
+                        <div class="bg-indigo-600 rounded-lg p-4 max-w-lg">
+                            <p>${content}</p>
+                        </div>
+                         <div class="bg-gray-700 p-2 rounded-full">
+                           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6 text-white"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                        </div>
+                    </div>
+                `;
+            } else { // bot
+                 messageHTML = `
+                    <div class="flex items-start gap-3">
+                        <div class="bg-indigo-500 p-2 rounded-full">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6 text-white"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>
+                        </div>
+                        <div class="bot-message-content bg-gray-800 rounded-lg p-4 max-w-lg">${content}</div>
+                    </div>
+                `;
+            }
+            messageDiv.innerHTML = messageHTML;
+            chatContainer.appendChild(messageDiv);
+            scrollToBottom();
+        }
+        
+        function addBotMessagePlaceholder() {
+            const placeholderHTML = `
+                <div class="flex items-start gap-3" id="bot-placeholder">
+                    <div class="bg-indigo-500 p-2 rounded-full">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6 text-white"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>
+                    </div>
+                    <div class="bg-gray-800 rounded-lg p-4 max-w-lg flex items-center">
+                        <span class="loader"></span>
+                    </div>
+                </div>`;
+            chatContainer.insertAdjacentHTML('beforeend', placeholderHTML);
+            scrollToBottom();
+        }
+
+        function updateBotMessage(content) {
+            const placeholder = document.getElementById('bot-placeholder');
+            if (placeholder) {
+                const contentDiv = placeholder.querySelector('.bg-gray-800');
+                contentDiv.innerHTML = content;
+                placeholder.removeAttribute('id');
+            }
+        }
+        
+        async function makeApiCall(url, payload, retries = 3, delay = 1000) {
+            for (let i = 0; i < retries; i++) {
+                try {
+                    const response = await fetch(url, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    if (!response.ok) {
+                        let errorMsg = `API Error (${response.status})`;
+                        try {
+                            const errorBody = await response.json();
+                            errorMsg += `: ${errorBody.error?.message || JSON.stringify(errorBody)}`;
+                        } catch (e) {
+                            const textError = await response.text();
+                            if (textError) {
+                               errorMsg += `: ${textError}`;
+                            }
+                        }
+                        throw new Error(errorMsg);
+                    }
+                    return await response.json();
+                } catch (error) {
+                    if (i === retries - 1) throw error;
+                    await new Promise(res => setTimeout(res, delay * Math.pow(2, i)));
+                }
+            }
+        }
+
+        async function generateText(prompt) {
+            addBotMessagePlaceholder();
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${GEMINI_API_KEY}`;
+            const payload = { contents: [{ parts: [{ text: prompt }] }] };
+            
+            const result = await makeApiCall(apiUrl, payload);
+            const text = result.candidates?.[0]?.content?.parts?.[0]?.text || "I couldn't generate a response.";
+            updateBotMessage(`<p>${text.replace(/\n/g, '<br>')}</p>`);
+        }
+
+        async function generateDeepResearch(prompt) {
+            addBotMessagePlaceholder();
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${GEMINI_API_KEY}`;
+            const payload = {
+                contents: [{ parts: [{ text: prompt }] }],
+                tools: [{ "google_search": {} }],
+            };
+
+            const result = await makeApiCall(apiUrl, payload);
+            let text = result.candidates?.[0]?.content?.parts?.[0]?.text || "I couldn't find any information.";
+             
+            const groundingMetadata = result.candidates?.[0]?.groundingMetadata;
+            let sources = [];
+            if (groundingMetadata && groundingMetadata.groundingAttributions) {
+                sources = groundingMetadata.groundingAttributions
+                    .map(attr => ({ uri: attr.web?.uri, title: attr.web?.title }))
+                    .filter(source => source.uri && source.title);
+            }
+
+            let responseHTML = `<p>${text.replace(/\n/g, '<br>')}</p>`;
+            if (sources.length > 0) {
+                responseHTML += `<h3 class="font-semibold mt-4 mb-2 text-gray-300">Sources:</h3><ul class="list-disc list-inside space-y-1">`;
+                sources.forEach(source => {
+                    responseHTML += `<li><a href="${source.uri}" target="_blank" rel="noopener noreferrer" class="text-indigo-400 hover:underline">${source.title}</a></li>`;
+                });
+                responseHTML += `</ul>`;
+            }
+            updateBotMessage(responseHTML);
+        }
+
+        async function generateImage(prompt) {
+            addBotMessagePlaceholder();
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict?key=${GEMINI_API_KEY}`;
+            const payload = { instances: [{ prompt }], parameters: { sampleCount: 1 } };
+            
+            const result = await makeApiCall(apiUrl, payload);
+            const base64Data = result.predictions?.[0]?.bytesBase64Encoded;
+            if (base64Data) {
+                const imageUrl = `data:image/png;base64,${base64Data}`;
+                updateBotMessage(`<img src="${imageUrl}" alt="${prompt}" class="rounded-lg max-w-sm w-full">`);
+            } else {
+                updateBotMessage("Sorry, I couldn't generate an image for that prompt.");
+            }
+        }
+
+        function generateQrCode(text) {
+            if (!text) {
+                addMessageToChat('bot', 'Please provide text to generate a QR code. Usage: /qr <text>');
+                return;
+            }
+            addBotMessagePlaceholder();
+            const encodedText = encodeURIComponent(text);
+            const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodedText}`;
+            updateBotMessage(`<img src="${qrUrl}" alt="QR Code for ${text}" class="rounded-lg w-48 h-48 bg-white p-2">`);
+        }
+
+
+        async function generateVoice(prompt) {
+            addBotMessagePlaceholder();
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${GEMINI_API_KEY}`;
+            const payload = {
+                contents: [{ parts: [{ text: prompt }] }],
+                generationConfig: {
+                    responseModalities: ["AUDIO"],
+                },
+                model: "gemini-2.5-flash-preview-tts"
+            };
+            
+            const result = await makeApiCall(apiUrl, payload);
+            const audioData = result.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+            const mimeType = result.candidates?.[0]?.content?.parts?.[0]?.inlineData?.mimeType;
+
+            if (audioData && mimeType && mimeType.startsWith("audio/")) {
+                const sampleRateMatch = mimeType.match(/rate=(\d+)/);
+                const sampleRate = sampleRateMatch ? parseInt(sampleRateMatch[1], 10) : 24000;
+                
+                const pcmData = base64ToArrayBuffer(audioData);
+                const pcm16 = new Int16Array(pcmData);
+                const wavBlob = pcmToWav(pcm16, 1, sampleRate);
+                const audioUrl = URL.createObjectURL(wavBlob);
+                
+                updateBotMessage(`<audio controls src="${audioUrl}" class="w-full"></audio>`);
+            } else {
+                updateBotMessage("Sorry, I couldn't generate audio for that text.");
+            }
+        }
+        
+        // --- UTILITY FUNCTIONS ---
+        
+        function setLoading(isLoading) {
+            sendButton.disabled = isLoading;
+            chatInput.disabled = isLoading;
+            if (isLoading) {
+                sendButton.innerHTML = `<span class="loader"></span>`;
+            } else {
+                sendButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>`;
+            }
+        }
+
+        function scrollToBottom() {
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+
+        function base64ToArrayBuffer(base64) {
+            const binary_string = window.atob(base64);
+            const len = binary_string.length;
+            const bytes = new Uint8Array(len);
+            for (let i = 0; i < len; i++) {
+                bytes[i] = binary_string.charCodeAt(i);
+            }
+            return bytes.buffer;
+        }
+
+        function pcmToWav(pcmData, numChannels, sampleRate) {
+            const buffer = new ArrayBuffer(44 + pcmData.length * 2);
+            const view = new DataView(buffer);
+
+            /* RIFF identifier */
+            writeString(view, 0, 'RIFF');
+            /* file length */
+            view.setUint32(4, 36 + pcmData.length * 2, true);
+            /* RIFF type */
+            writeString(view, 8, 'WAVE');
+            /* format chunk identifier */
+            writeString(view, 12, 'fmt ');
+            /* format chunk length */
+            view.setUint32(16, 16, true);
+            /* sample format (raw) */
+            view.setUint16(20, 1, true);
+            /* channel count */
+            view.setUint16(22, numChannels, true);
+            /* sample rate */
+            view.setUint32(24, sampleRate, true);
+            /* byte rate (sample rate * block align) */
+            view.setUint32(28, sampleRate * 2 * numChannels, true);
+            /* block align (channel count * bytes per sample) */
+            view.setUint16(32, numChannels * 2, true);
+            /* bits per sample */
+            view.setUint16(34, 16, true);
+            /* data chunk identifier */
+            writeString(view, 36, 'data');
+            /* data chunk length */
+            view.setUint32(40, pcmData.length * 2, true);
+
+            for (let i = 0; i < pcmData.length; i++) {
+                view.setInt16(44 + i * 2, pcmData[i], true);
+            }
+            
+            return new Blob([view], { type: 'audio/wav' });
+        }
+
+        function writeString(view, offset, string) {
+            for (let i = 0; i < string.length; i++) {
+                view.setUint8(offset + i, string.charCodeAt(i));
+            }
+        }
+
     </script>
 </body>
 </html>
+
