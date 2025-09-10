@@ -60,12 +60,15 @@
     </div>
 
     <div class="p-4 bg-gray-900">
-        <div class="max-w-3xl mx-auto">
+        <div class="max-w-3xl mx-auto relative">
+            <div id="command-suggestions" class="absolute bottom-full mb-2 w-full bg-gray-700 rounded-lg shadow-xl overflow-hidden hidden z-10">
+                <!-- Command suggestions will be injected here by JavaScript -->
+            </div>
              <form id="askForm" class="flex items-center bg-gray-800 rounded-full p-2 shadow-xl">
                 <input 
                     type="text" 
                     id="question" 
-                    placeholder="Ask Nix 1 anything..." 
+                    placeholder="Ask Nix 1 anything, or type / for commands..." 
                     required
                     class="flex-1 bg-transparent text-white border-none focus:outline-none px-4"
                     autocomplete="off">
@@ -85,9 +88,16 @@
         const sendButton = document.getElementById("send-button");
         const initialView = document.getElementById("initial-view");
         const chatContainer = document.getElementById("chat-container");
+        const commandSuggestionsContainer = document.getElementById("command-suggestions");
         
         const webhookUrl = "https://cloud.activepieces.com/api/v1/webhooks/j114iudpzFIY9Q5HeLsLI/sync";
         let isFirstMessage = true;
+
+        const commands = [
+            { name: '/image', description: 'Generate an image from your text.' },
+            { name: '/video', description: 'Create a video from your text.' },
+            { name: '/audio', description: 'Create a voice response from your text.' },
+        ];
 
         const addMessage = (message, sender, options = {}) => {
             const { isError = false, imageUrl = null, videoUrl = null, audioUrl = null } = options;
@@ -191,8 +201,53 @@
             }
         };
 
+        const renderSuggestions = (filteredCommands) => {
+            commandSuggestionsContainer.innerHTML = '';
+            if (filteredCommands.length === 0) {
+                commandSuggestionsContainer.classList.add('hidden');
+                return;
+            }
+
+            filteredCommands.forEach(command => {
+                const suggestionItem = document.createElement('div');
+                suggestionItem.classList.add('p-3', 'hover:bg-gray-600', 'cursor-pointer', 'transition-colors');
+                suggestionItem.innerHTML = `<div class="font-semibold text-white">${command.name}</div><div class="text-sm text-gray-400">${command.description}</div>`;
+                
+                suggestionItem.addEventListener('mousedown', (e) => { // Use mousedown to fire before blur
+                    e.preventDefault();
+                    questionInput.value = command.name + ' ';
+                    commandSuggestionsContainer.classList.add('hidden');
+                    questionInput.focus();
+                });
+
+                commandSuggestionsContainer.appendChild(suggestionItem);
+            });
+
+            commandSuggestionsContainer.classList.remove('hidden');
+        };
+
+        questionInput.addEventListener('input', () => {
+            const value = questionInput.value;
+            if (value.startsWith('/')) {
+                const searchTerm = value.substring(1).toLowerCase();
+                const filteredCommands = commands.filter(command => 
+                    command.name.substring(1).toLowerCase().startsWith(searchTerm)
+                );
+                renderSuggestions(filteredCommands);
+            } else {
+                commandSuggestionsContainer.classList.add('hidden');
+            }
+        });
+
+        questionInput.addEventListener('blur', () => {
+            setTimeout(() => {
+                commandSuggestionsContainer.classList.add('hidden');
+            }, 150);
+        });
+
         askForm.addEventListener("submit", async (e) => {
             e.preventDefault();
+            commandSuggestionsContainer.classList.add('hidden');
             const question = questionInput.value.trim();
             if (!question) return;
 
