@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Codenix AI Studio - Gemini</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0A0A0A;
+            color: #EAEAEA;
+        }
+        .glassmorphism {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .gradient-text {
+            background: linear-gradient(90deg, #4F46E5, #EC4899);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .loader {
+            width: 48px;
+            height: 48px;
+            border: 5px solid #FFF;
+            border-bottom-color: #4F46E5;
+            border-radius: 50%;
+            display: inline-block;
+            box-sizing: border-box;
+            animation: rotation 1s linear infinite;
+        }
+        @keyframes rotation {
+            0% {
+                transform: rotate(0deg);
+            }
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+        #output-container p, #output-container h1, #output-container h2, #output-container h3, #output-container ul, #output-container ol, #output-container blockquote {
+            margin-bottom: 1rem;
+        }
+        #output-container code {
+             background-color: #1a1a1a;
+             padding: 0.2rem 0.4rem;
+             border-radius: 0.25rem;
+             font-family: monospace;
+        }
+        #output-container pre {
+            background-color: #1a1a1a;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            overflow-x: auto;
+        }
+        #output-container pre code {
+            padding: 0;
+            background-color: transparent;
+        }
+        #output-container a {
+            color: #60A5FA;
+            text-decoration: underline;
+        }
+        #output-container ul {
+            list-style-type: disc;
+            padding-left: 1.5rem;
+        }
+        /* New Chat Styles */
+        #chat-history {
+            flex-grow: 1;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            padding: 1rem;
+        }
+        .chat-message {
+            max-width: 80%;
+            padding: 0.75rem 1rem;
+            border-radius: 1rem;
+            line-height: 1.5;
+        }
+        .user-message {
+            background-color: #4F46E5;
+            color: white;
+            align-self: flex-end;
+            border-bottom-right-radius: 0;
+        }
+        .model-message {
+            background-color: rgba(255, 255, 255, 0.1);
+            color: #EAEAEA;
+            align-self: flex-start;
+            border-bottom-left-radius: 0;
+        }
+        .model-message p:last-child {
+            margin-bottom: 0;
+        }
+
+    </style>
+</head>
+<body class="antialiased h-full flex flex-col items-center justify-center p-4">
+    <!-- Background Gradient -->
+    <div class="absolute top-0 left-0 -z-10 h-full w-full bg-[#0A0A0A]">
+        <div class="absolute bottom-0 left-[-20%] right-0 top-[-10%] h-[500px] w-[500px] rounded-full bg-[radial-gradient(circle_farthest-side,rgba(255,0,182,.15),rgba(255,255,255,0))]"></div>
+        <div class="absolute bottom-0 right-[-20%] top-[-10%] h-[500px] w-[500px] rounded-full bg-[radial-gradient(circle_farthest-side,rgba(255,0,182,.15),rgba(255,255,255,0))]"></div>
+    </div>
+
+    <!-- Main Chat Container -->
+    <div class="glassmorphism rounded-xl flex flex-col w-full max-w-4xl h-full">
+        <!-- Chat Header -->
+        <div class="p-4 border-b border-white/10 text-center flex-shrink-0">
+            <h2 class="text-2xl font-bold">
+                Meet <span class="gradient-text">Gemini</span>
+            </h2>
+        </div>
+
+        <!-- API Key Disclaimer -->
+        <div class="mx-4 mt-4 p-3 border border-yellow-500/30 bg-yellow-500/10 rounded-lg text-yellow-200 text-xs flex-shrink-0">
+            <strong class="font-semibold">Security Notice:</strong> This demo uses a client-side API key for simplicity. In a production environment, never expose your API key in the frontend. All API calls should be made from a secure backend server.
+        </div>
+        
+        <!-- Chat History Area -->
+        <div id="chat-history" class="glassmorphism">
+            <div class="chat-message model-message">
+                Hello! How can I help you today?
+            </div>
+        </div>
+        
+        <!-- Input Form -->
+        <form id="chat-form" class="p-4 flex items-center gap-4 border-t border-white/10 flex-shrink-0">
+            <input type="text" id="prompt-input" class="w-full bg-gray-900/50 border border-gray-700 rounded-lg p-3 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all" placeholder="Message Gemini...">
+            <button id="send-btn" type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold p-3 rounded-lg transition-colors flex items-center justify-center">
+                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>
+            </button>
+        </form>
+        
+        <!-- Error Container -->
+        <div id="error-container" class="hidden p-4 mx-6 mb-6 border border-red-500/30 bg-red-500/10 rounded-lg text-red-200"></div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const chatForm = document.getElementById('chat-form');
+            const sendBtn = document.getElementById('send-btn');
+            const promptInput = document.getElementById('prompt-input');
+            const chatHistory = document.getElementById('chat-history');
+            const errorContainer = document.getElementById('error-container');
+
+            // IMPORTANT: As noted in the UI, this is NOT a secure way to handle API keys.
+            // This is for demonstration purposes only.
+            const API_KEY = 'AIzaSyD7hibrmo4DGuYDXSPbu0sWqh-mKYi6Z5U';
+            const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${API_KEY}`;
+            
+            chatForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const prompt = promptInput.value.trim();
+
+                if (!prompt) {
+                    return;
+                }
+                
+                appendMessage('user', prompt);
+                promptInput.value = '';
+
+                // Show loading indicator
+                appendMessage('model', '<div class="loader mx-auto"></div>', true);
+
+                try {
+                    const payload = {
+                        contents: [{
+                            parts: [{ text: prompt }]
+                        }],
+                    };
+
+                    const response = await fetch(API_URL, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(payload),
+                    });
+
+                    // Remove loader
+                    chatHistory.lastChild.remove();
+
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.error.message || `HTTP error! status: ${response.status}`);
+                    }
+
+                    const data = await response.json();
+                    
+                    if (data.candidates && data.candidates.length > 0) {
+                        const generatedText = data.candidates[0].content.parts[0].text;
+                        appendMessage('model', generatedText);
+                    } else {
+                        appendMessage('model', 'No content was generated. This may be due to the prompt violating safety policies.');
+                    }
+
+                } catch (error) {
+                    console.error('Error calling Gemini API:', error);
+                    // Ensure loader is removed on error as well
+                    if(chatHistory.lastChild && chatHistory.lastChild.querySelector('.loader')) {
+                       chatHistory.lastChild.remove();
+                    }
+                    appendMessage('model', `Sorry, an error occurred: ${error.message}`);
+                }
+            });
+            
+            function appendMessage(sender, text, isHtml = false) {
+                const messageDiv = document.createElement('div');
+                messageDiv.classList.add('chat-message', `${sender}-message`);
+                
+                if (sender === 'model' && !isHtml) {
+                     messageDiv.innerHTML = marked.parse(text);
+                } else {
+                     messageDiv.innerHTML = text; // For user message text or loader HTML
+                }
+
+                chatHistory.appendChild(messageDiv);
+                chatHistory.scrollTop = chatHistory.scrollHeight;
+            }
+
+            function showError(message) {
+                errorContainer.textContent = message;
+                errorContainer.classList.remove('hidden');
+            }
+        });
+    </script>
+</body>
+</html>
+
+
