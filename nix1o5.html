@@ -124,12 +124,32 @@
             { name: '/code', description: 'Generate a code snippet.' },
         ];
         
-        // --- Helper Functions ---
+        // --- Helper Functions for creating UI elements ---
+
         function linkify(text) {
             if (!text) return '';
             const urlRegex = /(\b(https?|ftp|file):\/\/[-A-Z0-9+&@#\/%?=~_|!:,.;]*[-A-Z0-9+&@#\/%=~_|])/ig;
             const sanitizedText = text.replace(/</g, "&lt;").replace(/>/g, "&gt;");
             return sanitizedText.replace(urlRegex, (url) => `<a href="${url}" target="_blank" rel="noopener noreferrer" class="text-blue-400 hover:underline">${url}</a>`);
+        }
+
+        function createMediaElement(tag, src) {
+            const element = document.createElement(tag);
+            element.src = src;
+            element.classList.add('rounded-lg', 'max-w-full', 'h-auto', 'mt-2');
+            element.onload = () => chatContainer.scrollTop = chatContainer.scrollHeight;
+            if (tag === 'video' || tag === 'audio') {
+                element.controls = true;
+                element.playsinline = true;
+            }
+            return element;
+        }
+        
+        function createQrCodeElement(url) {
+            const img = createMediaElement('img', url);
+            img.alt = "QR Code";
+            img.classList.add('w-48', 'h-48');
+            return img;
         }
 
         function createDownloadLink(url, isDoc = false) {
@@ -138,6 +158,7 @@
             const downloadLink = document.createElement('a');
             downloadLink.href = url;
             downloadLink.download = true;
+            downloadLink.target = "_blank";
             downloadLink.classList.add('inline-flex', 'items-center', 'text-sm', 'text-blue-400', 'hover:text-blue-300', 'mt-2', 'bg-gray-800', 'hover:bg-gray-600', 'px-3', 'py-1', 'rounded-full', 'transition-colors', 'duration-200', 'no-underline');
             const docIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="inline-block mr-2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>`;
             const fileIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="inline-block mr-2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>`;
@@ -146,36 +167,47 @@
             return fileContainer;
         }
 
+        function createButtons(buttons) {
+            const container = document.createElement('div');
+            container.classList.add('mt-3', 'flex', 'flex-wrap', 'gap-2');
+            buttons.forEach(buttonInfo => {
+                if (buttonInfo.text && buttonInfo.url) {
+                    const button = document.createElement('a');
+                    button.href = buttonInfo.url;
+                    button.target = "_blank";
+                    button.rel = "noopener noreferrer";
+                    button.textContent = buttonInfo.text;
+                    button.classList.add('bg-blue-600', 'hover:bg-blue-700', 'text-white', 'text-sm', 'font-semibold', 'py-2', 'px-4', 'rounded-full', 'transition-colors', 'duration-200', 'no-underline');
+                    container.appendChild(button);
+                }
+            });
+            return container;
+        }
+
         function createCodeBlock(code, language) {
             const container = document.createElement('div');
             container.classList.add('bg-gray-800', 'rounded-lg', 'overflow-hidden', 'my-2');
-
             const header = document.createElement('div');
             header.classList.add('bg-black', 'bg-opacity-30', 'text-gray-400', 'text-xs', 'p-2', 'flex', 'justify-between', 'items-center');
-
             const langSpan = document.createElement('span');
             langSpan.textContent = language || 'code';
             header.appendChild(langSpan);
-
             const copyButton = document.createElement('button');
             copyButton.classList.add('flex', 'items-center', 'space-x-1', 'hover:text-white', 'text-gray-400', 'p-1', 'rounded-md', 'hover:bg-gray-700', 'transition-colors');
             const copyIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>`;
             copyButton.innerHTML = `${copyIcon}<span>Copy</span>`;
-
             copyButton.addEventListener('click', () => {
-                const textArea = document.createElement("textarea");
+                const textArea = document.createElement('textarea');
                 textArea.value = code;
-                textArea.style.position = "fixed";
-                textArea.style.opacity = "0";
                 document.body.appendChild(textArea);
                 textArea.focus();
                 textArea.select();
                 try {
                     document.execCommand('copy');
-                    copyButton.innerHTML = `<span>Copied!</span>`;
+                    copyButton.innerHTML = `${copyIcon}<span>Copied!</span>`;
                 } catch (err) {
-                    copyButton.innerHTML = `<span>Error</span>`;
-                    console.error('Fallback: Oops, unable to copy', err);
+                    console.error('Fallback copy failed', err);
+                    copyButton.innerHTML = `${copyIcon}<span>Error</span>`;
                 }
                 document.body.removeChild(textArea);
                 setTimeout(() => {
@@ -183,20 +215,18 @@
                 }, 2000);
             });
             header.appendChild(copyButton);
-
             const pre = document.createElement('pre');
             pre.classList.add('p-4', 'text-sm', 'overflow-x-auto');
             const codeEl = document.createElement('code');
             codeEl.textContent = code;
             pre.appendChild(codeEl);
-
             container.appendChild(header);
             container.appendChild(pre);
             return container;
         }
 
-        const addMessage = (message, sender, options = {}) => {
-            const { isError = false, imageUrl = null, videoUrl = null, audioUrl = null, qrCodeUrl = null, fileUrl = null, docUrl = null } = options;
+        const addMessage = (sender, options = {}) => {
+            const { message = '', isError = false, imageUrl = null, videoUrl = null, audioUrl = null, qrCodeUrl = null, fileUrl = null, docUrl = null, buttons = [] } = options;
             const messageWrapper = document.createElement('div');
             messageWrapper.classList.add('flex', sender === 'user' ? 'justify-end' : 'justify-start');
 
@@ -211,37 +241,35 @@
                 messageDiv.textContent = message;
             } else { // AI message
                 messageDiv.classList.add('bg-gray-700', 'text-gray-200');
-                messageDiv.innerHTML = ''; // Clear any default content
-
                 if (message) {
                     if (message.includes('```')) {
                         const parts = message.split('```');
                         parts.forEach((part, index) => {
                             if (part.trim() === '') return;
-                            if (index % 2 === 0) { // This is regular text
+                            if (index % 2 === 0) {
                                 const textElement = document.createElement('p');
                                 textElement.innerHTML = linkify(part);
                                 messageDiv.appendChild(textElement);
-                            } else { // This is a code block
+                            } else {
                                 const langMatch = part.match(/^[a-z]+\n/);
                                 const language = langMatch ? langMatch[0].trim() : '';
                                 const code = langMatch ? part.substring(langMatch[0].length) : part;
                                 messageDiv.appendChild(createCodeBlock(code.trim(), language));
                             }
                         });
-                    } else { // No code blocks, treat as normal text
+                    } else {
                         const textElement = document.createElement('p');
                         textElement.innerHTML = linkify(message);
                         messageDiv.appendChild(textElement);
                     }
                 }
-
-                if (imageUrl) { /* ... image handling ... */ }
-                if (videoUrl) { /* ... video handling ... */ }
-                if (audioUrl) { /* ... audio handling ... */ }
-                if (qrCodeUrl) { /* ... qr code handling ... */ }
+                if (imageUrl) { messageDiv.appendChild(createMediaElement('img', imageUrl)); }
+                if (videoUrl) { messageDiv.appendChild(createMediaElement('video', videoUrl)); }
+                if (audioUrl) { messageDiv.appendChild(createMediaElement('audio', audioUrl)); }
+                if (qrCodeUrl) { messageDiv.appendChild(createQrCodeElement(qrCodeUrl)); }
                 if (docUrl) { messageDiv.appendChild(createDownloadLink(docUrl, true)); }
                 if (fileUrl) { messageDiv.appendChild(createDownloadLink(fileUrl, false)); }
+                if (buttons && buttons.length > 0) { messageDiv.appendChild(createButtons(buttons)); }
             }
             
             messageWrapper.appendChild(messageDiv);
@@ -250,16 +278,16 @@
         };
         
         const showLoadingIndicator = () => {
-             const loadingWrapper = document.createElement('div');
+            const loadingWrapper = document.createElement('div');
             loadingWrapper.id = 'loading-indicator';
             loadingWrapper.classList.add('flex', 'justify-start');
             const loadingDiv = document.createElement('div');
             loadingDiv.classList.add('bg-gray-700', 'rounded-2xl', 'p-4', 'flex', 'items-center', 'space-x-2');
             const thinkingText = document.createElement('span');
-            thinkingText.classList.add('text-gray-400', 'mr-2');
-            thinkingText.textContent = "Nix is thinking";
+            thinkingText.textContent = 'Nix is thinking';
+            thinkingText.classList.add('text-gray-400', 'italic');
             loadingDiv.appendChild(thinkingText);
-            for(let i=0; i<3; i++) {
+            for(let i = 0; i < 3; i++) {
                 const dot = document.createElement('div');
                 dot.classList.add('loading-dot', 'w-2', 'h-2', 'bg-gray-400', 'rounded-full');
                 loadingDiv.appendChild(dot);
@@ -268,52 +296,65 @@
             chatContainer.appendChild(loadingWrapper);
             chatContainer.scrollTop = chatContainer.scrollHeight;
         };
-        const removeLoadingIndicator = () => { 
+
+        const removeLoadingIndicator = () => {
             const indicator = document.getElementById('loading-indicator');
-            if(indicator) {
+            if (indicator) {
                 indicator.remove();
             }
         };
+
         const renderSuggestions = (filteredCommands) => {
             commandSuggestionsContainer.innerHTML = '';
-            if (filteredCommands.length === 0) { commandSuggestionsContainer.classList.add('hidden'); return; }
+            if (filteredCommands.length === 0) {
+                commandSuggestionsContainer.classList.add('hidden');
+                return;
+            }
             filteredCommands.forEach(command => {
-                const item = document.createElement('div');
-                item.classList.add('p-3', 'hover:bg-gray-600', 'cursor-pointer', 'transition-colors');
-                item.innerHTML = `<div class="font-semibold text-white">${command.name}</div><div class="text-sm text-gray-400">${command.description}</div>`;
-                item.addEventListener('mousedown', (e) => { e.preventDefault(); questionInput.value = command.name + ' '; commandSuggestionsContainer.classList.add('hidden'); questionInput.focus(); });
-                commandSuggestionsContainer.appendChild(item);
+                const suggestionItem = document.createElement('div');
+                suggestionItem.classList.add('p-3', 'hover:bg-gray-600', 'cursor-pointer', 'transition-colors');
+                suggestionItem.innerHTML = `<div class="font-semibold text-white">${command.name}</div><div class="text-sm text-gray-400">${command.description}</div>`;
+                suggestionItem.addEventListener('mousedown', (e) => {
+                    e.preventDefault();
+                    questionInput.value = command.name + ' ';
+                    commandSuggestionsContainer.classList.add('hidden');
+                    questionInput.focus();
+                });
+                commandSuggestionsContainer.appendChild(suggestionItem);
             });
             commandSuggestionsContainer.classList.remove('hidden');
         };
 
         // --- Event Listeners ---
         uploadButton.addEventListener('click', () => fileInput.click());
-        fileInput.addEventListener('change', () => { 
-             if (fileInput.files.length > 0) {
+        fileInput.addEventListener('change', () => {
+            if (fileInput.files.length > 0) {
                 fileNameSpan.textContent = fileInput.files[0].name;
                 filePreviewContainer.classList.remove('hidden');
             }
         });
-        removeFileButton.addEventListener('click', () => { 
+        removeFileButton.addEventListener('click', () => {
             fileInput.value = '';
             filePreviewContainer.classList.add('hidden');
         });
-        questionInput.addEventListener('input', () => { 
+        questionInput.addEventListener('input', () => {
             const value = questionInput.value;
             if (value.startsWith('/')) {
                 const searchTerm = value.substring(1).toLowerCase();
-                renderSuggestions(commands.filter(c => c.name.substring(1).toLowerCase().startsWith(searchTerm)));
-            } else { commandSuggestionsContainer.classList.add('hidden'); }
+                const filteredCommands = commands.filter(command => command.name.substring(1).toLowerCase().startsWith(searchTerm));
+                renderSuggestions(filteredCommands);
+            } else {
+                commandSuggestionsContainer.classList.add('hidden');
+            }
         });
-        questionInput.addEventListener('blur', () => { 
-            setTimeout(() => { commandSuggestionsContainer.classList.add('hidden'); }, 150); 
+        questionInput.addEventListener('blur', () => {
+            setTimeout(() => {
+                commandSuggestionsContainer.classList.add('hidden');
+            }, 150);
         });
 
         askForm.addEventListener("submit", async (e) => {
             e.preventDefault();
-            errorBanner.classList.add('hidden');
-            commandSuggestionsContainer.classList.add('hidden');
             const question = questionInput.value.trim();
             const file = fileInput.files[0];
 
@@ -326,7 +367,7 @@
             }
             
             const userMessage = file ? `${question || 'Processing file'}: ${file.name}` : question;
-            addMessage(userMessage, 'user');
+            addMessage('user', { message: userMessage });
             
             questionInput.value = '';
             fileInput.value = '';
@@ -338,9 +379,13 @@
             try {
                 const formData = new FormData();
                 formData.append('question', question);
-                if (file) { formData.append('file', file); }
-
-                const res = await fetch(webhookUrl, { method: "POST", body: formData });
+                if (file) {
+                    formData.append('file', file);
+                }
+                const res = await fetch(webhookUrl, {
+                    method: "POST",
+                    body: formData
+                });
                 removeLoadingIndicator();
 
                 if (!res.ok) {
@@ -349,5 +394,44 @@
                          errorBanner.classList.remove('hidden');
                          throw new Error(`Connection failed (Error 404: Not Found). Please verify the webhookUrl in the code is correct and the flow is enabled.`);
                     }
-                     if (res.status === 500 && errorText.includes("The flow has failed")) {
-                         throw new Error(`The ActivePieces flow failed. Please check your flow's 
+                    throw new Error(`Server error: ${res.status}. ${errorText}`);
+                }
+
+                const responseText = await res.text();
+                let options = {};
+
+                try {
+                    const data = JSON.parse(responseText);
+                    options = {
+                        message: data.answer || null,
+                        imageUrl: data.image || null,
+                        videoUrl: data.video || null,
+                        audioUrl: data.audio || null,
+                        qrCodeUrl: data.qr || null,
+                        fileUrl: data.file || null,
+                        docUrl: data.doc || null,
+                        buttons: data.buttons || []
+                    };
+                } catch (jsonError) {
+                    options = { message: responseText };
+                }
+
+                if (Object.values(options).some(val => val && (!Array.isArray(val) || val.length > 0))) {
+                    addMessage('ai', options);
+                } else {
+                    addMessage('ai', { message: "Sorry, I received a response but it was empty.", isError: true });
+                }
+
+            } catch (error) {
+                removeLoadingIndicator();
+                addMessage('ai', { message: error.message, isError: true });
+            } finally {
+                sendButton.disabled = false;
+                questionInput.focus();
+            }
+        });
+
+    </script>
+</body>
+</html>
+
