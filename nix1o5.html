@@ -44,6 +44,64 @@
                 transform: scale(1.0);
             }
         }
+        /* Custom Audio Player Styles */
+        .custom-audio-player {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background-color: #374151; /* bg-gray-700 adjusted */
+            padding: 8px;
+            border-radius: 9999px; /* rounded-full */
+            width: 100%;
+            max-width: 300px;
+            margin-top: 8px;
+        }
+        .play-pause-btn {
+            background-color: #3B82F6; /* bg-blue-600 */
+            border: none;
+            border-radius: 50%;
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            color: white;
+            flex-shrink: 0;
+            transition: background-color 0.2s;
+        }
+        .play-pause-btn:hover {
+            background-color: #2563EB; /* bg-blue-700 */
+        }
+        .progress-bar-wrapper {
+            background-color: #4B5563; /* bg-gray-600 */
+            height: 5px;
+            flex-grow: 1;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        .progress-bar {
+            background-color: #ffffff; /* white */
+            height: 100%;
+            width: 0%;
+            border-radius: 3px;
+        }
+        .download-btn {
+            background-color: transparent;
+            border: none;
+            cursor: pointer;
+            color: #9ca3af; /* text-gray-400 */
+            padding: 4px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background-color 0.2s, color 0.2s;
+        }
+        .download-btn:hover {
+            background-color: #4b5563; /* bg-gray-600 */
+            color: white;
+        }
     </style>
 </head>
 <body class="bg-gray-900 text-white flex flex-col h-screen">
@@ -143,6 +201,80 @@
                 element.playsinline = true;
             }
             return element;
+        }
+
+        function createCustomAudioPlayer(url) {
+            const playerWrapper = document.createElement('div');
+            playerWrapper.className = 'custom-audio-player';
+
+            const playPauseBtn = document.createElement('button');
+            playPauseBtn.className = 'play-pause-btn';
+            const playIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="ml-1"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>`;
+            const pauseIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>`;
+            playPauseBtn.innerHTML = playIcon;
+
+            const progressBarWrapper = document.createElement('div');
+            progressBarWrapper.className = 'progress-bar-wrapper';
+            const progressBar = document.createElement('div');
+            progressBar.className = 'progress-bar';
+            progressBarWrapper.appendChild(progressBar);
+
+            const downloadBtn = document.createElement('a');
+            downloadBtn.href = url;
+            downloadBtn.download = true; // This attribute triggers the download
+            downloadBtn.className = 'download-btn';
+            downloadBtn.title = 'Download audio';
+            downloadBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>`;
+
+
+            const audioElement = document.createElement('audio');
+            audioElement.src = url;
+            audioElement.preload = 'metadata';
+
+            playPauseBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (audioElement.paused) {
+                    audioElement.play();
+                } else {
+                    audioElement.pause();
+                }
+            });
+
+            audioElement.addEventListener('play', () => {
+                playPauseBtn.innerHTML = pauseIcon;
+            });
+            
+            audioElement.addEventListener('pause', () => {
+                playPauseBtn.innerHTML = playIcon;
+            });
+
+            audioElement.addEventListener('timeupdate', () => {
+                const progressPercent = (audioElement.currentTime / audioElement.duration) * 100;
+                progressBar.style.width = `${progressPercent}%`;
+            });
+            
+            audioElement.addEventListener('ended', () => {
+                playPauseBtn.innerHTML = playIcon;
+                progressBar.style.width = '0%';
+                audioElement.currentTime = 0;
+            });
+
+            progressBarWrapper.addEventListener('click', (e) => {
+                const rect = progressBarWrapper.getBoundingClientRect();
+                const clickX = e.clientX - rect.left;
+                const width = rect.width;
+                if(audioElement.duration){
+                    const duration = audioElement.duration;
+                    audioElement.currentTime = (clickX / width) * duration;
+                }
+            });
+            
+            playerWrapper.appendChild(playPauseBtn);
+            playerWrapper.appendChild(progressBarWrapper);
+            playerWrapper.appendChild(downloadBtn);
+            playerWrapper.appendChild(audioElement);
+
+            return playerWrapper;
         }
         
         function createQrCodeElement(url) {
@@ -265,7 +397,7 @@
                 }
                 if (imageUrl) { messageDiv.appendChild(createMediaElement('img', imageUrl)); }
                 if (videoUrl) { messageDiv.appendChild(createMediaElement('video', videoUrl)); }
-                if (audioUrl) { messageDiv.appendChild(createMediaElement('audio', audioUrl)); }
+                if (audioUrl) { messageDiv.appendChild(createCustomAudioPlayer(audioUrl)); }
                 if (qrCodeUrl) { messageDiv.appendChild(createQrCodeElement(qrCodeUrl)); }
                 if (docUrl) { messageDiv.appendChild(createDownloadLink(docUrl, true)); }
                 if (fileUrl) { messageDiv.appendChild(createDownloadLink(fileUrl, false)); }
@@ -434,4 +566,5 @@
     </script>
 </body>
 </html>
+
 
