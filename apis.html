@@ -1,0 +1,1014 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Codenix API Marketplace</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Load Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        /* Custom scrollbar for a polished look */
+        body::-webkit-scrollbar { width: 8px; }
+        body::-webkit-scrollbar-track { background: #1f2937; }
+        body::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 4px; }
+        body::-webkit-scrollbar-thumb:hover { background: #6b7280; }
+
+        /* Custom color for better visual appeal */
+        .codenix-bg {
+            background-color: #0d1117; /* Darker background */
+        }
+        .codenix-card {
+            background-color: #161b22; /* Slightly lighter card background */
+            border: 1px solid #30363d;
+            transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+        }
+        .codenix-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.2), 0 4px 6px -2px rgba(0, 0, 0, 0.1);
+        }
+        /* Base button style for filters */
+        .filter-btn {
+            @apply px-4 py-2 text-sm rounded-full bg-gray-700 hover:bg-gray-600 transition duration-150 text-gray-300;
+        }
+        /* Active button style (overrides base) */
+        .filter-active {
+            background-color: #4c51bf; /* Indigo 600 */
+            color: white;
+            font-weight: 600;
+            @apply hover:bg-secondary;
+        }
+    </style>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'primary': '#4c51bf', // Indigo for accent
+                        'secondary': '#6366f1',
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    }
+                }
+            }
+        }
+
+        // --- API DATA (Expanded and Categorized with Quota) ---
+        const apiData = [
+            // AI / CHAT APIs (5 existing)
+            {
+                name: "Gemini Generative API",
+                description: "Multimodal models for text, code, images, and audio generation and understanding.",
+                tags: ["AI / Chat", "Code / Dev", "Paid"],
+                pricing: "Paid",
+                quota: "Pay-as-you-go, with competitive free tiers and usage caps.",
+                platformLink: "https://ai.google.com/gemini",
+                docLink: "https://developers.google.com/gemini",
+                apiLink: "https://generativelanguage.googleapis.com/v1beta",
+                steps: "1. Get Google API key. 2. Set up authentication. 3. POST request to model:generateContent."
+            },
+            {
+                name: "OpenAI Platform API",
+                description: "Access to GPT models for natural language tasks, and DALL-E for image generation.",
+                tags: ["AI / Chat", "Code / Dev", "Paid"],
+                pricing: "Paid",
+                quota: "Usage-based pricing (per token/image). New users get free credits for 3 months.",
+                platformLink: "https://openai.com",
+                docLink: "https://platform.openai.com/docs",
+                apiLink: "https://api.openai.com/v1",
+                steps: "1. Create API key in dashboard. 2. Use API key in Authorization header. 3. POST to /v1/chat/completions endpoint."
+            },
+            {
+                name: "Hugging Face Inference API",
+                description: "Run thousands of community-built machine learning models via a simple HTTP API.",
+                tags: ["AI / Chat", "Code / Dev", "Free"],
+                pricing: "Free",
+                quota: "Free for community models; dedicated endpoints offer paid, high-volume capacity.",
+                platformLink: "https://huggingface.co",
+                docLink: "https://huggingface.co/docs/api-inference/index",
+                apiLink: "https://api-inference.huggingface.co",
+                steps: "1. Get a token. 2. POST to model endpoint with a JSON payload. 3. Free for community models."
+            },
+            {
+                name: "Google Translate API",
+                description: "Programmatic text translation between over 100 languages. Great for real-time apps.",
+                tags: ["AI / Chat", "Data / Search", "Paid"],
+                pricing: "Paid",
+                quota: "Free tier of 500,000 characters per month. Pricing scales after that.",
+                platformLink: "https://cloud.google.com/translate",
+                docLink: "https://cloud.google.com/translate/docs",
+                apiLink: "https://translation.googleapis.com/language/translate/v2",
+                steps: "1. Enable API in Google Cloud Console. 2. Authenticate using API key or service account."
+            },
+            {
+                name: "Claude API (Anthropic)",
+                description: "Access to Anthropic's Claude large language models for advanced reasoning and chat applications.",
+                tags: ["AI / Chat", "Paid"],
+                pricing: "Paid",
+                quota: "Usage-based per token. Trial period available with usage limits.",
+                platformLink: "https://www.anthropic.com",
+                docLink: "https://docs.anthropic.com",
+                apiLink: "https://api.anthropic.com/v1",
+                steps: "1. Create an Anthropic API key. 2. Use the key in the 'x-api-key' header. 3. POST to /messages."
+            },
+
+            // DATA / SEARCH APIs (7 existing)
+            {
+                name: "Open Weather Data",
+                description: "Real-time and historical weather data, forecasts, and climate information globally.",
+                tags: ["Data / Search", "Location", "Free"],
+                pricing: "Free",
+                quota: "1,000 calls per day on the free tier. Paid plans for high volume.",
+                platformLink: "https://openweathermap.org",
+                docLink: "https://openweathermap.org/api",
+                apiLink: "https://api.openweathermap.org/data/2.5",
+                steps: "1. Sign up for a free API key. 2. GET request to /weather?lat={lat}&lon={lon}&appid={API_KEY} endpoint."
+            },
+            {
+                name: "Unsplash Photo Feed",
+                description: "High-quality, free stock photography images for use in any project, with simple searching and tracking.",
+                tags: ["Data / Search", "Media / Content", "Free"],
+                pricing: "Free",
+                quota: "50 requests per hour for authenticated apps. Must attribute source.",
+                platformLink: "https://unsplash.com",
+                docLink: "https://unsplash.com/developers",
+                apiLink: "https://api.unsplash.com/photos",
+                steps: "1. Register application to get Client ID. 2. Pass Client ID in header or query parameter. 3. GET request to /photos/random."
+            },
+            {
+                name: "NASA Open API",
+                description: "Access to NASA's public data, including the Astronomy Picture of the Day (APOD) and Mars Rover Photos.",
+                tags: ["Data / Search", "Free"],
+                pricing: "Free",
+                quota: "No official rate limit (public domain) but requests without keys are capped at 50/day.",
+                platformLink: "https://api.nasa.gov",
+                docLink: "https://api.nasa.gov/api.html",
+                apiLink: "https://api.nasa.gov",
+                steps: "1. Get a demo key or register for a production key. 2. GET request to /planetary/apod."
+            },
+            {
+                name: "YouTube Data API",
+                description: "Manage videos, playlists, channels, and search for content on YouTube.",
+                tags: ["Data / Search", "Social", "Media / Content", "Free"],
+                pricing: "Free",
+                quota: "Uses a quota system (usually 1,000,000 units/day) where each call consumes a different amount.",
+                platformLink: "https://developers.google.com/youtube",
+                docLink: "https://developers.google.com/youtube/v3",
+                apiLink: "https://www.googleapis.com/youtube/v3",
+                steps: "1. Enable API in Google Cloud. 2. GET request to /search endpoint for video data."
+            },
+            {
+                name: "Hunter Email Verification",
+                description: "Check if an email address is valid, temporary, or high-risk for spam.",
+                tags: ["Data / Search", "Finance", "Free"],
+                pricing: "Free",
+                quota: "50 verification requests per month on the free tier. Paid plans offer unlimited.",
+                platformLink: "https://hunter.io",
+                docLink: "https://hunter.io/api/docs",
+                apiLink: "https://api.hunter.io/v2",
+                steps: "1. Get API key. 2. GET request to /email-verifier with the email parameter."
+            },
+            {
+                name: "SERP API",
+                description: "Real-time, structured Google search results for various engines (Google, Bing, Yahoo).",
+                tags: ["Data / Search", "Paid"],
+                pricing: "Paid",
+                quota: "Paid plans start at 5,000 searches/month. Free trial available.",
+                platformLink: "https://serpapi.com",
+                docLink: "https://serpapi.com/search-api",
+                apiLink: "https://serpapi.com/search",
+                steps: "1. Get your private API Key. 2. GET request with API Key and search parameters (q, engine)."
+            },
+            {
+                name: "NewsData.io API",
+                description: "Access to real-time and historical news data from thousands of sources globally.",
+                tags: ["Data / Search", "Free"],
+                pricing: "Free",
+                quota: "1,000 requests per day on the free tier. Paid plans for commercial use.",
+                platformLink: "https://newsdata.io",
+                docLink: "https://newsdata.io/documentation",
+                apiLink: "https://newsdata.io/api/1/news",
+                steps: "1. Get API key. 2. GET request to /news endpoint with your parameters (q, country, language)."
+            },
+            
+            // FINANCE APIs (5 existing)
+            {
+                name: "Stripe Payments Gateway",
+                description: "Securely accept payments, manage subscriptions, and handle invoices for e-commerce.",
+                tags: ["Finance", "Paid"],
+                pricing: "Paid",
+                quota: "Unlimited transactions. Pricing is a percentage + fixed fee per successful transaction.",
+                platformLink: "https://stripe.com",
+                docLink: "https://stripe.com/docs/api",
+                apiLink: "https://api.stripe.com/v1",
+                steps: "1. Install SDK. 2. Configure webhooks. 3. Use Secret Key to authenticate. 4. POST to /v1/charges."
+            },
+            {
+                name: "CoinGecko Market Data",
+                description: "Real-time cryptocurrency prices, market capitalization, and historical data.",
+                tags: ["Finance", "Data / Search", "Blockchain / Crypto", "Free"],
+                pricing: "Free",
+                quota: "50 calls per minute for public endpoints. Higher limits on paid plans.",
+                platformLink: "https://www.coingecko.com",
+                docLink: "https://www.coingecko.com/en/api/documentation",
+                apiLink: "https://api.coingecko.com/api/v3",
+                steps: "1. No key required for public endpoints. 2. GET request to /simple/price?ids=bitcoin&vs_currencies=usd."
+            },
+            {
+                name: "Shopify Storefront API",
+                description: "Access and display product data, collections, and blog posts from a Shopify store.",
+                tags: ["Finance", "Code / Dev", "Paid"],
+                pricing: "Paid",
+                quota: "Based on store plan level. Rate limits are applied based on a calculated query cost.",
+                platformLink: "https://shopify.dev",
+                docLink: "https://shopify.dev/docs/api/storefront",
+                apiLink: "https://{shop-domain}/api/2023-10/graphql.json",
+                steps: "1. Create a Storefront Access Token. 2. Use GraphQL to query product data."
+            },
+            {
+                name: "Plaid API",
+                description: "Connect to users' bank accounts to verify balance, transactions, and account details.",
+                tags: ["Finance", "Security", "Paid"],
+                pricing: "Paid",
+                quota: "Usage-based pricing (per successful bank connection). Free development environment.",
+                platformLink: "https://plaid.com",
+                docLink: "https://plaid.com/docs",
+                apiLink: "https://api.plaid.com",
+                steps: "1. Create a Plaid Link. 2. Exchange the public token for an access token. 3. POST to /transactions/get."
+            },
+            {
+                name: "ExchangeRate-API",
+                description: "Simple API for current and historical foreign exchange rates and currency conversion.",
+                tags: ["Finance", "Data / Search", "Free"],
+                pricing: "Free",
+                quota: "1,500 requests per month on the free tier. Paid plans for commercial usage.",
+                platformLink: "https://www.exchangerate-api.com",
+                docLink: "https://www.exchangerate-api.com/docs",
+                apiLink: "https://open.er-api.com/v6/latest",
+                steps: "1. Get API key (optional for open endpoints). 2. GET request to /latest/{base_currency}."
+            },
+
+            // CODE / DEV & SOCIAL / COMMS APIs (6 existing)
+            {
+                name: "GitHub REST API",
+                description: "Programmatic access to repository data, user information, issues, and commit histories.",
+                tags: ["Code / Dev", "Social", "Free"],
+                pricing: "Free",
+                quota: "5,000 requests per hour for authenticated users. 60 requests/hour unauthenticated.",
+                platformLink: "https://github.com",
+                docLink: "https://docs.github.com/en/rest",
+                apiLink: "https://api.github.com",
+                steps: "1. Create Personal Access Token. 2. Use Basic Auth or Token in Header. 3. GET to /repos/{owner}/{repo}/stats."
+            },
+            {
+                name: "Twilio SMS Service",
+                description: "Reliable communications platform for sending SMS, voice calls, and video conferencing.",
+                tags: ["Social", "Paid"],
+                pricing: "Paid",
+                quota: "Pay-as-you-go based on message volume/type. Trial accounts have limited credit.",
+                platformLink: "https://www.twilio.com",
+                docLink: "https://www.twilio.com/docs/sms",
+                apiLink: "https://api.twilio.com/v2010",
+                steps: "1. Configure phone number. 2. Use Account SID and Auth Token. 3. POST to /v2010/Accounts/{SID}/Messages.json."
+            },
+            {
+                name: "SendGrid Email API",
+                description: "Reliable and scalable platform for sending transactional and marketing emails.",
+                tags: ["Social", "Code / Dev", "Free"],
+                pricing: "Free",
+                quota: "100 emails per day for free forever. Paid tiers start at 1,500 emails/day.",
+                platformLink: "https://sendgrid.com",
+                docLink: "https://docs.sendgrid.com/api-reference",
+                apiLink: "https://api.sendgrid.com/v3",
+                steps: "1. Create an API Key. 2. Use the key in the Authorization header. 3. POST to /mail/send."
+            },
+            {
+                name: "Auth0 Authentication API",
+                description: "Integrate user authentication, login, and single sign-on (SSO) into your apps.",
+                tags: ["Code / Dev", "Security", "Free"],
+                pricing: "Free",
+                quota: "Unlimited logins for up to 7,000 monthly active users (MAU) on the free plan.",
+                platformLink: "https://auth0.com",
+                docLink: "https://auth0.com/docs/api/authentication",
+                apiLink: "https://{your-domain}.auth0.com/oauth/token",
+                steps: "1. Register app to get Client ID/Secret. 2. Use OAuth 2.0 flow to get tokens."
+            },
+            {
+                name: "Discord Bot API",
+                description: "Develop custom bots and integrations for Discord servers.",
+                tags: ["Social", "Code / Dev", "Free"],
+                pricing: "Free",
+                quota: "Rate limits are strict and based on application ID, token, and specific endpoint usage.",
+                platformLink: "https://discord.com/developers",
+                docLink: "https://discord.com/developers/docs/intro",
+                apiLink: "https://discord.com/api/v10",
+                steps: "1. Create application and bot token. 2. Use token in the Authorization header for gateway and REST API calls."
+            },
+            {
+                name: "Vercel Serverless Functions",
+                description: "Deploy serverless backend logic (Node.js, Python) instantly via Git integration.",
+                tags: ["Code / Dev", "Paid"],
+                pricing: "Paid",
+                quota: "Hobby (Free) plan includes generous compute usage, paid plans based on GB-hours and invocations.",
+                platformLink: "https://vercel.com",
+                docLink: "https://vercel.com/docs/functions/serverless-functions",
+                apiLink: "https://api.vercel.com/v9/functions",
+                steps: "1. Deploy code to Vercel via Git. 2. Functions are accessible at /api/{filename}."
+            },
+
+            // LOCATION APIs (2 existing)
+            {
+                name: "Google Maps Geocoding",
+                description: "Convert addresses to geographic coordinates (and vice versa).",
+                tags: ["Location", "Data / Search", "Paid"],
+                pricing: "Paid",
+                quota: "Free monthly credit of $200. Usage beyond that is pay-as-you-go, calculated per request.",
+                platformLink: "https://cloud.google.com/maps-platform",
+                docLink: "https://developers.google.com/maps/documentation/geocoding/overview",
+                apiLink: "https://maps.googleapis.com/maps/api/geocode/json",
+                steps: "1. Enable Billing and API. 2. Use API Key in URL query params. 3. GET request with address parameter."
+            },
+            {
+                name: "Mapbox Geocoding API",
+                description: "Search for addresses and places worldwide with high accuracy.",
+                tags: ["Location", "Data / Search", "Free"],
+                pricing: "Free",
+                quota: "50,000 free requests per month. Paid plans for high-volume commercial applications.",
+                platformLink: "https://www.mapbox.com",
+                docLink: "https://docs.mapbox.com/api/search/geocoding/",
+                apiLink: "https://api.mapbox.com/geocoding/v5",
+                steps: "1. Get a public access token. 2. GET request to /mapbox.places/{query}.json?access_token={token}."
+            },
+
+            // GAMING & ENTERTAINMENT APIs (3 existing)
+            {
+                name: "RAWG Video Game Database",
+                description: "Comprehensive database of video games, platforms, genres, and release dates.",
+                tags: ["Gaming", "Data / Search", "Free"],
+                pricing: "Free",
+                quota: "50,000 requests per month on the free developer tier.",
+                platformLink: "https://rawg.io/apidocs",
+                docLink: "https://rawg.io/apidocs",
+                apiLink: "https://api.rawg.io/api",
+                steps: "1. Register for an API Key. 2. GET request to /games or /platforms endpoints."
+            },
+            {
+                name: "Steam Web API",
+                description: "Access Steam user data, game achievements, inventory, and official announcements.",
+                tags: ["Gaming", "Social", "Free"],
+                pricing: "Free",
+                quota: "50,000 requests per 24 hours (for an API Key). Usage is closely monitored.",
+                platformLink: "https://partner.steamgames.com/doc/webapi_overview",
+                docLink: "https://partner.steamgames.com/doc/webapi_overview",
+                apiLink: "https://api.steampowered.com",
+                steps: "1. Register for a Web API Key. 2. GET request to relevant API interface, e.g., ISteamUserStats."
+            },
+            {
+                name: "The Movie Database (TMDB)",
+                description: "Popular database for movie, TV show, and actor information and posters.",
+                tags: ["Gaming", "Data / Search", "Media / Content", "Free"],
+                pricing: "Free",
+                quota: "40 requests per 10 seconds. Fair use policy enforced.",
+                platformLink: "https://www.themoviedb.org",
+                docLink: "https://developer.themoviedb.org/docs",
+                apiLink: "https://api.themoviedb.org/3",
+                steps: "1. Create an API read access token. 2. Use the token in the Authorization header. 3. GET request to /movie/{movie_id}."
+            },
+
+            // HEALTH & FITNESS APIs (2 existing)
+            {
+                name: "Nutritionix API",
+                description: "Search for nutritional information for over 800,000 common foods and recipes.",
+                tags: ["Health", "Data / Search", "Free"],
+                pricing: "Free",
+                quota: "10,000 requests per month free tier. Commercial licenses available.",
+                platformLink: "https://www.nutritionix.com/business/api",
+                docLink: "https://developer.nutritionix.com/docs",
+                apiLink: "https://trackapi.nutritionix.com/v2",
+                steps: "1. Get your App ID and API Key. 2. Pass credentials in custom headers for POST requests."
+            },
+            {
+                name: "Fitbit Web API",
+                description: "Access user data for activity, sleep, heart rate, and badges (requires user consent).",
+                tags: ["Health", "Social", "Free"],
+                pricing: "Free",
+                quota: "Rate limits are applied per hour based on specific API endpoint usage.",
+                platformLink: "https://dev.fitbit.com",
+                docLink: "https://dev.fitbit.com/build/reference/web-api/",
+                apiLink: "https://api.fitbit.com/1",
+                steps: "1. Register an application. 2. Implement OAuth 2.0 flow to get user authorization and access token."
+            },
+
+            // UTILITIES & TOOLS APIs (4 existing)
+            {
+                name: "Bitly URL Shortener",
+                description: "Create branded, trackable short links and manage analytics for click performance.",
+                tags: ["Utilities", "Free"],
+                pricing: "Free",
+                quota: "10,000 links created per month on the basic (free) plan.",
+                platformLink: "https://bitly.com",
+                docLink: "https://dev.bitly.com/api-reference",
+                apiLink: "https://api-ssl.bitly.com/v4",
+                steps: "1. Get a Generic Access Token. 2. POST request to /shorten endpoint with the long URL."
+            },
+            {
+                name: "IPstack Geolocation",
+                description: "Real-time IP to location lookup for visitor tracking and analytics.",
+                tags: ["Utilities", "Data / Search", "Free"],
+                pricing: "Free",
+                quota: "10,000 requests per month free tier. Paid plans for HTTPS and bulk lookups.",
+                platformLink: "https://ipstack.com",
+                docLink: "https://ipstack.com/documentation",
+                apiLink: "http://api.ipstack.com/{ip_address}",
+                steps: "1. Register for an API Key. 2. GET request with the target IP and your access_key."
+            },
+            {
+                name: "VirusTotal API",
+                description: "Security service to scan files and URLs for malware and threats.",
+                tags: ["Security", "Data / Search", "Free"],
+                pricing: "Free",
+                quota: "4 requests per minute for the Public API. Requires a free account.",
+                platformLink: "https://www.virustotal.com",
+                docLink: "https://docs.virustotal.com/reference/overview",
+                apiLink: "https://www.virustotal.com/api/v3",
+                steps: "1. Get your Public API Key. 2. POST to /files or /urls endpoint for scanning."
+            },
+            {
+                name: "Cloudinary Image Mgmt",
+                description: "Cloud-based service for image and video management, manipulation, and optimization.",
+                tags: ["Utilities", "Code / Dev", "Media / Content", "Free"],
+                pricing: "Free",
+                quota: "25GB storage, 25GB bandwidth, and 25,000 transformations per month on the free tier.",
+                platformLink: "https://cloudinary.com",
+                docLink: "https://cloudinary.com/documentation",
+                apiLink: "https://api.cloudinary.com/v1_1/{cloud_name}",
+                steps: "1. Set up SDK with Cloud Name and API Key/Secret. 2. Call the upload method for the resource type."
+            },
+
+            // BUSINESS & CRM APIs (2 existing)
+            {
+                name: "HubSpot CRM API",
+                description: "Manage contacts, companies, deals, and customize objects within the HubSpot CRM.",
+                tags: ["Business", "Paid"],
+                pricing: "Paid",
+                quota: "Rate limits depend on subscription level; typically 100 requests per 10 seconds.",
+                platformLink: "https://developers.hubspot.com",
+                docLink: "https://developers.hubspot.com/docs/api/overview",
+                apiLink: "https://api.hubapi.com",
+                steps: "1. Create a Private App to get an Access Token. 2. Use the token in the 'Authorization' header. 3. GET request to /crm/v3/objects/contacts."
+            },
+            {
+                name: "Salesforce REST API",
+                description: "Access and manage data, metadata, and business logic within a Salesforce organization.",
+                tags: ["Business", "Paid"],
+                pricing: "Paid",
+                quota: "Limits based on the number of licenses and edition; typically 15,000 requests/24 hours.",
+                platformLink: "https://developer.salesforce.com",
+                docLink: "https://developer.salesforce.com/docs/atlas.en-us.api_rest.meta/api_rest/",
+                apiLink: "https://{instance_url}/services/data/v60.0",
+                steps: "1. Use OAuth 2.0 to get an Access Token. 2. Use the token to access resources like /sobjects."
+            },
+
+            // --- 20 NEW APIs START HERE ---
+
+            // MEDIA / CONTENT (New and existing merged)
+            {
+                name: "GIPHY API",
+                description: "Search and retrieve GIFs and stickers for dynamic content in applications.",
+                tags: ["Media / Content", "Social", "Free"],
+                pricing: "Free",
+                quota: "100 requests per day (public key). Paid tiers for higher limits and commercial use.",
+                platformLink: "https://developers.giphy.com",
+                docLink: "https://developers.giphy.com/docs/api",
+                apiLink: "https://api.giphy.com/v1",
+                steps: "1. Register for a free API key. 2. GET request to /gifs/search with the API key and query."
+            },
+            {
+                name: "Pexels API",
+                description: "Free stock photos and videos for commercial use, integrated directly into your application.",
+                tags: ["Media / Content", "Data / Search", "Free"],
+                pricing: "Free",
+                quota: "200 requests per hour; 20,000 requests per month.",
+                platformLink: "https://www.pexels.com/api",
+                docLink: "https://www.pexels.com/api/documentation",
+                apiLink: "https://api.pexels.com/v1",
+                steps: "1. Get API Key. 2. Use the key in the Authorization header. 3. GET request to /v1/search endpoint."
+            },
+            {
+                name: "Spotify Web API",
+                description: "Access data on music, artists, albums, and manage user playlists.",
+                tags: ["Media / Content", "Social", "Gaming", "Free"],
+                pricing: "Free",
+                quota: "High rate limits based on user context and OAuth flow. Fair usage policy enforced.",
+                platformLink: "https://developer.spotify.com",
+                docLink: "https://developer.spotify.com/documentation/web-api",
+                apiLink: "https://api.spotify.com/v1",
+                steps: "1. Register App and implement OAuth 2.0. 2. Use access token in headers for GET requests."
+            },
+
+            // BLOCKCHAIN / CRYPTO
+            {
+                name: "Etherscan API",
+                description: "Access Ethereum blockchain data, including transaction history, blocks, and gas prices.",
+                tags: ["Blockchain / Crypto", "Finance", "Free"],
+                pricing: "Free",
+                quota: "5 requests per second (standard API key). Higher rate limits on paid subscriptions.",
+                platformLink: "https://etherscan.io/apis",
+                docLink: "https://docs.etherscan.io/api-md/api-requests",
+                apiLink: "https://api.etherscan.io/api",
+                steps: "1. Get a free API Key. 2. Construct GET requests with module, action, and API key."
+            },
+            {
+                name: "Coinbase API",
+                description: "Trade cryptocurrencies, manage wallets, and view market data programmatically.",
+                tags: ["Blockchain / Crypto", "Finance", "Paid"],
+                pricing: "Paid",
+                quota: "Rate limits vary by account level (Pro/Prime). Trading volume fees apply.",
+                platformLink: "https://developers.coinbase.com",
+                docLink: "https://docs.cloud.coinbase.com",
+                apiLink: "https://api.coinbase.com/v2",
+                steps: "1. Create API key pair. 2. Use HMAC SHA256 authentication for signed requests. 3. POST to /accounts."
+            },
+            {
+                name: "Tatum Blockchain API",
+                description: "Unified API for 40+ blockchains, wallet generation, and transaction management.",
+                tags: ["Blockchain / Crypto", "Code / Dev", "Free"],
+                pricing: "Free",
+                quota: "5 API requests/second and 5 million requests per month on the free plan.",
+                platformLink: "https://tatum.io",
+                docLink: "https://apidoc.tatum.io",
+                apiLink: "https://api.tatum.io/v3",
+                steps: "1. Get a testnet/mainnet API key. 2. Use the key in the 'x-api-key' header. 3. POST to relevant blockchain endpoint."
+            },
+
+            // IoT / DEVICES
+            {
+                name: "Particle IoT API",
+                description: "Connect physical products to the internet and manage fleets of IoT devices.",
+                tags: ["IoT / Devices", "Code / Dev", "Paid"],
+                pricing: "Paid",
+                quota: "Depends on data operations (Publish/Subscribe/Function Calls). Free for up to 10 devices.",
+                platformLink: "https://www.particle.io",
+                docLink: "https://docs.particle.io/api/cloud-api/",
+                apiLink: "https://api.particle.io/v1",
+                steps: "1. Implement OAuth 2.0. 2. POST to /v1/devices/{device-id}/function-name."
+            },
+            {
+                name: "TagoIO API",
+                description: "Cloud-based IoT platform to collect, store, and visualize data from connected sensors.",
+                tags: ["IoT / Devices", "Free"],
+                pricing: "Free",
+                quota: "100,000 data input/output per month on the free plan. Higher limits require paid plan.",
+                platformLink: "https://tago.io",
+                docLink: "https://docs.tago.io/en/reference/api/",
+                apiLink: "https://api.tago.io/data",
+                steps: "1. Generate an Authorization Token. 2. Use the token in the 'Device-Token' header for POST requests."
+            },
+
+            // HEALTH / FITNESS
+            {
+                name: "Withings API (Health Mate)",
+                description: "Integrate personal health data from Withings devices: weight, activity, and sleep tracking.",
+                tags: ["Health", "Free"],
+                pricing: "Free",
+                quota: "Rate limits apply per user/token. Requires user consent via OAuth.",
+                platformLink: "https://developer.withings.com",
+                docLink: "https://developer.withings.com/api-reference",
+                apiLink: "https://wbsapi.withings.net/v2",
+                steps: "1. Create a developer account and app. 2. Implement OAuth 2.0 for user permission. 3. GET request to /measure?action=getmeas."
+            },
+            {
+                name: "Spoonacular Food API",
+                description: "Recipes, food products, and nutrition information with powerful searching capabilities.",
+                tags: ["Health", "Data / Search", "Free"],
+                pricing: "Free",
+                quota: "50 requests per day on the free tier. Paid plans for commercial use.",
+                platformLink: "https://spoonacular.com/food-api",
+                docLink: "https://spoonacular.com/food-api/docs",
+                apiLink: "https://api.spoonacular.com/recipes",
+                steps: "1. Get your API Key. 2. GET request to /search?query=pasta&apiKey={key}."
+            },
+            
+            // CODE / DEV / UTILITIES
+            {
+                name: "Postmark Email Delivery",
+                description: "Reliable and fast transactional email delivery and email template management.",
+                tags: ["Code / Dev", "Paid"],
+                pricing: "Paid",
+                quota: "Usage-based pricing (per email sent). Free trial includes 100 credits.",
+                platformLink: "https://postmarkapp.com",
+                docLink: "https://postmarkapp.com/developer",
+                apiLink: "https://api.postmarkapp.com",
+                steps: "1. Get Server API Token. 2. Use the token in the 'X-Postmark-Server-Token' header. 3. POST to /email."
+            },
+            {
+                name: "Zapier NLA",
+                description: "Access and automate actions across 6,000+ apps using natural language commands.",
+                tags: ["Utilities", "AI / Chat", "Paid"],
+                pricing: "Paid",
+                quota: "Depends on plan (number of Zapier 'Tasks' executed per month).",
+                platformLink: "https://nla.zapier.com",
+                docLink: "https://nla.zapier.com/docs",
+                apiLink: "https://nla.zapier.com/api/v1",
+                steps: "1. Get an API key for your Zapier account. 2. POST request with the natural language command."
+            },
+            {
+                name: "Cloudflare API",
+                description: "Programmatically manage DNS, firewall rules, caching, and edge network settings.",
+                tags: ["Code / Dev", "Security", "Free"],
+                pricing: "Free",
+                quota: "Standard rate limits for authenticated users (1,200 requests per 5 minutes per user).",
+                platformLink: "https://developers.cloudflare.com",
+                docLink: "https://api.cloudflare.com",
+                apiLink: "https://api.cloudflare.com/client/v4",
+                steps: "1. Get an API Token. 2. Use the token in the 'Authorization' header for all requests."
+            },
+            {
+                name: "Abstract API - Phone Validation",
+                description: "Validate, format, and look up carrier information for phone numbers globally.",
+                tags: ["Utilities", "Security", "Paid"],
+                pricing: "Paid",
+                quota: "250 validations per month on the free tier. Paid plans start at 10,000 validations.",
+                platformLink: "https://www.abstractapi.com/phone-validation-api",
+                docLink: "https://www.abstractapi.com/api/phone-validation/docs",
+                apiLink: "https://phonevalidation.abstractapi.com/v1",
+                steps: "1. Get API Key. 2. GET request to /v1/?api_key={key}&phone={number}."
+            },
+            {
+                name: "Algolia Search API",
+                description: "Build fast, typo-tolerant search and discovery experiences for websites and apps.",
+                tags: ["Data / Search", "Code / Dev", "Paid"],
+                pricing: "Paid",
+                quota: "Free 'Build' plan includes 10k records and 50k search requests per month.",
+                platformLink: "https://www.algolia.com",
+                docLink: "https://www.algolia.com/doc",
+                apiLink: "https://{app-id}.algolia.net/1",
+                steps: "1. Install client library (SDK). 2. Use Application ID and Search API Key."
+            },
+
+            // GAMING / ENTERTAINMENT
+            {
+                name: "Riot Games API",
+                description: "Access data for League of Legends, Valorant, and other Riot Games titles (match history, player stats).",
+                tags: ["Gaming", "Free"],
+                pricing: "Free",
+                quota: "20 requests per second (production key); development keys have lower limits.",
+                platformLink: "https://developer.riotgames.com",
+                docLink: "https://developer.riotgames.com/apis",
+                apiLink: "https://{region}.api.riotgames.com",
+                steps: "1. Register an application and get an API Key. 2. Use the key as a query parameter in GET requests."
+            },
+            
+            // BUSINESS / CRM
+            {
+                name: "Zoom Meeting API",
+                description: "Manage users, create and schedule meetings, and access meeting reports.",
+                tags: ["Business", "Social", "Free"],
+                pricing: "Free",
+                quota: "100 daily requests per application for free accounts. Higher limits on paid plans.",
+                platformLink: "https://marketplace.zoom.us",
+                docLink: "https://developers.zoom.us/docs/api/rest",
+                apiLink: "https://api.zoom.us/v2",
+                steps: "1. Create a JWT or OAuth App. 2. Use Access Token in the Authorization header. 3. POST to /users/{userId}/meetings."
+            },
+            {
+                name: "Clearbit Enrichment",
+                description: "Convert an email address or domain into a full company and person profile.",
+                tags: ["Business", "Data / Search", "Paid"],
+                pricing: "Paid",
+                quota: "Pay-per-lookup model. Free testing environment available for development.",
+                platformLink: "https://clearbit.com",
+                docLink: "https://clearbit.com/docs",
+                apiLink: "https://person.clearbit.com/v2/combined",
+                steps: "1. Get API Key. 2. Use Basic Auth with the key as the username. 3. GET request to /combined endpoint."
+            },
+            
+            // LOCATION / MAPPING
+            {
+                name: "HERE Geocoding & Search",
+                description: "Advanced location services, including precise geocoding, routing, and traffic data.",
+                tags: ["Location", "Data / Search", "Free"],
+                pricing: "Free",
+                quota: "250,000 transactions per month free tier. Commercial plans available.",
+                platformLink: "https://developer.here.com",
+                docLink: "https://developer.here.com/documentation",
+                apiLink: "https://geocode.search.hereapi.com/v1",
+                steps: "1. Get API Key. 2. GET request to /geocode?q={address}&apiKey={key}."
+            },
+
+            // GENERAL UTILITIES
+            {
+                name: "Pusher Channels",
+                description: "Real-time communication API for web apps (websockets) to send notifications and updates.",
+                tags: ["Utilities", "Social", "Paid"],
+                pricing: "Paid",
+                quota: "Free 'Sandbox' plan includes 100 connections and 200,000 messages per day.",
+                platformLink: "https://pusher.com",
+                docLink: "https://docs.pusher.com/channels/api",
+                apiLink: "https://api.pusherapp.com/apps/{app_id}",
+                steps: "1. Install SDK. 2. Use App ID, Key, and Secret to authorize API calls for sending events."
+            }
+        ];
+
+        // State now uses Sets for multi-select filtering
+        let activeFilters = {
+            Pricing: new Set(),
+            Category: new Set(['All'])
+        };
+
+        /**
+         * Renders the API cards based on the current search query and filters.
+         */
+        function renderAPIs(data) {
+            const container = document.getElementById('api-list-container');
+            container.innerHTML = '';
+
+            if (data.length === 0) {
+                container.innerHTML = `
+                    <div class="col-span-full text-center py-20">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="mx-auto text-gray-500 mb-4"><path d="m18 15-6-6-6 6"/></svg>
+                        <h3 class="text-xl font-semibold text-gray-400">No APIs Found</h3>
+                        <p class="text-gray-500">Try adjusting your filters or search terms.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            data.forEach(api => {
+                const cardHTML = `
+                    <div class="codenix-card p-6 rounded-xl shadow-lg flex flex-col justify-between">
+                        <div>
+                            <div class="flex items-start justify-between mb-4">
+                                <h2 class="text-2xl font-bold text-white">${api.name}</h2>
+                                <span class="px-3 py-1 text-xs font-medium rounded-full ${api.pricing === 'Free' ? 'bg-green-600 text-white' : 'bg-yellow-600 text-white'}">
+                                    ${api.pricing}
+                                </span>
+                            </div>
+
+                            <p class="text-gray-400 mb-4">${api.description}</p>
+                            
+                            <!-- Tags -->
+                            <div class="flex flex-wrap gap-2 mb-4">
+                                ${api.tags.map(tag => `<span class="px-2 py-0.5 text-xs rounded-full bg-gray-700 text-gray-300 font-medium">${tag}</span>`).join('')}
+                            </div>
+                            
+                            <!-- Steps/Instructions & Quota -->
+                            <div class="bg-gray-800 p-3 rounded-lg mb-4">
+                                <h4 class="text-sm font-semibold text-primary mb-1 flex items-center">
+                                    <span data-lucide="info" class="w-4 h-4 mr-2 text-primary"></span>
+                                    Integration Details
+                                </h4>
+                                <p class="text-xs text-gray-300 mb-2">
+                                    <span class="font-bold text-gray-100">Quota:</span> ${api.quota}
+                                </p>
+                                <p class="text-xs text-gray-400 font-mono">${api.steps}</p>
+                            </div>
+                        </div>
+
+                        <!-- Links: Platform Website, Documentation, and API Endpoint -->
+                        <div class="flex flex-col space-y-3 mt-4 pt-4 border-t border-gray-700">
+                            <div class="flex justify-between items-center text-sm">
+                                <a href="${api.platformLink}" target="_blank" class="flex items-center font-medium text-secondary hover:text-white transition duration-150">
+                                    <span data-lucide="globe" class="w-4 h-4 mr-1"></span> Platform Website
+                                </a>
+                                <a href="${api.docLink}" target="_blank" class="flex items-center font-medium text-secondary hover:text-white transition duration-150">
+                                    <span data-lucide="book-open" class="w-4 h-4 mr-1"></span> Documentation
+                                </a>
+                            </div>
+
+                            <div class="flex justify-between items-center text-xs text-gray-400">
+                                <span class="flex items-center">
+                                    <span data-lucide="link" class="w-3 h-3 mr-1 text-gray-500"></span>
+                                    <span class="truncate max-w-xs">${api.apiLink}</span>
+                                </span>
+                                <button onclick="copyToClipboard('${api.apiLink}')" title="Copy API Endpoint URL" class="flex items-center font-medium hover:text-secondary transition duration-150 group">
+                                    <span data-lucide="copy" class="w-3 h-3 mr-1 transition-colors group-hover:text-secondary"></span> Copy Endpoint
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                container.innerHTML += cardHTML;
+            });
+            // Replace lucide icons
+            lucide.createIcons();
+        }
+
+        /**
+         * Copies text to clipboard.
+         */
+        function copyToClipboard(text) {
+            // Fallback for secure context copy function
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            textarea.style.position = 'fixed'; // Avoid scrolling to bottom
+            document.body.appendChild(textarea);
+            textarea.focus();
+            textarea.select();
+            try {
+                document.execCommand('copy');
+                showMessage('API Endpoint copied to clipboard!');
+            } catch (err) {
+                console.error('Copy failed: ', err);
+                showMessage('Could not copy link.', 'error');
+            }
+            document.body.removeChild(textarea);
+        }
+
+        /**
+         * Displays a simple toast message.
+         */
+        function showMessage(message, type = 'success') {
+            const msgBox = document.getElementById('message-box');
+            msgBox.textContent = message;
+            msgBox.className = `fixed bottom-4 right-4 p-3 rounded-lg shadow-xl z-50 transition-all duration-300 transform translate-x-0 ${type === 'success' ? 'bg-green-700' : 'bg-red-700'} text-white`;
+            setTimeout(() => {
+                msgBox.classList.remove('translate-x-0');
+                msgBox.classList.add('translate-x-full');
+            }, 3000);
+        }
+
+        /**
+         * Toggles a filter and manages 'All' exclusivity within its group.
+         */
+        function toggleFilter(group, value, button) {
+            const filterSet = activeFilters[group];
+            
+            if (value === 'All') {
+                // If 'All' is selected and is the only filter, do nothing
+                if (filterSet.has('All') && filterSet.size === 1) return;
+
+                // Select 'All' and deselect everything else in the group
+                filterSet.clear();
+                filterSet.add('All');
+
+                document.querySelectorAll(`button[data-filter-group="${group}"]`).forEach(btn => {
+                    btn.classList.remove('filter-active');
+                    if (btn.dataset.filterValue === 'All') {
+                        btn.classList.add('filter-active');
+                    }
+                });
+
+            } else {
+                // Specific tag selected/deselected
+                if (filterSet.has(value)) {
+                    filterSet.delete(value);
+                    button.classList.remove('filter-active');
+                } else {
+                    filterSet.add(value);
+                    button.classList.add('filter-active');
+                    
+                    // Deselect 'All' if a specific filter is added
+                    if (filterSet.has('All')) {
+                        filterSet.delete('All');
+                        const allButton = document.querySelector(`button[data-filter-group="${group}"][data-filter-value="All"]`);
+                        if (allButton) allButton.classList.remove('filter-active');
+                    }
+                }
+                
+                // If the set becomes empty, revert to 'All' selected by default
+                if (filterSet.size === 0) {
+                    filterSet.add('All');
+                    const allButton = document.querySelector(`button[data-filter-group="${group}"][data-filter-value="All"]`);
+                    if (allButton) allButton.classList.add('filter-active');
+                }
+            }
+            
+            searchAPIs(document.getElementById('search-input').value);
+        }
+
+        /**
+         * Searches the API data based on user input and currently active filters (AND logic).
+         */
+        function searchAPIs(query) {
+            const lowerQuery = query.toLowerCase().trim();
+            const activePricing = Array.from(activeFilters.Pricing);
+            const activeCategories = Array.from(activeFilters.Category);
+
+            const filteredData = apiData.filter(api => {
+                
+                // 1. Pricing Match (Must match one of the active pricing filters)
+                const pricingMatch = activePricing.length === 0 || activePricing.includes(api.pricing);
+
+                // 2. Category Match (Must match at least one of the active category tags, unless 'All' is active)
+                let categoryMatch = activeCategories.includes('All');
+
+                if (!categoryMatch) {
+                    // If 'All' is not active, check if the API has *any* of the active category tags
+                    categoryMatch = activeCategories.some(activeTag => api.tags.includes(activeTag));
+                }
+                
+                // 3. Search Query Match
+                const searchMatch = !lowerQuery || 
+                                    api.name.toLowerCase().includes(lowerQuery) ||
+                                    api.description.toLowerCase().includes(lowerQuery) ||
+                                    api.steps.toLowerCase().includes(lowerQuery) ||
+                                    api.quota.toLowerCase().includes(lowerQuery); // Include Quota in search!
+
+                // Final match: (Pricing AND Category) AND Search
+                return pricingMatch && categoryMatch && searchMatch;
+            });
+
+            renderAPIs(filteredData);
+        }
+
+        // Initialize on page load
+        window.onload = () => {
+            // Set initial filter buttons to active state
+            document.querySelector('button[data-filter-value="All"]').classList.add('filter-active');
+            
+            // Render all APIs initially
+            searchAPIs('');
+            
+            // Ensure icons are created after initial render
+            lucide.createIcons();
+        };
+
+    </script>
+</head>
+<body class="codenix-bg min-h-screen text-gray-100 font-sans">
+    
+    <!-- Header -->
+    <header class="sticky top-0 z-10 bg-gray-900/95 backdrop-blur-sm shadow-xl border-b border-gray-800">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
+            <h1 class="text-3xl font-extrabold text-white flex items-center">
+                <span data-lucide="layers-3" class="w-6 h-6 mr-3 text-secondary"></span>
+                Codenix API Marketplace
+            </h1>
+            <a href="index.html" class="inline-flex items-center px-4 py-2 border border-primary text-sm font-medium rounded-full shadow-sm text-white bg-primary hover:bg-secondary transition duration-150">
+                <span data-lucide="home" class="w-4 h-4 mr-2"></span>
+                Back to Index
+            </a>
+        </div>
+    </header>
+
+    <!-- Main Content Container -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+        
+        <!-- Search and Filters Section -->
+        <section class="mb-10">
+            <h2 class="text-4xl font-extrabold text-center text-white mb-2">Explore & Integrate APIs</h2>
+            <p class="text-center text-gray-400 mb-8">Find the perfect API for your next development project.</p>
+            
+            <!-- Search Bar -->
+            <div class="relative mb-8">
+                <span data-lucide="search" class="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400"></span>
+                <input 
+                    type="text" 
+                    id="search-input" 
+                    oninput="searchAPIs(this.value)" 
+                    placeholder="Search APIs by name, quota, description, or integration steps..."
+                    class="w-full py-3 pl-12 pr-4 bg-gray-800 border border-gray-700 rounded-xl focus:ring-secondary focus:border-secondary text-white placeholder-gray-500 text-lg shadow-inner"
+                >
+            </div>
+
+            <!-- Filter Buttons: Grouped and Multi-Select Enabled -->
+            <div id="filter-container" class="flex flex-wrap gap-6 justify-center">
+                
+                <!-- Pricing Filters -->
+                <div class="flex flex-col items-center p-4 bg-gray-900 rounded-xl shadow-inner border border-gray-800">
+                    <h4 class="text-sm font-semibold text-gray-300 mb-3 border-b border-gray-700 pb-1 w-full text-center">Pricing</h4>
+                    <div class="flex flex-wrap gap-2">
+                        <button onclick="toggleFilter('Pricing', 'Free', this)" data-filter-group="Pricing" data-filter-value="Free" class="filter-btn">Free</button>
+                        <button onclick="toggleFilter('Pricing', 'Paid', this)" data-filter-group="Pricing" data-filter-value="Paid" class="filter-btn">Paid</button>
+                    </div>
+                </div>
+                
+                <!-- Category Filters -->
+                <div class="flex flex-col items-center p-4 bg-gray-900 rounded-xl shadow-inner border border-gray-800">
+                    <h4 class="text-sm font-semibold text-gray-300 mb-3 border-b border-gray-700 pb-1 w-full text-center">Category</h4>
+                    <div class="flex flex-wrap gap-2 justify-center">
+                        <!-- 'All' filter is exclusive within its group -->
+                        <button onclick="toggleFilter('Category', 'All', this)" data-filter-group="Category" data-filter-value="All" class="filter-btn filter-active">All</button>
+                        <button onclick="toggleFilter('Category', 'AI / Chat', this)" data-filter-group="Category" data-filter-value="AI / Chat" class="filter-btn">AI / Chat</button>
+                        <button onclick="toggleFilter('Category', 'Code / Dev', this)" data-filter-group="Category" data-filter-value="Code / Dev" class="filter-btn">Code / Dev</button>
+                        <button onclick="toggleFilter('Category', 'Data / Search', this)" data-filter-group="Category" data-filter-value="Data / Search" class="filter-btn">Data / Search</button>
+                        <button onclick="toggleFilter('Category', 'Finance', this)" data-filter-group="Category" data-filter-value="Finance" class="filter-btn">Finance</button>
+                        <button onclick="toggleFilter('Category', 'Social', this)" data-filter-group="Category" data-filter-value="Social" class="filter-btn">Social / Comms</button>
+                        <button onclick="toggleFilter('Category', 'Location', this)" data-filter-group="Category" data-filter-value="Location" class="filter-btn">Location / Maps</button>
+                        <button onclick="toggleFilter('Category', 'Security', this)" data-filter-group="Category" data-filter-value="Security" class="filter-btn">Security / Auth</button>
+                        <button onclick="toggleFilter('Category', 'Gaming', this)" data-filter-group="Category" data-filter-value="Gaming" class="filter-btn">Gaming / Media</button>
+                        <button onclick="toggleFilter('Category', 'Health', this)" data-filter-group="Category" data-filter-value="Health" class="filter-btn">Health / Fitness</button>
+                        <button onclick="toggleFilter('Category', 'Utilities', this)" data-filter-group="Category" data-filter-value="Utilities" class="filter-btn">Utilities / Tools</button>
+                        <button onclick="toggleFilter('Category', 'Business', this)" data-filter-group="Category" data-filter-value="Business" class="filter-btn">Business / CRM</button>
+                        <button onclick="toggleFilter('Category', 'Blockchain / Crypto', this)" data-filter-group="Category" data-filter-value="Blockchain / Crypto" class="filter-btn">Blockchain / Crypto</button>
+                        <button onclick="toggleFilter('Category', 'IoT / Devices', this)" data-filter-group="Category" data-filter-value="IoT / Devices" class="filter-btn">IoT / Devices</button>
+                        <button onclick="toggleFilter('Category', 'Media / Content', this)" data-filter-group="Category" data-filter-value="Media / Content" class="filter-btn">Media / Content</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- API List -->
+        <section id="api-list-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            <!-- API Cards will be injected here by JavaScript -->
+        </section>
+    </main>
+    
+    <!-- Toast Message Box -->
+    <div id="message-box" class="fixed bottom-4 right-4 translate-x-full transition-all duration-300" aria-live="polite"></div>
+
+</body>
+</html>
