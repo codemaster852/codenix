@@ -57,9 +57,25 @@
     </style>
 </head>
 <body class="text-gray-200">
+    
+    <!-- Mobile Menu Button -->
+    <button id="menu-button" class="md:hidden fixed top-4 left-4 z-50 p-3 rounded-full bg-indigo-600 hover:bg-indigo-500 transition duration-300 shadow-xl">
+        <svg id="menu-icon" class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
+        </svg>
+        <svg id="close-icon" class="w-6 h-6 text-white hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+        </svg>
+    </button>
+    
+    <!-- Overlay for Mobile View -->
+    <div id="sidebar-overlay" class="fixed inset-0 bg-black/70 z-20 hidden md:hidden"></div>
+
     <div class="flex h-screen overflow-hidden">
+        
         <!-- Sidebar -->
-        <aside class="w-full sm:w-1/3 md:w-1/4 h-full bg-[#111827]/70 backdrop-blur-lg border-r border-indigo-700/30 flex flex-col z-10">
+        <!-- Key changes: fixed positioning on mobile, -translate-x-full to hide, md:relative and md:translate-x-0 to restore on desktop -->
+        <aside id="sidebar" class="fixed inset-y-0 left-0 z-30 w-72 h-full bg-[#111827]/90 backdrop-blur-xl border-r border-indigo-700/30 flex flex-col transition-transform duration-500 transform -translate-x-full md:relative md:translate-x-0 md:w-1/4">
             <header class="p-4 border-b border-indigo-700/30 text-center sticky top-0 bg-[#111827]/70 backdrop-blur-lg z-20">
                 <h1 class="text-2xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-purple-500 tracking-wider">
                     Codenix AI Studio
@@ -71,7 +87,7 @@
         </aside>
 
         <!-- Main Content -->
-        <main id="main-content" class="w-full sm:w-2/3 md:w-3/4 h-full flex flex-col transition-all duration-300">
+        <main id="main-content" class="w-full h-full flex flex-col transition-all duration-300 md:w-3/4">
             <!-- Welcome Screen -->
             <div id="welcome-screen" class="flex flex-col items-center justify-center h-full text-center p-8">
                 <!-- Stylish welcome icon (Astronaut / Star) -->
@@ -88,7 +104,7 @@
                 <div class="flex flex-col sm:flex-row items-start sm:items-center sm:justify-between mb-10 pb-4 border-b border-indigo-700/30">
                     <h2 id="model-name" class="text-4xl lg:text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-cyan-300 to-indigo-400 mb-3 sm:mb-0"></h2>
                     <a id="try-model-link" href="#" target="_blank" class="bg-gradient-to-r from-indigo-600 to-purple-700 hover:from-indigo-500 hover:to-purple-600 text-white font-bold py-3 px-8 rounded-full transition-all duration-300 shadow-xl shadow-indigo-700/40 hover:shadow-indigo-500/50 hover:-translate-y-1 flex items-center space-x-2 text-lg">
-                        <span>Try Model</span>
+                        <span>Try Resource</span>
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
                             <path fill-rule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" clip-rule="evenodd" />
                         </svg>
@@ -115,7 +131,6 @@
 
     <script>
         const models = [
-            // --- KEEPERS & UPDATES ---
             {
                 id: 'nix-0.5',
                 name: 'Nix 0.5',
@@ -155,7 +170,6 @@
                 features: ['Real-Time Grounding', 'Improved Multimodality', 'Enhanced Reasoning'],
                 tryLink: '#'
             },
-            // --- NEW RESOURCE LINKS ---
             {
                 id: 'documentation',
                 name: 'Documentation',
@@ -190,7 +204,7 @@
                 shortDescription: 'Mobile app for on-the-go access.',
                 portfolio: 'Download the Codenix AI Studio mobile application (APK) to access all models and features directly from your Android device. Includes offline access capabilities for select models.',
                 features: ['Android APK', 'Offline Capabilities', 'Mobile UI'],
-                tryLink: 'app.apk'
+                tryLink: 'app.html' // <-- Changed from 'app.apk' to 'app.html'
             }
         ];
 
@@ -202,8 +216,37 @@
         const modelPortfolio = document.getElementById('model-portfolio');
         const modelFeatures = document.getElementById('model-features');
         
+        // Mobile elements
+        const sidebar = document.getElementById('sidebar');
+        const menuButton = document.getElementById('menu-button');
+        const sidebarOverlay = document.getElementById('sidebar-overlay');
+        const menuIcon = document.getElementById('menu-icon');
+        const closeIcon = document.getElementById('close-icon');
+
         let activeModelElement = null;
 
+        // --- Mobile Menu Toggle Logic ---
+        function toggleSidebar() {
+            const isHidden = sidebar.classList.contains('-translate-x-full');
+            if (isHidden) {
+                // Open sidebar
+                sidebar.classList.remove('-translate-x-full');
+                sidebarOverlay.classList.remove('hidden');
+                menuIcon.classList.add('hidden');
+                closeIcon.classList.remove('hidden');
+            } else {
+                // Close sidebar
+                sidebar.classList.add('-translate-x-full');
+                sidebarOverlay.classList.add('hidden');
+                menuIcon.classList.remove('hidden');
+                closeIcon.classList.add('hidden');
+            }
+        }
+        
+        menuButton.addEventListener('click', toggleSidebar);
+        sidebarOverlay.addEventListener('click', toggleSidebar);
+
+        // --- Model Display Logic ---
         function displayModel(modelId) {
             const model = models.find(m => m.id === modelId);
             if (!model) return;
@@ -212,7 +255,6 @@
             modelDetailsScreen.classList.remove('fade-in');
             void modelDetailsScreen.offsetWidth; // Force reflow
             
-
             // Show details, hide welcome
             welcomeScreen.classList.add('hidden');
             modelDetailsScreen.classList.remove('hidden');
@@ -255,6 +297,11 @@
             if (currentModelElement) {
                 currentModelElement.classList.add('bg-indigo-600', 'text-white', 'shadow-lg', 'model-active-glow');
                 activeModelElement = currentModelElement;
+            }
+
+            // Close sidebar automatically on mobile after selection
+            if (window.innerWidth < 768) { // 768px is the Tailwind 'md' breakpoint
+                toggleSidebar();
             }
         }
 
