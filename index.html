@@ -74,7 +74,6 @@
     <div class="flex h-screen overflow-hidden">
         
         <!-- Sidebar -->
-        <!-- Key changes: fixed positioning on mobile, -translate-x-full to hide, md:relative and md:translate-x-0 to restore on desktop -->
         <aside id="sidebar" class="fixed inset-y-0 left-0 z-30 w-72 h-full bg-[#111827]/90 backdrop-blur-xl border-r border-indigo-700/30 flex flex-col transition-transform duration-500 transform -translate-x-full md:relative md:translate-x-0 md:w-1/4">
             <header class="p-4 border-b border-indigo-700/30 text-center sticky top-0 bg-[#111827]/70 backdrop-blur-lg z-20">
                 <h1 class="text-2xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-purple-500 tracking-wider">
@@ -117,14 +116,25 @@
                     <p id="model-portfolio" class="text-gray-300 leading-relaxed text-base"></p>
                 </div>
                 
-                <!-- Features Section -->
+                <!-- Features Section - Updated for Mobile Collapse -->
                 <div class="bg-gray-800/50 border border-indigo-700/40 p-6 rounded-2xl mb-8 backdrop-blur-sm card-glow">
-                    <h3 class="text-2xl font-bold mb-4 text-cyan-300">Core Capabilities</h3>
-                    <div id="model-features" class="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-4">
-                        <!-- Features will be dynamically inserted here -->
+                    <!-- Toggle Button/Header -->
+                    <button id="features-toggle-btn" class="w-full flex justify-between items-center focus:outline-none">
+                        <h3 class="text-2xl font-bold text-cyan-300">Core Capabilities</h3>
+                        <!-- Chevron icon, visible on mobile only -->
+                        <svg id="features-chevron" class="w-5 h-5 text-indigo-400 md:hidden transition-transform duration-300 transform" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                        </svg>
+                    </button>
+                    
+                    <!-- Collapsible Content Wrapper -->
+                    <!-- Initial state is max-h-0 (closed) on mobile, then forced open on desktop (md:max-h-screen) -->
+                    <div id="features-content" class="transition-all duration-500 ease-in-out max-h-0 md:max-h-screen overflow-hidden">
+                        <div id="model-features" class="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-4 border-t border-indigo-700/20 pt-4 mt-4">
+                            <!-- Features will be dynamically inserted here -->
+                        </div>
                     </div>
                 </div>
-                
             </div>
         </main>
     </div>
@@ -147,7 +157,7 @@
                 shortDescription: 'Currently offline due to a permanent outage.',
                 portfolio: 'The Nix 1 model has been retired from active service due to infrastructure limitations and is no longer available for new requests. Please use Nix 0.5 for lightweight tasks or Nix 1.5 for complex projects.',
                 features: ['Status: Retired', 'Permanently Offline', 'Use 0.5 or 1.5 instead'],
-                tryLink: '#' // Link disabled for retired model
+                tryLink: '#'
             },
             {
                 id: 'nix-1.5',
@@ -204,7 +214,7 @@
                 shortDescription: 'Mobile app for on-the-go access.',
                 portfolio: 'Download the Codenix AI Studio mobile application (APK) to access all models and features directly from your Android device. Includes offline access capabilities for select models.',
                 features: ['Android APK', 'Offline Capabilities', 'Mobile UI'],
-                tryLink: 'app.html' // <-- Changed from 'app.apk' to 'app.html'
+                tryLink: 'app.html'
             }
         ];
 
@@ -222,6 +232,12 @@
         const sidebarOverlay = document.getElementById('sidebar-overlay');
         const menuIcon = document.getElementById('menu-icon');
         const closeIcon = document.getElementById('close-icon');
+
+        // Features Collapse elements
+        const featuresToggleBtn = document.getElementById('features-toggle-btn');
+        const featuresContent = document.getElementById('features-content');
+        const featuresChevron = document.getElementById('features-chevron');
+
 
         let activeModelElement = null;
 
@@ -245,7 +261,30 @@
         
         menuButton.addEventListener('click', toggleSidebar);
         sidebarOverlay.addEventListener('click', toggleSidebar);
+        
+        // --- Features Collapse Logic (Mobile only) ---
+        function toggleFeatures() {
+            // Only execute if on a mobile screen (less than md breakpoint)
+            if (window.innerWidth < 768) {
+                const isClosed = featuresContent.classList.contains('max-h-0');
 
+                if (isClosed) {
+                    // Open: use a large max-height for smooth transition
+                    featuresContent.classList.remove('max-h-0');
+                    featuresContent.classList.add('max-h-[500px]');
+                    featuresChevron.classList.add('rotate-180');
+                } else {
+                    // Close
+                    featuresContent.classList.remove('max-h-[500px]');
+                    featuresContent.classList.add('max-h-0');
+                    featuresChevron.classList.remove('rotate-180');
+                }
+            }
+        }
+
+        // Attach the listener to the features button
+        featuresToggleBtn.addEventListener('click', toggleFeatures);
+        
         // --- Model Display Logic ---
         function displayModel(modelId) {
             const model = models.find(m => m.id === modelId);
@@ -263,7 +302,17 @@
             // Populate data
             modelName.textContent = model.name;
             tryModelLink.href = model.tryLink;
-            tryModelLink.textContent = model.tryLink.endsWith('.apk') ? 'Download App' : 'Try Resource';
+            
+            // Adjust button text based on link type
+            let linkText = 'Try Resource';
+            if (model.tryLink.endsWith('.apk')) {
+                linkText = 'Download App';
+            } else if (model.tryLink.endsWith('.html')) {
+                linkText = model.id === 'download-app' ? 'Go to App Page' : 'Try Resource';
+            }
+            tryModelLink.querySelector('span').textContent = linkText;
+
+
             if (model.tryLink === '#') {
                 tryModelLink.classList.add('opacity-50', 'pointer-events-none');
                 tryModelLink.textContent = 'Unavailable';
@@ -332,7 +381,17 @@
         // Ensure the first item is selected on load for a better initial look
         if (models.length > 0) {
             // Wait for DOM to be fully ready before selecting
-            window.onload = () => displayModel(models[0].id);
+            window.onload = () => {
+                displayModel(models[0].id);
+                // Initial state check for features: closed on mobile, open on desktop
+                if (window.innerWidth < 768) {
+                    featuresContent.classList.add('max-h-0');
+                    featuresChevron.classList.remove('rotate-180');
+                } else {
+                    featuresContent.classList.add('max-h-[500px]'); // Open state on desktop
+                    featuresChevron.classList.add('rotate-180'); // Chevron hidden on desktop, but set to open indicator just in case
+                }
+            };
         }
 
     </script>
