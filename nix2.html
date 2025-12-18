@@ -157,8 +157,6 @@
             async function init() {
                 const { data: { session } } = await sbClient.auth.getSession();
                 if (!session) { 
-                    // Redirect logic if necessary, otherwise show auth loading
-                    // window.location.href = 'auth.html'; 
                     return; 
                 }
                 
@@ -169,26 +167,30 @@
             }
 
             /**
-             * Cleans JSON artifacts from a string response
+             * Cleans JSON artifacts and specific keywords from the message
              */
             function cleanResponse(text) {
                 if (!text) return "";
                 
-                // Remove common JSON structures if the model output the whole object as a string
-                // 1. Replace escaped newlines with actual newlines
+                // 1. Handle escaped newlines
                 let cleaned = text.replace(/\\n/g, '\n');
                 
-                // 2. Remove surrounding braces or specific JSON property keys if they are leaked
-                // This regex looks for patterns like {"output": "..."} and keeps the content
-                cleaned = cleaned.replace(/^\{.*"output":\s*"(.*)".*\}$/s, '$1');
+                // 2. Remove outer JSON structure if it exists as a string
+                // Patterns: {"answer": "..."}, {"output": "..."}, {"response": "..."}
+                cleaned = cleaned.replace(/^\{.*"(answer|output|response)":\s*"(.*)".*\}$/s, '$2');
                 
-                // 3. Remove literal braces and brackets if they appear to wrap the whole message
+                // 3. Remove literal braces/brackets at extremes
+                cleaned = cleaned.trim();
                 if (cleaned.startsWith('{') && cleaned.endsWith('}')) {
-                    cleaned = cleaned.substring(1, cleaned.length - 1);
+                    cleaned = cleaned.substring(1, cleaned.length - 1).trim();
                 }
 
-                // 4. Remove leading/trailing quotes often found in raw string responses
-                cleaned = cleaned.trim().replace(/^"|"$/g, '');
+                // 4. Remove keywords like "answer:", "response:", "output:" at the very start
+                // Case insensitive, matching word followed by colon and optional space
+                cleaned = cleaned.replace(/^(answer|response|output):\s*/i, '');
+
+                // 5. Remove leading and trailing double quotes
+                cleaned = cleaned.replace(/^"|"$/g, '').trim();
 
                 return cleaned;
             }
@@ -296,10 +298,14 @@
 
                     const data = await response.json();
                     
-                    // Extract potential response keys
-                    let rawResponse = data.output || data.response || data.text || (typeof data === 'string' ? data : JSON.stringify(data));
+                    // Priority extraction of response text
+                    let rawResponse = "";
+                    if (data.answer) rawResponse = data.answer;
+                    else if (data.output) rawResponse = data.output;
+                    else if (data.response) rawResponse = data.response;
+                    else if (data.text) rawResponse = data.text;
+                    else rawResponse = typeof data === 'string' ? data : JSON.stringify(data);
                     
-                    // Clean the response from JSON symbols
                     const botResponse = cleanResponse(rawResponse);
                     
                     thinkingMsg.querySelector('.flex-1').innerHTML = `
