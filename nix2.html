@@ -137,169 +137,164 @@
     </main>
 
     <script>
-        const SYNC_WEBHOOK_URL = 'https://cloud.activepieces.com/api/v1/webhooks/WR43cDYER0O9TiHq8exAH/sync';
-        const supabaseUrl = 'https://rnlwrngfgvznndlekmrz.supabase.co';
-        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJubHdybmdmZ3Z6bm5kbGVrbXJ6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjYwMzIxODMsImV4cCI6MjA4MTYwODE4M30.4al_pqjZBYgbfoLlMosT500PC85OGsUggCAL-hmtelA';
-        const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
-
-        let currentUser = null;
-        let selectedFiles = [];
-
-        async function init() {
-            const { data: { session } } = await supabase.auth.getSession();
-            if (!session) { window.location.href = 'auth.html'; return; }
+        // Use a self-invoking function or distinct variable names to avoid "already declared" errors in re-execution environments
+        (function() {
+            const SYNC_WEBHOOK_URL = 'https://cloud.activepieces.com/api/v1/webhooks/WR43cDYER0O9TiHq8exAH/sync';
+            const sbUrl = 'https://rnlwrngfgvznndlekmrz.supabase.co';
+            const sbKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJubHdybmdmZ3Z6bm5kbGVrbXJ6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjYwMzIxODMsImV4cCI6MjA4MTYwODE4M30.4al_pqjZBYgbfoLlMosT500PC85OGsUggCAL-hmtelA';
             
-            currentUser = session.user;
-            document.getElementById('user-name').innerText = currentUser.email.split('@')[0];
-            document.getElementById('user-initial').innerText = currentUser.email.charAt(0).toUpperCase();
-            document.getElementById('auth-loading').classList.add('hidden');
-        }
+            // Reference the global supabase if it exists, otherwise create it
+            const sbClient = window.supabase.createClient(sbUrl, sbKey);
 
-        const form = document.getElementById('chat-form');
-        const input = document.getElementById('user-input');
-        const fileInput = document.getElementById('file-input');
-        const filePreview = document.getElementById('file-preview-area');
-        const container = document.getElementById('message-container');
-        const scroller = document.getElementById('chat-scroller');
+            let currentUser = null;
+            let selectedFiles = [];
 
-        // Handle file selection
-        fileInput.onchange = (e) => {
-            const files = Array.from(e.target.files);
-            selectedFiles = [...selectedFiles, ...files];
-            renderFilePreviews();
-        };
+            const form = document.getElementById('chat-form');
+            const input = document.getElementById('user-input');
+            const fileInput = document.getElementById('file-input');
+            const filePreview = document.getElementById('file-preview-area');
+            const container = document.getElementById('message-container');
+            const scroller = document.getElementById('chat-scroller');
 
-        function renderFilePreviews() {
-            filePreview.innerHTML = '';
-            selectedFiles.forEach((file, index) => {
-                const badge = document.createElement('div');
-                badge.className = "flex items-center gap-2 bg-zinc-800 text-zinc-300 px-3 py-1.5 rounded-lg border border-white/10 text-[10px] font-mono";
-                badge.innerHTML = `
-                    <span>${file.name}</span>
-                    <button type="button" onclick="removeFile(${index})" class="text-zinc-500 hover:text-red-400">×</button>
-                `;
-                filePreview.appendChild(badge);
+            async function init() {
+                const { data: { session } } = await sbClient.auth.getSession();
+                if (!session) { window.location.href = 'auth.html'; return; }
+                
+                currentUser = session.user;
+                document.getElementById('user-name').innerText = currentUser.email.split('@')[0];
+                document.getElementById('user-initial').innerText = currentUser.email.charAt(0).toUpperCase();
+                document.getElementById('auth-loading').classList.add('hidden');
+            }
+
+            fileInput.onchange = (e) => {
+                const files = Array.from(e.target.files);
+                selectedFiles = [...selectedFiles, ...files];
+                renderFilePreviews();
+            };
+
+            function renderFilePreviews() {
+                filePreview.innerHTML = '';
+                selectedFiles.forEach((file, index) => {
+                    const badge = document.createElement('div');
+                    badge.className = "flex items-center gap-2 bg-zinc-800 text-zinc-300 px-3 py-1.5 rounded-lg border border-white/10 text-[10px] font-mono";
+                    badge.innerHTML = `
+                        <span>${file.name}</span>
+                        <button type="button" class="text-zinc-500 hover:text-red-400 remove-file-btn" data-index="${index}">×</button>
+                    `;
+                    filePreview.appendChild(badge);
+                });
+
+                document.querySelectorAll('.remove-file-btn').forEach(btn => {
+                    btn.onclick = (e) => {
+                        const idx = parseInt(e.target.getAttribute('data-index'));
+                        selectedFiles.splice(idx, 1);
+                        renderFilePreviews();
+                    };
+                });
+            }
+
+            function appendMessage(role, content, files = [], isThinking = false) {
+                const div = document.createElement('div');
+                div.className = `flex gap-4 p-6 rounded-2xl mb-4 message-fade ${role === 'user' ? 'bg-zinc-900/30' : ''}`;
+                
+                const avatar = role === 'user' 
+                    ? `<div class="w-8 h-8 rounded-lg bg-zinc-800 shrink-0 flex items-center justify-center font-bold text-[10px] text-zinc-500 uppercase">You</div>`
+                    : `<div class="w-8 h-8 rounded-lg bg-brand-600 shrink-0 flex items-center justify-center font-bold text-[10px] text-white uppercase">Nix</div>`;
+
+                let fileHtml = '';
+                if (files.length > 0) {
+                    fileHtml = `<div class="flex flex-wrap gap-2 mb-3">
+                        ${files.map(f => `<span class="bg-zinc-800/50 border border-white/5 px-2 py-1 rounded text-[10px] text-zinc-500">📎 ${f.name}</span>`).join('')}
+                    </div>`;
+                }
+
+                const body = isThinking 
+                    ? `<div class="flex items-center gap-1.5 py-2"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div>`
+                    : `<div class="text-sm leading-relaxed text-zinc-300 whitespace-pre-wrap">${content}</div>`;
+
+                div.innerHTML = `${avatar}<div class="flex-1">${fileHtml}${body}</div>`;
+                container.appendChild(div);
+                scroller.scrollTo({ top: scroller.scrollHeight, behavior: 'smooth' });
+                return div;
+            }
+
+            const toBase64 = file => new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.readAsDataURL(file);
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = error => reject(error);
             });
-        }
 
-        window.removeFile = (index) => {
-            selectedFiles.splice(index, 1);
-            renderFilePreviews();
-        };
+            form.onsubmit = async (e) => {
+                e.preventDefault();
+                const text = input.value.trim();
+                if (!text && selectedFiles.length === 0) return;
 
-        function appendMessage(role, content, files = [], isThinking = false) {
-            const div = document.createElement('div');
-            div.className = `flex gap-4 p-6 rounded-2xl mb-4 message-fade ${role === 'user' ? 'bg-zinc-900/30' : ''}`;
-            
-            const avatar = role === 'user' 
-                ? `<div class="w-8 h-8 rounded-lg bg-zinc-800 shrink-0 flex items-center justify-center font-bold text-[10px] text-zinc-500 uppercase">You</div>`
-                : `<div class="w-8 h-8 rounded-lg bg-brand-600 shrink-0 flex items-center justify-center font-bold text-[10px] text-white uppercase">Nix</div>`;
+                if (document.getElementById('welcome')) document.getElementById('welcome').remove();
 
-            let fileHtml = '';
-            if (files.length > 0) {
-                fileHtml = `<div class="flex flex-wrap gap-2 mb-3">
-                    ${files.map(f => `<span class="bg-zinc-800/50 border border-white/5 px-2 py-1 rounded text-[10px] text-zinc-500">📎 ${f.name}</span>`).join('')}
-                </div>`;
-            }
-
-            const body = isThinking 
-                ? `<div class="flex items-center gap-1.5 py-2"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div>`
-                : `<div class="text-sm leading-relaxed text-zinc-300 whitespace-pre-wrap">${content}</div>`;
-
-            div.innerHTML = `${avatar}<div class="flex-1">${fileHtml}${body}</div>`;
-            container.appendChild(div);
-            scroller.scrollTo({ top: scroller.scrollHeight, behavior: 'smooth' });
-            return div;
-        }
-
-        // Convert file to base64 for webhook
-        const toBase64 = file => new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.readAsDataURL(file);
-            reader.onload = () => resolve(reader.result);
-            reader.onerror = error => reject(error);
-        });
-
-        form.onsubmit = async (e) => {
-            e.preventDefault();
-            const text = input.value.trim();
-            if (!text && selectedFiles.length === 0) return;
-
-            if (document.getElementById('welcome')) document.getElementById('welcome').remove();
-
-            // 1. Post User Message
-            appendMessage('user', text, [...selectedFiles]);
-            
-            // Prepare payload data
-            const messageFiles = [];
-            for(const file of selectedFiles) {
-                messageFiles.push({
-                    name: file.name,
-                    type: file.type,
-                    data: await toBase64(file)
-                });
-            }
-
-            // Reset inputs
-            input.value = '';
-            input.style.height = 'auto';
-            const tempFiles = [...selectedFiles];
-            selectedFiles = [];
-            renderFilePreviews();
-
-            // 2. Post Thinking Placeholder
-            const thinkingMsg = appendMessage('bot', '', [], true);
-
-            try {
-                // 3. Send to Webhook
-                const response = await fetch(SYNC_WEBHOOK_URL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
-                        message: text,
-                        files: messageFiles,
-                        user: {
-                            id: currentUser.id,
-                            email: currentUser.email,
-                            name: currentUser.user_metadata.full_name || currentUser.email.split('@')[0]
-                        },
-                        timestamp: new Date().toISOString()
-                    })
-                });
-
-                if (!response.ok) throw new Error('Reasoning engine error');
-
-                const data = await response.json();
+                appendMessage('user', text, [...selectedFiles]);
                 
-                // 4. Update with response
-                // Support multiple common output paths from flows
-                const botResponse = data.output || data.response || data.text || (typeof data === 'string' ? data : JSON.stringify(data));
-                
-                thinkingMsg.querySelector('.flex-1').innerHTML = `
-                    <div class="text-sm leading-relaxed text-zinc-300 whitespace-pre-wrap">${botResponse}</div>
-                `;
+                const messageFiles = [];
+                for(const file of selectedFiles) {
+                    try {
+                        const base64 = await toBase64(file);
+                        messageFiles.push({ name: file.name, type: file.type, data: base64 });
+                    } catch (err) { console.error("File conversion error", err); }
+                }
 
-            } catch (err) {
-                thinkingMsg.querySelector('.flex-1').innerHTML = `
-                    <div class="text-xs text-red-400 bg-red-500/10 p-4 rounded-xl border border-red-500/20 flex items-center gap-3">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                        <span>Request failed. Please check your connection or workflow status.</span>
-                    </div>
-                `;
-            }
-        };
+                input.value = '';
+                input.style.height = 'auto';
+                selectedFiles = [];
+                renderFilePreviews();
 
-        input.addEventListener('input', function() {
-            this.style.height = 'auto';
-            this.style.height = (this.scrollHeight) + 'px';
-        });
+                const thinkingMsg = appendMessage('bot', '', [], true);
 
-        async function handleLogout() {
-            await supabase.auth.signOut();
-            window.location.href = 'auth.html';
-        }
+                try {
+                    const response = await fetch(SYNC_WEBHOOK_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ 
+                            message: text,
+                            files: messageFiles,
+                            user: {
+                                id: currentUser.id,
+                                email: currentUser.email,
+                                name: currentUser.user_metadata.full_name || currentUser.email.split('@')[0]
+                            },
+                            timestamp: new Date().toISOString()
+                        })
+                    });
 
-        init();
+                    if (!response.ok) throw new Error('Reasoning engine error');
+
+                    const data = await response.json();
+                    const botResponse = data.output || data.response || data.text || (typeof data === 'string' ? data : JSON.stringify(data));
+                    
+                    thinkingMsg.querySelector('.flex-1').innerHTML = `
+                        <div class="text-sm leading-relaxed text-zinc-300 whitespace-pre-wrap">${botResponse}</div>
+                    `;
+                } catch (err) {
+                    thinkingMsg.querySelector('.flex-1').innerHTML = `
+                        <div class="text-xs text-red-400 bg-red-500/10 p-4 rounded-xl border border-red-500/20 flex items-center gap-3">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                            <span>Request failed. Please check your connection or workflow status.</span>
+                        </div>
+                    `;
+                }
+            };
+
+            input.addEventListener('input', function() {
+                this.style.height = 'auto';
+                this.style.height = (this.scrollHeight) + 'px';
+            });
+
+            window.handleLogout = async () => {
+                await sbClient.auth.signOut();
+                window.location.href = 'auth.html';
+            };
+
+            init();
+        })();
     </script>
 </body>
 </html>
