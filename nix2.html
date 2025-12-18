@@ -55,11 +55,20 @@
         ::-webkit-scrollbar-thumb { background: #27272a; border-radius: 10px; }
 
         .media-container img, .media-container video { max-height: 400px; object-fit: contain; }
+        
+        .toast {
+            position: fixed; bottom: 2rem; left: 50%; transform: translateX(-50%);
+            background: #6366f1; color: white; padding: 0.5rem 1rem;
+            border-radius: 99px; font-size: 0.75rem; font-weight: 600;
+            z-index: 1000; opacity: 0; transition: opacity 0.3s ease;
+            pointer-events: none;
+        }
     </style>
 </head>
 <body class="h-screen flex overflow-hidden">
 
-    <!-- Auth Guard Overlay -->
+    <div id="toast" class="toast">Copied to clipboard</div>
+
     <div id="auth-loading" class="fixed inset-0 z-[100] bg-black flex items-center justify-center">
         <div class="text-center">
             <div class="w-8 h-8 border-2 border-brand-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
@@ -67,7 +76,6 @@
         </div>
     </div>
 
-    <!-- Sidebar -->
     <aside class="w-72 border-r border-zinc-800 bg-black flex flex-col hidden md:flex">
         <div class="p-6 border-b border-zinc-800 flex items-center gap-3">
             <div class="w-8 h-8 bg-brand-600 rounded-lg flex items-center justify-center font-bold text-white">N</div>
@@ -203,11 +211,39 @@
                 }
             }
 
+            function showToast(msg) {
+                const toast = document.getElementById('toast');
+                toast.innerText = msg;
+                toast.style.opacity = '1';
+                setTimeout(() => toast.style.opacity = '0', 2000);
+            }
+
+            // Fixed Copy Implementation for Iframe environment
+            window.copyToClipboard = (text) => {
+                const el = document.createElement('textarea');
+                el.value = text;
+                el.setAttribute('readonly', '');
+                el.style.position = 'absolute';
+                el.style.left = '-9999px';
+                document.body.appendChild(el);
+                el.select();
+                try {
+                    document.execCommand('copy');
+                    showToast("Copied to clipboard");
+                } catch (err) {
+                    console.error('Copy failed', err);
+                }
+                document.body.removeChild(el);
+            };
+
             function cleanResponse(text) {
                 if (!text) return "";
+                if (typeof text !== 'string') return JSON.stringify(text);
+                
                 let cleaned = text.replace(/\\n/g, '\n');
                 cleaned = cleaned.replace(/^\{.*"(answer|output|response)":\s*"(.*)".*\}$/s, '$2');
                 cleaned = cleaned.trim();
+                
                 if (cleaned.startsWith('{') && cleaned.endsWith('}')) {
                     try {
                         const parsed = JSON.parse(cleaned);
@@ -219,48 +255,102 @@
                 return cleaned;
             }
 
-            function renderMedia(url) {
-                const extension = url.split('.').pop().toLowerCase().split(/[?#]/)[0];
-                const isImage = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'svg'].includes(extension) || url.includes('image');
-                const isVideo = ['mp4', 'webm', 'ogg', 'mov'].includes(extension) || url.includes('video');
-                const isAudio = ['mp3', 'wav', 'aac', 'm4a'].includes(extension) || url.includes('audio');
-
-                let html = '';
-                if (isImage) {
-                    html = `<div class="media-container relative group mt-3">
-                                <img src="${url}" class="rounded-xl border border-white/10 max-w-full h-auto shadow-lg" loading="lazy">
-                                <a href="${url}" download target="_blank" class="absolute top-2 right-2 bg-black/60 backdrop-blur p-2 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity text-white hover:bg-brand-500">
-                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
-                                </a>
-                            </div>`;
-                } else if (isVideo) {
-                    html = `<div class="media-container mt-3 bg-black rounded-xl border border-white/10 overflow-hidden relative group">
-                                <video controls class="w-full">
-                                    <source src="${url}">
-                                </video>
-                                <a href="${url}" download target="_blank" class="absolute bottom-12 right-2 bg-black/60 backdrop-blur p-2 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity text-white hover:bg-brand-500">
-                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
-                                </a>
-                            </div>`;
-                } else if (isAudio) {
-                    html = `<div class="mt-3 p-4 bg-zinc-900 border border-white/5 rounded-xl flex items-center gap-4">
-                                <audio controls class="flex-1 h-8">
-                                    <source src="${url}">
-                                </audio>
-                                <a href="${url}" download target="_blank" class="p-2 bg-zinc-800 rounded-lg text-white hover:bg-brand-500">
-                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
-                                </a>
-                            </div>`;
-                } else {
-                    html = `<div class="mt-3 p-4 bg-zinc-900 border border-white/5 rounded-xl flex items-center justify-between group">
-                                <div class="flex items-center gap-3">
-                                    <div class="w-10 h-10 bg-brand-500/10 text-brand-400 rounded flex items-center justify-center text-xs font-bold">DOC</div>
-                                    <span class="text-xs text-zinc-400">Reference File</span>
-                                </div>
-                                <a href="${url}" download target="_blank" class="px-4 py-2 bg-brand-500 text-white text-[10px] font-bold rounded-lg uppercase tracking-wider hover:bg-brand-600">Download</a>
-                            </div>`;
+            // Recursively extract every single URL from the response object
+            function extractUrls(obj, list = []) {
+                if (!obj) return list;
+                if (typeof obj === 'string') {
+                    const urlRegex = /(https?:\/\/[^\s"'<>]+)/g;
+                    const matches = obj.match(urlRegex);
+                    if (matches) list.push(...matches);
+                } else if (Array.isArray(obj)) {
+                    obj.forEach(item => extractUrls(item, list));
+                } else if (typeof obj === 'object') {
+                    Object.values(obj).forEach(val => extractUrls(val, list));
                 }
-                return html;
+                return [...new Set(list)];
+            }
+
+            function renderMedia(url) {
+                const lowerUrl = url.toLowerCase();
+                const cleanUrl = url.split(/[?#]/)[0];
+                const extension = cleanUrl.split('.').pop().toLowerCase();
+                
+                // Detection logic: check extension OR check for keywords in URL
+                const isImage = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'svg', 'avif', 'bmp'].includes(extension) || 
+                                lowerUrl.includes('image') || 
+                                lowerUrl.includes('photo') || 
+                                lowerUrl.includes('thumb');
+                
+                const isVideo = ['mp4', 'webm', 'ogg', 'mov', 'm4v', '3gp'].includes(extension) || 
+                                lowerUrl.includes('video') || 
+                                lowerUrl.includes('movie') || 
+                                lowerUrl.includes('.mp4');
+                
+                const isAudio = ['mp3', 'wav', 'aac', 'm4a', 'opus', 'flac'].includes(extension) || 
+                                lowerUrl.includes('audio') || 
+                                lowerUrl.includes('voice') || 
+                                lowerUrl.includes('music');
+
+                let mediaHtml = '';
+                let typeLabel = "FILE";
+
+                if (isImage) {
+                    typeLabel = "IMAGE";
+                    mediaHtml = `
+                        <div class="relative group cursor-zoom-in">
+                            <img src="${url}" 
+                                 class="rounded-xl border border-white/10 w-full h-auto shadow-2xl bg-zinc-900 transition-transform duration-300" 
+                                 loading="lazy"
+                                 onclick="window.open('${url}', '_blank')"
+                                 onerror="this.parentElement.innerHTML='<div class=\'p-4 text-xs text-zinc-500 bg-zinc-900 rounded-xl\'>Image unable to load</div>'">
+                        </div>`;
+                } else if (isVideo) {
+                    typeLabel = "VIDEO";
+                    mediaHtml = `
+                        <div class="rounded-xl overflow-hidden border border-white/10 bg-black shadow-2xl">
+                            <video controls class="w-full aspect-video">
+                                <source src="${url}">
+                                Your browser does not support video playback.
+                            </video>
+                        </div>`;
+                } else if (isAudio) {
+                    typeLabel = "AUDIO";
+                    mediaHtml = `
+                        <div class="p-4 bg-zinc-900 border border-white/10 rounded-xl shadow-lg">
+                            <div class="flex items-center gap-3 mb-3">
+                                <div class="w-8 h-8 bg-brand-500/20 text-brand-400 rounded-full flex items-center justify-center">
+                                    <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+                                </div>
+                                <span class="text-[11px] font-bold text-zinc-300 uppercase tracking-widest">Audio Stream</span>
+                            </div>
+                            <audio controls class="w-full h-8"><source src="${url}"></audio>
+                        </div>`;
+                } else {
+                    mediaHtml = `
+                        <div class="p-4 bg-zinc-900 border border-white/10 rounded-xl flex items-center gap-4 hover:border-brand-500/50 transition-colors">
+                            <div class="w-12 h-12 bg-zinc-800 text-zinc-500 rounded-lg flex items-center justify-center shrink-0">
+                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg>
+                            </div>
+                            <div class="overflow-hidden">
+                                <div class="text-[12px] text-zinc-200 font-bold truncate">${cleanUrl.split('/').pop() || 'Generated File'}</div>
+                                <div class="text-[10px] text-zinc-500 uppercase tracking-tighter mt-1">External Resource</div>
+                            </div>
+                        </div>`;
+                }
+
+                return `
+                <div class="media-container mt-6">
+                    ${mediaHtml}
+                    <div class="flex items-center gap-2 mt-3">
+                        <a href="${url}" target="_blank" download class="flex-1 bg-white/5 hover:bg-white/10 border border-white/10 text-white text-[10px] font-bold py-2.5 rounded-lg transition-all flex items-center justify-center gap-2 uppercase tracking-widest">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                            Download ${typeLabel}
+                        </a>
+                        <button onclick="window.copyToClipboard('${url}')" class="p-2.5 bg-white/5 hover:bg-white/10 border border-white/10 text-zinc-400 hover:text-white rounded-lg transition-all" title="Copy Link">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path></svg>
+                        </button>
+                    </div>
+                </div>`;
             }
 
             input.oninput = () => {
@@ -269,12 +359,15 @@
                 } else {
                     palette.classList.add('hidden');
                 }
+                input.style.height = 'auto';
+                input.style.height = input.scrollHeight + 'px';
             };
 
             window.applyCommand = (cmd) => {
                 input.value = cmd;
                 palette.classList.add('hidden');
                 input.focus();
+                input.dispatchEvent(new Event('input'));
             };
 
             form.onsubmit = async (e) => {
@@ -297,6 +390,7 @@
                 }
 
                 input.value = '';
+                input.style.height = 'auto';
                 palette.classList.add('hidden');
                 selectedFiles = [];
                 renderFilePreviews();
@@ -308,40 +402,53 @@
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ 
-                            message: text,
+                            question: text,
                             files: messageFiles,
                             user: currentUser ? { id: currentUser.id, email: currentUser.email } : { id: 'guest' }
                         })
                     });
 
                     const data = await response.json();
-                    let botContent = cleanResponse(data.answer || data.output || data.response || data.text || JSON.stringify(data));
                     
-                    const urlRegex = /(https?:\/\/[^\s]+)/g;
-                    const urls = botContent.match(urlRegex) || [];
+                    // Logic to prioritize text but detect all media
+                    let botContent = cleanResponse(data.answer || data.output || data.response || data.text || "");
+                    const allUrls = extractUrls(data);
                     
+                    // Clean text (remove URLs that will be rendered as media)
                     let textOnly = botContent;
-                    urls.forEach(u => textOnly = textOnly.replace(u, ''));
+                    allUrls.forEach(u => {
+                        const escapedUrl = u.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                        textOnly = textOnly.replace(new RegExp(escapedUrl, 'g'), '');
+                    });
 
-                    let mediaHtml = urls.map(url => renderMedia(url)).join('');
+                    let mediaHtml = allUrls.map(url => renderMedia(url)).join('');
 
                     thinkingMsg.querySelector('.flex-1').innerHTML = `
-                        <div class="text-sm leading-relaxed text-zinc-300 whitespace-pre-wrap">${textOnly.trim()}</div>
-                        ${mediaHtml}
+                        <div class="relative group">
+                            <div class="text-sm leading-relaxed text-zinc-300 whitespace-pre-wrap">${textOnly.trim() || (allUrls.length > 0 ? '' : 'Task completed successfully.')}</div>
+                            ${textOnly.trim() ? `
+                            <button onclick="window.copyToClipboard(this.previousElementSibling.innerText)" class="mt-4 opacity-0 group-hover:opacity-100 transition-opacity bg-zinc-800 border border-white/5 text-zinc-400 hover:text-white px-3 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-widest flex items-center gap-2">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+                                Copy Text
+                            </button>` : ''}
+                        </div>
+                        <div class="media-grid">
+                            ${mediaHtml}
+                        </div>
                     `;
                 } catch (err) {
-                    thinkingMsg.querySelector('.flex-1').innerHTML = `<div class="text-xs text-red-400">Connection failed. Check your network.</div>`;
+                    thinkingMsg.querySelector('.flex-1').innerHTML = `<div class="text-xs text-red-500 font-bold">Error: Connection timed out. Please retry.</div>`;
                 }
             };
 
             function appendMessage(role, content, files = [], isThinking = false) {
                 const div = document.createElement('div');
-                div.className = `flex gap-4 p-6 rounded-2xl mb-4 message-fade ${role === 'user' ? 'bg-zinc-900/30' : ''}`;
+                div.className = `flex gap-5 p-7 rounded-3xl mb-4 message-fade ${role === 'user' ? 'bg-zinc-900/40' : ''}`;
                 const avatar = role === 'user' 
-                    ? `<div class="w-8 h-8 rounded-lg bg-zinc-800 shrink-0 flex items-center justify-center font-bold text-[10px] text-zinc-500 uppercase">You</div>`
-                    : `<div class="w-8 h-8 rounded-lg bg-brand-600 shrink-0 flex items-center justify-center font-bold text-[10px] text-white uppercase">Nix</div>`;
+                    ? `<div class="w-9 h-9 rounded-xl bg-zinc-800 shrink-0 flex items-center justify-center font-bold text-[11px] text-zinc-500 uppercase tracking-tighter">You</div>`
+                    : `<div class="w-9 h-9 rounded-xl bg-brand-600 shrink-0 flex items-center justify-center font-bold text-[11px] text-white uppercase tracking-tighter">Nix</div>`;
                 
-                div.innerHTML = `${avatar}<div class="flex-1">${isThinking ? '<div class="typing-dot"></div>' : `<div class="text-sm text-zinc-300">${content}</div>`}</div>`;
+                div.innerHTML = `${avatar}<div class="flex-1">${isThinking ? '<div class="flex gap-1.5 py-2"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div>' : `<div class="text-sm text-zinc-300 leading-relaxed">${content}</div>`}</div>`;
                 container.appendChild(div);
                 scroller.scrollTo({ top: scroller.scrollHeight, behavior: 'smooth' });
                 return div;
@@ -351,8 +458,8 @@
                 filePreview.innerHTML = '';
                 selectedFiles.forEach((file) => {
                     const badge = document.createElement('div');
-                    badge.className = "bg-zinc-800 text-zinc-400 px-2 py-1 rounded text-[10px] border border-white/5";
-                    badge.innerText = file.name;
+                    badge.className = "bg-brand-500/10 text-brand-400 px-3 py-1.5 rounded-lg text-[10px] border border-brand-500/20 font-bold flex items-center gap-2";
+                    badge.innerHTML = `<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>${file.name}`;
                     filePreview.appendChild(badge);
                 });
             }
