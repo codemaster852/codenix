@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en" class="dark" id="html-root">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nix 2 - Codenix AI Studio</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        background: '#050505',
+                        surface: '#0A0A0A',
+                        border: '#1A1A1A',
+                        brand: {
+                            500: '#6366f1',
+                            600: '#4f46e5',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body { background-color: #050505; color: #EDEDED; -webkit-font-smoothing: antialiased; }
+        .dark body { background-color: #000000; }
+        .bg-grid-pattern {
+            background-size: 40px 40px;
+            background-image: linear-gradient(to right, rgba(255,255,255,0.03) 1px, transparent 1px),
+                              linear-gradient(to bottom, rgba(255,255,255,0.03) 1px, transparent 1px);
+        }
+        .sidebar { border-right: 1px solid #1A1A1A; background: #050505; }
+        .chat-container { max-width: 800px; margin: 0 auto; }
+        .pro-badge {
+            background: linear-gradient(45deg, #6366f1, #a855f7);
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: 800;
+            text-transform: uppercase;
+        }
+        .shimmer {
+            background: linear-gradient(90deg, #1A1A1A 0%, #262626 50%, #1A1A1A 100%);
+            background-size: 200% 100%;
+            animation: shimmer 1.5s infinite;
+        }
+        @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+    </style>
+</head>
+<body class="h-screen flex overflow-hidden">
+
+    <!-- Auth & Logic Overlay -->
+    <div id="auth-loading" class="fixed inset-0 z-[100] bg-black flex items-center justify-center">
+        <div class="text-center">
+            <div class="w-12 h-12 border-4 border-brand-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+            <p class="text-zinc-500 font-medium">Verifying Session...</p>
+        </div>
+    </div>
+
+    <!-- Pro Access Modal (Hidden by Default) -->
+    <div id="pro-modal" class="fixed inset-0 z-[110] bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-6">
+        <div class="bg-zinc-900 border border-zinc-800 p-8 rounded-2xl max-w-md w-full text-center">
+            <div class="w-16 h-16 bg-brand-500/10 text-brand-500 rounded-full flex items-center justify-center mx-auto mb-6">
+                <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+            </div>
+            <h2 class="text-2xl font-bold mb-2">Nix 2 is a Pro Feature</h2>
+            <p class="text-zinc-400 mb-8">Nix 2 features advanced agentic reasoning and 1M token context. Upgrade your plan to access this model.</p>
+            <div class="space-y-3">
+                <button class="w-full py-3 bg-brand-600 hover:bg-brand-500 text-white font-bold rounded-xl transition-all">Upgrade to Pro</button>
+                <a href="portal.html" class="block w-full py-3 bg-zinc-800 hover:bg-zinc-700 text-white font-bold rounded-xl transition-all">Back to Portal</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sidebar -->
+    <aside class="w-64 sidebar hidden md:flex flex-col">
+        <div class="p-6 border-b border-border flex items-center gap-3">
+            <div class="w-8 h-8 bg-brand-600 rounded-lg flex items-center justify-center font-bold text-white">C</div>
+            <span class="font-bold tracking-tight">Nix 2 <span class="pro-badge ml-1">Pro</span></span>
+        </div>
+        <div class="flex-1 p-4 overflow-y-auto space-y-2">
+            <button class="w-full text-left p-3 rounded-lg bg-zinc-900 border border-border text-sm font-medium">New Conversation</button>
+            <div class="pt-4 space-y-1">
+                <div class="text-[10px] uppercase tracking-widest text-zinc-500 font-bold px-3 mb-2">History</div>
+                <div class="p-3 text-xs text-zinc-400 hover:bg-zinc-900 rounded-md cursor-pointer truncate">Neural Network architecture...</div>
+                <div class="p-3 text-xs text-zinc-400 hover:bg-zinc-900 rounded-md cursor-pointer truncate">Market Analysis v2</div>
+            </div>
+        </div>
+        <div class="p-4 border-t border-border">
+            <div id="user-profile" class="flex items-center gap-3 p-2 rounded-lg hover:bg-zinc-900 cursor-pointer">
+                <div class="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center text-xs font-bold" id="user-initials">?</div>
+                <div class="flex-1 min-w-0">
+                    <div class="text-xs font-bold truncate" id="user-display-name">Loading...</div>
+                    <div class="text-[10px] text-zinc-500 truncate" id="user-email">...</div>
+                </div>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Main Workspace -->
+    <main class="flex-1 flex flex-col relative bg-grid-pattern">
+        <!-- Header -->
+        <header class="h-14 border-b border-border flex items-center justify-between px-6 bg-black/50 backdrop-blur-md">
+            <div class="flex items-center gap-4">
+                <button class="md:hidden text-zinc-400"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16" stroke-width="2"></path></svg></button>
+                <div class="text-sm font-medium text-zinc-300">Active Model: <span class="text-white">Nix 2</span></div>
+            </div>
+            <div class="flex items-center gap-4">
+                <button onclick="window.handleLogout()" class="text-xs text-zinc-500 hover:text-white transition-colors font-medium">Sign Out</button>
+            </div>
+        </header>
+
+        <!-- Chat Area -->
+        <div class="flex-1 overflow-y-auto p-6" id="chat-scroller">
+            <div class="chat-container space-y-8 py-10">
+                <!-- Welcome Message -->
+                <div class="text-center mb-12">
+                    <h2 class="text-3xl font-bold mb-4">How can <span class="text-brand-500">Nix 2</span> help today?</h2>
+                    <p class="text-zinc-500 text-sm">Agentic reasoning enabled. Optimized for code, analysis, and research.</p>
+                </div>
+                
+                <!-- Chat Bubbles Placeholder -->
+                <div id="messages" class="space-y-6"></div>
+            </div>
+        </div>
+
+        <!-- Input Area -->
+        <div class="p-6 border-t border-border bg-black/80 backdrop-blur-lg">
+            <div class="chat-container">
+                <form id="chat-form" class="relative group">
+                    <textarea 
+                        id="chat-input"
+                        placeholder="Message Nix 2..." 
+                        rows="1"
+                        class="w-full bg-zinc-900 border border-zinc-800 rounded-2xl py-4 pl-4 pr-14 text-sm focus:outline-none focus:border-brand-500 transition-all resize-none overflow-hidden"
+                    ></textarea>
+                    <button type="submit" class="absolute right-3 bottom-3 w-8 h-8 bg-white text-black rounded-xl flex items-center justify-center hover:bg-brand-500 hover:text-white transition-all shadow-lg">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9-7-9-7V11H3v2h9v8z"></path></svg>
+                    </button>
+                </form>
+                <p class="text-[10px] text-center text-zinc-600 mt-3">Nix 2 can make mistakes. Check important info.</p>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        (function() {
+            const supabaseUrl = 'https://rnlwrngfgvznndlekmrz.supabase.co';
+            const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJubHdybmdmZ3Z6bm5kbGVrbXJ6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjYwMzIxODMsImV4cCI6MjA4MTYwODE4M30.4al_pqjZBYgbfoLlMosT500PC85OGsUggCAL-hmtelA';
+            const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+
+            async function init() {
+                const { data: { session } } = await supabase.auth.getSession();
+                
+                // 1. Auth Check
+                if (!session) {
+                    window.location.href = 'auth.html';
+                    return;
+                }
+
+                const user = session.user;
+                
+                // 2. Pro Check (Mock logic: Checks user metadata or a 'subscriptions' table)
+                // In a real app, you'd fetch this from your database
+                const isPro = user.user_metadata?.subscription === 'pro' || user.email.includes('pro@');
+
+                if (!isPro) {
+                    document.getElementById('pro-modal').classList.remove('hidden');
+                } else {
+                    document.getElementById('auth-loading').classList.add('hidden');
+                }
+
+                // UI Updates
+                document.getElementById('user-email').innerText = user.email;
+                document.getElementById('user-display-name').innerText = user.user_metadata.full_name || user.email.split('@')[0];
+                document.getElementById('user-initials').innerText = (user.user_metadata.full_name || 'U').charAt(0).toUpperCase();
+            }
+
+            window.handleLogout = async function() {
+                await supabase.auth.signOut();
+                window.location.href = 'index.html';
+            };
+
+            // Dynamic Textarea
+            const textarea = document.getElementById('chat-input');
+            textarea.addEventListener('input', () => {
+                textarea.style.height = 'auto';
+                textarea.style.height = (textarea.scrollHeight) + 'px';
+            });
+
+            // Chat Form
+            document.getElementById('chat-form').onsubmit = (e) => {
+                e.preventDefault();
+                const text = textarea.value.trim();
+                if (!text) return;
+
+                const msgDiv = document.createElement('div');
+                msgDiv.className = "flex gap-4 p-4 rounded-xl bg-zinc-900 border border-zinc-800 animate-fade-in";
+                msgDiv.innerHTML = `
+                    <div class="w-8 h-8 rounded bg-brand-600 shrink-0 flex items-center justify-center font-bold text-[10px]">U</div>
+                    <div class="text-sm leading-relaxed">${text}</div>
+                `;
+                document.getElementById('messages').appendChild(msgDiv);
+                textarea.value = '';
+                textarea.style.height = 'auto';
+            };
+
+            init();
+        })();
+    </script>
+</body>
+</html>
