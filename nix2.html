@@ -30,7 +30,6 @@
         body { background-color: #050505; color: #EDEDED; -webkit-font-smoothing: antialiased; }
         .bg-grid { background-size: 40px 40px; background-image: linear-gradient(to right, rgba(255,255,255,0.02) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.02) 1px, transparent 1px); }
         
-        /* Shimmer loading effect */
         .thinking-dot { animation: thinking 1.4s infinite ease-in-out; }
         .thinking-dot:nth-child(2) { animation-delay: 0.2s; }
         .thinking-dot:nth-child(3) { animation-delay: 0.4s; }
@@ -39,7 +38,6 @@
             40% { opacity: 1; transform: translateY(-4px); }
         }
 
-        /* Message animations */
         .message-enter { animation: slideUp 0.3s cubic-bezier(0, 0, 0.2, 1) forwards; }
         @keyframes slideUp {
             from { opacity: 0; transform: translateY(12px); }
@@ -81,18 +79,17 @@
                     <span class="text-sm font-bold text-white">Nix-2-Flash-092025</span>
                 </div>
                 <div class="flex items-center gap-4">
+                    <div id="webhook-status" class="hidden px-2 py-0.5 rounded-full bg-orange-500/10 border border-orange-500/20 text-[10px] text-orange-500 font-bold uppercase tracking-wider">Flow Error</div>
                     <div id="status-badge" class="px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-[10px] text-emerald-500 font-bold uppercase tracking-wider">Online</div>
-                    <a href="portal.html" class="text-[10px] font-bold text-zinc-500 hover:text-white uppercase tracking-widest transition-colors">Exit</a>
                 </div>
             </header>
 
-            <!-- Chat Area -->
             <div id="chat-scroller" class="flex-1 overflow-y-auto">
                 <div class="max-w-3xl mx-auto px-6 py-12 space-y-8" id="message-container">
                     <div id="welcome" class="py-20 text-center flex flex-col items-center">
                         <div class="w-16 h-16 bg-zinc-900 border border-zinc-800 rounded-3xl mb-6 flex items-center justify-center text-2xl shadow-2xl">⚡</div>
                         <h1 class="text-3xl font-bold text-white mb-2 tracking-tight">Studio Session Active</h1>
-                        <p class="text-zinc-500 text-sm max-w-sm">I'm connected and ready to process multimedia prompts or complex logical queries.</p>
+                        <p class="text-zinc-500 text-sm max-w-sm">Input data is synchronized with the flow webhook.</p>
                     </div>
                 </div>
             </div>
@@ -121,7 +118,6 @@
                             </div>
                         </form>
                     </div>
-                    <p class="text-[10px] text-center text-zinc-600 mt-4 uppercase tracking-[0.2em]">Nix 2 Studio Environment • Version 1.0.4</p>
                 </div>
             </div>
         </main>
@@ -130,6 +126,8 @@
     <script>
         (function() {
             const apiKey = ""; // API Key injected at runtime
+            const WEBHOOK_URL = "https://hook.us1.make.com/6id4o4f66t97gixshm1f12atfllvuv2x";
+            
             const sbUrl = 'https://rnlwrngfgvznndlekmrz.supabase.co';
             const sbKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJubHdybmdmZ3Z6bm5kbGVrbXJ6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjYwMzIxODMsImV4cCI6MjA4MTYwODE4M30.4al_pqjZBYgbfoLlMosT500PC85OGsUggCAL-hmtelA';
             const sbClient = window.supabase.createClient(sbUrl, sbKey);
@@ -140,6 +138,9 @@
             const userInput = document.getElementById('user-input');
             const welcome = document.getElementById('welcome');
             const sendBtn = document.getElementById('send-btn');
+            const webhookStatus = document.getElementById('webhook-status');
+
+            let currentUser = null;
 
             async function guardStudio() {
                 const { data: { session } } = await sbClient.auth.getSession();
@@ -148,16 +149,14 @@
                     return;
                 }
                 document.getElementById('main-studio').classList.remove('opacity-0');
-                const user = session.user;
-                const name = user.user_metadata.full_name || user.email.split('@')[0];
+                currentUser = session.user;
+                const name = currentUser.user_metadata.full_name || currentUser.email.split('@')[0];
                 document.getElementById('user-name').innerText = name;
                 document.getElementById('user-initial').innerText = name.charAt(0).toUpperCase();
             }
 
             function appendMessage(role, text) {
-                if (welcome && welcome.parentNode) {
-                    welcome.remove();
-                }
+                if (welcome && welcome.parentNode) welcome.remove();
                 
                 const msgDiv = document.createElement('div');
                 msgDiv.className = `flex flex-col ${role === 'user' ? 'items-end' : 'items-start'} message-enter mb-6`;
@@ -173,31 +172,34 @@
                 msgDiv.appendChild(bubble);
                 msgContainer.appendChild(msgDiv);
                 
-                // Force scroll
                 setTimeout(() => {
                     chatScroller.scrollTo({ top: chatScroller.scrollHeight, behavior: 'smooth' });
                 }, 50);
-                
-                return msgDiv;
             }
 
-            function showThinking() {
-                const thinkingDiv = document.createElement('div');
-                thinkingDiv.id = 'thinking-indicator';
-                thinkingDiv.className = 'flex items-center gap-1.5 p-4 bg-zinc-800/20 rounded-2xl w-fit border border-zinc-800 message-enter mb-6';
-                thinkingDiv.innerHTML = `
-                    <div class="thinking-dot w-1.5 h-1.5 bg-brand-500 rounded-full"></div>
-                    <div class="thinking-dot w-1.5 h-1.5 bg-brand-500 rounded-full"></div>
-                    <div class="thinking-dot w-1.5 h-1.5 bg-brand-500 rounded-full"></div>
-                    <span class="text-[10px] font-bold text-zinc-500 uppercase ml-2 tracking-wider">Processing</span>
-                `;
-                msgContainer.appendChild(thinkingDiv);
-                chatScroller.scrollTo({ top: chatScroller.scrollHeight, behavior: 'smooth' });
-            }
-
-            function removeThinking() {
-                const el = document.getElementById('thinking-indicator');
-                if (el) el.remove();
+            async function sendToWebhook(content) {
+                try {
+                    const response = await fetch(WEBHOOK_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            timestamp: new Date().toISOString(),
+                            userId: currentUser?.id,
+                            userEmail: currentUser?.email,
+                            userName: currentUser?.user_metadata?.full_name,
+                            message: content,
+                            source: "Nix 2 Studio"
+                        })
+                    });
+                    
+                    if (!response.ok) throw new Error('Webhook failed');
+                    webhookStatus.classList.add('hidden');
+                    return true;
+                } catch (error) {
+                    console.error('Webhook Error:', error);
+                    webhookStatus.classList.remove('hidden');
+                    return false;
+                }
             }
 
             async function callGemini(prompt) {
@@ -213,18 +215,15 @@
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
                                 contents: [{ parts: [{ text: prompt }] }],
-                                systemInstruction: { parts: [{ text: "You are Nix 2, an advanced studio AI. Always provide high-quality, professional answers." }] }
+                                systemInstruction: { parts: [{ text: "You are Nix 2, an advanced studio AI." }] }
                             })
                         });
 
                         if (!response.ok) throw new Error('API Error');
-
                         const data = await response.json();
-                        const result = data.candidates?.[0]?.content?.parts?.[0]?.text;
-                        if (result) return result;
-                        throw new Error('No content');
+                        return data.candidates?.[0]?.content?.parts?.[0]?.text;
                     } catch (err) {
-                        if (retries === 4) return "System error: The model failed to respond after multiple attempts. Please try again.";
+                        if (retries === 4) return "System error: Connection timeout.";
                         await new Promise(r => setTimeout(r, delays[retries]));
                         retries++;
                     }
@@ -233,36 +232,42 @@
 
             chatForm.addEventListener('submit', async (e) => {
                 e.preventDefault();
-                e.stopPropagation();
-
                 const text = userInput.value.trim();
                 if (!text || sendBtn.disabled) return;
 
-                // UI Update
                 userInput.value = '';
                 userInput.style.height = 'auto';
                 appendMessage('user', text);
                 
                 sendBtn.disabled = true;
-                showThinking();
+                
+                // 1. Send to Webhook (Flow)
+                sendToWebhook(text);
+
+                // 2. Start AI Processing
+                const thinkingDiv = document.createElement('div');
+                thinkingDiv.id = 'thinking-indicator';
+                thinkingDiv.className = 'flex items-center gap-1.5 p-4 bg-zinc-800/20 rounded-2xl w-fit border border-zinc-800 message-enter mb-6';
+                thinkingDiv.innerHTML = `<div class="thinking-dot w-1.5 h-1.5 bg-brand-500 rounded-full"></div><div class="thinking-dot w-1.5 h-1.5 bg-brand-500 rounded-full"></div><div class="thinking-dot w-1.5 h-1.5 bg-brand-500 rounded-full"></div>`;
+                msgContainer.appendChild(thinkingDiv);
+                chatScroller.scrollTo({ top: chatScroller.scrollHeight, behavior: 'smooth' });
 
                 try {
                     const response = await callGemini(text);
-                    removeThinking();
+                    thinkingDiv.remove();
                     appendMessage('ai', response);
                 } catch (error) {
-                    removeThinking();
-                    appendMessage('ai', "Fatal Error: Connection to Nix 2 Core lost.");
+                    thinkingDiv.remove();
+                    appendMessage('ai', "Fatal Error: Connection lost.");
                 } finally {
                     sendBtn.disabled = false;
-                    userInput.focus();
                 }
             });
 
             userInput.addEventListener('keydown', (e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
-                    chatForm.requestSubmit();
+                    chatForm.dispatchEvent(new Event('submit'));
                 }
             });
 
