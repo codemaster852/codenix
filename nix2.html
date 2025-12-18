@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" class="dark" id="html-root">
+<html lang="en" class="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -14,17 +14,12 @@
             theme: {
                 extend: {
                     fontFamily: {
-                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                        sans: ['Inter', 'sans-serif'],
                         mono: ['JetBrains Mono', 'monospace'],
                     },
                     colors: {
                         background: '#050505',
-                        surface: '#0A0A0A',
-                        border: '#1A1A1A',
-                        brand: {
-                            500: '#6366f1',
-                            600: '#4f46e5',
-                        }
+                        brand: { 500: '#6366f1', 600: '#4f46e5' }
                     }
                 }
             }
@@ -33,290 +28,208 @@
 
     <style>
         body { background-color: #050505; color: #EDEDED; -webkit-font-smoothing: antialiased; }
-        .bg-grid-pattern {
-            background-size: 40px 40px;
-            background-image: linear-gradient(to right, rgba(255,255,255,0.02) 1px, transparent 1px),
-                              linear-gradient(to bottom, rgba(255,255,255,0.02) 1px, transparent 1px);
-        }
-        .sidebar { border-right: 1px solid #1A1A1A; background: #050505; }
-        .chat-container { max-width: 800px; margin: 0 auto; }
+        .bg-grid { background-size: 40px 40px; background-image: linear-gradient(to right, rgba(255,255,255,0.02) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.02) 1px, transparent 1px); }
         
-        .tier-badge {
-            padding: 2px 8px;
-            border-radius: 4px;
-            font-size: 10px;
-            font-weight: 800;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
+        .typing-dot {
+            width: 5px; height: 5px;
+            background: #6366f1; border-radius: 50%;
+            display: inline-block;
+            animation: bounce 1.4s infinite ease-in-out both;
         }
-        .badge-pro { background: linear-gradient(45deg, #6366f1, #a855f7); color: white; }
-        .badge-free { background: #262626; color: #A1A1AA; border: 1px solid #3F3F46; }
+        .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+        .typing-dot:nth-child(3) { animation-delay: 0.4s; }
 
-        textarea::-webkit-scrollbar { width: 0px; }
-        
-        /* File Upload UI */
-        .file-preview {
-            animation: slideIn 0.2s ease-out;
+        @keyframes bounce {
+            0%, 80%, 100% { transform: translateY(0); opacity: 0.3; }
+            40% { transform: translateY(-5px); opacity: 1; }
         }
-        @keyframes slideIn { from { transform: translateY(10px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+        .message-fade { animation: fadeIn 0.3s ease-out forwards; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
     </style>
 </head>
 <body class="h-screen flex overflow-hidden">
 
-    <!-- Auth Verification Overlay -->
-    <div id="auth-loading" class="fixed inset-0 z-[100] bg-black flex items-center justify-center transition-opacity duration-300">
+    <!-- Auth Guard Overlay -->
+    <div id="auth-loading" class="fixed inset-0 z-[100] bg-black flex items-center justify-center">
         <div class="text-center">
-            <div class="w-10 h-10 border-2 border-brand-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-            <p id="loading-text" class="text-zinc-500 text-xs font-mono uppercase tracking-widest">Verifying Identity</p>
+            <div class="w-8 h-8 border-2 border-brand-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+            <p class="text-zinc-500 text-[10px] font-mono uppercase tracking-[0.2em]">Authenticating</p>
         </div>
     </div>
 
     <!-- Sidebar -->
-    <aside class="w-64 sidebar hidden md:flex flex-col">
-        <div class="p-6 border-b border-border flex items-center justify-between">
-            <div class="flex items-center gap-3">
-                <div class="w-8 h-8 bg-brand-600 rounded-lg flex items-center justify-center font-bold text-white">C</div>
-                <span class="font-bold tracking-tight">Nix 2</span>
-            </div>
-            <span id="sidebar-tier" class="tier-badge badge-free">Free</span>
+    <aside class="w-72 border-r border-zinc-800 bg-black flex flex-col hidden md:flex">
+        <div class="p-6 border-b border-zinc-800 flex items-center gap-3">
+            <div class="w-8 h-8 bg-brand-600 rounded-lg flex items-center justify-center font-bold text-white">N</div>
+            <span class="font-bold tracking-tight">Nix 2 Studio</span>
         </div>
-        
-        <div class="flex-1 p-4 overflow-y-auto space-y-2">
-            <button onclick="window.location.reload()" class="w-full text-left p-3 rounded-xl bg-zinc-900 border border-border text-sm font-medium hover:bg-zinc-800 transition-colors">
-                <span class="opacity-70">+</span> New Chat
+        <div class="flex-1 p-4 overflow-y-auto">
+            <button onclick="window.location.reload()" class="w-full text-left p-3 rounded-xl bg-zinc-900 border border-zinc-800 text-sm hover:bg-zinc-800 transition-all flex items-center gap-2">
+                <span class="text-brand-500">+</span> New Session
             </button>
-            <div class="pt-6 space-y-1">
-                <div class="text-[10px] uppercase tracking-widest text-zinc-600 font-bold px-3 mb-2">Recent Sessions</div>
-                <div class="p-3 text-xs text-zinc-500 hover:text-white hover:bg-zinc-900/50 rounded-lg cursor-pointer truncate transition-all">Quantum Computing Analysis</div>
-            </div>
         </div>
-
-        <div class="p-4 border-t border-border">
-            <div id="user-profile" class="flex items-center gap-3 p-2 rounded-xl hover:bg-zinc-900 cursor-pointer transition-colors">
-                <div class="w-9 h-9 rounded-full bg-zinc-800 flex items-center justify-center text-xs font-bold border border-white/5" id="user-initials">?</div>
+        <div class="p-4 border-t border-zinc-800">
+            <div class="flex items-center gap-3 p-2 rounded-xl bg-zinc-900/50 border border-white/5">
+                <div id="user-initial" class="w-8 h-8 rounded-full bg-brand-500/20 text-brand-400 flex items-center justify-center text-xs font-bold">?</div>
                 <div class="flex-1 min-w-0">
-                    <div class="text-xs font-bold truncate text-white" id="user-display-name">Loading...</div>
-                    <div class="text-[10px] text-zinc-500 truncate" id="user-email">...</div>
+                    <div id="user-name" class="text-xs font-bold text-white truncate">User</div>
+                    <div id="user-status" class="text-[10px] text-zinc-500">Checking tier...</div>
                 </div>
             </div>
         </div>
     </aside>
 
-    <!-- Main Content -->
-    <main class="flex-1 flex flex-col relative bg-grid-pattern">
-        <!-- Header -->
-        <header class="h-14 border-b border-border flex items-center justify-between px-6 bg-black/60 backdrop-blur-xl z-20">
-            <div class="flex items-center gap-4">
-                <button class="md:hidden text-zinc-400"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16" stroke-width="2"></path></svg></button>
-                <div class="flex items-center gap-3">
-                    <span class="text-sm font-medium text-zinc-400">Model:</span>
-                    <span class="text-sm font-bold text-white">Nix 2</span>
-                    <span id="header-tier" class="tier-badge badge-free">Free</span>
-                </div>
+    <!-- Chat Area -->
+    <main class="flex-1 flex flex-col relative bg-grid">
+        <header class="h-14 border-b border-zinc-800 flex items-center justify-between px-6 bg-black/50 backdrop-blur-md z-20">
+            <div class="flex items-center gap-3">
+                <span class="text-xs font-medium text-zinc-500 uppercase tracking-widest">Active Model</span>
+                <span class="h-1.5 w-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]"></span>
+                <span class="text-sm font-bold">Nix-2-Flash</span>
             </div>
-            
-            <div class="flex items-center gap-6">
-                <button onclick="window.handleLogout()" class="text-xs text-zinc-500 hover:text-white transition-colors font-medium">Log out</button>
-            </div>
+            <button onclick="handleLogout()" class="text-[10px] text-zinc-500 hover:text-white uppercase font-bold tracking-wider">Sign Out</button>
         </header>
 
-        <!-- Messages Area -->
-        <div class="flex-1 overflow-y-auto" id="chat-scroller">
-            <div class="chat-container px-6 py-12">
-                <!-- Empty State -->
-                <div id="empty-state" class="mt-20 text-center animate-fade-in">
-                    <div class="w-16 h-16 bg-brand-500/10 rounded-2xl flex items-center justify-center mx-auto mb-6 text-brand-500">
-                        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
-                    </div>
-                    <h2 class="text-3xl font-bold text-white mb-3">Nix 2 Intelligence</h2>
-                    <p class="text-zinc-500 text-sm max-w-sm mx-auto">Upload files or start a conversation with the next generation of reasoning agents.</p>
+        <div id="chat-scroller" class="flex-1 overflow-y-auto">
+            <div class="max-w-3xl mx-auto px-6 py-12" id="message-container">
+                <!-- Welcome State -->
+                <div id="welcome" class="py-20 text-center">
+                    <h1 class="text-4xl font-bold text-white mb-4 tracking-tight">How can I help today?</h1>
+                    <p class="text-zinc-500 text-sm">Nix 2 can reason through complex tasks and analyze provided data.</p>
                 </div>
-
-                <div id="messages" class="space-y-8"></div>
             </div>
         </div>
 
-        <!-- Prompt Input -->
+        <!-- Input Area -->
         <div class="p-6">
-            <div class="chat-container">
-                <!-- File Preview Container -->
-                <div id="file-previews" class="flex flex-wrap gap-2 mb-2"></div>
-
-                <div class="relative bg-zinc-900 border border-zinc-800 rounded-2xl p-1 shadow-2xl focus-within:border-brand-500/50 transition-all">
-                    <form id="chat-form" class="flex flex-col">
+            <div class="max-w-3xl mx-auto relative">
+                <div class="bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl overflow-hidden focus-within:border-brand-500/50 transition-all">
+                    <form id="chat-form">
                         <textarea 
-                            id="chat-input"
-                            placeholder="Type your message..." 
+                            id="user-input"
+                            placeholder="Message Nix 2..." 
+                            class="w-full bg-transparent p-5 text-sm text-white focus:outline-none resize-none min-h-[60px] max-h-[200px]"
                             rows="1"
-                            class="w-full bg-transparent p-4 text-sm text-white focus:outline-none resize-none min-h-[56px] max-h-[300px]"
                         ></textarea>
-                        
-                        <!-- Hidden File Input -->
-                        <input type="file" id="file-input" class="hidden" multiple>
-
-                        <div class="flex items-center justify-between px-4 py-2 border-t border-white/5">
+                        <div class="flex items-center justify-between px-4 py-3 bg-zinc-900/50 border-t border-white/5">
                             <div class="flex gap-2">
-                                <button type="button" onclick="document.getElementById('file-input').click()" class="p-2 text-zinc-500 hover:text-brand-500 transition-colors" title="Upload files">
-                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"></path></svg>
+                                <button type="button" class="p-2 text-zinc-500 hover:text-white transition-colors">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"></path></svg>
                                 </button>
                             </div>
-                            <button type="submit" class="bg-white text-black h-8 px-4 rounded-lg text-xs font-bold hover:bg-brand-500 hover:text-white transition-all">
-                                Send Message
+                            <button id="send-btn" type="submit" class="bg-white text-black px-4 py-1.5 rounded-lg text-xs font-bold hover:bg-brand-500 hover:text-white transition-all disabled:opacity-50">
+                                Send
                             </button>
                         </div>
                     </form>
                 </div>
-                <p class="text-[10px] text-center text-zinc-600 mt-4 tracking-wide uppercase">Nix 2 Multi-modal Research Preview</p>
             </div>
         </div>
     </main>
 
     <script>
-        (function() {
-            const supabaseUrl = 'https://rnlwrngfgvznndlekmrz.supabase.co';
-            const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJubHdybmdmZ3Z6bm5kbGVrbXJ6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjYwMzIxODMsImV4cCI6MjA4MTYwODE4M30.4al_pqjZBYgbfoLlMosT500PC85OGsUggCAL-hmtelA';
-            const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+        const SYNC_WEBHOOK_URL = 'https://cloud.activepieces.com/api/v1/webhooks/WR43cDYER0O9TiHq8exAH/sync';
+        const supabaseUrl = 'https://rnlwrngfgvznndlekmrz.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJubHdybmdmZ3Z6bm5kbGVrbXJ6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjYwMzIxODMsImV4cCI6MjA4MTYwODE4M30.4al_pqjZBYgbfoLlMosT500PC85OGsUggCAL-hmtelA';
+        const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+
+        let currentUser = null;
+
+        async function init() {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) { window.location.href = 'auth.html'; return; }
             
-            const webhookUrl = 'https://cloud.activepieces.com/api/v1/webhooks/WR43cDYER0O9TiHq8exAH/sync';
+            currentUser = session.user;
+            document.getElementById('user-name').innerText = currentUser.email.split('@')[0];
+            document.getElementById('user-initial').innerText = currentUser.email.charAt(0).toUpperCase();
+            document.getElementById('auth-loading').classList.add('hidden');
+        }
 
-            let attachedFiles = [];
+        const form = document.getElementById('chat-form');
+        const input = document.getElementById('user-input');
+        const container = document.getElementById('message-container');
+        const scroller = document.getElementById('chat-scroller');
 
-            async function checkSubscription(email) {
-                try {
-                    const response = await fetch(webhookUrl, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ email: email })
-                    });
-                    if (response.ok) {
-                        const data = await response.json();
-                        // Assuming the webhook returns { isPro: true } or { status: 'pro' }
-                        return data.isPro || data.status === 'pro' || data.tier === 'pro';
-                    }
-                } catch (e) {
-                    console.error("Subscription check failed", e);
-                }
-                return false;
-            }
+        function appendMessage(role, content, isThinking = false) {
+            const div = document.createElement('div');
+            div.className = `flex gap-4 p-6 rounded-2xl mb-4 message-fade ${role === 'user' ? 'bg-zinc-900/30' : ''}`;
+            
+            const avatar = role === 'user' 
+                ? `<div class="w-8 h-8 rounded-lg bg-zinc-800 shrink-0 flex items-center justify-center font-bold text-[10px] text-zinc-500 uppercase">You</div>`
+                : `<div class="w-8 h-8 rounded-lg bg-brand-600 shrink-0 flex items-center justify-center font-bold text-[10px] text-white uppercase">Nix</div>`;
 
-            async function init() {
-                const { data: { session } } = await supabase.auth.getSession();
-                
-                if (!session) {
-                    window.location.href = 'auth.html';
-                    return;
-                }
+            const body = isThinking 
+                ? `<div class="flex items-center gap-1.5 py-2"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div>`
+                : `<div class="text-sm leading-relaxed text-zinc-300 whitespace-pre-wrap">${content}</div>`;
 
-                const user = session.user;
-                document.getElementById('loading-text').innerText = "Checking Subscription...";
-                
-                // Tier Check via Webhook
-                const isPro = await checkSubscription(user.email);
-                
-                if (isPro) {
-                    const badges = ['header-tier', 'sidebar-tier'];
-                    badges.forEach(id => {
-                        const el = document.getElementById(id);
-                        el.innerText = 'Pro';
-                        el.classList.replace('badge-free', 'badge-pro');
-                    });
-                }
+            div.innerHTML = `${avatar}<div class="flex-1">${body}</div>`;
+            container.appendChild(div);
+            scroller.scrollTo({ top: scroller.scrollHeight, behavior: 'smooth' });
+            return div;
+        }
 
-                // UI Profile Updates
-                document.getElementById('user-email').innerText = user.email;
-                document.getElementById('user-display-name').innerText = user.user_metadata.full_name || user.email.split('@')[0];
-                document.getElementById('user-initials').innerText = (user.user_metadata.full_name || 'U').charAt(0).toUpperCase();
-                
-                // Hide Loading Screen
-                document.getElementById('auth-loading').classList.add('opacity-0');
-                setTimeout(() => document.getElementById('auth-loading').remove(), 300);
-            }
+        form.onsubmit = async (e) => {
+            e.preventDefault();
+            const text = input.value.trim();
+            if (!text) return;
 
-            window.handleLogout = async function() {
-                await supabase.auth.signOut();
-                window.location.href = 'index.html';
-            };
+            // Remove welcome screen
+            if (document.getElementById('welcome')) document.getElementById('welcome').remove();
 
-            // File Handling
-            const fileInput = document.getElementById('file-input');
-            const filePreviews = document.getElementById('file-previews');
+            // 1. Post User Message
+            appendMessage('user', text);
+            input.value = '';
+            input.style.height = 'auto';
 
-            fileInput.addEventListener('change', (e) => {
-                const files = Array.from(e.target.files);
-                files.forEach(file => {
-                    attachedFiles.push(file);
-                    const reader = new FileReader();
-                    reader.onload = (re) => {
-                        const div = document.createElement('div');
-                        div.className = "file-preview relative group bg-zinc-800 border border-zinc-700 rounded-lg p-2 pr-8 flex items-center gap-2 max-w-[200px]";
-                        const isImg = file.type.startsWith('image/');
-                        div.innerHTML = `
-                            ${isImg ? `<img src="${re.target.result}" class="w-6 h-6 rounded object-cover">` : `<svg class="w-5 h-5 text-zinc-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg>`}
-                            <span class="text-[10px] truncate text-zinc-300">${file.name}</span>
-                            <button type="button" class="absolute right-1 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white" onclick="this.parentElement.remove(); window.removeFile('${file.name}')">
-                                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path></svg>
-                            </button>
-                        `;
-                        filePreviews.appendChild(div);
-                    };
-                    reader.readAsDataURL(file);
+            // 2. Post Thinking Placeholder
+            const thinkingMsg = appendMessage('bot', '', true);
+
+            try {
+                // 3. Send to Webhook
+                const response = await fetch(SYNC_WEBHOOK_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        message: text,
+                        email: currentUser.email,
+                        timestamp: new Date().toISOString()
+                    })
                 });
-            });
 
-            window.removeFile = (name) => {
-                attachedFiles = attachedFiles.filter(f => f.name !== name);
-            };
+                if (!response.ok) throw new Error('Webhook error');
 
-            const textarea = document.getElementById('chat-input');
-            const messages = document.getElementById('messages');
-            const emptyState = document.getElementById('empty-state');
-
-            textarea.addEventListener('input', () => {
-                textarea.style.height = 'auto';
-                textarea.style.height = (textarea.scrollHeight) + 'px';
-            });
-
-            document.getElementById('chat-form').onsubmit = (e) => {
-                e.preventDefault();
-                const text = textarea.value.trim();
-                if (!text && attachedFiles.length === 0) return;
-
-                if (emptyState) emptyState.remove();
-
-                // Build Message Content
-                const msgDiv = document.createElement('div');
-                msgDiv.className = "flex gap-4 p-6 rounded-2xl bg-zinc-900/50 border border-white/5 animate-fade-in";
+                const data = await response.json();
                 
-                let fileHtml = '';
-                if (attachedFiles.length > 0) {
-                    fileHtml = `<div class="flex flex-wrap gap-2 mb-3">
-                        ${attachedFiles.map(f => `
-                            <div class="px-2 py-1 bg-white/5 border border-white/10 rounded-md text-[10px] text-zinc-400">
-                                📎 ${f.name}
-                            </div>
-                        `).join('')}
-                    </div>`;
-                }
+                // 4. Update the "Thinking" message with actual answer
+                // Adjust 'data.output' based on your actual ActivePieces JSON structure
+                const botResponse = data.output || data.response || data.text || JSON.stringify(data);
+                
+                thinkingMsg.querySelector('.flex-1').innerHTML = `
+                    <div class="text-sm leading-relaxed text-zinc-300 whitespace-pre-wrap">${botResponse}</div>
+                `;
 
-                msgDiv.innerHTML = `
-                    <div class="w-8 h-8 rounded-lg bg-white/10 shrink-0 flex items-center justify-center font-bold text-[10px] text-zinc-400">YOU</div>
-                    <div class="text-sm leading-relaxed text-zinc-200">
-                        ${fileHtml}
-                        ${text.replace(/\n/g, '<br>')}
+            } catch (err) {
+                thinkingMsg.querySelector('.flex-1').innerHTML = `
+                    <div class="text-xs text-red-400 bg-red-500/10 p-3 rounded-lg border border-red-500/20">
+                        Sorry, I encountered an error connecting to the reasoning engine.
                     </div>
                 `;
-                messages.appendChild(msgDiv);
-                
-                // Clear state
-                attachedFiles = [];
-                filePreviews.innerHTML = '';
-                textarea.value = '';
-                textarea.style.height = 'auto';
-                document.getElementById('chat-scroller').scrollTo({ top: messages.scrollHeight, behavior: 'smooth' });
-            };
+            }
+        };
 
-            init();
-        })();
+        // Auto-expand textarea
+        input.addEventListener('input', function() {
+            this.style.height = 'auto';
+            this.style.height = (this.scrollHeight) + 'px';
+        });
+
+        async function handleLogout() {
+            await supabase.auth.signOut();
+            window.location.href = 'auth.html';
+        }
+
+        init();
     </script>
 </body>
 </html>
