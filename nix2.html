@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nix 2 - Codenix AI Studio</title>
+    <title>Nix 2 - Advanced Studio</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -47,7 +47,12 @@
         .message-fade { animation: fadeIn 0.3s ease-out forwards; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         
-        #file-preview-area:empty { display: none; }
+        #command-palette { transition: transform 0.2s ease, opacity 0.2s ease; }
+        .command-item:hover { background: rgba(99, 102, 241, 0.1); }
+
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #27272a; border-radius: 10px; }
     </style>
 </head>
 <body class="h-screen flex overflow-hidden">
@@ -71,24 +76,17 @@
                 <span class="text-brand-500 font-bold">+</span> New Session
             </button>
         </div>
-        <div class="p-4 border-t border-zinc-800">
-            <div class="flex items-center gap-3 p-2 rounded-xl bg-zinc-900/50 border border-white/5">
-                <div id="user-initial" class="w-8 h-8 rounded-full bg-brand-500/20 text-brand-400 flex items-center justify-center text-xs font-bold">?</div>
-                <div class="flex-1 min-w-0">
-                    <div id="user-name" class="text-xs font-bold text-white truncate">User</div>
-                    <div id="user-status" class="text-[10px] text-zinc-500">Pro Tier Active</div>
-                </div>
-            </div>
+        <div class="p-4 border-t border-zinc-800 text-zinc-500 text-[10px] font-mono p-4">
+            Type / to see commands
         </div>
     </aside>
 
-    <!-- Chat Area -->
     <main class="flex-1 flex flex-col relative bg-grid">
         <header class="h-14 border-b border-zinc-800 flex items-center justify-between px-6 bg-black/50 backdrop-blur-md z-20">
             <div class="flex items-center gap-3">
                 <span class="text-xs font-medium text-zinc-500 uppercase tracking-widest">Active Model</span>
-                <span class="h-1.5 w-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]"></span>
-                <span class="text-sm font-bold text-white">Nix-2-Flash</span>
+                <span class="h-1.5 w-1.5 rounded-full bg-brand-500 shadow-[0_0_8px_rgba(99,102,241,0.5)]"></span>
+                <span class="text-sm font-bold text-white">Nix-2-Multimedia</span>
             </div>
             <button onclick="handleLogout()" class="text-[10px] text-zinc-500 hover:text-white uppercase font-bold tracking-wider">Sign Out</button>
         </header>
@@ -97,27 +95,53 @@
             <div class="max-w-3xl mx-auto px-6 py-12" id="message-container">
                 <div id="welcome" class="py-20 text-center">
                     <h1 class="text-4xl font-bold text-white mb-4 tracking-tight">How can I help today?</h1>
-                    <p class="text-zinc-500 text-sm">Nix 2 can reason through complex tasks and analyze provided data files.</p>
+                    <p class="text-zinc-500 text-sm">Nix 2 can generate images, videos, and documents. Type <span class="text-brand-400 font-mono">/</span> to start.</p>
                 </div>
             </div>
         </div>
 
-        <!-- Input Area -->
-        <div class="p-6">
+        <div class="p-6 relative">
             <div class="max-w-3xl mx-auto relative">
-                <!-- File Preview -->
+                
+                <!-- Command Palette -->
+                <div id="command-palette" class="absolute bottom-full left-0 w-64 bg-zinc-900 border border-zinc-800 rounded-xl shadow-2xl mb-4 hidden z-50 overflow-hidden">
+                    <div class="p-2 border-b border-white/5 text-[10px] uppercase font-bold text-zinc-500 tracking-wider bg-zinc-950/50">Commands</div>
+                    <div class="max-h-64 overflow-y-auto p-1">
+                        <button onclick="applyCommand('/image ')" class="command-item w-full text-left p-3 rounded-lg flex items-center gap-3 transition-colors group">
+                            <span class="w-8 h-8 rounded-md bg-zinc-800 flex items-center justify-center text-lg group-hover:scale-110 transition-transform">🖼️</span>
+                            <div>
+                                <div class="text-xs font-bold text-white">Generate Image</div>
+                                <div class="text-[10px] text-zinc-500">/image [prompt]</div>
+                            </div>
+                        </button>
+                        <button onclick="applyCommand('/video ')" class="command-item w-full text-left p-3 rounded-lg flex items-center gap-3 transition-colors group">
+                            <span class="w-8 h-8 rounded-md bg-zinc-800 flex items-center justify-center text-lg group-hover:scale-110 transition-transform">🎥</span>
+                            <div>
+                                <div class="text-xs font-bold text-white">Generate Video</div>
+                                <div class="text-[10px] text-zinc-500">/video [prompt]</div>
+                            </div>
+                        </button>
+                        <button onclick="applyCommand('/docs ')" class="command-item w-full text-left p-3 rounded-lg flex items-center gap-3 transition-colors group">
+                            <span class="w-8 h-8 rounded-md bg-zinc-800 flex items-center justify-center text-lg group-hover:scale-110 transition-transform">📄</span>
+                            <div>
+                                <div class="text-xs font-bold text-white">Create PDF/Doc</div>
+                                <div class="text-[10px] text-zinc-500">/docs [details]</div>
+                            </div>
+                        </button>
+                    </div>
+                </div>
+
                 <div id="file-preview-area" class="flex flex-wrap gap-2 mb-2"></div>
 
                 <div class="bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl overflow-hidden focus-within:border-brand-500/50 transition-all">
                     <form id="chat-form">
                         <textarea 
                             id="user-input"
-                            placeholder="Message Nix 2 or attach a file..." 
+                            placeholder="Type / for commands..." 
                             class="w-full bg-transparent p-5 text-sm text-white focus:outline-none resize-none min-h-[60px] max-h-[200px]"
                             rows="1"
                         ></textarea>
                         
-                        <!-- Hidden File Input -->
                         <input type="file" id="file-input" class="hidden" multiple>
 
                         <div class="flex items-center justify-between px-4 py-3 bg-zinc-900/50 border-t border-white/5">
@@ -126,7 +150,7 @@
                                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"></path></svg>
                                 </button>
                             </div>
-                            <button id="send-btn" type="submit" class="bg-white text-black px-5 py-1.5 rounded-lg text-xs font-bold hover:bg-brand-500 hover:text-white transition-all disabled:opacity-50">
+                            <button id="send-btn" type="submit" class="bg-white text-black px-5 py-1.5 rounded-lg text-xs font-bold hover:bg-brand-500 hover:text-white transition-all">
                                 Send
                             </button>
                         </div>
@@ -149,6 +173,7 @@
 
             const form = document.getElementById('chat-form');
             const input = document.getElementById('user-input');
+            const palette = document.getElementById('command-palette');
             const fileInput = document.getElementById('file-input');
             const filePreview = document.getElementById('file-preview-area');
             const container = document.getElementById('message-container');
@@ -156,123 +181,110 @@
 
             async function init() {
                 const { data: { session } } = await sbClient.auth.getSession();
-                if (!session) { 
-                    return; 
-                }
-                
+                if (!session) return;
                 currentUser = session.user;
                 document.getElementById('user-name').innerText = currentUser.email.split('@')[0];
                 document.getElementById('user-initial').innerText = currentUser.email.charAt(0).toUpperCase();
                 document.getElementById('auth-loading').classList.add('hidden');
             }
 
-            /**
-             * Cleans JSON artifacts and specific keywords from the message
-             */
             function cleanResponse(text) {
                 if (!text) return "";
-                
-                // 1. Handle escaped newlines
                 let cleaned = text.replace(/\\n/g, '\n');
-                
-                // 2. Remove outer JSON structure if it exists as a string
-                // Patterns: {"answer": "..."}, {"output": "..."}, {"response": "..."}
                 cleaned = cleaned.replace(/^\{.*"(answer|output|response)":\s*"(.*)".*\}$/s, '$2');
-                
-                // 3. Remove literal braces/brackets at extremes
                 cleaned = cleaned.trim();
                 if (cleaned.startsWith('{') && cleaned.endsWith('}')) {
                     cleaned = cleaned.substring(1, cleaned.length - 1).trim();
                 }
-
-                // 4. Remove keywords like "answer:", "response:", "output:" at the very start
-                // Case insensitive, matching word followed by colon and optional space
                 cleaned = cleaned.replace(/^(answer|response|output):\s*/i, '');
-
-                // 5. Remove leading and trailing double quotes
                 cleaned = cleaned.replace(/^"|"$/g, '').trim();
-
                 return cleaned;
             }
 
-            fileInput.onchange = (e) => {
-                const files = Array.from(e.target.files);
-                selectedFiles = [...selectedFiles, ...files];
-                renderFilePreviews();
+            // --- Media Rendering Logic ---
+            function renderMedia(url) {
+                const extension = url.split('.').pop().toLowerCase().split('?')[0];
+                const isImage = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'svg'].includes(extension) || url.includes('image');
+                const isVideo = ['mp4', 'webm', 'ogg', 'mov'].includes(extension) || url.includes('video');
+                const isAudio = ['mp3', 'wav', 'aac', 'm4a'].includes(extension) || url.includes('audio');
+
+                let html = '';
+                if (isImage) {
+                    html = `<div class="relative group mt-3">
+                                <img src="${url}" class="rounded-xl border border-white/10 max-w-full h-auto shadow-lg" loading="lazy">
+                                <a href="${url}" download class="absolute top-2 right-2 bg-black/60 backdrop-blur p-2 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity text-white hover:bg-brand-500">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                                </a>
+                            </div>`;
+                } else if (isVideo) {
+                    html = `<div class="mt-3 bg-black rounded-xl border border-white/10 overflow-hidden relative group">
+                                <video controls class="w-full">
+                                    <source src="${url}" type="video/mp4">
+                                </video>
+                                <a href="${url}" download class="absolute bottom-12 right-2 bg-black/60 backdrop-blur p-2 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity text-white hover:bg-brand-500">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                                </a>
+                            </div>`;
+                } else if (isAudio) {
+                    html = `<div class="mt-3 p-4 bg-zinc-900 border border-white/5 rounded-xl flex items-center gap-4">
+                                <audio controls class="flex-1 h-8">
+                                    <source src="${url}">
+                                </audio>
+                                <a href="${url}" download class="p-2 bg-zinc-800 rounded-lg text-white hover:bg-brand-500">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                                </a>
+                            </div>`;
+                } else {
+                    // Generic Document
+                    html = `<div class="mt-3 p-4 bg-zinc-900 border border-white/5 rounded-xl flex items-center justify-between group">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-10 h-10 bg-brand-500/10 text-brand-400 rounded flex items-center justify-center text-xl font-bold italic">Doc</div>
+                                    <span class="text-xs text-zinc-400">Resource File</span>
+                                </div>
+                                <a href="${url}" download class="px-4 py-2 bg-brand-500 text-white text-[10px] font-bold rounded-lg uppercase tracking-wider hover:bg-brand-600">Download</a>
+                            </div>`;
+                }
+                return html;
+            }
+
+            // Command Palette Logic
+            input.onkeyup = (e) => {
+                if (input.value.startsWith('/')) {
+                    palette.classList.remove('hidden');
+                } else {
+                    palette.classList.add('hidden');
+                }
             };
 
-            function renderFilePreviews() {
-                filePreview.innerHTML = '';
-                selectedFiles.forEach((file, index) => {
-                    const badge = document.createElement('div');
-                    badge.className = "flex items-center gap-2 bg-zinc-800 text-zinc-300 px-3 py-1.5 rounded-lg border border-white/10 text-[10px] font-mono";
-                    badge.innerHTML = `
-                        <span>${file.name}</span>
-                        <button type="button" class="text-zinc-500 hover:text-red-400 remove-file-btn" data-index="${index}">×</button>
-                    `;
-                    filePreview.appendChild(badge);
-                });
-
-                document.querySelectorAll('.remove-file-btn').forEach(btn => {
-                    btn.onclick = (e) => {
-                        const idx = parseInt(e.target.getAttribute('data-index'));
-                        selectedFiles.splice(idx, 1);
-                        renderFilePreviews();
-                    };
-                });
-            }
-
-            function appendMessage(role, content, files = [], isThinking = false) {
-                const div = document.createElement('div');
-                div.className = `flex gap-4 p-6 rounded-2xl mb-4 message-fade ${role === 'user' ? 'bg-zinc-900/30' : ''}`;
-                
-                const avatar = role === 'user' 
-                    ? `<div class="w-8 h-8 rounded-lg bg-zinc-800 shrink-0 flex items-center justify-center font-bold text-[10px] text-zinc-500 uppercase">You</div>`
-                    : `<div class="w-8 h-8 rounded-lg bg-brand-600 shrink-0 flex items-center justify-center font-bold text-[10px] text-white uppercase">Nix</div>`;
-
-                let fileHtml = '';
-                if (files.length > 0) {
-                    fileHtml = `<div class="flex flex-wrap gap-2 mb-3">
-                        ${files.map(f => `<span class="bg-zinc-800/50 border border-white/5 px-2 py-1 rounded text-[10px] text-zinc-500">📎 ${f.name}</span>`).join('')}
-                    </div>`;
-                }
-
-                const body = isThinking 
-                    ? `<div class="flex items-center gap-1.5 py-2"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div>`
-                    : `<div class="text-sm leading-relaxed text-zinc-300 whitespace-pre-wrap">${content}</div>`;
-
-                div.innerHTML = `${avatar}<div class="flex-1">${fileHtml}${body}</div>`;
-                container.appendChild(div);
-                scroller.scrollTo({ top: scroller.scrollHeight, behavior: 'smooth' });
-                return div;
-            }
-
-            const toBase64 = file => new Promise((resolve, reject) => {
-                const reader = new FileReader();
-                reader.readAsDataURL(file);
-                reader.onload = () => resolve(reader.result);
-                reader.onerror = error => reject(error);
-            });
+            window.applyCommand = (cmd) => {
+                input.value = cmd;
+                palette.classList.add('hidden');
+                input.focus();
+            };
 
             form.onsubmit = async (e) => {
                 e.preventDefault();
-                const text = input.value.trim();
+                let text = input.value.trim();
                 if (!text && selectedFiles.length === 0) return;
 
                 if (document.getElementById('welcome')) document.getElementById('welcome').remove();
 
+                // Logic: If starts with / send exactly as is.
+                // Else, you could add prefixes, but here we keep it clean.
                 appendMessage('user', text, [...selectedFiles]);
                 
                 const messageFiles = [];
                 for(const file of selectedFiles) {
-                    try {
-                        const base64 = await toBase64(file);
-                        messageFiles.push({ name: file.name, type: file.type, data: base64 });
-                    } catch (err) { console.error("File conversion error", err); }
+                    const reader = new FileReader();
+                    const base64 = await new Promise(r => {
+                        reader.onload = () => r(reader.result);
+                        reader.readAsDataURL(file);
+                    });
+                    messageFiles.push({ name: file.name, type: file.type, data: base64 });
                 }
 
                 input.value = '';
-                input.style.height = 'auto';
+                palette.classList.add('hidden');
                 selectedFiles = [];
                 renderFilePreviews();
 
@@ -285,50 +297,60 @@
                         body: JSON.stringify({ 
                             message: text,
                             files: messageFiles,
-                            user: currentUser ? {
-                                id: currentUser.id,
-                                email: currentUser.email,
-                                name: currentUser.user_metadata.full_name || currentUser.email.split('@')[0]
-                            } : { id: 'guest', email: 'guest@local', name: 'Guest' },
-                            timestamp: new Date().toISOString()
+                            user: currentUser ? { id: currentUser.id, email: currentUser.email } : { id: 'guest' }
                         })
                     });
 
-                    if (!response.ok) throw new Error('Reasoning engine error');
-
                     const data = await response.json();
                     
-                    // Priority extraction of response text
-                    let rawResponse = "";
-                    if (data.answer) rawResponse = data.answer;
-                    else if (data.output) rawResponse = data.output;
-                    else if (data.response) rawResponse = data.response;
-                    else if (data.text) rawResponse = data.text;
-                    else rawResponse = typeof data === 'string' ? data : JSON.stringify(data);
+                    // Look for media URLs in the response
+                    let botContent = cleanResponse(data.answer || data.output || data.response || data.text || JSON.stringify(data));
                     
-                    const botResponse = cleanResponse(rawResponse);
+                    // Regex to find potential URLs
+                    const urlRegex = /(https?:\/\/[^\s]+)/g;
+                    const urls = botContent.match(urlRegex) || [];
                     
+                    // Remove URLs from text to avoid redundancy if we render them
+                    let textOnly = botContent;
+                    urls.forEach(u => textOnly = textOnly.replace(u, ''));
+
+                    let mediaHtml = urls.map(url => renderMedia(url)).join('');
+
                     thinkingMsg.querySelector('.flex-1').innerHTML = `
-                        <div class="text-sm leading-relaxed text-zinc-300 whitespace-pre-wrap">${botResponse}</div>
+                        <div class="text-sm leading-relaxed text-zinc-300 whitespace-pre-wrap">${textOnly.trim()}</div>
+                        ${mediaHtml}
                     `;
                 } catch (err) {
-                    thinkingMsg.querySelector('.flex-1').innerHTML = `
-                        <div class="text-xs text-red-400 bg-red-500/10 p-4 rounded-xl border border-red-500/20 flex items-center gap-3">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                            <span>Request failed. Please check your connection or workflow status.</span>
-                        </div>
-                    `;
+                    thinkingMsg.querySelector('.flex-1').innerHTML = `<div class="text-xs text-red-400">Error: ${err.message}</div>`;
                 }
             };
 
-            input.addEventListener('input', function() {
-                this.style.height = 'auto';
-                this.style.height = (this.scrollHeight) + 'px';
-            });
+            function appendMessage(role, content, files = [], isThinking = false) {
+                const div = document.createElement('div');
+                div.className = `flex gap-4 p-6 rounded-2xl mb-4 message-fade ${role === 'user' ? 'bg-zinc-900/30' : ''}`;
+                const avatar = role === 'user' 
+                    ? `<div class="w-8 h-8 rounded-lg bg-zinc-800 shrink-0 flex items-center justify-center font-bold text-[10px] text-zinc-500">YOU</div>`
+                    : `<div class="w-8 h-8 rounded-lg bg-brand-600 shrink-0 flex items-center justify-center font-bold text-[10px] text-white">NIX</div>`;
+                
+                div.innerHTML = `${avatar}<div class="flex-1">${isThinking ? '<div class="typing-dot"></div>' : `<div class="text-sm text-zinc-300">${content}</div>`}</div>`;
+                container.appendChild(div);
+                scroller.scrollTo({ top: scroller.scrollHeight, behavior: 'smooth' });
+                return div;
+            }
 
-            window.handleLogout = async () => {
-                await sbClient.auth.signOut();
-                window.location.reload();
+            function renderFilePreviews() {
+                filePreview.innerHTML = '';
+                selectedFiles.forEach((file, index) => {
+                    const badge = document.createElement('div');
+                    badge.className = "bg-zinc-800 text-zinc-400 px-2 py-1 rounded text-[10px]";
+                    badge.innerText = file.name;
+                    filePreview.appendChild(badge);
+                });
+            }
+
+            fileInput.onchange = (e) => {
+                selectedFiles = [...selectedFiles, ...e.target.files];
+                renderFilePreviews();
             };
 
             init();
