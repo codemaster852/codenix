@@ -53,6 +53,8 @@
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #27272a; border-radius: 10px; }
+
+        .media-container img, .media-container video { max-height: 400px; object-fit: contain; }
     </style>
 </head>
 <body class="h-screen flex overflow-hidden">
@@ -76,8 +78,11 @@
                 <span class="text-brand-500 font-bold">+</span> New Session
             </button>
         </div>
-        <div class="p-4 border-t border-zinc-800 text-zinc-500 text-[10px] font-mono p-4">
-            Type / to see commands
+        <div class="p-4 border-t border-zinc-800 flex items-center gap-3">
+            <div id="user-initial" class="w-8 h-8 rounded-full bg-brand-500 flex items-center justify-center text-white text-xs font-bold">U</div>
+            <div class="flex-1 overflow-hidden">
+                <div id="user-name" class="text-xs font-bold text-white truncate">Guest User</div>
+            </div>
         </div>
     </aside>
 
@@ -124,7 +129,7 @@
                         <button onclick="applyCommand('/docs ')" class="command-item w-full text-left p-3 rounded-lg flex items-center gap-3 transition-colors group">
                             <span class="w-8 h-8 rounded-md bg-zinc-800 flex items-center justify-center text-lg group-hover:scale-110 transition-transform">📄</span>
                             <div>
-                                <div class="text-xs font-bold text-white">Create PDF/Doc</div>
+                                <div class="text-xs font-bold text-white">Create Document</div>
                                 <div class="text-[10px] text-zinc-500">/docs [details]</div>
                             </div>
                         </button>
@@ -180,12 +185,22 @@
             const scroller = document.getElementById('chat-scroller');
 
             async function init() {
-                const { data: { session } } = await sbClient.auth.getSession();
-                if (!session) return;
-                currentUser = session.user;
-                document.getElementById('user-name').innerText = currentUser.email.split('@')[0];
-                document.getElementById('user-initial').innerText = currentUser.email.charAt(0).toUpperCase();
-                document.getElementById('auth-loading').classList.add('hidden');
+                try {
+                    const { data: { session } } = await sbClient.auth.getSession();
+                    if (session && session.user) {
+                        currentUser = session.user;
+                        const userNameEl = document.getElementById('user-name');
+                        const userInitialEl = document.getElementById('user-initial');
+                        
+                        if (userNameEl) userNameEl.innerText = currentUser.email.split('@')[0];
+                        if (userInitialEl) userInitialEl.innerText = currentUser.email.charAt(0).toUpperCase();
+                    }
+                } catch (e) {
+                    console.error("Auth init error:", e);
+                } finally {
+                    const loader = document.getElementById('auth-loading');
+                    if (loader) loader.classList.add('hidden');
+                }
             }
 
             function cleanResponse(text) {
@@ -194,34 +209,36 @@
                 cleaned = cleaned.replace(/^\{.*"(answer|output|response)":\s*"(.*)".*\}$/s, '$2');
                 cleaned = cleaned.trim();
                 if (cleaned.startsWith('{') && cleaned.endsWith('}')) {
-                    cleaned = cleaned.substring(1, cleaned.length - 1).trim();
+                    try {
+                        const parsed = JSON.parse(cleaned);
+                        return parsed.answer || parsed.output || parsed.response || cleaned;
+                    } catch(e) { /* not JSON */ }
                 }
                 cleaned = cleaned.replace(/^(answer|response|output):\s*/i, '');
                 cleaned = cleaned.replace(/^"|"$/g, '').trim();
                 return cleaned;
             }
 
-            // --- Media Rendering Logic ---
             function renderMedia(url) {
-                const extension = url.split('.').pop().toLowerCase().split('?')[0];
+                const extension = url.split('.').pop().toLowerCase().split(/[?#]/)[0];
                 const isImage = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'svg'].includes(extension) || url.includes('image');
                 const isVideo = ['mp4', 'webm', 'ogg', 'mov'].includes(extension) || url.includes('video');
                 const isAudio = ['mp3', 'wav', 'aac', 'm4a'].includes(extension) || url.includes('audio');
 
                 let html = '';
                 if (isImage) {
-                    html = `<div class="relative group mt-3">
+                    html = `<div class="media-container relative group mt-3">
                                 <img src="${url}" class="rounded-xl border border-white/10 max-w-full h-auto shadow-lg" loading="lazy">
-                                <a href="${url}" download class="absolute top-2 right-2 bg-black/60 backdrop-blur p-2 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity text-white hover:bg-brand-500">
+                                <a href="${url}" download target="_blank" class="absolute top-2 right-2 bg-black/60 backdrop-blur p-2 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity text-white hover:bg-brand-500">
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
                                 </a>
                             </div>`;
                 } else if (isVideo) {
-                    html = `<div class="mt-3 bg-black rounded-xl border border-white/10 overflow-hidden relative group">
+                    html = `<div class="media-container mt-3 bg-black rounded-xl border border-white/10 overflow-hidden relative group">
                                 <video controls class="w-full">
-                                    <source src="${url}" type="video/mp4">
+                                    <source src="${url}">
                                 </video>
-                                <a href="${url}" download class="absolute bottom-12 right-2 bg-black/60 backdrop-blur p-2 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity text-white hover:bg-brand-500">
+                                <a href="${url}" download target="_blank" class="absolute bottom-12 right-2 bg-black/60 backdrop-blur p-2 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity text-white hover:bg-brand-500">
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
                                 </a>
                             </div>`;
@@ -230,25 +247,23 @@
                                 <audio controls class="flex-1 h-8">
                                     <source src="${url}">
                                 </audio>
-                                <a href="${url}" download class="p-2 bg-zinc-800 rounded-lg text-white hover:bg-brand-500">
+                                <a href="${url}" download target="_blank" class="p-2 bg-zinc-800 rounded-lg text-white hover:bg-brand-500">
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
                                 </a>
                             </div>`;
                 } else {
-                    // Generic Document
                     html = `<div class="mt-3 p-4 bg-zinc-900 border border-white/5 rounded-xl flex items-center justify-between group">
                                 <div class="flex items-center gap-3">
-                                    <div class="w-10 h-10 bg-brand-500/10 text-brand-400 rounded flex items-center justify-center text-xl font-bold italic">Doc</div>
-                                    <span class="text-xs text-zinc-400">Resource File</span>
+                                    <div class="w-10 h-10 bg-brand-500/10 text-brand-400 rounded flex items-center justify-center text-xs font-bold">DOC</div>
+                                    <span class="text-xs text-zinc-400">Reference File</span>
                                 </div>
-                                <a href="${url}" download class="px-4 py-2 bg-brand-500 text-white text-[10px] font-bold rounded-lg uppercase tracking-wider hover:bg-brand-600">Download</a>
+                                <a href="${url}" download target="_blank" class="px-4 py-2 bg-brand-500 text-white text-[10px] font-bold rounded-lg uppercase tracking-wider hover:bg-brand-600">Download</a>
                             </div>`;
                 }
                 return html;
             }
 
-            // Command Palette Logic
-            input.onkeyup = (e) => {
+            input.oninput = () => {
                 if (input.value.startsWith('/')) {
                     palette.classList.remove('hidden');
                 } else {
@@ -269,8 +284,6 @@
 
                 if (document.getElementById('welcome')) document.getElementById('welcome').remove();
 
-                // Logic: If starts with / send exactly as is.
-                // Else, you could add prefixes, but here we keep it clean.
                 appendMessage('user', text, [...selectedFiles]);
                 
                 const messageFiles = [];
@@ -302,15 +315,11 @@
                     });
 
                     const data = await response.json();
-                    
-                    // Look for media URLs in the response
                     let botContent = cleanResponse(data.answer || data.output || data.response || data.text || JSON.stringify(data));
                     
-                    // Regex to find potential URLs
                     const urlRegex = /(https?:\/\/[^\s]+)/g;
                     const urls = botContent.match(urlRegex) || [];
                     
-                    // Remove URLs from text to avoid redundancy if we render them
                     let textOnly = botContent;
                     urls.forEach(u => textOnly = textOnly.replace(u, ''));
 
@@ -321,7 +330,7 @@
                         ${mediaHtml}
                     `;
                 } catch (err) {
-                    thinkingMsg.querySelector('.flex-1').innerHTML = `<div class="text-xs text-red-400">Error: ${err.message}</div>`;
+                    thinkingMsg.querySelector('.flex-1').innerHTML = `<div class="text-xs text-red-400">Connection failed. Check your network.</div>`;
                 }
             };
 
@@ -329,8 +338,8 @@
                 const div = document.createElement('div');
                 div.className = `flex gap-4 p-6 rounded-2xl mb-4 message-fade ${role === 'user' ? 'bg-zinc-900/30' : ''}`;
                 const avatar = role === 'user' 
-                    ? `<div class="w-8 h-8 rounded-lg bg-zinc-800 shrink-0 flex items-center justify-center font-bold text-[10px] text-zinc-500">YOU</div>`
-                    : `<div class="w-8 h-8 rounded-lg bg-brand-600 shrink-0 flex items-center justify-center font-bold text-[10px] text-white">NIX</div>`;
+                    ? `<div class="w-8 h-8 rounded-lg bg-zinc-800 shrink-0 flex items-center justify-center font-bold text-[10px] text-zinc-500 uppercase">You</div>`
+                    : `<div class="w-8 h-8 rounded-lg bg-brand-600 shrink-0 flex items-center justify-center font-bold text-[10px] text-white uppercase">Nix</div>`;
                 
                 div.innerHTML = `${avatar}<div class="flex-1">${isThinking ? '<div class="typing-dot"></div>' : `<div class="text-sm text-zinc-300">${content}</div>`}</div>`;
                 container.appendChild(div);
@@ -340,9 +349,9 @@
 
             function renderFilePreviews() {
                 filePreview.innerHTML = '';
-                selectedFiles.forEach((file, index) => {
+                selectedFiles.forEach((file) => {
                     const badge = document.createElement('div');
-                    badge.className = "bg-zinc-800 text-zinc-400 px-2 py-1 rounded text-[10px]";
+                    badge.className = "bg-zinc-800 text-zinc-400 px-2 py-1 rounded text-[10px] border border-white/5";
                     badge.innerText = file.name;
                     filePreview.appendChild(badge);
                 });
@@ -351,6 +360,11 @@
             fileInput.onchange = (e) => {
                 selectedFiles = [...selectedFiles, ...e.target.files];
                 renderFilePreviews();
+            };
+
+            window.handleLogout = async () => {
+                await sbClient.auth.signOut();
+                window.location.reload();
             };
 
             init();
