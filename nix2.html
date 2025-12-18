@@ -137,13 +137,11 @@
     </main>
 
     <script>
-        // Use a self-invoking function or distinct variable names to avoid "already declared" errors in re-execution environments
         (function() {
             const SYNC_WEBHOOK_URL = 'https://cloud.activepieces.com/api/v1/webhooks/WR43cDYER0O9TiHq8exAH/sync';
             const sbUrl = 'https://rnlwrngfgvznndlekmrz.supabase.co';
             const sbKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJubHdybmdmZ3Z6bm5kbGVrbXJ6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjYwMzIxODMsImV4cCI6MjA4MTYwODE4M30.4al_pqjZBYgbfoLlMosT500PC85OGsUggCAL-hmtelA';
             
-            // Reference the global supabase if it exists, otherwise create it
             const sbClient = window.supabase.createClient(sbUrl, sbKey);
 
             let currentUser = null;
@@ -158,12 +156,41 @@
 
             async function init() {
                 const { data: { session } } = await sbClient.auth.getSession();
-                if (!session) { window.location.href = 'auth.html'; return; }
+                if (!session) { 
+                    // Redirect logic if necessary, otherwise show auth loading
+                    // window.location.href = 'auth.html'; 
+                    return; 
+                }
                 
                 currentUser = session.user;
                 document.getElementById('user-name').innerText = currentUser.email.split('@')[0];
                 document.getElementById('user-initial').innerText = currentUser.email.charAt(0).toUpperCase();
                 document.getElementById('auth-loading').classList.add('hidden');
+            }
+
+            /**
+             * Cleans JSON artifacts from a string response
+             */
+            function cleanResponse(text) {
+                if (!text) return "";
+                
+                // Remove common JSON structures if the model output the whole object as a string
+                // 1. Replace escaped newlines with actual newlines
+                let cleaned = text.replace(/\\n/g, '\n');
+                
+                // 2. Remove surrounding braces or specific JSON property keys if they are leaked
+                // This regex looks for patterns like {"output": "..."} and keeps the content
+                cleaned = cleaned.replace(/^\{.*"output":\s*"(.*)".*\}$/s, '$1');
+                
+                // 3. Remove literal braces and brackets if they appear to wrap the whole message
+                if (cleaned.startsWith('{') && cleaned.endsWith('}')) {
+                    cleaned = cleaned.substring(1, cleaned.length - 1);
+                }
+
+                // 4. Remove leading/trailing quotes often found in raw string responses
+                cleaned = cleaned.trim().replace(/^"|"$/g, '');
+
+                return cleaned;
             }
 
             fileInput.onchange = (e) => {
@@ -256,11 +283,11 @@
                         body: JSON.stringify({ 
                             message: text,
                             files: messageFiles,
-                            user: {
+                            user: currentUser ? {
                                 id: currentUser.id,
                                 email: currentUser.email,
                                 name: currentUser.user_metadata.full_name || currentUser.email.split('@')[0]
-                            },
+                            } : { id: 'guest', email: 'guest@local', name: 'Guest' },
                             timestamp: new Date().toISOString()
                         })
                     });
@@ -268,7 +295,12 @@
                     if (!response.ok) throw new Error('Reasoning engine error');
 
                     const data = await response.json();
-                    const botResponse = data.output || data.response || data.text || (typeof data === 'string' ? data : JSON.stringify(data));
+                    
+                    // Extract potential response keys
+                    let rawResponse = data.output || data.response || data.text || (typeof data === 'string' ? data : JSON.stringify(data));
+                    
+                    // Clean the response from JSON symbols
+                    const botResponse = cleanResponse(rawResponse);
                     
                     thinkingMsg.querySelector('.flex-1').innerHTML = `
                         <div class="text-sm leading-relaxed text-zinc-300 whitespace-pre-wrap">${botResponse}</div>
@@ -290,7 +322,7 @@
 
             window.handleLogout = async () => {
                 await sbClient.auth.signOut();
-                window.location.href = 'auth.html';
+                window.location.reload();
             };
 
             init();
