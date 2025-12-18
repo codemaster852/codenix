@@ -79,8 +79,8 @@
                     <span class="text-sm font-bold text-white">Nix-2-Flash-092025</span>
                 </div>
                 <div class="flex items-center gap-4">
-                    <div id="webhook-status" class="hidden px-2 py-0.5 rounded-full bg-orange-500/10 border border-orange-500/20 text-[10px] text-orange-500 font-bold uppercase tracking-wider">Webhook Error</div>
-                    <div id="status-badge" class="px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-[10px] text-emerald-500 font-bold uppercase tracking-wider">Online</div>
+                    <div id="webhook-indicator" class="hidden px-2 py-0.5 rounded-full bg-brand-500/10 border border-brand-500/20 text-[10px] text-brand-500 font-bold uppercase tracking-wider animate-pulse">Syncing Flow...</div>
+                    <div id="status-badge" class="px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-[10px] text-emerald-500 font-bold uppercase tracking-wider">Connected</div>
                 </div>
             </header>
 
@@ -88,8 +88,8 @@
                 <div class="max-w-3xl mx-auto px-6 py-12 space-y-8" id="message-container">
                     <div id="welcome" class="py-20 text-center flex flex-col items-center">
                         <div class="w-16 h-16 bg-zinc-900 border border-zinc-800 rounded-3xl mb-6 flex items-center justify-center text-2xl shadow-2xl">⚡</div>
-                        <h1 class="text-3xl font-bold text-white mb-2 tracking-tight">Flow Integration Active</h1>
-                        <p class="text-zinc-500 text-sm max-w-sm">Input data is sent to the webhook via the "question" field.</p>
+                        <h1 class="text-3xl font-bold text-white mb-2 tracking-tight">Active Flow Integration</h1>
+                        <p class="text-zinc-500 text-sm max-w-sm">Every message you send here is transmitted to the automated flow via the <code class="text-brand-500">question</code> field.</p>
                     </div>
                 </div>
             </div>
@@ -101,14 +101,14 @@
                         <form id="chat-form">
                             <textarea 
                                 id="user-input"
-                                placeholder="Type your question..." 
+                                placeholder="Send a message to the flow..." 
                                 class="w-full bg-transparent p-5 text-sm text-white focus:outline-none resize-none min-h-[60px] max-h-[200px]"
                                 rows="1"
                             ></textarea>
                             
                             <div class="flex items-center justify-between px-4 py-3 bg-zinc-950/50 border-t border-white/5">
-                                <div class="flex items-center gap-1 text-[10px] text-zinc-500 uppercase tracking-widest font-bold ml-2">
-                                    Direct Webhook Link
+                                <div class="flex items-center gap-1 text-[10px] text-zinc-400 uppercase tracking-widest font-bold ml-2">
+                                    Webhook: hook.us1.make.com
                                 </div>
                                 <button id="send-btn" type="submit" class="bg-white text-black px-6 py-2 rounded-xl text-xs font-bold hover:bg-brand-500 hover:text-white transition-all disabled:opacity-30 disabled:cursor-not-allowed">
                                     Send
@@ -136,7 +136,7 @@
             const userInput = document.getElementById('user-input');
             const welcome = document.getElementById('welcome');
             const sendBtn = document.getElementById('send-btn');
-            const webhookStatus = document.getElementById('webhook-status');
+            const webhookIndicator = document.getElementById('webhook-indicator');
 
             let currentUser = null;
 
@@ -176,30 +176,33 @@
             }
 
             /**
-             * Webhook delivery focused on 'question' field
+             * Core function: Sends the user input to the flow webhook
+             * Specifically using the 'question' field as requested.
              */
-            async function sendToWebhook(content) {
+            async function triggerFlowWebhook(content) {
+                webhookIndicator.classList.remove('hidden');
                 try {
                     const response = await fetch(WEBHOOK_URL, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
-                            question: content, // REQUIRED FIELD NAME
-                            sessionInfo: {
-                                userId: currentUser?.id,
-                                email: currentUser?.email,
+                            question: content, // Strict field mapping
+                            metadata: {
+                                source: "Nix 2 Studio",
+                                user_id: currentUser?.id,
+                                user_email: currentUser?.email,
                                 timestamp: new Date().toISOString()
                             }
                         })
                     });
                     
-                    if (!response.ok) throw new Error('Webhook failed');
-                    webhookStatus.classList.add('hidden');
+                    if (!response.ok) throw new Error('Flow delivery failed');
                     return true;
                 } catch (error) {
-                    console.error('Webhook Error:', error);
-                    webhookStatus.classList.remove('hidden');
+                    console.error('Webhook Transmission Error:', error);
                     return false;
+                } finally {
+                    webhookIndicator.classList.add('hidden');
                 }
             }
 
@@ -216,7 +219,7 @@
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
                                 contents: [{ parts: [{ text: prompt }] }],
-                                systemInstruction: { parts: [{ text: "You are Nix 2, an advanced studio AI Assistant." }] }
+                                systemInstruction: { parts: [{ text: "You are Nix 2, an AI in a studio environment. Respond concisely." }] }
                             })
                         });
 
@@ -224,7 +227,7 @@
                         const data = await response.json();
                         return data.candidates?.[0]?.content?.parts?.[0]?.text;
                     } catch (err) {
-                        if (retries === 4) return "Connection error. Please try again.";
+                        if (retries === 4) return "AI connection is currently unstable.";
                         await new Promise(r => setTimeout(r, delays[retries]));
                         retries++;
                     }
@@ -236,15 +239,18 @@
                 const text = userInput.value.trim();
                 if (!text || sendBtn.disabled) return;
 
+                // 1. Clear input and show user message in UI
                 userInput.value = '';
                 userInput.style.height = 'auto';
                 appendMessage('user', text);
                 
                 sendBtn.disabled = true;
                 
-                // Fire webhook with 'question' payload
-                sendToWebhook(text);
+                // 2. TRIGGER THE FLOW (Send to Webhook immediately)
+                // We don't block the UI for this, but we run it alongside the AI call
+                triggerFlowWebhook(text);
 
+                // 3. Handle AI Response UI
                 const thinkingDiv = document.createElement('div');
                 thinkingDiv.className = 'flex items-center gap-1.5 p-4 bg-zinc-800/20 rounded-2xl w-fit border border-zinc-800 message-enter mb-6';
                 thinkingDiv.innerHTML = `<div class="thinking-dot w-1.5 h-1.5 bg-brand-500 rounded-full"></div><div class="thinking-dot w-1.5 h-1.5 bg-brand-500 rounded-full"></div><div class="thinking-dot w-1.5 h-1.5 bg-brand-500 rounded-full"></div>`;
@@ -257,7 +263,7 @@
                     appendMessage('ai', response);
                 } catch (error) {
                     thinkingDiv.remove();
-                    appendMessage('ai', "Error connecting to AI service.");
+                    appendMessage('ai', "I encountered an error processing that request.");
                 } finally {
                     sendBtn.disabled = false;
                 }
