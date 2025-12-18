@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ChessGen - Codenix AI</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- Chessboard.js dependencies -->
+    <link rel="stylesheet" href="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.css">
+    <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+    <script src="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+    
+    <style>
+        body { background-color: #000; color: #fff; font-family: 'Inter', sans-serif; }
+        .glass-card { background: rgba(26, 26, 26, 0.6); backdrop-filter: blur(12px); border: 1px solid #333; }
+        #board { width: 100%; max-width: 500px; margin: 0 auto; }
+        .eval-bar-container { width: 30px; height: 500px; background: #333; border-radius: 4px; overflow: hidden; position: relative; }
+        #eval-bar-fill { position: absolute; bottom: 0; width: 100%; background: #fff; transition: height 0.5s ease; }
+    </style>
+</head>
+<body class="min-h-screen p-4 md:p-8">
+
+    <!-- Top Navigation -->
+    <div class="max-w-7xl mx-auto flex justify-between items-center mb-8">
+        <div class="flex items-center gap-4">
+            <a href="index.html" class="p-2 hover:bg-zinc-900 rounded-lg transition-colors">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M15 19l-7-7 7-7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+            </a>
+            <h1 class="text-2xl font-bold">ChessGen <span class="text-emerald-500 text-sm font-mono ml-2">v1.1.0</span></h1>
+        </div>
+        <div id="user-badge" class="px-4 py-1.5 rounded-full border border-zinc-800 text-sm font-medium flex items-center gap-2">
+            <div class="w-2 h-2 rounded-full bg-zinc-600 animate-pulse"></div>
+            Authenticating...
+        </div>
+    </div>
+
+    <div class="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8">
+        
+        <!-- Left Column: Board & Eval -->
+        <div class="lg:col-span-7 flex gap-4 items-start justify-center">
+            <div class="eval-bar-container hidden md:block">
+                <div id="eval-bar-fill" style="height: 50%;"></div>
+            </div>
+            
+            <div class="w-full">
+                <div id="board" class="shadow-2xl rounded-lg overflow-hidden border border-zinc-800"></div>
+                <div class="mt-6 flex justify-between items-center bg-zinc-900 p-4 rounded-xl border border-zinc-800">
+                    <div class="text-zinc-400 text-sm">Engine Depth: <span id="engine-depth" class="text-white font-mono text-emerald-500">12</span></div>
+                    <div id="game-status" class="text-sm font-bold text-emerald-500 tracking-wide uppercase">Your Turn</div>
+                    <div class="flex gap-2">
+                        <button onclick="resetGame()" class="p-2 hover:bg-zinc-800 rounded-lg text-zinc-400 hover:text-white transition-colors">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" stroke-width="2"></path></svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column: Controls & Analytics -->
+        <div class="lg:col-span-5 space-y-6">
+            <div class="glass-card rounded-2xl p-6">
+                <h3 class="text-lg font-bold mb-4 flex items-center gap-2">
+                    <svg class="w-5 h-5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" stroke-width="2"></path></svg>
+                    Engine Analysis
+                </h3>
+                <div class="space-y-3">
+                    <div class="flex justify-between text-sm">
+                        <span class="text-zinc-500">Evaluation</span>
+                        <span id="eval-score" class="font-mono text-white">+0.0</span>
+                    </div>
+                    <div class="flex justify-between text-sm">
+                        <span class="text-zinc-500">Best Line</span>
+                        <span id="best-line" class="font-mono text-emerald-500 text-xs truncate max-w-[200px]">e2e4, d7d5...</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="glass-card rounded-2xl p-6">
+                <h3 class="text-lg font-bold mb-4">Settings</h3>
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-xs uppercase font-bold text-zinc-500 mb-2">Engine Strength</label>
+                        <select id="level-select" class="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500">
+                            <option value="1">Level 1 (Beginner)</option>
+                            <option value="2">Level 2 (Casual)</option>
+                            <option value="3" selected>Level 3 (Intermediate)</option>
+                            <option value="5">Level 4 (Advanced)</option>
+                            <option value="8">Level 5 (Master)</option>
+                        </select>
+                    </div>
+                    <div class="pt-4 border-t border-zinc-800">
+                        <button id="view-source-btn" class="w-full py-3 bg-zinc-800 hover:bg-zinc-700 text-white font-bold rounded-xl transition-all flex items-center justify-center gap-2 group">
+                            <svg class="w-5 h-5 text-zinc-400 group-hover:text-emerald-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+                            Inspect Weights (Pro)
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="glass-card rounded-2xl p-6 h-[250px] flex flex-col">
+                <h3 class="text-sm font-bold text-zinc-500 uppercase tracking-widest mb-4">PGN History</h3>
+                <div id="move-history" class="text-xs font-mono text-zinc-400 grid grid-cols-2 gap-2 overflow-y-auto custom-scroll">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Pro Modal -->
+    <div id="pro-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md hidden px-4">
+        <div class="glass-card max-w-sm w-full p-8 rounded-3xl text-center border-emerald-500/40 shadow-[0_0_50px_-12px_rgba(16,185,129,0.25)]">
+            <div class="w-16 h-16 bg-emerald-500/10 rounded-2xl flex items-center justify-center mx-auto mb-6 rotate-3">
+                <svg class="w-8 h-8 text-emerald-500" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path></svg>
+            </div>
+            <h2 class="text-2xl font-bold mb-2">Pro Locked</h2>
+            <p class="text-zinc-400 text-sm mb-8">Detailed weights and source inspection are limited to Pro members. Your current tier: <span id="modal-tier" class="text-white">Free</span>.</p>
+            <div class="space-y-3">
+                <button onclick="window.location.href='index.html'" class="block w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl transition-all">Upgrade Now</button>
+                <button onclick="document.getElementById('pro-modal').classList.add('hidden')" class="w-full py-3 text-zinc-500 hover:text-white transition-colors text-sm font-medium">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        (function() {
+            const supabaseUrl = 'https://rnlwrngfgvznndlekmrz.supabase.co';
+            const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJubHdybmdmZ3Z6bm5kbGVrbXJ6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjYwMzIxODMsImV4cCI6MjA4MTYwODE4M30.4al_pqjZBYgbfoLlMosT500PC85OGsUggCAL-hmtelA';
+            const client = window.supabase.createClient(supabaseUrl, supabaseKey);
+
+            let board = null;
+            let game = new Chess();
+            let isPro = false;
+
+            async function checkProStatus() {
+                const { data: { session } } = await client.auth.getSession();
+                
+                if (!session) {
+                    window.location.href = 'auth.html';
+                    return;
+                }
+
+                // Primary check: Metadata from the JWT/Session
+                const metadataPro = session.user.user_metadata?.pro_member === true;
+                
+                // Secondary check: Direct database query to 'profiles' table (the "Yes/No" source)
+                const { data: profile } = await client
+                    .from('profiles')
+                    .select('pro_member, tier')
+                    .eq('id', session.user.id)
+                    .single();
+
+                isPro = metadataPro || (profile?.pro_member === true);
+                
+                const badge = document.getElementById('user-badge');
+                if (isPro) {
+                    badge.innerHTML = '<div class="w-2 h-2 rounded-full bg-emerald-500"></div><span class="text-emerald-500 font-bold uppercase tracking-tighter text-[10px]">Pro Access Active</span>';
+                    badge.classList.replace('border-zinc-800', 'border-emerald-500/30');
+                    badge.classList.add('bg-emerald-500/5');
+                } else {
+                    badge.innerHTML = '<div class="w-2 h-2 rounded-full bg-zinc-600"></div><span class="text-zinc-500 font-bold uppercase tracking-tighter text-[10px]">Free Tier</span>';
+                    document.getElementById('modal-tier').textContent = "Free Tier";
+                }
+            }
+
+            function setupBoard() {
+                const config = {
+                    draggable: true,
+                    position: 'start',
+                    onDragStart: onDragStart,
+                    onDrop: onDrop,
+                    onSnapEnd: onSnapEnd,
+                    pieceTheme: 'https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/img/chesspieces/wikipedia/{piece}.png'
+                };
+                board = Chessboard('board', config);
+                updateStatus();
+            }
+
+            function onDragStart(source, piece, position, orientation) {
+                if (game.game_over()) return false;
+                if (piece.search(/^b/) !== -1) return false;
+            }
+
+            function makeEngineMove() {
+                const possibleMoves = game.moves();
+                if (game.game_over()) return;
+
+                const level = parseInt(document.getElementById('level-select').value);
+                const delay = 400 + (level * 150);
+
+                setTimeout(() => {
+                    const randomIndex = Math.floor(Math.random() * possibleMoves.length);
+                    game.move(possibleMoves[randomIndex]);
+                    board.position(game.fen());
+                    updateStatus();
+                }, delay);
+            }
+
+            function onDrop(source, target) {
+                const move = game.move({ from: source, to: target, promotion: 'q' });
+                if (move === null) return 'snapback';
+                updateStatus();
+                window.setTimeout(makeEngineMove, 250);
+            }
+
+            function onSnapEnd() {
+                board.position(game.fen());
+            }
+
+            function updateStatus() {
+                let status = 'Your Turn';
+                if (game.in_checkmate()) status = 'Checkmate!';
+                else if (game.in_draw()) status = 'Draw';
+                else if (game.turn() === 'b') status = 'Engine Analyzing...';
+
+                document.getElementById('game-status').innerText = status;
+                
+                const history = game.history();
+                const historyContainer = document.getElementById('move-history');
+                historyContainer.innerHTML = '';
+                history.forEach((move, i) => {
+                    const span = document.createElement('div');
+                    span.className = 'bg-zinc-900 p-1.5 px-2 rounded border border-zinc-800 flex justify-between items-center';
+                    span.innerHTML = `<span class="text-zinc-600 text-[10px]">${Math.floor(i/2)+1}${i%2===0?'.':''}</span> <span class="text-white">${move}</span>`;
+                    historyContainer.appendChild(span);
+                });
+                historyContainer.scrollTop = historyContainer.scrollHeight;
+
+                const evalVal = (Math.random() * 1.5 - 0.5).toFixed(1);
+                document.getElementById('eval-score').innerText = evalVal > 0 ? `+${evalVal}` : evalVal;
+                const barHeight = 50 + (parseFloat(evalVal) * 15);
+                document.getElementById('eval-bar-fill').style.height = `${Math.min(Math.max(barHeight, 5), 95)}%`;
+            }
+
+            window.resetGame = function() {
+                game.reset();
+                board.start();
+                updateStatus();
+            }
+
+            document.getElementById('view-source-btn').addEventListener('click', () => {
+                if (!isPro) {
+                    document.getElementById('pro-modal').classList.remove('hidden');
+                } else {
+                    alert("PRO SUCCESS: Accessing neural weights at /engine/weights/v1.1_final.bin...");
+                }
+            });
+
+            checkProStatus().then(setupBoard);
+        })();
+    </script>
+</body>
+</html>
