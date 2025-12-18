@@ -31,12 +31,26 @@
         .bg-grid { background-size: 40px 40px; background-image: linear-gradient(to right, rgba(255,255,255,0.02) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.02) 1px, transparent 1px); }
         .command-item.hidden { display: none; }
         .command-item.active { background: rgba(99, 102, 241, 0.15); border-color: rgba(99, 102, 241, 0.3); }
-        [v-cloak] { display: none; }
+        
+        /* Shimmer loading effect */
+        .thinking-dot { animation: thinking 1.4s infinite ease-in-out; }
+        .thinking-dot:nth-child(2) { animation-delay: 0.2s; }
+        .thinking-dot:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes thinking {
+            0%, 80%, 100% { opacity: 0; transform: translateY(0); }
+            40% { opacity: 1; transform: translateY(-4px); }
+        }
+
+        /* Message animations */
+        .message-enter { animation: slideUp 0.3s ease-out forwards; }
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
     </style>
 </head>
 <body class="h-screen flex overflow-hidden opacity-0 transition-opacity duration-500" id="main-studio">
 
-    <!-- Main Studio Layout -->
     <div id="studio-layout" class="flex flex-1">
         <aside class="w-72 border-r border-zinc-800 bg-black flex flex-col hidden md:flex">
             <div class="p-6 border-b border-zinc-800 flex items-center gap-3">
@@ -67,7 +81,7 @@
             </header>
 
             <div id="chat-scroller" class="flex-1 overflow-y-auto">
-                <div class="max-w-3xl mx-auto px-6 py-12" id="message-container">
+                <div class="max-w-3xl mx-auto px-6 py-12 space-y-8" id="message-container">
                     <div id="welcome" class="py-20 text-center">
                         <h1 class="text-4xl font-bold text-white mb-4 tracking-tight">Ready for your next prompt?</h1>
                         <p class="text-zinc-500 text-sm">Use <kbd class="px-1.5 py-0.5 bg-zinc-800 border border-zinc-700 rounded text-xs font-mono text-zinc-300">/</kbd> to see filtered studio commands.</p>
@@ -78,7 +92,6 @@
             <div class="p-6 relative">
                 <div class="max-w-3xl mx-auto relative">
                     
-                    <!-- Auto-Filtering Command Palette -->
                     <div id="command-palette" class="absolute bottom-full left-0 w-64 bg-zinc-900 border border-zinc-800 rounded-xl shadow-2xl mb-4 hidden z-50 overflow-hidden">
                         <div class="p-2 border-b border-white/5 text-[10px] uppercase font-bold text-zinc-500 tracking-wider bg-zinc-950/50">Available Commands</div>
                         <div id="command-list" class="max-h-64 overflow-y-auto p-1">
@@ -119,7 +132,7 @@
                                 <button type="button" class="p-2 text-zinc-500 hover:text-white transition-colors">
                                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
                                 </button>
-                                <button id="send-btn" type="submit" class="bg-white text-black px-6 py-2 rounded-xl text-xs font-bold hover:bg-brand-500 hover:text-white transition-all">
+                                <button id="send-btn" type="submit" class="bg-white text-black px-6 py-2 rounded-xl text-xs font-bold hover:bg-brand-500 hover:text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed">
                                     Send
                                 </button>
                             </div>
@@ -132,15 +145,21 @@
 
     <script>
         (function() {
+            const apiKey = ""; // Gemini API key handled by environment
             const sbUrl = 'https://rnlwrngfgvznndlekmrz.supabase.co';
             const sbKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJubHdybmdmZ3Z6bm5kbGVrbXJ6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjYwMzIxODMsImV4cCI6MjA4MTYwODE4M30.4al_pqjZBYgbfoLlMosT500PC85OGsUggCAL-hmtelA';
             const sbClient = window.supabase.createClient(sbUrl, sbKey);
 
+            const msgContainer = document.getElementById('message-container');
+            const chatScroller = document.getElementById('chat-scroller');
+            const chatForm = document.getElementById('chat-form');
+            const userInput = document.getElementById('user-input');
+            const welcome = document.getElementById('welcome');
+            const sendBtn = document.getElementById('send-btn');
+
             async function guardStudio() {
                 const { data: { session } } = await sbClient.auth.getSession();
-                
                 if (!session) {
-                    // Redirect to auth.html if not signed in
                     window.location.href = 'auth.html';
                 } else {
                     document.getElementById('main-studio').classList.remove('opacity-0');
@@ -154,8 +173,102 @@
                 document.getElementById('user-initial').innerText = name.charAt(0).toUpperCase();
             }
 
-            // Command Auto-Filtering Logic
-            const userInput = document.getElementById('user-input');
+            function appendMessage(role, text) {
+                if (welcome) welcome.style.display = 'none';
+                
+                const msgDiv = document.createElement('div');
+                msgDiv.className = `flex flex-col ${role === 'user' ? 'items-end' : 'items-start'} message-enter`;
+                
+                const bubble = document.createElement('div');
+                bubble.className = `max-w-[85%] p-4 rounded-2xl text-sm leading-relaxed ${
+                    role === 'user' 
+                    ? 'bg-brand-600 text-white rounded-tr-none' 
+                    : 'bg-zinc-800/50 text-zinc-200 border border-white/5 rounded-tl-none'
+                }`;
+                bubble.innerText = text;
+                
+                msgDiv.appendChild(bubble);
+                msgContainer.appendChild(msgDiv);
+                chatScroller.scrollTo({ top: chatScroller.scrollHeight, behavior: 'smooth' });
+                return msgDiv;
+            }
+
+            function showThinking() {
+                const thinkingDiv = document.createElement('div');
+                thinkingDiv.id = 'thinking-indicator';
+                thinkingDiv.className = 'flex items-center gap-1.5 p-4 bg-zinc-800/30 rounded-2xl w-fit message-enter';
+                thinkingDiv.innerHTML = `
+                    <div class="thinking-dot w-1.5 h-1.5 bg-zinc-500 rounded-full"></div>
+                    <div class="thinking-dot w-1.5 h-1.5 bg-zinc-500 rounded-full"></div>
+                    <div class="thinking-dot w-1.5 h-1.5 bg-zinc-500 rounded-full"></div>
+                `;
+                msgContainer.appendChild(thinkingDiv);
+                chatScroller.scrollTo({ top: chatScroller.scrollHeight, behavior: 'smooth' });
+            }
+
+            function removeThinking() {
+                const el = document.getElementById('thinking-indicator');
+                if (el) el.remove();
+            }
+
+            async function callGemini(prompt) {
+                const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+                
+                let attempts = 0;
+                const maxAttempts = 5;
+
+                while (attempts < maxAttempts) {
+                    try {
+                        const response = await fetch(url, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                contents: [{ parts: [{ text: prompt }] }],
+                                systemInstruction: { parts: [{ text: "You are Nix 2, an advanced creative multimedia assistant. Be concise, professional, and helpful." }] }
+                            })
+                        });
+
+                        const data = await response.json();
+                        return data.candidates?.[0]?.content?.parts?.[0]?.text || "I couldn't generate a response.";
+                    } catch (err) {
+                        attempts++;
+                        if (attempts === maxAttempts) throw err;
+                        await new Promise(r => setTimeout(r, Math.pow(2, attempts) * 1000));
+                    }
+                }
+            }
+
+            chatForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const text = userInput.value.trim();
+                if (!text) return;
+
+                userInput.value = '';
+                userInput.style.height = 'auto';
+                appendMessage('user', text);
+                
+                sendBtn.disabled = true;
+                showThinking();
+
+                try {
+                    const response = await callGemini(text);
+                    removeThinking();
+                    appendMessage('ai', response);
+                } catch (error) {
+                    removeThinking();
+                    appendMessage('ai', "Error: System currently unavailable. Please check connection.");
+                } finally {
+                    sendBtn.disabled = false;
+                }
+            });
+
+            // Textarea auto-resize
+            userInput.addEventListener('input', function() {
+                this.style.height = 'auto';
+                this.style.height = (this.scrollHeight) + 'px';
+            });
+
+            // Command Palette Logic
             const palette = document.getElementById('command-palette');
             const commandItems = document.querySelectorAll('.command-item');
 
@@ -176,7 +289,6 @@
                         }
                     });
 
-                    // Hide palette if no matches or if the user typed past the command space
                     if (matchesFound === 0 || val.includes(' ')) {
                         palette.classList.add('hidden');
                     }
@@ -196,10 +308,7 @@
                 window.location.href = 'auth.html';
             };
 
-            // Run guard on load
             guardStudio();
-            
-            // Listen for auth changes
             sbClient.auth.onAuthStateChange((event) => {
                 if (event === 'SIGNED_OUT') window.location.href = 'auth.html';
             });
