@@ -6,18 +6,29 @@
     <title>ChessGen - Codenix AI</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    
     <!-- Chessboard.js dependencies -->
-    <link rel="stylesheet" href="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.css">
     <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
-    <script src="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
     
     <style>
         body { background-color: #000; color: #fff; font-family: 'Inter', sans-serif; }
         .glass-card { background: rgba(26, 26, 26, 0.6); backdrop-filter: blur(12px); border: 1px solid #333; }
         #board { width: 100%; max-width: 500px; margin: 0 auto; }
+        
+        /* CSS Fix for Piece Visibility */
+        .chessboard-63f28 img, .board-b72b1 img {
+            display: block !important;
+            width: 100%;
+            height: 100%;
+        }
+
         .eval-bar-container { width: 30px; height: 500px; background: #333; border-radius: 4px; overflow: hidden; position: relative; }
         #eval-bar-fill { position: absolute; bottom: 0; width: 100%; background: #fff; transition: height 0.5s ease; }
+        .custom-scroll::-webkit-scrollbar { width: 4px; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: #333; border-radius: 10px; }
     </style>
 </head>
 <body class="min-h-screen p-4 md:p-8">
@@ -133,33 +144,33 @@
             let isPro = false;
 
             async function checkProStatus() {
-                const { data: { session } } = await client.auth.getSession();
-                
-                if (!session) {
-                    window.location.href = 'auth.html';
-                    return;
-                }
+                try {
+                    const { data: { session } } = await client.auth.getSession();
+                    
+                    if (!session) {
+                        window.location.href = 'auth.html';
+                        return;
+                    }
 
-                // Primary check: Metadata from the JWT/Session
-                const metadataPro = session.user.user_metadata?.pro_member === true;
-                
-                // Secondary check: Direct database query to 'profiles' table (the "Yes/No" source)
-                const { data: profile } = await client
-                    .from('profiles')
-                    .select('pro_member, tier')
-                    .eq('id', session.user.id)
-                    .single();
+                    const { data: profile } = await client
+                        .from('profiles')
+                        .select('pro_member, tier')
+                        .eq('id', session.user.id)
+                        .single();
 
-                isPro = metadataPro || (profile?.pro_member === true);
-                
-                const badge = document.getElementById('user-badge');
-                if (isPro) {
-                    badge.innerHTML = '<div class="w-2 h-2 rounded-full bg-emerald-500"></div><span class="text-emerald-500 font-bold uppercase tracking-tighter text-[10px]">Pro Access Active</span>';
-                    badge.classList.replace('border-zinc-800', 'border-emerald-500/30');
-                    badge.classList.add('bg-emerald-500/5');
-                } else {
-                    badge.innerHTML = '<div class="w-2 h-2 rounded-full bg-zinc-600"></div><span class="text-zinc-500 font-bold uppercase tracking-tighter text-[10px]">Free Tier</span>';
-                    document.getElementById('modal-tier').textContent = "Free Tier";
+                    isPro = (session.user.user_metadata?.pro_member === true) || (profile?.pro_member === true);
+                    
+                    const badge = document.getElementById('user-badge');
+                    if (isPro) {
+                        badge.innerHTML = '<div class="w-2 h-2 rounded-full bg-emerald-500"></div><span class="text-emerald-500 font-bold uppercase tracking-tighter text-[10px]">Pro Access Active</span>';
+                        badge.classList.replace('border-zinc-800', 'border-emerald-500/30');
+                        badge.classList.add('bg-emerald-500/5');
+                    } else {
+                        badge.innerHTML = '<div class="w-2 h-2 rounded-full bg-zinc-600"></div><span class="text-zinc-500 font-bold uppercase tracking-tighter text-[10px]">Free Tier</span>';
+                        document.getElementById('modal-tier').textContent = "Free Tier";
+                    }
+                } catch (e) {
+                    console.error("Auth check failed", e);
                 }
             }
 
@@ -170,7 +181,8 @@
                     onDragStart: onDragStart,
                     onDrop: onDrop,
                     onSnapEnd: onSnapEnd,
-                    pieceTheme: 'https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/img/chesspieces/wikipedia/{piece}.png'
+                    // Reliable piece set URL
+                    pieceTheme: 'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png'
                 };
                 board = Chessboard('board', config);
                 updateStatus();
