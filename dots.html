@@ -3,487 +3,305 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dots and Blocks: Protocol v2.6</title>
+    <title>Dots & Lines: Neural Link</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap');
         
         body {
             background-color: #050505;
             font-family: 'JetBrains+Mono', monospace;
-            color: white;
-            overflow-x: hidden;
+            color: #e4e4e7;
+            overflow: hidden;
+            margin: 0;
         }
 
         .dot {
-            width: 10px;
-            height: 10px;
-            background: #3f3f46;
+            width: 8px;
+            height: 8px;
+            background: #27272a;
             border-radius: 50%;
-            z-index: 20;
-            border: 2px solid #09090b;
+            transition: all 0.3s ease;
+            z-index: 10;
         }
 
-        .line-h, .line-v { position: relative; cursor: pointer; display: flex; align-items: center; justify-content: center; }
-        
-        /* Level Sizing Classes */
-        .grid-lv1 .line-h { width: 60px; height: 16px; }
-        .grid-lv1 .line-v { height: 60px; width: 16px; }
-        .grid-lv1 .box { width: 60px; height: 60px; }
+        .dot.active {
+            background: #10b981;
+            box-shadow: 0 0 15px #10b981;
+            transform: scale(1.5);
+        }
 
-        .grid-lv2 .line-h { width: 44px; height: 14px; }
-        .grid-lv2 .line-v { height: 44px; width: 14px; }
-        .grid-lv2 .box { width: 44px; height: 44px; }
-
-        .grid-lv3 .line-h { width: 32px; height: 12px; }
-        .grid-lv3 .line-v { height: 32px; width: 12px; }
-        .grid-lv3 .box { width: 32px; height: 32px; }
-
-        .line-inner {
+        .line {
             position: absolute;
-            background: #1a1a1e;
-            border-radius: 999px;
-            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            background: #18181b;
+            transition: all 0.4s ease;
+            z-index: 5;
         }
 
-        .line-h .line-inner { width: 100%; height: 4px; }
-        .line-v .line-inner { height: 100%; width: 4px; }
+        .line.claimed-p1 { background: #10b981; box-shadow: 0 0 10px #10b981; }
+        .line.claimed-p2 { background: #3b82f6; box-shadow: 0 0 10px #3b82f6; }
 
-        .line-inner.player1 { background: #10b981; box-shadow: 0 0 12px #10b981; z-index: 10; }
-        .line-inner.player2 { background: #3b82f6; box-shadow: 0 0 12px #3b82f6; z-index: 10; }
-        
         .box {
+            position: absolute;
+            transition: all 0.5s ease;
             display: flex;
             align-items: center;
             justify-content: center;
-            transition: all 0.5s ease;
-            font-size: 8px;
-            font-weight: 800;
+            font-weight: 900;
+            font-size: 1.5rem;
+            opacity: 0;
+            transform: scale(0.5);
         }
 
-        .box.p1-capture { background: rgba(16, 185, 129, 0.1); color: #10b981; box-shadow: inset 0 0 15px rgba(16, 185, 129, 0.1); }
-        .box.p2-capture { background: rgba(59, 130, 246, 0.1); color: #3b82f6; box-shadow: inset 0 0 15px rgba(59, 130, 246, 0.1); }
+        .box.claimed { opacity: 0.2; transform: scale(1); }
+        .box-p1 { background: #10b981; color: #000; }
+        .box-p2 { background: #3b82f6; color: #000; }
+
+        /* Auth Blocking Overlay */
+        #auth-guard {
+            display: flex; /* Default to visible */
+            position: fixed;
+            inset: 0;
+            background: rgba(5, 5, 5, 0.98);
+            backdrop-filter: blur(12px);
+            z-index: 9999;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 2rem;
+        }
 
         .scanline {
             width: 100%; height: 100%;
-            background: linear-gradient(to bottom, transparent 50%, rgba(0,0,0,0.1) 51%);
+            background: linear-gradient(to bottom, transparent 50%, rgba(0,0,0,0.05) 51%);
             background-size: 100% 4px;
-            position: fixed; top: 0; left: 0; pointer-events: none; z-index: 100; opacity: 0.1;
-        }
-
-        .level-btn.active { border-color: #10b981; color: #10b981; background: rgba(16,185,129,0.05); }
-
-        #auth-guard {
-            position: fixed;
-            inset: 0;
-            background: #050505;
-            z-index: 1000;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            flex-direction: column;
-            gap: 1rem;
+            position: fixed; top: 0; left: 0; pointer-events: none; z-index: 100;
         }
     </style>
 </head>
-<body class="p-4 md:p-8 min-h-screen flex flex-col">
-    <div id="auth-guard">
-        <div class="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
-        <p class="text-[10px] font-bold tracking-widest text-zinc-500 uppercase">Verifying_Session...</p>
-    </div>
-
+<body class="flex flex-col min-h-screen p-4 md:p-8">
     <div class="scanline"></div>
 
-    <div class="max-w-6xl mx-auto w-full flex-1 flex flex-col">
-        <!-- Navigation -->
-        <div class="flex justify-between items-center mb-6 text-[10px] font-bold uppercase tracking-widest text-zinc-500">
-            <a href="portal.html" class="flex items-center gap-2 hover:text-white transition-colors group">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" class="group-hover:-translate-x-1 transition-transform"><path d="m15 18-6-6 6-6"/></svg>
-                EXIT_TO_PORTAL
+    <!-- Auth Guard Overlay -->
+    <div id="auth-guard">
+        <div class="max-w-md border border-zinc-800 p-8 rounded-lg bg-zinc-900/50 shadow-2xl">
+            <div class="text-red-500 mb-6">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 mx-auto animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m0 0v2m0-2h2m-2 0H10m11-3V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2h14a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                </svg>
+            </div>
+            <h2 class="text-xl font-bold uppercase tracking-tighter mb-2">Access_Denied</h2>
+            <p class="text-zinc-400 text-sm mb-8 leading-relaxed">Neural Link connection detected. Authentication required to initialize Game Logic. Guest access is prohibited.</p>
+            <a href="auth.html" class="inline-block w-full py-4 bg-emerald-500 text-black font-black uppercase tracking-widest hover:bg-emerald-400 transition-colors">
+                Proceed_to_Auth
             </a>
-            <div class="flex gap-4 items-center">
-                <div id="user-display" class="text-emerald-500 lowercase opacity-50"></div>
-                <div class="flex gap-2" id="level-selector">
-                    <button onclick="selectLevel(0)" class="level-btn active px-3 py-1 border border-zinc-800 rounded-md transition-all">LVL_01</button>
-                    <button onclick="selectLevel(1)" class="level-btn px-3 py-1 border border-zinc-800 rounded-md transition-all">LVL_02</button>
-                    <button onclick="selectLevel(2)" class="level-btn px-3 py-1 border border-zinc-800 rounded-md transition-all">LVL_03</button>
-                </div>
-            </div>
         </div>
+    </div>
 
-        <!-- Header -->
-        <header class="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-zinc-800 pb-6 gap-4">
+    <div class="max-w-4xl mx-auto w-full flex-1 flex flex-col">
+        <header class="mb-8 border-b border-zinc-800 pb-4 flex justify-between items-end">
             <div>
-                <h1 class="text-3xl font-black tracking-tighter uppercase flex items-center gap-2">
-                    <span class="text-emerald-500">//</span> DOTS_CORE
-                    <span id="level-title" class="text-zinc-400 text-xs bg-zinc-900 px-2 py-0.5 rounded border border-zinc-800">LEVEL_1: MICRO_GRID</span>
-                </h1>
-                <p class="text-[9px] text-zinc-600 mt-1 uppercase font-mono tracking-wider">SYSTEM_READY // AI_MODULE_LOADED</p>
+                <h1 class="text-2xl font-black tracking-tighter uppercase">Dots_&_Lines<span class="text-emerald-500">.exe</span></h1>
+                <p class="text-[10px] text-zinc-500 font-mono tracking-widest uppercase">Grid_Capture_Protocol_v2.0</p>
             </div>
-            
-            <div class="flex items-center gap-3">
-                <button id="toggle-ai" onclick="toggleMode()" class="px-4 py-2 rounded-xl border border-indigo-500/30 bg-indigo-500/10 text-indigo-400 text-[10px] font-bold uppercase transition-all">
-                    MODE: VS_AI
-                </button>
-                <button onclick="initGame()" class="flex items-center gap-2 px-4 py-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-xl transition-all text-[10px] font-bold">
-                    RESET_BOARD
-                </button>
+            <div id="turn-indicator" class="text-[10px] font-bold px-3 py-1 bg-emerald-500 text-black rounded uppercase">
+                Player_1_Turn
             </div>
         </header>
 
-        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 flex-1">
-            <!-- Sidebar Left -->
-            <div class="lg:col-span-3 space-y-4">
-                <div id="p1-card" class="p-6 rounded-2xl border border-emerald-500 bg-emerald-500/5 transition-all">
-                    <div class="flex justify-between items-center mb-2">
-                        <span class="text-[10px] font-bold text-emerald-500/60 uppercase">Operator</span>
-                        <div class="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_#10b981]" id="p1-turn-dot"></div>
-                    </div>
-                    <div id="score-1" class="text-5xl font-black font-mono">0</div>
-                </div>
-
-                <div id="p2-card" class="p-6 rounded-2xl border border-zinc-800 bg-zinc-900/30 transition-all">
-                    <div class="flex justify-between items-center mb-2">
-                        <span id="p2-label" class="text-[10px] font-bold text-zinc-500 uppercase">Logic_Core</span>
-                        <div class="w-2 h-2 rounded-full bg-blue-500 shadow-[0_0_8px_#3b82f6] hidden" id="p2-turn-dot"></div>
-                    </div>
-                    <div id="score-2" class="text-5xl font-black font-mono">0</div>
-                </div>
-
-                <div class="p-4 rounded-2xl border border-zinc-800 bg-zinc-900/10 h-32 overflow-hidden relative">
-                    <div id="console-logs" class="space-y-1 text-[8px] font-mono text-zinc-600"></div>
-                </div>
+        <div class="flex-1 flex flex-col lg:flex-row gap-8 items-center justify-center">
+            <div id="game-container" class="relative bg-zinc-900/20 border border-zinc-800 rounded-xl p-8">
+                <div id="grid" class="relative"></div>
             </div>
 
-            <!-- Game Grid -->
-            <div class="lg:col-span-6 flex items-center justify-center p-4 bg-zinc-900/20 rounded-[2rem] border border-zinc-800/50 relative min-h-[400px]">
-                <div id="board-container" class="relative inline-block transition-all duration-300"></div>
-                
-                <!-- Winner Overlay -->
-                <div id="winner-overlay" class="hidden absolute inset-0 z-50 bg-black/90 backdrop-blur-sm flex items-center justify-center p-8 text-center rounded-[2rem]">
-                    <div class="max-w-xs w-full space-y-4">
-                        <h2 id="winner-text" class="text-4xl font-black uppercase italic tracking-tighter">SUCCESS</h2>
-                        <p id="winner-subtext" class="text-zinc-500 text-xs font-mono"></p>
-                        <button id="overlay-btn" class="w-full py-4 bg-emerald-500 text-black rounded-xl font-bold text-xs uppercase">CONTINUE</button>
-                    </div>
+            <div class="w-full lg:w-48 space-y-4">
+                <div class="p-4 rounded border border-zinc-800 bg-zinc-900/50">
+                    <span class="text-[10px] text-zinc-500 uppercase block mb-2">P1_Captures</span>
+                    <div id="score-p1" class="text-3xl font-black text-emerald-500">0</div>
                 </div>
-            </div>
-
-            <!-- Sidebar Right -->
-            <div class="lg:col-span-3 space-y-4">
-                <div class="p-6 rounded-2xl border border-zinc-800 bg-zinc-900/30">
-                    <h4 class="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-4">Core_Progress</h4>
-                    <div class="space-y-4">
-                        <div class="flex justify-between items-end">
-                            <span class="text-[9px] text-zinc-600 font-mono">SYNC_STATUS</span>
-                            <span id="capture-percent" class="text-xs font-bold text-emerald-500">0%</span>
-                        </div>
-                        <div class="w-full bg-zinc-800 h-1 rounded-full overflow-hidden">
-                            <div id="capture-bar" class="h-full bg-emerald-500 transition-all duration-500" style="width: 0%"></div>
-                        </div>
-                    </div>
+                <div class="p-4 rounded border border-zinc-800 bg-zinc-900/50">
+                    <span class="text-[10px] text-zinc-500 uppercase block mb-2">P2_Captures</span>
+                    <div id="score-p2" class="text-3xl font-black text-blue-500">0</div>
                 </div>
-
-                <div class="p-6 rounded-2xl border border-zinc-800 bg-zinc-900/30">
-                    <div id="ai-status" class="text-[10px] font-bold text-zinc-600 uppercase flex items-center gap-2">
-                        <div class="w-1.5 h-1.5 rounded-full bg-zinc-700" id="ai-dot"></div>
-                        CORE_STATUS: IDLE
-                    </div>
-                    <div class="mt-4 pt-4 border-t border-zinc-800 text-[9px] text-zinc-500">
-                        Capture all sectors to proceed to the next protocol.
-                    </div>
-                </div>
+                <button onclick="resetGame()" class="w-full py-3 border border-zinc-800 hover:border-white text-[10px] font-bold uppercase transition-all">
+                    Reset_Session
+                </button>
+                <button id="logout-btn" class="hidden w-full py-3 border border-red-900/50 hover:border-red-500 text-[10px] font-bold uppercase transition-all text-red-500">
+                    Disconnect
+                </button>
             </div>
         </div>
     </div>
 
-    <!-- Firebase SDKs -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    <script>
+        // Supabase Configuration - Fixed SyntaxError by renaming local variable
+        const SUPABASE_URL = "https://rnlwrngfgvznndlekmrz.supabase.co";
+        const SUPABASE_KEY = "sb_publishable_mtI0_ZBvU_n5oRuqV58QHg_qJt3Gfyt";
+        
+        // The CDN script exposes a global 'supabase' object with a 'createClient' method
+        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-        const firebaseConfig = JSON.parse(__firebase_config);
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
+        const guard = document.getElementById('auth-guard');
+        const logoutBtn = document.getElementById('logout-btn');
 
-        // AUTH GUARD LOGIC
-        onAuthStateChanged(auth, (user) => {
-            if (user) {
-                // User is signed in, reveal the page
-                const guard = document.getElementById('auth-guard');
-                if (guard) guard.style.display = 'none';
-                
-                const display = document.getElementById('user-display');
-                if (display) display.innerText = `id:${user.uid.substring(0, 8)}...`;
-                
-                // Initialize game logic once authenticated
-                initGame();
+        // Check Session & Auth
+        async function checkUser() {
+            try {
+                const { data: { session } } = await supabaseClient.auth.getSession();
+                if (session && session.user) {
+                    guard.style.display = 'none';
+                    logoutBtn.classList.remove('hidden');
+                } else {
+                    guard.style.display = 'flex';
+                    logoutBtn.classList.add('hidden');
+                }
+            } catch (error) {
+                console.error("Auth check failed:", error);
+                guard.style.display = 'flex';
+            }
+        }
+
+        // Listen for Auth Changes
+        supabaseClient.auth.onAuthStateChange((event, session) => {
+            if (event === 'SIGNED_IN' || session) {
+                guard.style.display = 'none';
+                logoutBtn.classList.remove('hidden');
             } else {
-                // User is not signed in, redirect to auth
-                window.location.href = 'auth.html';
+                guard.style.display = 'flex';
+                logoutBtn.classList.add('hidden');
             }
         });
-    </script>
 
-    <script>
-        // Game State and Logic
-        const LEVELS = [
-            { size: 4, name: "MICRO_GRID", css: "grid-lv1" },
-            { size: 6, name: "ARRAY_MATRIX", css: "grid-lv2" },
-            { size: 8, name: "CORE_PROCESSOR", css: "grid-lv3" }
-        ];
+        logoutBtn.addEventListener('click', async () => {
+            await supabaseClient.auth.signOut();
+            window.location.reload();
+        });
 
-        let currentLevel = 0;
-        let board = { h: [], v: [], boxes: [] };
-        let turn = 1;
+        // Initialize check
+        checkUser();
+
+        // --- Game Logic ---
+        const GRID_SIZE = 5; 
+        const DOT_SPACING = 60;
+        let currentPlayer = 1;
         let scores = { 1: 0, 2: 0 };
-        let vsAI = true;
-        let gameOver = false;
-
-        function selectLevel(index) {
-            currentLevel = index;
-            const btns = document.querySelectorAll('.level-btn');
-            btns.forEach((b, i) => i === index ? b.classList.add('active') : b.classList.remove('active'));
-            initGame();
-        }
-
-        function toggleMode() {
-            vsAI = !vsAI;
-            const toggleBtn = document.getElementById('toggle-ai');
-            const p2Label = document.getElementById('p2-label');
-            if (toggleBtn) toggleBtn.innerText = vsAI ? "MODE: VS_AI" : "MODE: PVP";
-            if (p2Label) p2Label.innerText = vsAI ? "Logic_Core" : "Operator_02";
-            initGame();
-        }
+        let lines = new Set();
+        let boxes = [];
 
         function initGame() {
-            const size = LEVELS[currentLevel].size;
-            board = {
-                h: Array(size).fill().map(() => Array(size - 1).fill(null)),
-                v: Array(size - 1).fill().map(() => Array(size).fill(null)),
-                boxes: Array(size - 1).fill().map(() => Array(size - 1).fill(null))
-            };
-            turn = 1;
-            scores = { 1: 0, 2: 0 };
-            gameOver = false;
-            
-            const overlay = document.getElementById('winner-overlay');
-            if (overlay) overlay.classList.add('hidden');
-            
-            const title = document.getElementById('level-title');
-            if (title) title.innerText = `LEVEL_${currentLevel + 1}: ${LEVELS[currentLevel].name}`;
-            
-            render();
-            updateUI();
-            log(`SYSTEM: Protocol ${LEVELS[currentLevel].name} initiated.`);
-        }
+            const grid = document.getElementById('grid');
+            grid.style.width = `${(GRID_SIZE - 1) * DOT_SPACING}px`;
+            grid.style.height = `${(GRID_SIZE - 1) * DOT_SPACING}px`;
+            grid.innerHTML = '';
 
-        function render() {
-            const container = document.getElementById('board-container');
-            if (!container) return;
-            
-            container.innerHTML = '';
-            container.className = `relative inline-block ${LEVELS[currentLevel].css}`;
-            const size = LEVELS[currentLevel].size;
+            boxes = [];
+            for (let r = 0; r < GRID_SIZE - 1; r++) {
+                for (let c = 0; c < GRID_SIZE - 1; c++) {
+                    const boxEl = document.createElement('div');
+                    boxEl.className = `box`;
+                    boxEl.style.width = `${DOT_SPACING}px`;
+                    boxEl.style.height = `${DOT_SPACING}px`;
+                    boxEl.style.left = `${c * DOT_SPACING}px`;
+                    boxEl.style.top = `${r * DOT_SPACING}px`;
+                    grid.appendChild(boxEl);
+                    boxes.push({ r, c, element: boxEl, sides: 0, owner: null });
+                }
+            }
 
-            for (let r = 0; r < size; r++) {
-                const rowH = document.createElement('div');
-                rowH.className = 'flex items-center';
-                for (let c = 0; c < size; c++) {
+            for (let r = 0; r < GRID_SIZE; r++) {
+                for (let c = 0; c < GRID_SIZE - 1; c++) createLine(r, c, r, c + 1, 'h');
+            }
+
+            for (let r = 0; r < GRID_SIZE - 1; r++) {
+                for (let c = 0; c < GRID_SIZE; c++) createLine(r, c, r + 1, c, 'v');
+            }
+
+            for (let r = 0; r < GRID_SIZE; r++) {
+                for (let c = 0; c < GRID_SIZE; c++) {
                     const dot = document.createElement('div');
-                    dot.className = 'dot';
-                    rowH.appendChild(dot);
-
-                    if (c < size - 1) {
-                        const line = document.createElement('div');
-                        line.className = 'line-h';
-                        const inner = document.createElement('div');
-                        inner.className = `line-inner ${board.h[r][c] === 1 ? 'player1' : board.h[r][c] === 2 ? 'player2' : ''}`;
-                        line.onclick = () => makeMove('h', r, c);
-                        line.appendChild(inner);
-                        rowH.appendChild(line);
-                    }
-                }
-                container.appendChild(rowH);
-
-                if (r < size - 1) {
-                    const rowV = document.createElement('div');
-                    rowV.className = 'flex items-center';
-                    for (let c = 0; c < size; c++) {
-                        const line = document.createElement('div');
-                        line.className = 'line-v';
-                        const inner = document.createElement('div');
-                        inner.className = `line-inner ${board.v[r][c] === 1 ? 'player1' : board.v[r][c] === 2 ? 'player2' : ''}`;
-                        line.onclick = () => makeMove('v', r, c);
-                        line.appendChild(inner);
-                        rowV.appendChild(line);
-
-                        if (c < size - 1) {
-                            const box = document.createElement('div');
-                            box.className = `box ${board.boxes[r][c] === 1 ? 'p1-capture' : board.boxes[r][c] === 2 ? 'p2-capture' : ''}`;
-                            box.innerText = board.boxes[r][c] ? (board.boxes[r][c] === 1 ? 'USR' : 'SYS') : '';
-                            rowV.appendChild(box);
-                        }
-                    }
-                    container.appendChild(rowV);
+                    dot.className = 'dot absolute';
+                    dot.style.left = `${c * DOT_SPACING - 4}px`;
+                    dot.style.top = `${r * DOT_SPACING - 4}px`;
+                    grid.appendChild(dot);
                 }
             }
         }
 
-        function makeMove(type, r, c) {
-            if (gameOver) return;
-            if (type === 'h' && board.h[r][c]) return;
-            if (type === 'v' && board.v[r][c]) return;
-
-            const player = turn;
-            if (type === 'h') board.h[r][c] = player;
-            else board.v[r][c] = player;
-
-            let captured = false;
-            const size = LEVELS[currentLevel].size;
-
-            const check = (row, col) => {
-                if (row >= 0 && row < size - 1 && col >= 0 && col < size - 1) {
-                    if (board.h[row][col] && board.h[row + 1][col] && board.v[row][col] && board.v[row][col + 1] && !board.boxes[row][col]) {
-                        board.boxes[row][col] = player;
-                        scores[player]++;
-                        captured = true;
-                        log(`EVENT: Sector [${row},${col}] captured by P${player}`);
-                    }
-                }
-            };
-
-            if (type === 'h') { check(r - 1, c); check(r, c); }
-            else { check(r, c - 1); check(r, c); }
-
-            if (!captured) turn = turn === 1 ? 2 : 1;
-
-            render();
-            updateUI();
-            checkWin();
-
-            if (!captured && turn === 2 && vsAI && !gameOver) {
-                runAI();
-            }
-        }
-
-        function runAI() {
-            const aiDot = document.getElementById('ai-dot');
-            const aiStatus = document.getElementById('ai-status');
+        function createLine(r1, c1, r2, c2, type) {
+            const grid = document.getElementById('grid');
+            const line = document.createElement('div');
+            const id = `${r1},${c1}-${r2},${c2}`;
+            line.className = 'line cursor-pointer hover:bg-zinc-700';
             
-            if (aiDot) aiDot.className = 'w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse';
-            if (aiStatus) aiStatus.innerText = 'CORE_STATUS: COMPUTING';
+            if (type === 'h') {
+                line.style.width = `${DOT_SPACING}px`;
+                line.style.height = `4px`;
+                line.style.left = `${c1 * DOT_SPACING}px`;
+                line.style.top = `${r1 * DOT_SPACING - 2}px`;
+            } else {
+                line.style.width = `4px`;
+                line.style.height = `${DOT_SPACING}px`;
+                line.style.left = `${c1 * DOT_SPACING - 2}px`;
+                line.style.top = `${r1 * DOT_SPACING}px`;
+            }
 
-            setTimeout(() => {
-                const size = LEVELS[currentLevel].size;
-                const moves = [];
-                
-                for(let r=0; r<size; r++) {
-                    for(let c=0; c<size-1; c++) if(!board.h[r][c]) moves.push({t:'h', r, c});
+            line.onclick = () => handleMove(line, id, r1, c1, r2, c2, type);
+            grid.appendChild(line);
+        }
+
+        function handleMove(el, id, r1, c1, r2, c2, type) {
+            if (lines.has(id)) return;
+
+            lines.add(id);
+            el.classList.add(`claimed-p${currentPlayer}`);
+            el.classList.remove('hover:bg-zinc-700');
+
+            let boxCaptured = false;
+            boxes.forEach(box => {
+                let isSide = false;
+                if (type === 'h') {
+                    if (c1 === box.c && (r1 === box.r || r1 === box.r + 1)) isSide = true;
+                } else {
+                    if (r1 === box.r && (c1 === box.c || c1 === box.c + 1)) isSide = true;
                 }
-                for(let r=0; r<size-1; r++) {
-                    for(let c=0; c<size; c++) if(!board.v[r][c]) moves.push({t:'v', r, c});
-                }
 
-                if (moves.length === 0) return;
-
-                let bestMove = moves.find(m => {
-                    if (m.t === 'h') {
-                        const r=m.r, c=m.c;
-                        const c1 = r > 0 && board.h[r-1][c] && board.v[r-1][c] && board.v[r-1][c+1];
-                        const c2 = r < size-1 && board.h[r+1][c] && board.v[r][c] && board.v[r][c+1];
-                        return c1 || c2;
-                    } else {
-                        const r=m.r, c=m.c;
-                        const c1 = c > 0 && board.v[r][c-1] && board.h[r][c-1] && board.h[r+1][c-1];
-                        const c2 = c < size-1 && board.v[r][c+1] && board.h[r][c] && board.h[r+1][c];
-                        return c1 || c2;
+                if (isSide) {
+                    box.sides++;
+                    if (box.sides === 4) {
+                        box.owner = currentPlayer;
+                        box.element.classList.add('claimed', `box-p${currentPlayer}`);
+                        box.element.innerText = currentPlayer === 1 ? '01' : '02';
+                        scores[currentPlayer]++;
+                        boxCaptured = true;
                     }
-                });
+                }
+            });
 
-                if (!bestMove) bestMove = moves[Math.floor(Math.random() * moves.length)];
-
-                if (aiDot) aiDot.className = 'w-1.5 h-1.5 rounded-full bg-zinc-700';
-                if (aiStatus) aiStatus.innerText = 'CORE_STATUS: IDLE';
-                makeMove(bestMove.t, bestMove.r, bestMove.c);
-            }, 600);
+            if (!boxCaptured) {
+                currentPlayer = currentPlayer === 1 ? 2 : 1;
+            }
+            updateUI();
         }
 
         function updateUI() {
-            const s1 = document.getElementById('score-1');
-            const s2 = document.getElementById('score-2');
-            if (s1) s1.innerText = scores[1];
-            if (s2) s2.innerText = scores[2];
-            
-            const p1c = document.getElementById('p1-card');
-            const p1t = document.getElementById('p1-turn-dot');
-            if (p1c) {
-                p1c.style.opacity = turn === 1 ? '1' : '0.4';
-                p1c.style.borderColor = turn === 1 ? '#10b981' : '#27272a';
-            }
-            if (p1t) p1t.classList.toggle('hidden', turn !== 1);
-
-            const p2c = document.getElementById('p2-card');
-            const p2t = document.getElementById('p2-turn-dot');
-            if (p2c) {
-                p2c.style.opacity = turn === 2 ? '1' : '0.4';
-                p2c.style.borderColor = turn === 2 ? '#3b82f6' : '#27272a';
-            }
-            if (p2t) p2t.classList.toggle('hidden', turn !== 2);
-
-            const size = LEVELS[currentLevel].size;
-            const total = (size - 1) * (size - 1);
-            const percent = Math.floor(((scores[1] + scores[2]) / total) * 100);
-            
-            const capPercent = document.getElementById('capture-percent');
-            const capBar = document.getElementById('capture-bar');
-            if (capPercent) capPercent.innerText = `${percent}%`;
-            if (capBar) capBar.style.width = `${percent}%`;
+            document.getElementById('score-p1').innerText = scores[1];
+            document.getElementById('score-p2').innerText = scores[2];
+            const indicator = document.getElementById('turn-indicator');
+            indicator.innerText = `Player_${currentPlayer}_Turn`;
+            indicator.className = `text-[10px] font-bold px-3 py-1 rounded uppercase ${currentPlayer === 1 ? 'bg-emerald-500 text-black' : 'bg-blue-500 text-white'}`;
         }
 
-        function checkWin() {
-            const size = LEVELS[currentLevel].size;
-            const total = (size - 1) * (size - 1);
-            if (scores[1] + scores[2] === total) {
-                gameOver = true;
-                const overlay = document.getElementById('winner-overlay');
-                const winText = document.getElementById('winner-text');
-                const subText = document.getElementById('winner-subtext');
-                const btn = document.getElementById('overlay-btn');
-                
-                if (overlay) overlay.classList.remove('hidden');
-                if (scores[1] > scores[2]) {
-                    if (winText) {
-                        winText.innerText = "PROTOCOL_SUCCESS";
-                        winText.className = "text-4xl font-black uppercase italic tracking-tighter text-emerald-500";
-                    }
-                    if (subText) subText.innerText = `Sector ${currentLevel + 1} secured. Operator dominance established.`;
-                    if (btn) {
-                        btn.innerText = currentLevel < 2 ? "INITIALIZE_NEXT_LVL" : "SYSTEM_RESET";
-                        btn.onclick = () => { if(currentLevel < 2) selectLevel(currentLevel+1); else selectLevel(0); };
-                    }
-                } else {
-                    if (winText) {
-                        winText.innerText = "CORE_FAILURE";
-                        winText.className = "text-4xl font-black uppercase italic tracking-tighter text-red-500";
-                    }
-                    if (subText) subText.innerText = "Logic Core captured majority sectors. Retry required.";
-                    if (btn) {
-                        btn.innerText = "REBOOT_LEVEL";
-                        btn.onclick = () => initGame();
-                    }
-                }
-            }
+        function resetGame() {
+            lines.clear();
+            scores = { 1: 0, 2: 0 };
+            currentPlayer = 1;
+            initGame();
+            updateUI();
         }
 
-        function log(msg) {
-            const container = document.getElementById('console-logs');
-            if (!container) return;
-            const entry = document.createElement('div');
-            entry.innerHTML = `<span class="text-zinc-800">></span> ${msg}`;
-            container.prepend(entry);
-            if (container.children.length > 8) container.removeChild(container.lastChild);
-        }
+        window.onload = initGame;
     </script>
 </body>
 </html>
