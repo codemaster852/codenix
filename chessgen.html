@@ -14,20 +14,44 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
     
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
         body { background-color: #000; color: #fff; font-family: 'Inter', sans-serif; }
         .glass-card { background: rgba(26, 26, 26, 0.6); backdrop-filter: blur(12px); border: 1px solid #333; }
         #board { width: 100%; max-width: 500px; margin: 0 auto; }
         
-        .chessboard-63f28 img, .board-b72b1 img {
-            display: block !important;
-            width: 100%;
-            height: 100%;
+        /* Persistent Legal Move Indicator (Circles) */
+        .legal-dot {
+            position: relative;
+        }
+        
+        .legal-dot::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 24px;
+            height: 24px;
+            background: rgba(16, 185, 129, 0.5); /* Slightly more visible */
+            border-radius: 50%;
+            z-index: 5;
+            pointer-events: none;
+            transition: opacity 0.2s ease;
+        }
+
+        /* Selection Highlight */
+        .highlight-selected {
+            box-shadow: inset 0 0 0 4px rgba(255, 255, 255, 0.4) !important;
         }
 
         .eval-bar-container { width: 30px; height: 500px; background: #333; border-radius: 4px; overflow: hidden; position: relative; }
         #eval-bar-fill { position: absolute; bottom: 0; width: 100%; background: #fff; transition: height 0.5s ease; }
         .custom-scroll::-webkit-scrollbar { width: 4px; }
         .custom-scroll::-webkit-scrollbar-thumb { background: #333; border-radius: 10px; }
+        
+        /* Board Colors */
+        .white-1e1d7 { background-color: #3b3b3b !important; }
+        .black-3c85d { background-color: #1a1a1a !important; }
     </style>
 </head>
 <body class="min-h-screen p-4 md:p-8">
@@ -35,9 +59,9 @@
     <!-- Top Navigation -->
     <div class="max-w-7xl mx-auto flex justify-between items-center mb-8">
         <div class="flex items-center gap-4">
-            <a href="index.html" class="p-2 hover:bg-zinc-900 rounded-lg transition-colors">
+            <button onclick="window.location.href='portal.html'" class="p-2 hover:bg-zinc-900 rounded-lg transition-colors">
                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M15 19l-7-7 7-7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
-            </a>
+            </button>
             <h1 class="text-2xl font-bold">ChessGen <span class="text-emerald-500 text-sm font-mono ml-2">Pro Edition</span></h1>
         </div>
         <div id="user-badge" class="px-4 py-1.5 rounded-full border border-zinc-800 text-sm font-medium flex items-center gap-2">
@@ -48,7 +72,6 @@
 
     <div class="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8">
         
-        <!-- Left Column -->
         <div class="lg:col-span-7 flex gap-4 items-start justify-center">
             <div class="eval-bar-container hidden md:block">
                 <div id="eval-bar-fill" style="height: 50%;"></div>
@@ -57,7 +80,7 @@
             <div class="w-full">
                 <div id="board" class="shadow-2xl rounded-lg overflow-hidden border border-zinc-800"></div>
                 <div class="mt-6 flex justify-between items-center bg-zinc-900 p-4 rounded-xl border border-zinc-800">
-                    <div class="text-zinc-400 text-sm">Position Score: <span id="eval-score-text" class="text-white font-mono text-emerald-500">0.0</span></div>
+                    <div class="text-zinc-400 text-sm">Engine Score: <span id="eval-score-text" class="text-white font-mono text-emerald-500">0.0</span></div>
                     <div id="game-status" class="text-sm font-bold text-emerald-500 tracking-wide uppercase">Your Turn</div>
                     <div class="flex gap-2">
                         <button onclick="resetGame()" class="p-2 hover:bg-zinc-800 rounded-lg text-zinc-400 hover:text-white transition-colors">
@@ -68,56 +91,24 @@
             </div>
         </div>
 
-        <!-- Right Column -->
         <div class="lg:col-span-5 space-y-6">
-            <div class="glass-card rounded-2xl p-6 border-emerald-500/20">
-                <h3 class="text-lg font-bold mb-4 flex items-center gap-2">
-                    <svg class="w-5 h-5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M13 10V3L4 14h7v7l9-11h-7z" stroke-width="2"></path></svg>
-                    Codenix Neural Engine
-                </h3>
-                <div class="space-y-3">
-                    <div class="flex justify-between text-sm">
-                        <span class="text-zinc-500">Evaluation Mode</span>
-                        <span class="font-mono text-emerald-400">Position-Square Mapping</span>
-                    </div>
-                    <div class="flex justify-between text-sm">
-                        <span class="text-zinc-500">Status</span>
-                        <span id="engine-thinking" class="font-mono text-white">Ready</span>
-                    </div>
-                </div>
-            </div>
-
             <div class="glass-card rounded-2xl p-6">
-                <h3 class="text-lg font-bold mb-4">Engine Level</h3>
+                <h3 class="text-lg font-bold mb-4">Neural Settings</h3>
                 <div class="space-y-4">
                     <select id="level-select" class="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500">
-                        <option value="1">Depth 1 (Weakest)</option>
+                        <option value="1">Depth 1 (Novice)</option>
                         <option value="2">Depth 2 (Standard)</option>
-                        <option value="3" selected>Depth 3 (Smart Development)</option>
+                        <option value="3" selected>Depth 3 (Master)</option>
                     </select>
-                    <div class="pt-4 border-t border-zinc-800">
-                        <button id="view-source-btn" class="w-full py-3 bg-emerald-600/10 hover:bg-emerald-600/20 text-emerald-500 font-bold rounded-xl border border-emerald-500/20 transition-all flex items-center justify-center gap-2">
-                            Access Neural Weights (.bin)
-                        </button>
-                    </div>
+                    <div class="text-xs text-zinc-500 italic">Select a piece to see move options. Click a circle to confirm.</div>
                 </div>
             </div>
 
-            <div class="glass-card rounded-2xl p-6 h-[250px] flex flex-col">
-                <h3 class="text-sm font-bold text-zinc-500 uppercase tracking-widest mb-4">Move Log</h3>
+            <div class="glass-card rounded-2xl p-6 h-[300px] flex flex-col">
+                <h3 class="text-sm font-bold text-zinc-500 uppercase tracking-widest mb-4">Move History</h3>
                 <div id="move-history" class="text-xs font-mono text-zinc-400 grid grid-cols-2 gap-2 overflow-y-auto custom-scroll">
                 </div>
             </div>
-        </div>
-    </div>
-
-    <!-- Pro Modal -->
-    <div id="pro-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md hidden px-4">
-        <div class="glass-card max-w-sm w-full p-8 rounded-3xl text-center border-emerald-500/40">
-            <h2 class="text-2xl font-bold mb-2">Pro Feature</h2>
-            <p class="text-zinc-400 text-sm mb-8">Accessing engine weights and raw binary data requires a Pro membership.</p>
-            <button onclick="window.location.href='index.html'" class="w-full py-3 bg-emerald-600 text-white font-bold rounded-xl mb-3">Upgrade</button>
-            <button onclick="document.getElementById('pro-modal').classList.add('hidden')" class="w-full py-3 text-zinc-500 text-sm">Close</button>
         </div>
     </div>
 
@@ -129,62 +120,32 @@
 
             let board = null;
             let game = new Chess();
-            let isPro = false;
+            let selectedSquare = null;
 
-            // PIECE VALUES & POSITION WEIGHTS
-            const weights = {
-                p: 100, n: 320, b: 330, r: 500, q: 900, k: 20000
-            };
+            const weights = { p: 100, n: 320, b: 330, r: 500, q: 900, k: 20000 };
 
-            const pst = {
-                p: [
-                    [0,  0,  0,  0,  0,  0,  0,  0],
-                    [50, 50, 50, 50, 50, 50, 50, 50],
-                    [10, 10, 20, 30, 30, 20, 10, 10],
-                    [5,  5, 10, 25, 25, 10,  5,  5],
-                    [0,  0,  0, 20, 20,  0,  0,  0],
-                    [5, -5,-10,  0,  0,-10, -5,  5],
-                    [5, 10, 10,-20,-20, 10, 10,  5],
-                    [0,  0,  0,  0,  0,  0,  0,  0]
-                ],
-                n: [
-                    [-50,-40,-30,-30,-30,-30,-40,-50],
-                    [-40,-20,  0,  0,  0,  0,-20,-40],
-                    [-30,  0, 10, 15, 15, 10,  0,-30],
-                    [-30,  5, 15, 20, 20, 15,  5,-30],
-                    [-30,  0, 15, 20, 20, 15,  0,-30],
-                    [-30,  5, 10, 15, 15, 10,  5,-30],
-                    [-40,-20,  0,  5,  5,  0,-20,-40],
-                    [-50,-40,-30,-30,-30,-30,-40,-50]
-                ]
-            };
-
-            async function checkProStatus() {
+            // AUTH CHECK & REDIRECT
+            async function validateUser() {
                 const { data: { session } } = await client.auth.getSession();
-                if (session) {
-                    const { data: profile } = await client.from('profiles').select('pro_member').eq('id', session.user.id).single();
-                    isPro = profile?.pro_member === true;
-                    document.getElementById('user-badge').innerHTML = isPro ? '<span class="text-emerald-500 font-bold text-[10px]">PRO ACTIVE</span>' : '<span class="text-zinc-500 text-[10px]">FREE TIER</span>';
+                if (!session) {
+                    // Redirect to auth if not logged in
+                    window.location.href = 'auth.html';
+                    return;
                 }
+                document.getElementById('user-badge').innerHTML = '<span class="text-emerald-500 font-bold text-[10px]">VERIFIED</span>';
+                setupBoard();
             }
 
-            // EVALUATION ENGINE
             function evaluateBoard(game) {
                 let total = 0;
-                const board = game.board();
-                for (let i = 0; i < 8; i++) {
-                    for (let j = 0; j < 8; j++) {
-                        const piece = board[i][j];
+                game.board().forEach(row => {
+                    row.forEach(piece => {
                         if (piece) {
                             let val = weights[piece.type];
-                            // Apply position weights for Pawns and Knights (Openings)
-                            if (pst[piece.type]) {
-                                val += piece.color === 'w' ? pst[piece.type][i][j] : pst[piece.type][7-i][j];
-                            }
                             total += piece.color === 'w' ? val : -val;
                         }
-                    }
-                }
+                    });
+                });
                 return total;
             }
 
@@ -195,7 +156,7 @@
                     let best = -99999;
                     for (const move of moves) {
                         game.move(move);
-                        best = Math.max(best, minimax(game, depth - 1, !isMaximizing));
+                        best = Math.max(best, minimax(game, depth - 1, false));
                         game.undo();
                     }
                     return best;
@@ -203,7 +164,7 @@
                     let best = 99999;
                     for (const move of moves) {
                         game.move(move);
-                        best = Math.min(best, minimax(game, depth - 1, !isMaximizing));
+                        best = Math.min(best, minimax(game, depth - 1, true));
                         game.undo();
                     }
                     return best;
@@ -216,7 +177,7 @@
                 let bestVal = -99999;
                 const depth = parseInt(document.getElementById('level-select').value);
 
-                for (const move of moves) {
+                moves.forEach(move => {
                     game.move(move);
                     const val = minimax(game, depth - 1, false);
                     game.undo();
@@ -224,30 +185,106 @@
                         bestVal = val;
                         bestMove = move;
                     }
-                }
+                });
                 return bestMove;
             }
 
+            function removeHighlights() {
+                $('#board .square-55d63').removeClass('legal-dot highlight-selected');
+            }
+
+            function highlightSquare(square) {
+                const moves = game.moves({ square: square, verbose: true });
+                if (moves.length === 0) return;
+
+                $(`#board .square-${square}`).addClass('highlight-selected');
+                moves.forEach(move => {
+                    $(`#board .square-${move.to}`).addClass('legal-dot');
+                });
+            }
+
+            function makeEngineMove() {
+                document.getElementById('game-status').innerText = 'Engine Thinking...';
+                setTimeout(() => {
+                    const bestMove = getBestMove(game);
+                    if (bestMove) {
+                        game.move(bestMove);
+                        board.position(game.fen());
+                        updateUI();
+                        document.getElementById('game-status').innerText = 'Your Turn';
+                    }
+                }, 400);
+            }
+
+            function onSquareClick(square) {
+                if (game.turn() === 'b' || game.game_over()) return;
+
+                // 1. If user clicks a circle (a legal destination for currently selected piece)
+                if (selectedSquare && $(`#board .square-${square}`).hasClass('legal-dot')) {
+                    const move = game.move({
+                        from: selectedSquare,
+                        to: square,
+                        promotion: 'q'
+                    });
+
+                    if (move !== null) {
+                        selectedSquare = null;
+                        removeHighlights();
+                        board.position(game.fen());
+                        updateUI();
+                        makeEngineMove();
+                        return;
+                    }
+                }
+
+                // 2. If user clicks the same square, toggle selection off
+                if (selectedSquare === square) {
+                    selectedSquare = null;
+                    removeHighlights();
+                    return;
+                }
+
+                // 3. If user clicks a different white piece, change selection
+                const piece = game.get(square);
+                if (piece && piece.color === 'w') {
+                    selectedSquare = square;
+                    removeHighlights();
+                    highlightSquare(square); // Highlights stay until move or new selection
+                } else {
+                    // Clicked empty or black square that wasn't a valid move circle
+                    selectedSquare = null;
+                    removeHighlights();
+                }
+            }
+
             function setupBoard() {
-                board = Chessboard('board', {
+                const config = {
                     draggable: true,
                     position: 'start',
-                    onDragStart: (s, piece) => !game.game_over() && piece.search(/^w/) !== -1,
+                    onDragStart: (source, piece) => {
+                        if (game.game_over() || piece.search(/^w/) === -1 || game.turn() === 'b') return false;
+                        removeHighlights();
+                        highlightSquare(source);
+                        selectedSquare = source;
+                    },
                     onDrop: (source, target) => {
                         const move = game.move({ from: source, to: target, promotion: 'q' });
+                        removeHighlights();
+                        selectedSquare = null;
                         if (move === null) return 'snapback';
+                        
                         updateUI();
-                        document.getElementById('engine-thinking').innerText = 'Thinking...';
-                        setTimeout(() => {
-                            const bestMove = getBestMove(game);
-                            game.move(bestMove);
-                            board.position(game.fen());
-                            document.getElementById('engine-thinking').innerText = 'Ready';
-                            updateUI();
-                        }, 300);
+                        makeEngineMove();
                     },
                     onSnapEnd: () => board.position(game.fen()),
                     pieceTheme: 'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png'
+                };
+                board = Chessboard('board', config);
+                
+                // Persistence via global click handler
+                $(document).on('click', '#board .square-55d63', function() {
+                    const square = $(this).attr('data-square');
+                    onSquareClick(square);
                 });
             }
 
@@ -259,16 +296,20 @@
 
                 const score = (evaluateBoard(game) / 100).toFixed(1);
                 document.getElementById('eval-score-text').innerText = score;
-                document.getElementById('eval-bar-fill').style.height = `${50 - (score * 5)}%`;
+                document.getElementById('eval-bar-fill').style.height = `${Math.min(100, Math.max(0, 50 - (score * 5)))}%`;
             }
 
-            window.resetGame = () => { game.reset(); board.start(); updateUI(); };
-            document.getElementById('view-source-btn').addEventListener('click', () => {
-                if (!isPro) document.getElementById('pro-modal').classList.remove('hidden');
-                else alert("PRO SUCCESS: Weights verified. Binary stream: 0101... Accessing v1.1_final.bin");
-            });
+            window.resetGame = () => { 
+                game.reset(); 
+                board.start(); 
+                selectedSquare = null;
+                removeHighlights();
+                updateUI(); 
+                document.getElementById('game-status').innerText = 'Your Turn';
+            };
 
-            checkProStatus().then(setupBoard);
+            // Start authentication flow
+            validateUser();
         })();
     </script>
 </body>
