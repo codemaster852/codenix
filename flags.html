@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flag Intel - Codenix</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/lipis/flag-icons@7.2.3/css/flag-icons.min.css"/>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Fira+Code&display=swap');
+        body { background-color: #050505; color: #fff; font-family: 'Inter', sans-serif; overflow: hidden; }
+        .glass-card { background: rgba(26, 26, 26, 0.6); backdrop-filter: blur(12px); border: 1px solid #333; }
+        .font-mono { font-family: 'Fira+Code', monospace; }
+        
+        .flag-box {
+            font-size: 120px;
+            filter: drop-shadow(0 0 20px rgba(255,255,255,0.1));
+            transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        
+        .choice-btn {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            transition: all 0.2s ease;
+        }
+        .choice-btn:hover:not(:disabled) {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: #10b981;
+            transform: translateY(-2px);
+        }
+        .choice-btn.correct { background: #10b981 !important; border-color: #059669 !important; color: #fff; }
+        .choice-btn.wrong { background: #ef4444 !important; border-color: #dc2626 !important; color: #fff; }
+
+        #auth-guard {
+            position: fixed;
+            inset: 0;
+            background: #000;
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .streak-counter {
+            background: linear-gradient(45deg, #10b981, #3b82f6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+    </style>
+</head>
+<body class="min-h-screen p-4 md:p-8 opacity-0 transition-opacity duration-500" id="main-content">
+
+    <div id="auth-guard">
+        <div class="text-center">
+            <div class="w-12 h-12 border-4 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin mx-auto mb-4"></div>
+            <p class="text-xs font-mono text-zinc-500 uppercase tracking-widest">Decrypting Identity...</p>
+        </div>
+    </div>
+
+    <!-- Header -->
+    <div class="max-w-7xl mx-auto flex justify-between items-center mb-8">
+        <div class="flex items-center gap-4">
+            <button onclick="window.location.href='portal.html'" class="p-2 hover:bg-zinc-900 rounded-lg transition-colors text-zinc-400">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M15 19l-7-7 7-7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+            </button>
+            <h1 class="text-xl font-bold">INTEL <span class="text-emerald-500 text-[10px] font-mono ml-2">FlagGuess.v1</span></h1>
+        </div>
+        <div id="user-badge" class="px-4 py-1.5 rounded-full border border-zinc-800 text-xs font-medium flex items-center gap-2 bg-zinc-900/50">
+            <div class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+            <span id="user-display" class="font-mono text-zinc-300">Syncing...</span>
+        </div>
+    </div>
+
+    <div class="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8 h-[calc(100vh-160px)]">
+        
+        <!-- Left Intel Panel -->
+        <div class="lg:col-span-3 space-y-4">
+            <div class="glass-card rounded-2xl p-5">
+                <h3 class="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-4">Performance Metrics</h3>
+                <div class="space-y-4">
+                    <div>
+                        <div class="text-[10px] font-mono text-zinc-500 mb-1">CURRENT STREAK</div>
+                        <div id="streak-val" class="text-3xl font-bold streak-counter">0</div>
+                    </div>
+                    <div>
+                        <div class="text-[10px] font-mono text-zinc-500 mb-1">ACCURACY</div>
+                        <div id="accuracy-val" class="text-lg font-bold text-white">0%</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="glass-card rounded-2xl p-5 h-full max-h-[400px] flex flex-col">
+                <h3 class="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2">Operation Log</h3>
+                <div id="game-log" class="text-[10px] font-mono text-zinc-500 space-y-2 overflow-y-auto flex-1 pr-2 custom-scrollbar">
+                    <div class="text-emerald-500/70">> Initializing Intel Database...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Center Game Panel -->
+        <div class="lg:col-span-6 flex flex-col items-center justify-center space-y-12">
+            <div id="flag-display" class="flex flex-col items-center">
+                <div class="text-[10px] font-mono text-zinc-500 mb-6 uppercase tracking-[0.2em]">Identify Origin Flag</div>
+                <div class="flag-box">
+                    <span id="flag-icon" class="fi"></span>
+                </div>
+            </div>
+
+            <div id="choices-grid" class="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full max-w-md">
+                <!-- Choices injected by JS -->
+            </div>
+        </div>
+
+        <!-- Right Settings Panel -->
+        <div class="lg:col-span-3">
+             <div class="glass-card rounded-2xl p-5 space-y-6">
+                <div>
+                    <h3 class="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-4">Objective</h3>
+                    <p class="text-[11px] text-zinc-400 leading-relaxed font-mono">
+                        Correctly identify national flags to maintain the system streak. High accuracy unlocks higher classification tiers.
+                    </p>
+                </div>
+                
+                <div class="pt-4 border-t border-zinc-800">
+                    <button onclick="resetGame()" class="w-full py-3 rounded-xl border border-zinc-800 text-[10px] font-bold uppercase tracking-widest hover:bg-zinc-900 transition-colors flex items-center justify-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" stroke-width="2"></path></svg>
+                        Restart Operation
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const SUPABASE_URL = "https://rnlwrngfgvznndlekmrz.supabase.co";
+        const SUPABASE_KEY = "sb_publishable_mtI0_ZBvU_n5oRuqV58QHg_qJt3Gfyt";
+        const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        async function checkAuth() {
+            const { data: { user }, error } = await supabaseClient.auth.getUser();
+            if (error || !user) {
+                window.location.href = 'auth.html';
+                return;
+            }
+            $('#user-display').text(user.email.split('@')[0].toUpperCase());
+            $('#auth-guard').fadeOut();
+            $('#main-content').removeClass('opacity-0');
+            startNewRound();
+        }
+
+        const countries = [
+            { code: 'us', name: 'United States' }, { code: 'gb', name: 'United Kingdom' },
+            { code: 'ca', name: 'Canada' }, { code: 'fr', name: 'France' },
+            { code: 'de', name: 'Germany' }, { code: 'jp', name: 'Japan' },
+            { code: 'au', name: 'Australia' }, { code: 'br', name: 'Brazil' },
+            { code: 'in', name: 'India' }, { code: 'cn', name: 'China' },
+            { code: 'it', name: 'Italy' }, { code: 'ru', name: 'Russia' },
+            { code: 'mx', name: 'Mexico' }, { code: 'es', name: 'Spain' },
+            { code: 'kr', name: 'South Korea' }, { code: 'za', name: 'South Africa' },
+            { code: 'eg', name: 'Egypt' }, { code: 'sa', name: 'Saudi Arabia' },
+            { code: 'tr', name: 'Turkey' }, { code: 'ar', name: 'Argentina' },
+            { code: 'nl', name: 'Netherlands' }, { code: 'se', name: 'Sweden' },
+            { code: 'no', name: 'Norway' }, { code: 'dk', name: 'Denmark' },
+            { code: 'fi', name: 'Finland' }, { code: 'gr', name: 'Greece' },
+            { code: 'pt', name: 'Portugal' }, { code: 'ch', name: 'Switzerland' },
+            { code: 'be', name: 'Belgium' }, { code: 'at', name: 'Austria' },
+            { code: 'ie', name: 'Ireland' }, { code: 'pl', name: 'Poland' },
+            { code: 'id', name: 'Indonesia' }, { code: 'my', name: 'Malaysia' },
+            { code: 'th', name: 'Thailand' }, { code: 'vn', name: 'Vietnam' },
+            { code: 'ph', name: 'Philippines' }, { code: 'nz', name: 'New Zealand' },
+            { code: 'cl', name: 'Chile' }, { code: 'co', name: 'Colombia' }
+        ];
+
+        let state = {
+            currentCountry: null,
+            streak: 0,
+            total: 0,
+            correct: 0,
+            isLocked: false
+        };
+
+        function startNewRound() {
+            state.isLocked = false;
+            const correctIdx = Math.floor(Math.random() * countries.length);
+            state.currentCountry = countries[correctIdx];
+            
+            // Generate choices (correct + 3 random)
+            let choices = [state.currentCountry];
+            while (choices.length < 4) {
+                const random = countries[Math.floor(Math.random() * countries.length)];
+                if (!choices.find(c => c.code === random.code)) {
+                    choices.push(random);
+                }
+            }
+            choices = choices.sort(() => Math.random() - 0.5);
+
+            // Update UI
+            $('#flag-icon').attr('class', `fi fi-${state.currentCountry.code}`);
+            const choicesGrid = $('#choices-grid').empty();
+            
+            choices.forEach(choice => {
+                const btn = $(`
+                    <button class="choice-btn py-4 px-6 rounded-xl text-xs font-mono uppercase tracking-wider" data-code="${choice.code}">
+                        ${choice.name}
+                    </button>
+                `);
+                btn.click(() => handleChoice(choice));
+                choicesGrid.append(btn);
+            });
+
+            $('#flag-display').addClass('animate-in zoom-in duration-300');
+        }
+
+        function handleChoice(choice) {
+            if (state.isLocked) return;
+            state.isLocked = true;
+            state.total++;
+
+            const isCorrect = choice.code === state.currentCountry.code;
+            const buttons = $('.choice-btn');
+            
+            buttons.each(function() {
+                const btnCode = $(this).data('code');
+                if (btnCode === state.currentCountry.code) {
+                    $(this).addClass('correct');
+                } else if (btnCode === choice.code && !isCorrect) {
+                    $(this).addClass('wrong');
+                }
+                $(this).attr('disabled', true);
+            });
+
+            if (isCorrect) {
+                state.streak++;
+                state.correct++;
+                log(`Success: Target identified as ${choice.name}.`);
+                triggerSuccessEffect();
+            } else {
+                state.streak = 0;
+                log(`Failure: Target misidentified. Data reset.`);
+            }
+
+            updateStats();
+
+            setTimeout(() => {
+                startNewRound();
+            }, 1200);
+        }
+
+        function updateStats() {
+            $('#streak-val').text(state.streak);
+            const accuracy = state.total === 0 ? 0 : Math.round((state.correct / state.total) * 100);
+            $('#accuracy-val').text(`${accuracy}%`);
+        }
+
+        function triggerSuccessEffect() {
+            $('#flag-display').addClass('scale-110');
+            setTimeout(() => $('#flag-display').removeClass('scale-110'), 200);
+        }
+
+        function log(msg) {
+            const time = new Date().toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            $('#game-log').prepend(`<div class="border-l-2 border-emerald-500/20 pl-2 py-1 text-zinc-400">
+                <span class="text-zinc-600">[${time}]</span> ${msg}
+            </div>`);
+        }
+
+        function resetGame() {
+            state = { currentCountry: null, streak: 0, total: 0, correct: 0, isLocked: false };
+            updateStats();
+            log("System Reset Requested. Data cleared.");
+            startNewRound();
+        }
+
+        // Initialize
+        checkAuth();
+    </script>
+</body>
+</html>
