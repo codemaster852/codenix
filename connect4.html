@@ -18,32 +18,47 @@
             width: 100%;
             max-width: 600px;
             margin: 0 auto;
+            aspect-ratio: 7 / 6;
         }
 
         /* The Board Front Face (Blue/Dark with holes) */
         #board-front {
-            position: relative;
+            position: absolute;
+            top: 0; left: 0;
             width: 100%;
-            aspect-ratio: 7 / 6;
-            background: #1a1a1a; /* Dark sleek board color */
+            height: 100%;
+            background: #1e1e1e; /* Solid board color */
             border: 8px solid #333;
             border-radius: 16px;
             display: grid;
             grid-template-columns: repeat(7, 1fr);
-            padding: 10px;
-            gap: 8px;
+            grid-template-rows: repeat(6, 1fr);
+            padding: 12px;
+            gap: 12px;
             box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
             z-index: 20; /* Board is on top */
-            pointer-events: none; /* Let clicks pass through to hitboxes */
+            pointer-events: none; 
         }
 
         .slot-hole {
             width: 100%;
             aspect-ratio: 1 / 1;
-            background: #000; /* This makes the "hole" look empty */
+            background: #000; /* Dark inner "well" */
             border-radius: 50%;
-            box-shadow: inset 0 4px 8px rgba(0,0,0,0.8);
-            border: 2px solid #222;
+            box-shadow: inset 0 8px 12px rgba(0,0,0,0.9);
+            border: 2px solid #2a2a2a;
+            /* The key to seeing through: */
+            position: relative;
+        }
+
+        /* We use a mask-like effect by making the hole center transparent if needed, 
+           but here we just ensure the pieces layer is correctly layered. */
+        .slot-hole::after {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: transparent;
+            border-radius: 50%;
         }
 
         /* Hitbox Overlay (Where user actually clicks) */
@@ -52,8 +67,8 @@
             top: 0; left: 0; width: 100%; height: 100%;
             display: grid;
             grid-template-columns: repeat(7, 1fr);
-            padding: 18px; /* Offset for board border/padding */
-            gap: 8px;
+            padding: 12px; /* Match board padding */
+            gap: 12px; /* Match board gap */
             z-index: 30; /* Click layer on very top */
         }
 
@@ -65,34 +80,50 @@
         }
 
         .column-hitbox:hover {
-            background: rgba(16, 185, 129, 0.05);
+            background: rgba(16, 185, 129, 0.08);
         }
 
         /* Pieces Layer (Behind the board-front) */
         #pieces-layer {
             position: absolute;
             top: 0; left: 0; width: 100%; height: 100%;
-            z-index: 10; /* Pieces are behind the board */
+            z-index: 25; /* Higher than holes, but we'll adjust slot-hole backgrounds */
             overflow: hidden;
             pointer-events: none;
+            padding: 12px;
+        }
+
+        /* Update slot-hole to be transparent so pieces behind show through */
+        .slot-hole {
+            background: transparent !important; 
+            z-index: 30;
+        }
+
+        #board-front {
+            /* Using a radial gradient to create "holes" in the solid board color */
+            background: radial-gradient(circle 35px at center, transparent 95%, #1e1e1e 100%);
+            background-size: calc(100% / 7) calc(100% / 6);
+            background-color: #1a1a1a;
         }
 
         .piece {
             position: absolute;
-            width: calc(100% / 7 - 14px);
+            /* Size slightly smaller than the column width minus gaps */
+            width: calc((100% - 100px) / 7); 
             aspect-ratio: 1 / 1;
             border-radius: 50%;
+            z-index: 10;
             transition: top 0.6s cubic-bezier(0.47, 0, 0.745, 0.715);
         }
 
         .piece.player {
-            background: radial-gradient(circle at 30% 30%, #ef4444, #991b1b);
-            box-shadow: 0 4px 15px rgba(239, 68, 68, 0.4);
+            background: radial-gradient(circle at 30% 30%, #ff4d4d, #800000);
+            box-shadow: 0 4px 15px rgba(239, 68, 68, 0.4), inset -4px -4px 10px rgba(0,0,0,0.5);
         }
 
         .piece.ai {
-            background: radial-gradient(circle at 30% 30%, #facc15, #a16207);
-            box-shadow: 0 4px 15px rgba(250, 204, 21, 0.4);
+            background: radial-gradient(circle at 30% 30%, #ffe066, #997a00);
+            box-shadow: 0 4px 15px rgba(250, 204, 21, 0.4), inset -4px -4px 10px rgba(0,0,0,0.5);
         }
 
         .eval-bar-container { width: 30px; height: 400px; background: #222; border-radius: 6px; overflow: hidden; position: relative; border: 1px solid #333; }
@@ -100,14 +131,12 @@
 
         @media (max-width: 640px) {
             #game-wrapper { max-width: 95vw; }
-            #board-front { padding: 5px; gap: 4px; border-width: 4px; }
-            #hitbox-layer { padding: 9px; gap: 4px; }
+            #board-front, #hitbox-layer, #pieces-layer { padding: 8px; gap: 8px; }
         }
     </style>
 </head>
 <body class="min-h-screen p-4 md:p-8">
 
-    <!-- Top Navigation -->
     <div class="max-w-7xl mx-auto flex justify-between items-center mb-8">
         <div class="flex items-center gap-4">
             <button onclick="window.location.href='portal.html'" class="p-2 hover:bg-zinc-900 rounded-lg transition-colors">
@@ -116,31 +145,30 @@
             <h1 class="text-xl md:text-2xl font-bold">Connect4Gen <span class="text-emerald-500 text-xs md:text-sm font-mono ml-2">Neural v3</span></h1>
         </div>
         <div id="user-badge" class="px-3 py-1 md:px-4 md:py-1.5 rounded-full border border-zinc-800 text-[10px] md:text-sm font-medium flex items-center gap-2">
-            <div class="w-2 h-2 rounded-full bg-zinc-600 animate-pulse"></div>
-            Validating...
+            <div class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+            Neural Link Active
         </div>
     </div>
 
     <div class="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8">
         
-        <!-- Game Area -->
         <div class="lg:col-span-7 flex gap-4 items-start justify-center">
             <div class="eval-bar-container hidden md:block">
                 <div id="eval-bar-fill" style="height: 50%;"></div>
             </div>
             
             <div id="game-wrapper">
-                <!-- Pieces Layer (Behind) -->
+                <!-- 1. The Pieces (Lowest Z) -->
                 <div id="pieces-layer"></div>
 
-                <!-- Board Front (Visual Holes) -->
+                <!-- 2. The Board (Middle Z, with transparent holes) -->
                 <div id="board-front">
                     <script>
                         for(let i=0; i<42; i++) document.write('<div class="slot-hole"></div>');
                     </script>
                 </div>
 
-                <!-- Interactive Layer (Hitboxes) -->
+                <!-- 3. The Clickable Columns (Top Z) -->
                 <div id="hitbox-layer">
                     <div class="column-hitbox" onclick="dropPiece(0)"></div>
                     <div class="column-hitbox" onclick="dropPiece(1)"></div>
@@ -151,7 +179,7 @@
                     <div class="column-hitbox" onclick="dropPiece(6)"></div>
                 </div>
 
-                <div class="mt-6 flex justify-between items-center bg-zinc-900 p-4 rounded-xl border border-zinc-800">
+                <div class="absolute -bottom-20 left-0 w-full flex justify-between items-center bg-zinc-900 p-4 rounded-xl border border-zinc-800">
                     <div id="game-status" class="text-xs md:text-sm font-bold text-red-500 tracking-wider uppercase">Your Turn (Red)</div>
                     <button onclick="resetGame()" class="p-2 hover:bg-zinc-800 rounded-lg text-zinc-400 hover:text-white transition-colors">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" stroke-width="2"></path></svg>
@@ -160,8 +188,7 @@
             </div>
         </div>
 
-        <!-- Sidebar -->
-        <div class="lg:col-span-5 space-y-6">
+        <div class="lg:col-span-5 space-y-6 pt-24 lg:pt-0">
             <div class="glass-card rounded-2xl p-6">
                 <h3 class="text-lg font-bold mb-4">AI Processing Unit</h3>
                 <div class="space-y-4">
@@ -173,10 +200,10 @@
                 </div>
             </div>
 
-            <div class="glass-card rounded-2xl p-6 h-[300px] flex flex-col">
-                <h3 class="text-sm font-bold text-zinc-500 uppercase tracking-widest mb-4">Engine Telemetry</h3>
-                <div id="match-log" class="text-xs font-mono text-zinc-400 space-y-2 overflow-y-auto custom-scroll flex-1 pr-2">
-                    <div class="text-emerald-500/70">> Connectivity Matrix Ready.</div>
+            <div class="glass-card rounded-2xl p-6 h-[250px] flex flex-col">
+                <h3 class="text-sm font-bold text-zinc-500 uppercase tracking-widest mb-4">Telemetry</h3>
+                <div id="match-log" class="text-xs font-mono text-zinc-400 space-y-2 overflow-y-auto custom-scroll flex-1">
+                    <div class="text-emerald-500/70">> System ready. Click any column to drop.</div>
                 </div>
             </div>
         </div>
@@ -195,7 +222,6 @@
             async function validateUser() {
                 const { data: { session } } = await client.auth.getSession();
                 if (!session) { window.location.href = 'auth.html'; return; }
-                document.getElementById('user-badge').innerHTML = '<span class="text-emerald-500 font-bold text-[10px]">AUTH_SUCCESS</span>';
                 initGame();
             }
 
@@ -204,7 +230,7 @@
                 isPlayerTurn = true;
                 gameOver = false;
                 $('#pieces-layer').empty();
-                $('#game-status').text('Your Turn').removeClass('text-yellow-500').addClass('text-red-500');
+                $('#game-status').text('Your Turn').removeClass('text-yellow-500 text-emerald-500').addClass('text-red-500');
                 updateEval(0);
             }
 
@@ -217,17 +243,17 @@
                 executeMove(row, col, 1);
                 
                 if (checkWin(board, 1)) {
-                    endGame('Player Wins');
+                    endGame('Human Victory');
                     return;
                 }
 
                 if (board.every(r => r.every(c => c !== 0))) {
-                    endGame('Draw');
+                    endGame('Tie');
                     return;
                 }
 
                 isPlayerTurn = false;
-                $('#game-status').text('AI THINKING...').removeClass('text-red-500').addClass('text-yellow-500');
+                $('#game-status').text('AI Processing...').removeClass('text-red-500').addClass('text-yellow-500');
                 setTimeout(aiTurn, 600);
             };
 
@@ -241,27 +267,30 @@
             function executeMove(row, col, player) {
                 board[row][col] = player;
                 
-                const boardRect = document.getElementById('board-front').getBoundingClientRect();
+                const layer = document.getElementById('pieces-layer');
+                const layerRect = layer.getBoundingClientRect();
                 const piece = document.createElement('div');
                 piece.className = `piece ${player === 1 ? 'player' : 'ai'}`;
                 
-                const colWidth = boardRect.width / 7;
-                const rowHeight = boardRect.height / 6;
+                const colWidth = layerRect.width / 7;
+                const rowHeight = layerRect.height / 6;
                 
-                // Adjusting offsets for the internal padding of the board
-                const offsetX = 14; 
-                const offsetY = 14; 
+                // Fine-tuned positioning to center in hole
+                const pieceWidth = colWidth * 0.8;
+                const leftPos = (col * colWidth) + (colWidth - pieceWidth) / 2;
+                const topFinal = (row * rowHeight) + (rowHeight - pieceWidth) / 2;
 
-                piece.style.left = `${(col * colWidth) + offsetX}px`;
+                piece.style.width = `${pieceWidth}px`;
+                piece.style.left = `${leftPos}px`;
                 piece.style.top = `-100px`;
                 
-                document.getElementById('pieces-layer').appendChild(piece);
+                layer.appendChild(piece);
                 
                 setTimeout(() => {
-                    piece.style.top = `${(row * rowHeight) + offsetY}px`;
+                    piece.style.top = `${topFinal}px`;
                 }, 50);
 
-                logMove(`${player === 1 ? 'Human' : 'Neural'} dropped at column ${col + 1}`);
+                logMove(`${player === 1 ? 'User' : 'AI'} -> Column ${col + 1}`);
             }
 
             function aiTurn() {
@@ -272,7 +301,7 @@
                 executeMove(row, bestMove, 2);
                 
                 if (checkWin(board, 2)) {
-                    endGame('AI Wins');
+                    endGame('AI Dominance');
                     return;
                 }
 
@@ -285,8 +314,7 @@
                 let bestScore = -Infinity;
                 let moves = [];
                 for(let c=0; c<7; c++) if(b[0][c] === 0) moves.push(c);
-
-                let bestMove = moves[Math.floor(Math.random() * moves.length)];
+                let bestMove = moves[0];
 
                 for (let c of moves) {
                     let r = getAvailableRow(b, c);
@@ -302,8 +330,8 @@
             }
 
             function minimax(b, depth, alpha, beta, isMax) {
-                if (checkWin(b, 2)) return 100000;
-                if (checkWin(b, 1)) return -100000;
+                if (checkWin(b, 2)) return 10000;
+                if (checkWin(b, 1)) return -10000;
                 if (depth === 0) return evaluateBoard(b);
 
                 let moves = [];
@@ -339,8 +367,8 @@
 
             function evaluateBoard(b) {
                 let score = 0;
-                for(let r=0; r<6; r++) if(b[r][3] === 2) score += 4;
-                for(let r=0; r<6; r++) if(b[r][3] === 1) score -= 4;
+                for(let r=0; r<6; r++) if(b[r][3] === 2) score += 5;
+                for(let r=0; r<6; r++) if(b[r][3] === 1) score -= 5;
                 return score;
             }
 
@@ -353,7 +381,7 @@
             }
 
             function updateEval(score) {
-                const percent = Math.min(95, Math.max(5, 50 + (score / 5)));
+                const percent = Math.min(95, Math.max(5, 50 + (score / 2)));
                 $('#eval-bar-fill').css('height', `${percent}%`);
             }
 
@@ -363,8 +391,8 @@
 
             function endGame(msg) {
                 gameOver = true;
-                $('#game-status').text(msg.toUpperCase()).addClass('text-emerald-500');
-                logMove(`CRITICAL: ${msg}`);
+                $('#game-status').text(msg.toUpperCase()).removeClass('text-red-500 text-yellow-500').addClass('text-emerald-500');
+                logMove(`Final: ${msg}`);
             }
 
             window.resetGame = initGame;
