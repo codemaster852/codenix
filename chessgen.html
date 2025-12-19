@@ -17,13 +17,31 @@
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
         body { background-color: #000; color: #fff; font-family: 'Inter', sans-serif; overflow-x: hidden; }
         .glass-card { background: rgba(26, 26, 26, 0.6); backdrop-filter: blur(12px); border: 1px solid #333; }
-        #board { width: 100%; max-width: 500px; margin: 0 auto; touch-action: none; }
+        #board { width: 100%; max-width: 500px; margin: 0 auto; touch-action: none; transition: all 0.3s ease; }
         
-        /* Legal Move Indicator (Circles) - Optimized for Mobile Visibility */
-        .legal-dot {
-            position: relative;
+        /* Fullscreen Overlay Mode */
+        .fullscreen-active {
+            position: fixed !important;
+            top: 0; left: 0; width: 100vw !important; height: 100vh !important;
+            max-width: none !important;
+            background: #000;
+            z-index: 9999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
         }
-        
+
+        .fullscreen-active #board {
+            max-width: 90vh !important; /* Constrain by height to stay square */
+        }
+
+        .square-mode #board {
+            aspect-ratio: 1 / 1;
+        }
+
+        /* Legal Move Indicator (Circles) */
+        .legal-dot { position: relative; }
         .legal-dot::after {
             content: '';
             position: absolute;
@@ -38,7 +56,6 @@
             pointer-events: none;
         }
 
-        /* Selection Highlight */
         .highlight-selected {
             box-shadow: inset 0 0 0 4px rgba(16, 185, 129, 0.8) !important;
             background-color: rgba(16, 185, 129, 0.2) !important;
@@ -46,14 +63,11 @@
 
         .eval-bar-container { width: 30px; height: 500px; background: #333; border-radius: 4px; overflow: hidden; position: relative; }
         #eval-bar-fill { position: absolute; bottom: 0; width: 100%; background: #fff; transition: height 0.5s ease; }
-        .custom-scroll::-webkit-scrollbar { width: 4px; }
-        .custom-scroll::-webkit-scrollbar-thumb { background: #333; border-radius: 10px; }
         
         /* Board Colors */
         .white-1e1d7 { background-color: #3b3b3b !important; }
         .black-3c85d { background-color: #1a1a1a !important; }
 
-        /* Mobile specific adjustments */
         @media (max-width: 640px) {
             #board { max-width: 95vw; }
             .legal-dot::after { width: 15px; height: 15px; }
@@ -61,6 +75,14 @@
     </style>
 </head>
 <body class="min-h-screen p-4 md:p-8">
+
+    <!-- Fullscreen Controls (Hidden by default) -->
+    <div id="fs-controls" class="fixed top-6 right-6 z-[10000] hidden flex gap-3">
+        <button onclick="toggleSquareMode()" class="px-4 py-2 bg-zinc-800/80 backdrop-blur border border-zinc-700 rounded-lg text-xs font-bold hover:bg-emerald-600 transition-all">SQUARE MODE</button>
+        <button onclick="closeFullscreen()" class="p-2 bg-red-500/80 backdrop-blur rounded-lg hover:bg-red-600 transition-all">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+        </button>
+    </div>
 
     <!-- Top Navigation -->
     <div class="max-w-7xl mx-auto flex justify-between items-center mb-8">
@@ -76,23 +98,20 @@
         </div>
     </div>
 
-    <div class="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8">
-        
-        <div class="lg:col-span-7 flex gap-4 items-start justify-center">
+    <div class="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8" id="main-layout">
+        <div class="lg:col-span-7 flex gap-4 items-start justify-center" id="board-container-parent">
             <div class="eval-bar-container hidden md:block">
                 <div id="eval-bar-fill" style="height: 50%;"></div>
             </div>
             
-            <div class="w-full">
+            <div class="w-full" id="board-wrapper">
                 <div id="board" class="shadow-2xl rounded-lg overflow-hidden border border-zinc-800"></div>
                 <div class="mt-4 md:mt-6 flex justify-between items-center bg-zinc-900 p-4 rounded-xl border border-zinc-800">
                     <div class="text-zinc-400 text-xs md:text-sm">Score: <span id="eval-score-text" class="text-white font-mono text-emerald-500">0.0</span></div>
                     <div id="game-status" class="text-xs md:text-sm font-bold text-emerald-500 tracking-wide uppercase">Your Turn</div>
-                    <div class="flex gap-2">
-                        <button onclick="resetGame()" class="p-2 hover:bg-zinc-800 rounded-lg text-zinc-400 hover:text-white transition-colors">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" stroke-width="2"></path></svg>
-                        </button>
-                    </div>
+                    <button onclick="resetGame()" class="p-2 hover:bg-zinc-800 rounded-lg text-zinc-400">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" stroke-width="2"></path></svg>
+                    </button>
                 </div>
             </div>
         </div>
@@ -107,15 +126,14 @@
                         <option value="3" selected>Depth 3 (Master)</option>
                     </select>
                     <div class="text-[11px] text-zinc-500 italic bg-zinc-900/50 p-3 rounded-lg border border-zinc-800/50">
-                        Mobile Tip: Tap a piece to see available moves. Tap a green circle to move there.
+                        Tip: Double-click the board to enter Fullscreen Mode.
                     </div>
                 </div>
             </div>
 
             <div class="glass-card rounded-2xl p-6 h-[250px] md:h-[300px] flex flex-col">
                 <h3 class="text-sm font-bold text-zinc-500 uppercase tracking-widest mb-4">Move History</h3>
-                <div id="move-history" class="text-xs font-mono text-zinc-400 grid grid-cols-2 gap-2 overflow-y-auto custom-scroll">
-                </div>
+                <div id="move-history" class="text-xs font-mono text-zinc-400 grid grid-cols-2 gap-2 overflow-y-auto"></div>
             </div>
         </div>
     </div>
@@ -130,139 +148,15 @@
             let game = new Chess();
             let selectedSquare = null;
 
-            const weights = { p: 100, n: 320, b: 330, r: 500, q: 900, k: 20000 };
+            // Fullscreen / Square Mode State
+            let isFullscreen = false;
+            let isSquareMode = false;
 
-            // 1. STRICT AUTH CHECK
             async function validateUser() {
                 const { data: { session } } = await client.auth.getSession();
-                if (!session) {
-                    window.location.href = 'auth.html';
-                    return;
-                }
+                if (!session) { window.location.href = 'auth.html'; return; }
                 document.getElementById('user-badge').innerHTML = '<span class="text-emerald-500 font-bold text-[10px]">VERIFIED</span>';
                 setupBoard();
-            }
-
-            function evaluateBoard(game) {
-                let total = 0;
-                game.board().forEach(row => {
-                    row.forEach(piece => {
-                        if (piece) {
-                            let val = weights[piece.type];
-                            total += piece.color === 'w' ? val : -val;
-                        }
-                    });
-                });
-                return total;
-            }
-
-            function minimax(game, depth, isMaximizing) {
-                if (depth === 0) return -evaluateBoard(game);
-                const moves = game.moves();
-                if (isMaximizing) {
-                    let best = -99999;
-                    for (const move of moves) {
-                        game.move(move);
-                        best = Math.max(best, minimax(game, depth - 1, false));
-                        game.undo();
-                    }
-                    return best;
-                } else {
-                    let best = 99999;
-                    for (const move of moves) {
-                        game.move(move);
-                        best = Math.min(best, minimax(game, depth - 1, true));
-                        game.undo();
-                    }
-                    return best;
-                }
-            }
-
-            function getBestMove(game) {
-                const moves = game.moves();
-                let bestMove = null;
-                let bestVal = -99999;
-                const depth = parseInt(document.getElementById('level-select').value);
-
-                moves.forEach(move => {
-                    game.move(move);
-                    const val = minimax(game, depth - 1, false);
-                    game.undo();
-                    if (val > bestVal) {
-                        bestVal = val;
-                        bestMove = move;
-                    }
-                });
-                return bestMove;
-            }
-
-            function removeHighlights() {
-                $('#board .square-55d63').removeClass('legal-dot highlight-selected');
-            }
-
-            function highlightSquare(square) {
-                const moves = game.moves({ square: square, verbose: true });
-                if (moves.length === 0) return;
-
-                $(`#board .square-${square}`).addClass('highlight-selected');
-                moves.forEach(move => {
-                    $(`#board .square-${move.to}`).addClass('legal-dot');
-                });
-            }
-
-            function makeEngineMove() {
-                document.getElementById('game-status').innerText = 'AI THINKING...';
-                setTimeout(() => {
-                    const bestMove = getBestMove(game);
-                    if (bestMove) {
-                        game.move(bestMove);
-                        board.position(game.fen());
-                        updateUI();
-                        document.getElementById('game-status').innerText = 'Your Turn';
-                    }
-                }, 400);
-            }
-
-            function onSquareClick(square) {
-                if (game.turn() === 'b' || game.game_over()) return;
-
-                const piece = game.get(square);
-
-                // Option A: If a piece is already selected AND user clicks a move circle
-                if (selectedSquare && $(`#board .square-${square}`).hasClass('legal-dot')) {
-                    const move = game.move({
-                        from: selectedSquare,
-                        to: square,
-                        promotion: 'q'
-                    });
-
-                    if (move !== null) {
-                        selectedSquare = null;
-                        removeHighlights();
-                        board.position(game.fen());
-                        updateUI();
-                        makeEngineMove();
-                        return;
-                    }
-                }
-
-                // Option B: User clicks a piece to select/deselect it
-                if (piece && piece.color === 'w') {
-                    // If same piece clicked, toggle it off
-                    if (selectedSquare === square) {
-                        selectedSquare = null;
-                        removeHighlights();
-                    } else {
-                        // Different white piece clicked: change selection
-                        selectedSquare = square;
-                        removeHighlights();
-                        highlightSquare(square);
-                    }
-                } else {
-                    // Clicked an empty square or black piece that isn't a legal move
-                    selectedSquare = null;
-                    removeHighlights();
-                }
             }
 
             function setupBoard() {
@@ -280,7 +174,6 @@
                         removeHighlights();
                         selectedSquare = null;
                         if (move === null) return 'snapback';
-                        
                         updateUI();
                         makeEngineMove();
                     },
@@ -289,35 +182,138 @@
                 };
                 board = Chessboard('board', config);
                 
-                // Click interaction for Mobile persistence
                 $(document).on('click', '#board .square-55d63', function() {
-                    const square = $(this).attr('data-square');
-                    onSquareClick(square);
+                    onSquareClick($(this).attr('data-square'));
                 });
+
+                // DOUBLE CLICK TO FULLSCREEN
+                $(document).on('dblclick', '#board', function() {
+                    enterFullscreen();
+                });
+            }
+
+            function enterFullscreen() {
+                isFullscreen = true;
+                document.body.classList.add('overflow-hidden');
+                $('#board-wrapper').addClass('fullscreen-active');
+                $('#fs-controls').removeClass('hidden');
+                board.resize();
+            }
+
+            window.closeFullscreen = () => {
+                isFullscreen = false;
+                document.body.classList.remove('overflow-hidden');
+                $('#board-wrapper').removeClass('fullscreen-active');
+                $('#fs-controls').addClass('hidden');
+                board.resize();
+            };
+
+            window.toggleSquareMode = () => {
+                isSquareMode = !isSquareMode;
+                if (isSquareMode) {
+                    $('#board-wrapper').addClass('square-mode');
+                } else {
+                    $('#board-wrapper').removeClass('square-mode');
+                }
+                board.resize();
+            };
+
+            function onSquareClick(square) {
+                if (game.turn() === 'b' || game.game_over()) return;
+                const piece = game.get(square);
+                if (selectedSquare && $(`#board .square-${square}`).hasClass('legal-dot')) {
+                    const move = game.move({ from: selectedSquare, to: square, promotion: 'q' });
+                    if (move !== null) {
+                        selectedSquare = null;
+                        removeHighlights();
+                        board.position(game.fen());
+                        updateUI();
+                        makeEngineMove();
+                        return;
+                    }
+                }
+                if (piece && piece.color === 'w') {
+                    if (selectedSquare === square) {
+                        selectedSquare = null;
+                        removeHighlights();
+                    } else {
+                        selectedSquare = square;
+                        removeHighlights();
+                        highlightSquare(square);
+                    }
+                } else {
+                    selectedSquare = null;
+                    removeHighlights();
+                }
+            }
+
+            function removeHighlights() { $('#board .square-55d63').removeClass('legal-dot highlight-selected'); }
+            
+            function highlightSquare(square) {
+                const moves = game.moves({ square: square, verbose: true });
+                if (moves.length === 0) return;
+                $(`#board .square-${square}`).addClass('highlight-selected');
+                moves.forEach(move => { $(`#board .square-${move.to}`).addClass('legal-dot'); });
+            }
+
+            function makeEngineMove() {
+                document.getElementById('game-status').innerText = 'AI THINKING...';
+                setTimeout(() => {
+                    const bestMove = getBestMove(game);
+                    if (bestMove) {
+                        game.move(bestMove);
+                        board.position(game.fen());
+                        updateUI();
+                        document.getElementById('game-status').innerText = 'Your Turn';
+                    }
+                }, 400);
+            }
+
+            function getBestMove(game) {
+                const moves = game.moves();
+                let bestMove = null;
+                let bestVal = -99999;
+                const depth = parseInt(document.getElementById('level-select').value);
+                moves.forEach(move => {
+                    game.move(move);
+                    const val = minimax(game, depth - 1, false);
+                    game.undo();
+                    if (val > bestVal) { bestVal = val; bestMove = move; }
+                });
+                return bestMove;
+            }
+
+            const weights = { p: 100, n: 320, b: 330, r: 500, q: 900, k: 20000 };
+            function evaluateBoard(game) {
+                let total = 0;
+                game.board().forEach(row => { row.forEach(piece => {
+                    if (piece) { total += piece.color === 'w' ? weights[piece.type] : -weights[piece.type]; }
+                }); });
+                return total;
+            }
+
+            function minimax(game, depth, isMaximizing) {
+                if (depth === 0) return -evaluateBoard(game);
+                const moves = game.moves();
+                let best = isMaximizing ? -99999 : 99999;
+                for (const move of moves) {
+                    game.move(move);
+                    const val = minimax(game, depth - 1, !isMaximizing);
+                    game.undo();
+                    best = isMaximizing ? Math.max(best, val) : Math.min(best, val);
+                }
+                return best;
             }
 
             function updateUI() {
                 const history = game.history();
-                const container = document.getElementById('move-history');
-                container.innerHTML = history.map((m, i) => `<div class="bg-zinc-900 p-1.5 rounded border border-zinc-800">#${i+1} ${m}</div>`).join('');
-                container.scrollTop = container.scrollHeight;
-
+                document.getElementById('move-history').innerHTML = history.map((m, i) => `<div class="bg-zinc-900 p-1.5 rounded border border-zinc-800">#${i+1} ${m}</div>`).join('');
                 const score = (evaluateBoard(game) / 100).toFixed(1);
                 document.getElementById('eval-score-text').innerText = score;
-                const fillHeight = Math.min(100, Math.max(0, 50 - (score * 5)));
-                document.getElementById('eval-bar-fill').style.height = `${fillHeight}%`;
+                document.getElementById('eval-bar-fill').style.height = `${Math.min(100, Math.max(0, 50 - (score * 5)))}%`;
             }
 
-            window.resetGame = () => { 
-                game.reset(); 
-                board.start(); 
-                selectedSquare = null;
-                removeHighlights();
-                updateUI(); 
-                document.getElementById('game-status').innerText = 'Your Turn';
-            };
-
-            // Initialize
+            window.resetGame = () => { game.reset(); board.start(); selectedSquare = null; removeHighlights(); updateUI(); };
             validateUser();
         })();
     </script>
