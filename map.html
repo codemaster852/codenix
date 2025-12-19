@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Map Reconstruction: Protocol v4.1</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap');
+        
+        body {
+            background-color: #050505;
+            font-family: 'JetBrains+Mono', monospace;
+            color: white;
+            overflow: hidden;
+        }
+
+        .scanline {
+            width: 100%; height: 100%;
+            background: linear-gradient(to bottom, transparent 50%, rgba(0,0,0,0.1) 51%);
+            background-size: 100% 4px;
+            position: fixed; top: 0; left: 0; pointer-events: none; z-index: 100; opacity: 0.1;
+        }
+
+        #auth-guard {
+            position: fixed;
+            inset: 0;
+            background: #050505;
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .puzzle-grid {
+            display: grid;
+            gap: 4px;
+            background: #18181b;
+            padding: 4px;
+            border-radius: 8px;
+            border: 2px solid #27272a;
+        }
+
+        .tile {
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            background-color: #09090b;
+            background-size: 400px 400px; /* Adjust based on container size */
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+
+        .tile:hover {
+            filter: brightness(1.3) contrast(1.1);
+            border-color: #10b981;
+            z-index: 10;
+            transform: scale(0.98);
+        }
+
+        .tile.empty {
+            background: #050505 !important;
+            cursor: default;
+            border: none;
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.5);
+        }
+
+        .map-texture {
+            /* We use a generated SVG as the background map */
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400' viewBox='0 0 400 400'%3E%3Crect width='400' height='400' fill='%2309090b'/%3E%3Cpath d='M0 50h400M0 100h400M0 150h400M0 200h400M0 250h400M0 300h400M0 350h400M50 0v400M100 0v400M150 0v400M200 0v400M250 0v400M300 0v400M350 0v400' stroke='%231a1a1e' stroke-width='1'/%3E%3Cpath d='M50 50l100 50 50-20 100 80 50-30M0 300l80-20 120 40 100-60 100 20' fill='none' stroke='%2310b981' stroke-width='2' opacity='0.5'/%3E%3Ccircle cx='150' cy='100' r='5' fill='%2310b981'/%3E%3Ccircle cx='200' cy='320' r='5' fill='%233b82f6'/%3E%3Crect x='240' y='240' width='40' height='40' fill='none' stroke='%233b82f6' stroke-width='1'/%3E%3C/svg%3E");
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8 min-h-screen flex flex-col">
+    <div id="auth-guard">
+        <div class="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+        <p class="text-[10px] font-bold tracking-widest text-zinc-500 uppercase">Validating_Access_Key...</p>
+    </div>
+
+    <div class="scanline"></div>
+
+    <div class="max-w-4xl mx-auto w-full flex-1 flex flex-col">
+        <!-- Navigation -->
+        <div class="flex justify-between items-center mb-6 text-[10px] font-bold uppercase tracking-widest text-zinc-500">
+            <a href="portal.html" class="flex items-center gap-2 hover:text-white transition-colors group">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" class="group-hover:-translate-x-1 transition-transform"><path d="m15 18-6-6 6-6"/></svg>
+                EXIT_TO_PORTAL
+            </a>
+            <div id="user-display" class="text-emerald-500 lowercase opacity-50"></div>
+        </div>
+
+        <header class="mb-8 border-b border-zinc-800 pb-6">
+            <h1 class="text-3xl font-black tracking-tighter uppercase flex items-center gap-2">
+                <span class="text-emerald-500">//</span> MAP_RECON
+                <span class="text-zinc-400 text-xs bg-zinc-900 px-2 py-0.5 rounded border border-zinc-800">SECTOR_GRID_4x4</span>
+            </h1>
+            <p class="text-[9px] text-zinc-600 mt-1 uppercase font-mono tracking-wider">REASSEMBLE COORDINATES TO RE-ESTABLISH LINK</p>
+        </header>
+
+        <div class="flex-1 flex flex-col lg:flex-row gap-8 items-center justify-center">
+            <!-- Game View -->
+            <div class="relative group">
+                <div id="puzzle-board" class="puzzle-grid map-texture" style="width: 400px; height: 400px; grid-template-columns: repeat(4, 1fr);">
+                    <!-- Tiles injected here -->
+                </div>
+                
+                <!-- Victory Overlay -->
+                <div id="victory-overlay" class="hidden absolute inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center text-center p-6 border-2 border-emerald-500 rounded-lg">
+                    <div class="space-y-4">
+                        <div class="text-emerald-500 text-4xl font-black italic tracking-tighter">GRID_RESTORED</div>
+                        <p class="text-zinc-400 text-[10px] uppercase font-mono">Telemetry link successfully re-established.</p>
+                        <button onclick="shuffleGrid()" class="px-6 py-2 bg-emerald-500 text-black font-bold text-[10px] uppercase rounded">RE-SEQUENCE</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Stats & Control -->
+            <div class="w-full lg:w-64 space-y-4">
+                <div class="p-6 rounded-2xl border border-zinc-800 bg-zinc-900/30">
+                    <span class="text-[10px] font-bold text-zinc-500 uppercase block mb-1">Move_Count</span>
+                    <div id="move-count" class="text-4xl font-black font-mono">0</div>
+                </div>
+
+                <div class="p-4 rounded-2xl border border-zinc-800 bg-zinc-900/30">
+                    <h4 class="text-[9px] font-bold text-zinc-400 uppercase tracking-widest mb-3">Ref_Image</h4>
+                    <div class="w-full aspect-square map-texture rounded border border-zinc-700 opacity-30 grayscale hover:grayscale-0 transition-all duration-700"></div>
+                </div>
+
+                <button onclick="shuffleGrid()" class="w-full py-3 border border-zinc-800 hover:border-emerald-500 hover:bg-emerald-500/10 text-[10px] font-bold uppercase transition-all rounded-xl">
+                    SCRAMBLE_DATA
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase SDKs -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+
+        const firebaseConfig = JSON.parse(__firebase_config);
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                document.getElementById('auth-guard').style.display = 'none';
+                document.getElementById('user-display').innerText = `id:${user.uid.substring(0, 8)}`;
+                initPuzzle();
+            } else {
+                window.location.href = 'auth.html';
+            }
+        });
+    </script>
+
+    <script>
+        let tiles = [];
+        let moves = 0;
+        const size = 4;
+        let emptyIndex = 15;
+
+        function initPuzzle() {
+            tiles = Array.from({length: size * size}, (_, i) => i);
+            shuffleGrid();
+        }
+
+        function shuffleGrid() {
+            moves = 0;
+            document.getElementById('move-count').innerText = moves;
+            document.getElementById('victory-overlay').classList.add('hidden');
+            
+            // Fisher-Yates shuffle that ensures solvability
+            // For simplicity, we just perform many random legal moves from a solved state
+            tiles = Array.from({length: size * size}, (_, i) => i);
+            emptyIndex = 15;
+            
+            for(let i=0; i<200; i++) {
+                const neighbors = getNeighbors(emptyIndex);
+                const randomNeighbor = neighbors[Math.floor(Math.random() * neighbors.length)];
+                swap(randomNeighbor);
+            }
+            
+            moves = 0; // Reset after shuffle
+            document.getElementById('move-count').innerText = moves;
+            render();
+        }
+
+        function getNeighbors(idx) {
+            const neighbors = [];
+            const r = Math.floor(idx / size);
+            const c = idx % size;
+            if (r > 0) neighbors.push(idx - size);
+            if (r < size - 1) neighbors.push(idx + size);
+            if (c > 0) neighbors.push(idx - 1);
+            if (c < size - 1) neighbors.push(idx + 1);
+            return neighbors;
+        }
+
+        function swap(idx) {
+            const temp = tiles[idx];
+            tiles[idx] = tiles[emptyIndex];
+            tiles[emptyIndex] = temp;
+            emptyIndex = idx;
+        }
+
+        function handleTileClick(idx) {
+            const neighbors = getNeighbors(idx);
+            if (neighbors.includes(emptyIndex)) {
+                swap(idx);
+                moves++;
+                document.getElementById('move-count').innerText = moves;
+                render();
+                checkWin();
+            }
+        }
+
+        function render() {
+            const board = document.getElementById('puzzle-board');
+            board.innerHTML = '';
+            
+            tiles.forEach((tileValue, i) => {
+                const tile = document.createElement('div');
+                tile.className = 'tile map-texture';
+                
+                if (tileValue === 15) {
+                    tile.classList.add('empty');
+                } else {
+                    const r = Math.floor(tileValue / size);
+                    const c = tileValue % size;
+                    // Calculate background position based on original value
+                    tile.style.backgroundPosition = `${-c * 100}px ${-r * 100}px`;
+                    tile.onclick = () => handleTileClick(i);
+                }
+                board.appendChild(tile);
+            });
+        }
+
+        function checkWin() {
+            const isWin = tiles.every((val, i) => val === i);
+            if (isWin) {
+                document.getElementById('victory-overlay').classList.remove('hidden');
+            }
+        }
+    </script>
+</body>
+</html>
