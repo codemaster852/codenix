@@ -1,239 +1,406 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Codenix - Nix 2.1</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@300;400;500&display=swap');
+import React, { useState, useEffect, useRef } from 'react';
+import { 
+  Plus, 
+  Send, 
+  Paperclip, 
+  Image as ImageIcon, 
+  Video, 
+  FileText, 
+  Terminal,
+  Copy,
+  Check,
+  Download,
+  MoreVertical,
+  Monitor,
+  Sun,
+  Moon,
+  AlertCircle
+} from 'lucide-react';
+
+const APP_ID = typeof __app_id !== 'undefined' ? __app_id : 'nix-studio-2-1';
+const API_KEY = "ak_26w2J55rY5wR44L3ij9Rg1dH6SR7C";
+const WEBHOOK_URL = 'https://cloud.activepieces.com/api/v1/webhooks/WR43cDYER0O9TiHq8exAH/sync';
+
+const App = () => {
+  const [messages, setMessages] = useState([]);
+  const [input, setInput] = useState('');
+  const [isThinking, setIsThinking] = useState(false);
+  const [showCommands, setShowCommands] = useState(false);
+  const [selectedFiles, setSelectedFiles] = useState([]);
+  const [copiedId, setCopiedId] = useState(null);
+  const [theme, setTheme] = useState('dark');
+  
+  const scrollRef = useRef(null);
+  const fileInputRef = useRef(null);
+
+  // Theme Sync
+  useEffect(() => {
+    document.documentElement.className = theme;
+  }, [theme]);
+
+  // Auto-scroll
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [messages, isThinking]);
+
+  const toggleTheme = () => setTheme(t => t === 'dark' ? 'light' : 'dark');
+
+  const handleCopy = (text, id) => {
+    const el = document.createElement('textarea');
+    el.value = text;
+    document.body.appendChild(el);
+    el.select();
+    document.execCommand('copy');
+    document.body.removeChild(el);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  const handleCommand = (cmd) => {
+    setInput(cmd);
+    setShowCommands(false);
+  };
+
+  const onFileChange = (e) => {
+    const files = Array.from(e.target.files);
+    setSelectedFiles(prev => [...prev, ...files]);
+  };
+
+  const removeFile = (index) => {
+    setSelectedFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const cleanResponse = (text) => {
+    if (!text) return "";
+    let cleaned = String(text).replace(/\\n/g, '\n');
+    cleaned = cleaned.replace(/^\{.*"(answer|output|response)":\s*"(.*)".*\}$/s, '$2');
+    return cleaned.trim();
+  };
+
+  const extractUrls = (obj) => {
+    const urls = [];
+    const urlRegex = /(https?:\/\/[^\s"'<>]+)/g;
+    const find = (o) => {
+      if (typeof o === 'string') {
+        const matches = o.match(urlRegex);
+        if (matches) urls.push(...matches);
+      } else if (o && typeof o === 'object') {
+        Object.values(o).forEach(find);
+      }
+    };
+    find(obj);
+    return [...new Set(urls)];
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    const text = input.trim();
+    if (!text && selectedFiles.length === 0) return;
+
+    const currentFiles = [...selectedFiles];
+    const userMsg = {
+      id: Date.now(),
+      role: 'user',
+      content: text,
+      files: currentFiles.map(f => ({ name: f.name, type: f.type }))
+    };
+
+    setMessages(prev => [...prev, userMsg]);
+    setInput('');
+    setSelectedFiles([]);
+    setIsThinking(true);
+
+    try {
+      // Prepare file data
+      const messageFiles = await Promise.all(currentFiles.map(async (file) => {
+        const base64 = await new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result);
+          reader.readAsDataURL(file);
+        });
+        return { name: file.name, type: file.type, data: base64 };
+      }));
+
+      const response = await fetch(WEBHOOK_URL, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${API_KEY}`
+        },
+        body: JSON.stringify({ 
+          question: text,
+          files: messageFiles,
+          user: { id: 'nix-user-01', email: 'guest@codenix.ai' }
+        })
+      });
+
+      if (!response.ok) throw new Error('Network Error');
+      
+      const data = await response.json();
+      const rawContent = data.answer || data.output || data.response || data.text || "Task completed.";
+      const urls = extractUrls(data);
+      
+      const botMsg = {
+        id: Date.now() + 1,
+        role: 'bot',
+        content: cleanResponse(rawContent),
+        media: urls.map(url => ({ 
+          url, 
+          type: url.match(/\.(jpg|jpeg|png|webp|gif|avif)$|image/i) ? 'image' : 
+                url.match(/\.(mp4|webm|mov)$|video/i) ? 'video' : 'file'
+        }))
+      };
+
+      setMessages(prev => [...prev, botMsg]);
+    } catch (err) {
+      setMessages(prev => [...prev, {
+        id: Date.now() + 1,
+        role: 'bot',
+        content: "Nix Error: Failed to establish secure connection with Long Cat API. Please verify your credentials.",
+        isError: true
+      }]);
+    } finally {
+      setIsThinking(false);
+    }
+  };
+
+  return (
+    <div className={`flex h-screen transition-colors duration-300 ${theme === 'dark' ? 'bg-[#050505] text-[#EDEDED]' : 'bg-[#F9F9F9] text-[#1A1A1A]'} font-sans overflow-hidden`}>
+      
+      {/* Sidebar */}
+      <aside className={`w-72 border-r hidden md:flex flex-col transition-colors ${theme === 'dark' ? 'bg-black border-zinc-800' : 'bg-white border-zinc-200'}`}>
+        <div className={`p-6 border-b flex items-center gap-3 ${theme === 'dark' ? 'border-zinc-800' : 'border-zinc-200'}`}>
+          <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center font-bold text-white shadow-[0_0_15px_rgba(79,70,229,0.4)]">N</div>
+          <span className={`font-bold tracking-tight text-lg ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>Nix 2 Studio</span>
+        </div>
         
-        body {
-            background-color: #0a0a0c;
-            color: #e2e8f0;
-            font-family: 'Fira+Code', monospace;
-            overflow: hidden;
-        }
-
-        .glass-panel {
-            background: rgba(17, 17, 23, 0.8);
-            backdrop-filter: blur(12px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.8);
-        }
-
-        .nix-glow {
-            box-shadow: 0 0 20px rgba(96, 165, 250, 0.2);
-        }
-
-        .custom-scrollbar::-webkit-scrollbar {
-            width: 4px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-track {
-            background: transparent;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-            background: #2d3748;
-            border-radius: 10px;
-        }
-
-        @keyframes pulse-slow {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
-        }
-        .loading-dots::after {
-            content: '.';
-            animation: pulse-slow 1s infinite;
-        }
-    </style>
-</head>
-<body class="h-screen flex flex-col items-center justify-center p-4">
-
-    <!-- Auth Guard Overlay (Hidden by default) -->
-    <div id="authGuard" class="fixed inset-0 bg-black z-50 flex items-center justify-center hidden">
-        <div class="text-center">
-            <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div>
-            <p class="mt-4 text-blue-400">Verifying Identity...</p>
-        </div>
-    </div>
-
-    <div class="w-full max-w-5xl h-[85vh] flex flex-col glass-panel rounded-2xl overflow-hidden nix-glow">
-        <!-- Header -->
-        <div class="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-black/40">
-            <div class="flex items-center space-x-3">
-                <div class="w-3 h-3 rounded-full bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.5)]"></div>
-                <h1 class="text-lg font-medium tracking-tight">Nix <span class="text-blue-400">2.1</span> <span class="text-xs opacity-50 ml-2">LongCat Engine</span></h1>
-            </div>
-            <div class="flex items-center space-x-4">
-                <a href="portal.html" class="text-sm px-4 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 transition-all">
-                    ← Back to Portal
-                </a>
-                <div id="userBadge" class="text-xs text-gray-400 bg-white/5 px-3 py-1.5 rounded-full border border-white/5">
-                    User: <span id="userEmail" class="text-blue-300">Loading...</span>
-                </div>
-            </div>
+        <div className="flex-1 p-4 overflow-y-auto space-y-2">
+          <button 
+            onClick={() => setMessages([])}
+            className={`w-full text-left p-3 rounded-xl border text-sm transition-all flex items-center gap-3 group ${theme === 'dark' ? 'bg-zinc-900 border-zinc-800 text-zinc-300 hover:bg-zinc-800' : 'bg-zinc-50 border-zinc-200 text-zinc-600 hover:bg-zinc-100'}`}
+          >
+            <Plus className="w-4 h-4 text-indigo-500 group-hover:scale-125 transition-transform" />
+            New Session
+          </button>
         </div>
 
-        <!-- Chat Area -->
-        <div id="chatDisplay" class="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar bg-black/20">
-            <!-- Initial Message -->
-            <div class="flex items-start space-x-3">
-                <div class="bg-blue-600/20 p-2 rounded-lg border border-blue-500/30">
-                    <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-                </div>
-                <div class="bg-white/5 p-4 rounded-2xl rounded-tl-none max-w-[80%] border border-white/10">
-                    <p class="text-sm leading-relaxed text-gray-300">Nix 2.1 online. Long Cat API connection established. How can I assist your coding session today?</p>
-                </div>
+        <div className={`p-4 border-t ${theme === 'dark' ? 'bg-zinc-950/50 border-zinc-800' : 'bg-zinc-50 border-zinc-200'}`}>
+          <div className={`flex items-center gap-3 p-2 rounded-xl transition-colors cursor-pointer ${theme === 'dark' ? 'hover:bg-zinc-900' : 'hover:bg-white border border-transparent hover:border-zinc-200'}`}>
+            <div className="w-8 h-8 rounded-full bg-indigo-500 flex items-center justify-center text-white text-xs font-bold">U</div>
+            <div className="flex-1 overflow-hidden">
+              <div className={`text-xs font-bold truncate ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>Nix Developer</div>
+              <div className="text-[10px] text-zinc-500">API Key Active</div>
             </div>
+            <button onClick={toggleTheme} className="p-1.5 hover:bg-zinc-200 dark:hover:bg-zinc-800 rounded-md transition-colors">
+              {theme === 'dark' ? <Sun size={14} className="text-zinc-400" /> : <Moon size={14} className="text-zinc-600" />}
+            </button>
+          </div>
+        </div>
+      </aside>
+
+      {/* Main Content */}
+      <main className={`flex-1 flex flex-col relative ${theme === 'dark' ? 'bg-[radial-gradient(#1a1a1a_1px,transparent_1px)]' : 'bg-[radial-gradient(#e5e7eb_1px,transparent_1px)]'} [background-size:32px_32px]`}>
+        <header className={`h-14 border-b flex items-center justify-between px-6 backdrop-blur-xl z-30 ${theme === 'dark' ? 'bg-black/80 border-zinc-800' : 'bg-white/80 border-zinc-200'}`}>
+          <div className="flex items-center gap-3">
+            <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Active Model</span>
+            <span className="h-1.5 w-1.5 rounded-full bg-indigo-500 shadow-[0_0_8px_rgba(99,102,241,0.8)] animate-pulse"></span>
+            <span className={`text-sm font-bold tracking-tight ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>Nix-2.1-LongCat</span>
+          </div>
+          <div className="flex items-center gap-4">
+             <button onClick={toggleTheme} className="p-2 text-zinc-500 hover:text-indigo-500 transition-colors md:hidden">
+              {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+            </button>
+            <button className={`text-[10px] uppercase font-bold tracking-wider border px-3 py-1.5 rounded-md transition-colors ${theme === 'dark' ? 'text-zinc-500 border-zinc-800 hover:text-white' : 'text-zinc-400 border-zinc-200 hover:text-zinc-900'}`}>Logout</button>
+          </div>
+        </header>
+
+        {/* Chat Area */}
+        <div ref={scrollRef} className="flex-1 overflow-y-auto">
+          <div className="max-w-3xl mx-auto px-6 py-12">
+            {messages.length === 0 && (
+              <div className="py-20 text-center animate-in fade-in slide-in-from-bottom-4 duration-700">
+                <div className={`w-16 h-16 border rounded-3xl flex items-center justify-center mx-auto mb-8 shadow-2xl ${theme === 'dark' ? 'bg-zinc-900 border-zinc-800' : 'bg-white border-zinc-200'}`}>
+                   <Terminal className="w-8 h-8 text-indigo-500" />
+                </div>
+                <h1 className={`text-4xl font-bold mb-4 tracking-tight ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>How can I help today?</h1>
+                <p className="text-zinc-500 text-sm max-w-sm mx-auto leading-relaxed">
+                  Connected to Long Cat API via CodeNix. Type <span className="text-indigo-500 font-mono">/</span> to explore specialized commands.
+                </p>
+              </div>
+            )}
+
+            {messages.map((msg) => (
+              <div 
+                key={msg.id} 
+                className={`flex gap-6 p-8 rounded-[2rem] mb-6 transition-all animate-in fade-in slide-in-from-bottom-2 ${msg.role === 'user' ? (theme === 'dark' ? 'bg-zinc-900/30 border border-white/5' : 'bg-zinc-100 border border-zinc-200') : ''}`}
+              >
+                <div className={`w-10 h-10 rounded-2xl shrink-0 flex items-center justify-center font-bold text-[10px] uppercase tracking-tighter ${msg.role === 'user' ? 'bg-zinc-500 text-white' : 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20'}`}>
+                  {msg.role === 'user' ? 'You' : 'Nix'}
+                </div>
+                <div className="flex-1 min-w-0">
+                  {msg.isError && <AlertCircle className="w-4 h-4 text-red-500 mb-2" />}
+                  <div className={`text-[15px] leading-relaxed whitespace-pre-wrap ${msg.isError ? 'text-red-400 font-medium' : (theme === 'dark' ? 'text-zinc-300' : 'text-zinc-700')}`}>
+                    {msg.content}
+                  </div>
+                  
+                  {msg.media && msg.media.map((med, i) => (
+                    <div key={i} className="mt-6 group relative max-w-xl">
+                      {med.type === 'image' && (
+                        <div className={`rounded-2xl overflow-hidden border shadow-2xl ${theme === 'dark' ? 'bg-zinc-900 border-white/10' : 'bg-white border-zinc-200'}`}>
+                          <img src={med.url} alt="Nix Media" className="w-full h-auto object-cover cursor-zoom-in" onClick={() => window.open(med.url, '_blank')} />
+                        </div>
+                      )}
+                      {med.type === 'video' && (
+                        <video controls className="w-full rounded-2xl border border-white/10 shadow-2xl">
+                          <source src={med.url} />
+                        </video>
+                      )}
+                      {med.type === 'file' && (
+                         <a href={med.url} target="_blank" className={`flex items-center gap-3 p-4 border rounded-xl transition-all ${theme === 'dark' ? 'bg-zinc-900 border-zinc-800 hover:border-indigo-500/50' : 'bg-white border-zinc-200 hover:border-indigo-500/50'}`}>
+                            <FileText className="text-indigo-500" />
+                            <div className="flex-1 overflow-hidden">
+                              <div className="text-xs font-bold truncate">Download Generated Content</div>
+                              <div className="text-[10px] text-zinc-500 font-mono">Resource URL</div>
+                            </div>
+                            <Download size={14} className="text-zinc-400" />
+                         </a>
+                      )}
+                    </div>
+                  ))}
+
+                  {msg.role === 'bot' && !msg.isError && (
+                    <div className="mt-6 pt-6 border-t border-white/5 flex items-center gap-4">
+                      <button 
+                        onClick={() => handleCopy(msg.content, msg.id)}
+                        className={`flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest transition-colors ${theme === 'dark' ? 'text-zinc-500 hover:text-indigo-400' : 'text-zinc-400 hover:text-indigo-600'}`}
+                      >
+                        {copiedId === msg.id ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                        {copiedId === msg.id ? 'Copied' : 'Copy'}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+
+            {isThinking && (
+              <div className="flex gap-6 p-8 mb-6">
+                <div className="w-10 h-10 rounded-2xl bg-indigo-600 shrink-0 flex items-center justify-center font-bold text-[10px] text-white">Nix</div>
+                <div className="flex-1 flex items-center gap-1.5 py-2">
+                  <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
+                  <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
+                  <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-bounce"></div>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
-        <!-- Input Area -->
-        <div class="p-6 bg-black/40 border-t border-white/10">
-            <form id="chatForm" class="relative group">
+        {/* Input Area */}
+        <div className="p-6 relative z-40">
+          <div className="max-w-3xl mx-auto relative">
+            
+            {showCommands && (
+              <div className={`absolute bottom-full left-0 w-72 border rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] mb-4 overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-200 ${theme === 'dark' ? 'bg-zinc-900 border-zinc-800' : 'bg-white border-zinc-200'}`}>
+                <div className="p-3 border-b border-white/5 text-[10px] uppercase font-bold text-zinc-500 tracking-wider bg-zinc-950/50">Nix Commands</div>
+                <div className="p-1">
+                  {[
+                    { cmd: '/image ', icon: <ImageIcon />, label: 'Image Engine', sub: 'Generate visual assets' },
+                    { cmd: '/video ', icon: <Video />, label: 'Video Engine', sub: 'Generate motion clips' },
+                    { cmd: '/docs ', icon: <FileText />, label: 'Document Engine', sub: 'Generate structured text' }
+                  ].map(item => (
+                    <button 
+                      key={item.cmd}
+                      onClick={() => handleCommand(item.cmd)}
+                      className={`w-full text-left p-3 rounded-xl flex items-center gap-4 transition-colors group ${theme === 'dark' ? 'hover:bg-indigo-600/10' : 'hover:bg-indigo-50'}`}
+                    >
+                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${theme === 'dark' ? 'bg-zinc-800 text-zinc-400 group-hover:bg-indigo-600 group-hover:text-white' : 'bg-zinc-100 text-zinc-500 group-hover:bg-indigo-600 group-hover:text-white'}`}>
+                        {React.cloneElement(item.icon, { size: 18 })}
+                      </div>
+                      <div>
+                        <div className={`text-xs font-bold ${theme === 'dark' ? 'text-white' : 'text-zinc-900'}`}>{item.label}</div>
+                        <div className="text-[10px] text-zinc-500 font-mono">{item.cmd}</div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {selectedFiles.length > 0 && (
+              <div className="flex flex-wrap gap-2 mb-3">
+                {selectedFiles.map((file, idx) => (
+                  <div key={idx} className="bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 px-3 py-1.5 rounded-xl text-[10px] font-bold flex items-center gap-2 group animate-in zoom-in-95">
+                    <FileText className="w-3 h-3" />
+                    {file.name}
+                    <button onClick={() => removeFile(idx)} className="hover:text-white">×</button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className={`border rounded-[2.5rem] shadow-2xl overflow-hidden transition-all focus-within:ring-4 focus-within:ring-indigo-500/10 ${theme === 'dark' ? 'bg-[#0c0c0c] border-zinc-800 focus-within:border-indigo-500/50' : 'bg-white border-zinc-200 focus-within:border-indigo-500'}`}>
+              <form onSubmit={handleSubmit}>
                 <textarea 
-                    id="userInput" 
-                    rows="1" 
-                    placeholder="Ask Nix 2.1 anything..." 
-                    class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-4 pr-16 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/20 transition-all resize-none text-sm placeholder:text-gray-600 custom-scrollbar"
-                ></textarea>
-                <button 
-                    type="submit" 
-                    class="absolute right-3 bottom-3 p-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition-colors shadow-lg shadow-blue-900/20"
-                >
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9-7-9-7V9l-8 3 8 3v4z"/></svg>
-                </button>
-            </form>
-            <div class="flex justify-between items-center mt-3 px-1">
-                <span class="text-[10px] text-gray-500 uppercase tracking-widest">Model: LongCat-Flash-Chat-2.1</span>
-                <span id="statusIndicator" class="text-[10px] text-green-500 flex items-center">
-                    <span class="w-1.5 h-1.5 rounded-full bg-green-500 mr-2 animate-pulse"></span> SYSTEM READY
-                </span>
-            </div>
-        </div>
-    </div>
+                  value={input}
+                  onChange={(e) => {
+                    setInput(e.target.value);
+                    setShowCommands(e.target.value === '/');
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      handleSubmit(e);
+                    }
+                  }}
+                  placeholder="Ask Nix 2.1... Type / for Commands"
+                  className={`w-full bg-transparent px-8 py-6 text-sm focus:outline-none resize-none min-h-[70px] max-h-[200px] ${theme === 'dark' ? 'text-white placeholder:text-zinc-600' : 'text-zinc-900 placeholder:text-zinc-400'}`}
+                  rows={1}
+                />
+                
+                <input type="file" ref={fileInputRef} onChange={onFileChange} className="hidden" multiple />
 
-    <script>
-        // --- CONFIGURATION ---
-        const SUPABASE_URL = "https://rnlwrngfgvznndlekmrz.supabase.co";
-        const SUPABASE_KEY = "sb_publishable_mtI0_ZBvU_n5oRuqV58QHg_qJt3Gfyt";
-        const LONG_CAT_API_KEY = "ak_26w2J55rY5wR44L3ij9Rg1dH6SR7C";
-        const LONG_CAT_BASE_URL = "https://api.longcat.chat/openai/v1";
-
-        // Renamed variable to avoid conflict with global 'supabase' from CDN
-        const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-
-        // --- DOM ELEMENTS ---
-        const chatForm = document.getElementById('chatForm');
-        const userInput = document.getElementById('userInput');
-        const chatDisplay = document.getElementById('chatDisplay');
-        const userEmailSpan = document.getElementById('userEmail');
-        const authGuard = document.getElementById('authGuard');
-        const statusIndicator = document.getElementById('statusIndicator');
-
-        // --- AUTH CHECK ---
-        async function checkUser() {
-            authGuard.classList.remove('hidden');
-            const { data: { user }, error } = await supabaseClient.auth.getUser();
-
-            if (error || !user) {
-                console.log("Not authenticated, redirecting...");
-                window.location.href = 'auth.html';
-                return;
-            }
-
-            userEmailSpan.textContent = user.email;
-            authGuard.classList.add('hidden');
-        }
-
-        // --- CHAT LOGIC ---
-        function appendMessage(role, text) {
-            const wrapper = document.createElement('div');
-            wrapper.className = `flex items-start space-x-3 ${role === 'user' ? 'justify-end' : ''}`;
-            
-            const isUser = role === 'user';
-            
-            wrapper.innerHTML = `
-                ${!isUser ? `
-                <div class="bg-blue-600/20 p-2 rounded-lg border border-blue-500/30 shrink-0">
-                    <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-                </div>` : ''}
-                <div class="${isUser ? 'bg-blue-600/40 border-blue-400/30' : 'bg-white/5 border-white/10'} p-4 rounded-2xl ${isUser ? 'rounded-tr-none' : 'rounded-tl-none'} max-w-[80%] border">
-                    <p class="text-sm leading-relaxed ${isUser ? 'text-white' : 'text-gray-300'} whitespace-pre-wrap">${text}</p>
+                <div className={`flex items-center justify-between px-6 py-4 border-t ${theme === 'dark' ? 'bg-black/40 border-white/5' : 'bg-zinc-50/50 border-zinc-100'}`}>
+                  <button 
+                    type="button" 
+                    onClick={() => fileInputRef.current?.click()}
+                    className={`p-2.5 rounded-xl transition-all ${theme === 'dark' ? 'text-zinc-500 hover:text-indigo-400 hover:bg-indigo-500/5' : 'text-zinc-400 hover:text-indigo-600 hover:bg-indigo-50'}`}
+                  >
+                    <Paperclip className="w-5 h-5" />
+                  </button>
+                  
+                  <div className="flex items-center gap-4">
+                    <span className="text-[10px] text-zinc-500 font-mono hidden sm:block">AI Ready</span>
+                    <button 
+                      type="submit"
+                      disabled={!input.trim() && selectedFiles.length === 0}
+                      className="bg-indigo-600 text-white px-8 py-2.5 rounded-full text-xs font-bold hover:bg-indigo-500 transition-all disabled:opacity-30 shadow-[0_4px_15px_rgba(79,70,229,0.3)] flex items-center gap-2 group"
+                    >
+                      Send
+                      <Send className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
+                    </button>
+                  </div>
                 </div>
-                ${isUser ? `
-                <div class="bg-white/10 p-2 rounded-lg border border-white/20 shrink-0">
-                    <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
-                </div>` : ''}
-            `;
-            
-            chatDisplay.appendChild(wrapper);
-            chatDisplay.scrollTop = chatDisplay.scrollHeight;
-        }
+              </form>
+            </div>
+          </div>
+        </div>
+      </main>
 
-        async function getLongCatResponse(prompt) {
-            statusIndicator.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-blue-500 mr-2 animate-bounce"></span> NIX THINKING...`;
-            statusIndicator.classList.remove('text-green-500');
-            statusIndicator.classList.add('text-blue-400');
+      <style dangerouslySetInnerHTML={{ __html: `
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+        .message-fade { animation: fadeIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #27272a; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #3f3f46; }
+        .light ::-webkit-scrollbar-thumb { background: #d4d4d8; }
+        .light ::-webkit-scrollbar-thumb:hover { background: #a1a1aa; }
+      `}} />
+    </div>
+  );
+};
 
-            try {
-                const response = await fetch(`${LONG_CAT_BASE_URL}/chat/completions`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${LONG_CAT_API_KEY}`
-                    },
-                    body: JSON.stringify({
-                        model: "LongCat-Flash-Chat",
-                        messages: [
-                            { role: "system", content: "You are Nix 2.1, a highly advanced AI assistant built into the Codenix platform. Be concise, technical, and helpful." },
-                            { role: "user", content: prompt }
-                        ]
-                    })
-                });
-
-                const data = await response.json();
-                return data.choices[0].message.content;
-            } catch (err) {
-                console.error("API Error:", err);
-                return "Error: System link interrupted. Please check API quota or connection.";
-            } finally {
-                statusIndicator.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-green-500 mr-2 animate-pulse"></span> SYSTEM READY`;
-                statusIndicator.classList.remove('text-blue-400');
-                statusIndicator.classList.add('text-green-500');
-            }
-        }
-
-        // --- EVENTS ---
-        userInput.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                chatForm.dispatchEvent(new Event('submit'));
-            }
-        });
-
-        chatForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const text = userInput.value.trim();
-            if (!text) return;
-
-            userInput.value = '';
-            userInput.style.height = 'auto';
-            
-            appendMessage('user', text);
-            
-            const aiResponse = await getLongCatResponse(text);
-            appendMessage('nix', aiResponse);
-        });
-
-        // Auto-expand textarea
-        userInput.addEventListener('input', function() {
-            this.style.height = 'auto';
-            this.style.height = (this.scrollHeight) + 'px';
-        });
-
-        // Initialize
-        checkUser();
-    </script>
-</body>
-</html>
+export default App;
