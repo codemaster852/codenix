@@ -45,10 +45,10 @@
 
             <div class="p-4 border-t border-zinc-800 bg-zinc-950/50">
                 <div class="flex items-center gap-3 p-2 rounded-xl transition-colors cursor-pointer hover:bg-zinc-900">
-                    <div class="w-8 h-8 rounded-full bg-indigo-500 flex items-center justify-center text-white text-xs font-bold">U</div>
+                    <div id="user-avatar" class="w-8 h-8 rounded-full bg-indigo-500 flex items-center justify-center text-white text-[10px] font-bold">?</div>
                     <div class="flex-1 overflow-hidden">
-                        <div class="text-xs font-bold truncate text-white">Nix Developer</div>
-                        <div class="text-[10px] text-zinc-500">API Key Active</div>
+                        <div id="user-display-name" class="text-xs font-bold truncate text-white">Checking Auth...</div>
+                        <div id="user-status" class="text-[10px] text-zinc-500">Connecting...</div>
                     </div>
                     <button onclick="toggleTheme()" class="p-1.5 hover:bg-zinc-800 rounded-md transition-colors theme-btn-sidebar">
                         <i data-lucide="sun" class="w-4 h-4 text-zinc-400"></i>
@@ -70,7 +70,7 @@
                     <button onclick="toggleTheme()" class="p-2 text-zinc-500 hover:text-indigo-500 transition-colors md:hidden">
                         <i data-lucide="sun" class="w-5 h-5 theme-icon-mobile"></i>
                     </button>
-                    <button class="text-[10px] uppercase font-bold tracking-wider border border-zinc-800 text-zinc-500 px-3 py-1.5 rounded-md hover:text-white transition-colors">Logout</button>
+                    <button id="logout-btn" class="text-[10px] uppercase font-bold tracking-wider border border-zinc-800 text-zinc-500 px-3 py-1.5 rounded-md hover:text-white transition-colors">Logout</button>
                 </div>
             </header>
 
@@ -132,6 +132,66 @@
         </main>
     </div>
 
+    <!-- Firebase SDKs -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, onAuthStateChanged, signInAnonymously, signInWithCustomToken, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+
+        // Firebase Configuration
+        const firebaseConfig = JSON.parse(__firebase_config);
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+
+        // Global state for chat logic
+        window.currentUser = null;
+
+        // Initialize Authentication (Rule 3)
+        async function initAuth() {
+            try {
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+            } catch (error) {
+                console.error("Auth initialization failed:", error);
+                document.getElementById('user-status').innerText = "Auth Error";
+            }
+        }
+
+        // Auth State Listener
+        onAuthStateChanged(auth, (user) => {
+            window.currentUser = user;
+            const displayName = document.getElementById('user-display-name');
+            const userStatus = document.getElementById('user-status');
+            const userAvatar = document.getElementById('user-avatar');
+
+            if (user) {
+                const email = user.email || "Guest User";
+                displayName.innerText = email;
+                userStatus.innerText = user.isAnonymous ? "Limited Session" : "API Key Active";
+                userAvatar.innerText = (user.email ? user.email[0] : "G").toUpperCase();
+                
+                // If it's a long email, show first part
+                if (email.length > 20) {
+                    displayName.title = email;
+                    displayName.innerText = email.substring(0, 17) + '...';
+                }
+            } else {
+                displayName.innerText = "Signed Out";
+                userStatus.innerText = "No Connection";
+                userAvatar.innerText = "!";
+            }
+            lucide.createIcons();
+        });
+
+        document.getElementById('logout-btn').addEventListener('click', () => signOut(auth));
+
+        // Start Auth process
+        initAuth();
+    </script>
+
     <script>
         const API_KEY = "ak_26w2J55rY5wR44L3ij9Rg1dH6SR7C";
         const WEBHOOK_URL = 'https://cloud.activepieces.com/api/v1/webhooks/WR43cDYER0O9TiHq8exAH/sync';
@@ -151,17 +211,16 @@
             const sidebar = document.getElementById('sidebar');
             const header = document.getElementById('header');
             const inputContainer = document.getElementById('input-container');
-            const userInput = document.getElementById('user-input');
+            const userInputArea = document.getElementById('user-input');
 
             if (theme === 'light') {
                 mainContent.classList.replace('dot-grid-dark', 'dot-grid-light');
                 sidebar.className = "w-72 border-r hidden md:flex flex-col bg-white border-zinc-200 transition-colors duration-300";
                 header.className = "h-14 border-b border-zinc-200 flex items-center justify-between px-6 backdrop-blur-xl z-30 bg-white/80 transition-colors duration-300";
                 inputContainer.className = "border border-zinc-200 bg-white rounded-[2.5rem] shadow-2xl overflow-hidden transition-all focus-within:ring-4 focus-within:ring-indigo-500/10 focus-within:border-indigo-500";
-                userInput.className = "w-full bg-transparent px-8 py-6 text-sm focus:outline-none resize-none min-h-[70px] max-h-[200px] text-zinc-900 placeholder:text-zinc-400";
+                userInputArea.className = "w-full bg-transparent px-8 py-6 text-sm focus:outline-none resize-none min-h-[70px] max-h-[200px] text-zinc-900 placeholder:text-zinc-400";
                 
-                // Update specific internal components
-                document.querySelectorAll('.welcome-title, #model-tag').forEach(el => {
+                document.querySelectorAll('.welcome-title, #model-tag, #user-display-name').forEach(el => {
                     el.classList.replace('text-white', 'text-zinc-900');
                 });
             } else {
@@ -169,14 +228,12 @@
                 sidebar.className = "w-72 border-r hidden md:flex flex-col bg-black border-zinc-800 transition-colors duration-300";
                 header.className = "h-14 border-b border-zinc-800 flex items-center justify-between px-6 backdrop-blur-xl z-30 bg-black/80 transition-colors duration-300";
                 inputContainer.className = "border border-zinc-800 bg-[#0c0c0c] rounded-[2.5rem] shadow-2xl overflow-hidden transition-all focus-within:ring-4 focus-within:ring-indigo-500/10 focus-within:border-indigo-500/50";
-                userInput.className = "w-full bg-transparent px-8 py-6 text-sm focus:outline-none resize-none min-h-[70px] max-h-[200px] text-white placeholder:text-zinc-600";
+                userInputArea.className = "w-full bg-transparent px-8 py-6 text-sm focus:outline-none resize-none min-h-[70px] max-h-[200px] text-white placeholder:text-zinc-600";
                 
-                document.querySelectorAll('.welcome-title, #model-tag').forEach(el => {
+                document.querySelectorAll('.welcome-title, #model-tag, #user-display-name').forEach(el => {
                     el.classList.replace('text-zinc-900', 'text-white');
                 });
             }
-            
-            // Re-render icons for theme change
             lucide.createIcons();
         }
 
@@ -219,7 +276,7 @@
             const text = userInput.value.trim();
             if (!text && selectedFiles.length === 0) return;
 
-            if (welcomeScreen) welcomeScreen.remove();
+            if (document.getElementById('welcome-screen')) document.getElementById('welcome-screen').remove();
 
             appendMessage('user', text, selectedFiles);
             
@@ -232,7 +289,7 @@
         });
 
         async function handleApiCall(question, files) {
-            const botMsgId = appendMessage('bot', '', [], true); // Skeleton/Thinking
+            const botMsgId = appendMessage('bot', '', [], true);
             
             try {
                 const preparedFiles = await Promise.all(files.map(async (file) => {
@@ -253,7 +310,10 @@
                     body: JSON.stringify({ 
                         question: question,
                         files: preparedFiles,
-                        user: { id: 'nix-user-01' }
+                        user: { 
+                            id: window.currentUser ? window.currentUser.uid : 'anonymous',
+                            email: window.currentUser ? window.currentUser.email : 'anonymous@codenix.ai'
+                        }
                     })
                 });
 
@@ -306,7 +366,6 @@
             
             body.innerHTML = content;
 
-            // Handle Media if exists in fullData
             if (fullData) {
                 const urls = extractUrls(fullData);
                 urls.forEach(url => {
@@ -371,7 +430,6 @@
             lucide.createIcons();
         }
 
-        // Auto-resize textarea
         userInput.addEventListener('input', function() {
             this.style.height = 'auto';
             this.style.height = (this.scrollHeight) + 'px';
