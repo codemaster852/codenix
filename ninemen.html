@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nine Men's Morris - Codenix</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+        body { background-color: #050505; color: #fff; font-family: 'Inter', sans-serif; overflow: hidden; }
+        .glass-card { background: rgba(26, 26, 26, 0.6); backdrop-filter: blur(12px); border: 1px solid #333; }
+        
+        #board-container {
+            position: relative;
+            width: 100%;
+            max-width: 500px;
+            aspect-ratio: 1/1;
+            margin: 0 auto;
+        }
+
+        .node {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: #111;
+            border: 2px solid #333;
+            position: absolute;
+            transform: translate(-50%, -50%);
+            cursor: pointer;
+            transition: all 0.2s;
+            z-index: 10;
+        }
+
+        .node:hover { border-color: #10b981; box-shadow: 0 0 15px rgba(16, 185, 129, 0.4); }
+        .node.selected { border-color: #f59e0b; box-shadow: 0 0 15px rgba(245, 158, 11, 0.5); transform: translate(-50%, -50%) scale(1.2); }
+        .node.mill-active { border-color: #ef4444; animation: pulse-red 1s infinite; }
+
+        .piece {
+            width: 80%;
+            height: 80%;
+            border-radius: 50%;
+            margin: 10%;
+            transition: transform 0.3s;
+        }
+        .piece-white { background: radial-gradient(circle at 30% 30%, #fff, #a1a1aa); box-shadow: 0 4px 10px rgba(255,255,255,0.2); }
+        .piece-black { background: radial-gradient(circle at 30% 30%, #3f3f46, #000); box-shadow: 0 4px 10px rgba(0,0,0,0.5); }
+
+        @keyframes pulse-red {
+            0%, 100% { box-shadow: 0 0 5px #ef4444; }
+            50% { box-shadow: 0 0 20px #ef4444; }
+        }
+
+        #auth-guard {
+            position: fixed;
+            inset: 0;
+            background: #000;
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+    </style>
+</head>
+<body class="min-h-screen p-4 md:p-8 opacity-0 transition-opacity duration-500" id="main-content">
+
+    <div id="auth-guard">
+        <div class="text-center">
+            <div class="w-12 h-12 border-4 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin mx-auto mb-4"></div>
+            <p class="text-xs font-mono text-zinc-500">Establishing Secure Link...</p>
+        </div>
+    </div>
+
+    <div class="max-w-7xl mx-auto flex justify-between items-center mb-8">
+        <div class="flex items-center gap-4">
+            <button onclick="window.location.href='portal.html'" class="p-2 hover:bg-zinc-900 rounded-lg transition-colors text-zinc-400">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M15 19l-7-7 7-7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+            </button>
+            <h1 class="text-xl font-bold">NMM <span class="text-emerald-500 text-[10px] font-mono ml-2">NineMen.v1</span></h1>
+        </div>
+        <div id="user-badge" class="px-4 py-1.5 rounded-full border border-zinc-800 text-xs font-medium flex items-center gap-2 bg-zinc-900/50">
+            <div class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+            <span id="user-display">Connecting...</span>
+        </div>
+    </div>
+
+    <div class="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8">
+        <!-- Sidebar Info -->
+        <div class="lg:col-span-3 space-y-4">
+            <div class="glass-card rounded-2xl p-5">
+                <h3 class="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-4">Current Phase</h3>
+                <div id="phase-display" class="text-sm font-semibold text-emerald-400 uppercase">Placement Phase</div>
+                <div class="mt-4 space-y-2">
+                    <div class="flex justify-between text-[10px] font-mono">
+                        <span class="text-zinc-500">Human (White)</span>
+                        <span id="white-remaining">9 Left</span>
+                    </div>
+                    <div class="flex justify-between text-[10px] font-mono">
+                        <span class="text-zinc-500">AI (Black)</span>
+                        <span id="black-remaining">9 Left</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="glass-card rounded-2xl p-5 h-64 flex flex-col">
+                <h3 class="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2">Telemetry</h3>
+                <div id="game-log" class="text-[10px] font-mono text-zinc-500 space-y-2 overflow-y-auto flex-1 pr-2">
+                    <div class="text-emerald-500/70">> Welcome to Nine Men's Morris.</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Board -->
+        <div class="lg:col-span-6">
+            <div id="board-container">
+                <svg viewBox="0 0 500 500" class="absolute inset-0 w-full h-full stroke-zinc-800" stroke-width="4" fill="none">
+                    <!-- Outer Square -->
+                    <rect x="50" y="50" width="400" height="400" />
+                    <!-- Middle Square -->
+                    <rect x="125" y="125" width="250" height="250" />
+                    <!-- Inner Square -->
+                    <rect x="200" y="200" width="100" height="100" />
+                    <!-- Connecting Lines -->
+                    <line x1="250" y1="50" x2="250" y2="200" />
+                    <line x1="250" y1="300" x2="250" y2="450" />
+                    <line x1="50" y1="250" x2="200" y2="250" />
+                    <line x1="300" y1="250" x2="450" y2="250" />
+                </svg>
+                <div id="nodes"></div>
+            </div>
+            
+            <div class="mt-8 flex justify-center gap-4">
+                 <div id="game-status" class="px-6 py-3 bg-zinc-900 border border-zinc-800 rounded-xl text-xs font-bold uppercase tracking-widest text-emerald-500">
+                    Human Turn
+                </div>
+                <button onclick="location.reload()" class="p-3 bg-zinc-900 border border-zinc-800 rounded-xl hover:bg-zinc-800 transition-colors">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" stroke-width="2"></path></svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- Rules / Legend -->
+        <div class="lg:col-span-3">
+             <div class="glass-card rounded-2xl p-5 space-y-4">
+                <h3 class="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Protocol</h3>
+                <ul class="text-[11px] text-zinc-400 space-y-3 leading-relaxed">
+                    <li class="flex gap-2"><span class="text-emerald-500">01</span> Form a row of 3 (Mill) to remove an opponent's piece.</li>
+                    <li class="flex gap-2"><span class="text-emerald-500">02</span> Moving phase starts when all 18 pieces are placed.</li>
+                    <li class="flex gap-2"><span class="text-emerald-500">03</span> When down to 3 pieces, you can "fly" anywhere.</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const SUPABASE_URL = "https://rnlwrngfgvznndlekmrz.supabase.co";
+        const SUPABASE_KEY = "sb_publishable_mtI0_ZBvU_n5oRuqV58QHg_qJt3Gfyt";
+        const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        async function checkAuth() {
+            const { data: { user }, error } = await supabaseClient.auth.getUser();
+            if (error || !user) {
+                window.location.href = 'auth.html';
+                return;
+            }
+            $('#user-display').text(user.email.split('@')[0]);
+            $('#auth-guard').fadeOut();
+            $('#main-content').removeClass('opacity-0');
+        }
+
+        (function() {
+            // Node coordinates (x, y) relative to 500x500
+            const nodeCoords = [
+                {x:50,y:50},   {x:250,y:50},  {x:450,y:50},  // 0,1,2 (Outer Top)
+                {x:50,y:250},                 {x:450,y:250}, // 3, 4 (Outer Mid - node 4 is index 4, center is empty)
+                {x:50,y:450},  {x:250,y:450}, {x:450,y:450}, // 5,6,7 (Outer Bot)
+                {x:125,y:125}, {x:250,y:125}, {x:375,y:125}, // 8,9,10 (Mid Top)
+                {x:125,y:250},                {x:375,y:250}, // 11, 12 (Mid Mid)
+                {x:125,y:375}, {x:250,y:375}, {x:375,y:375}, // 13,14,15 (Mid Bot)
+                {x:200,y:200}, {x:250,y:200}, {x:300,y:200}, // 16,17,18 (Inner Top)
+                {x:200,y:250},                {x:300,y:250}, // 19, 20 (Inner Mid)
+                {x:200,y:300}, {x:250,y:300}, {x:300,y:300}  // 21,22,23 (Inner Bot)
+            ];
+
+            const adj = [
+                [1,3], [0,2,9], [1,4], [0,5,11], [2,7,12], [3,6], [5,7,14], [4,6],
+                [9,11], [1,8,10,17], [9,12], [3,8,13,19], [4,10,15,20], [11,14], [6,13,15,22], [12,14],
+                [17,19], [9,16,18], [17,20], [11,16,21], [12,18,23], [19,22], [14,21,23], [20,22]
+            ];
+
+            const mills = [
+                [0,1,2], [3,4,x=null], [5,6,7], // Outer rows (index 3 and 4 connect via logic)
+                [8,9,10], [11,12,x=null], [13,14,15],
+                [16,17,18], [19,20,x=null], [21,22,23],
+                [0,3,5], [1,9,17], [2,4,7],
+                [8,11,13], [10,12,15],
+                [16,19,21], [18,20,23],
+                [250,0,0] // Logic below handles complex mills
+            ];
+
+            const MILL_DEFINITIONS = [
+                [0,1,2], [5,6,7], [8,9,10], [13,14,15], [16,17,18], [21,22,23], // Horizontals
+                [0,3,5], [2,4,7], [8,11,13], [10,12,15], [16,19,21], [18,20,23], // Verticals
+                [1,9,17], [3,11,19], [4,12,20], [6,14,22] // Connectors
+            ];
+
+            let state = {
+                board: Array(24).fill(null),
+                turn: 'white',
+                phase: 'placement', // placement, movement, flying
+                whiteToPlace: 9,
+                blackToPlace: 9,
+                selectedNode: null,
+                mustRemove: false,
+                gameOver: false
+            };
+
+            function initNodes() {
+                const container = $('#nodes');
+                container.empty();
+                nodeCoords.forEach((coord, i) => {
+                    const node = $(`<div class="node" style="left:${coord.x}px; top:${coord.y}px;" data-index="${i}"></div>`);
+                    node.click(() => onNodeClick(i));
+                    container.append(node);
+                });
+            }
+
+            function onNodeClick(idx) {
+                if (state.gameOver) return;
+
+                if (state.mustRemove) {
+                    handleRemove(idx);
+                    return;
+                }
+
+                if (state.phase === 'placement') {
+                    handlePlacement(idx);
+                } else {
+                    handleMovement(idx);
+                }
+            }
+
+            function handlePlacement(idx) {
+                if (state.board[idx] || state.turn !== 'white') return;
+                
+                placePiece(idx, 'white');
+                state.whiteToPlace--;
+                $('#white-remaining').text(`${state.whiteToPlace} Left`);
+                
+                if (checkMill(idx, 'white')) {
+                    triggerMillProtocol();
+                } else {
+                    nextTurn();
+                }
+            }
+
+            function handleMovement(idx) {
+                const owner = state.board[idx];
+                
+                // Select own piece
+                if (owner === 'white' && !state.selectedNode) {
+                    state.selectedNode = idx;
+                    $(`.node[data-index="${idx}"]`).addClass('selected');
+                    return;
+                }
+
+                // Deselect if clicking same piece
+                if (state.selectedNode === idx) {
+                    state.selectedNode = null;
+                    $('.node').removeClass('selected');
+                    return;
+                }
+
+                // Move to empty spot
+                if (state.selectedNode !== null && !state.board[idx]) {
+                    const count = state.board.filter(p => p === 'white').length;
+                    const isAdjacent = adj[state.selectedNode].includes(idx);
+                    
+                    if (isAdjacent || count === 3) {
+                        movePiece(state.selectedNode, idx, 'white');
+                        state.selectedNode = null;
+                        $('.node').removeClass('selected');
+                        
+                        if (checkMill(idx, 'white')) {
+                            triggerMillProtocol();
+                        } else {
+                            nextTurn();
+                        }
+                    }
+                }
+            }
+
+            function handleRemove(idx) {
+                const target = state.board[idx];
+                const opponent = state.turn === 'white' ? 'black' : 'white';
+                
+                if (target === opponent) {
+                    // Check if piece is in a mill (cannot remove unless all are in mills)
+                    if (checkMill(idx, opponent)) {
+                        const allInMills = state.board
+                            .map((p, i) => p === opponent ? i : null)
+                            .filter(i => i !== null)
+                            .every(i => checkMill(i, opponent));
+                        
+                        if (!allInMills) {
+                            log(`Invalid: Cannot remove piece in a mill.`);
+                            return;
+                        }
+                    }
+
+                    removePiece(idx);
+                    state.mustRemove = false;
+                    $('.node').removeClass('mill-active');
+                    
+                    // Check Win Condition
+                    if (checkWin()) return;
+                    nextTurn();
+                }
+            }
+
+            function placePiece(idx, p) {
+                state.board[idx] = p;
+                $(`.node[data-index="${idx}"]`).html(`<div class="piece piece-${p}"></div>`);
+                log(`${p === 'white' ? 'User' : 'AI'} placed at node ${idx}`);
+            }
+
+            function movePiece(from, to, p) {
+                state.board[from] = null;
+                state.board[to] = p;
+                $(`.node[data-index="${from}"]`).empty();
+                $(`.node[data-index="${to}"]`).html(`<div class="piece piece-${p}"></div>`);
+                log(`${p === 'white' ? 'User' : 'AI'} moved ${from} -> ${to}`);
+            }
+
+            function removePiece(idx) {
+                state.board[idx] = null;
+                $(`.node[data-index="${idx}"]`).empty();
+                log(`Piece removed at node ${idx}`);
+            }
+
+            function checkMill(idx, p) {
+                return MILL_DEFINITIONS
+                    .filter(mill => mill.includes(idx))
+                    .some(mill => mill.every(n => state.board[n] === p));
+            }
+
+            function triggerMillProtocol() {
+                state.mustRemove = true;
+                $('#game-status').text('SELECT OPPONENT PIECE').removeClass('text-emerald-500').addClass('text-red-500');
+                $('.node').addClass('mill-active');
+                log(`Mill established!`);
+            }
+
+            function nextTurn() {
+                state.turn = (state.turn === 'white') ? 'black' : 'white';
+                
+                // Update Phase
+                if (state.whiteToPlace === 0 && state.blackToPlace === 0) {
+                    state.phase = 'movement';
+                    $('#phase-display').text('Movement Phase');
+                }
+
+                if (state.turn === 'white') {
+                    $('#game-status').text('Human Turn').removeClass('text-red-500').addClass('text-emerald-500');
+                } else {
+                    $('#game-status').text('AI Processing...').removeClass('text-emerald-500').addClass('text-yellow-500');
+                    setTimeout(aiTurn, 600);
+                }
+            }
+
+            function aiTurn() {
+                if (state.gameOver) return;
+
+                if (state.blackToPlace > 0) {
+                    // AI Placement - Simple logic: random empty spot, prioritize mills
+                    let bestIdx = -1;
+                    const empties = state.board.map((v, i) => v === null ? i : null).filter(v => v !== null);
+                    
+                    // Try to complete AI mill
+                    bestIdx = empties.find(i => {
+                        state.board[i] = 'black';
+                        let m = checkMill(i, 'black');
+                        state.board[i] = null;
+                        return m;
+                    });
+
+                    // Block Human mill
+                    if (bestIdx === undefined) {
+                        bestIdx = empties.find(i => {
+                            state.board[i] = 'white';
+                            let m = checkMill(i, 'white');
+                            state.board[i] = null;
+                            return m;
+                        });
+                    }
+
+                    const finalIdx = bestIdx !== undefined ? bestIdx : empties[Math.floor(Math.random() * empties.length)];
+                    placePiece(finalIdx, 'black');
+                    state.blackToPlace--;
+                    $('#black-remaining').text(`${state.blackToPlace} Left`);
+                    
+                    if (checkMill(finalIdx, 'black')) {
+                        aiRemove();
+                    } else {
+                        nextTurn();
+                    }
+                } else {
+                    // AI Movement
+                    const aiPieces = state.board.map((v, i) => v === 'black' ? i : null).filter(v => v !== null);
+                    let moveDone = false;
+                    
+                    for (let from of aiPieces) {
+                        const moves = adj[from].filter(to => !state.board[to]);
+                        if (moves.length > 0) {
+                            const to = moves[Math.floor(Math.random() * moves.length)];
+                            movePiece(from, to, 'black');
+                            if (checkMill(to, 'black')) {
+                                aiRemove();
+                            } else {
+                                nextTurn();
+                            }
+                            moveDone = true;
+                            break;
+                        }
+                    }
+                    if (!moveDone) endGame('Human Wins (No Moves)');
+                }
+            }
+
+            function aiRemove() {
+                const humanPieces = state.board.map((v, i) => v === 'white' ? i : null).filter(v => v !== null);
+                // Simple: remove first non-mill piece
+                const target = humanPieces.find(i => !checkMill(i, 'white')) || humanPieces[0];
+                removePiece(target);
+                if (!checkWin()) nextTurn();
+            }
+
+            function checkWin() {
+                const w = state.board.filter(p => p === 'white').length;
+                const b = state.board.filter(p => p === 'black').length;
+
+                if (state.whiteToPlace === 0 && w < 3) {
+                    endGame('AI Victory');
+                    return true;
+                }
+                if (state.blackToPlace === 0 && b < 3) {
+                    endGame('Human Dominance');
+                    return true;
+                }
+                return false;
+            }
+
+            function endGame(msg) {
+                state.gameOver = true;
+                $('#game-status').text(msg.toUpperCase()).removeClass('text-emerald-500 text-yellow-500').addClass('text-white');
+                log(`Session Terminated: ${msg}`);
+            }
+
+            function log(msg) {
+                $('#game-log').prepend(`<div class="border-l-2 border-emerald-500/20 pl-2 py-1 text-zinc-400">> ${msg}</div>`);
+            }
+
+            // Init
+            checkAuth();
+            initNodes();
+        })();
+    </script>
+</body>
+</html>
