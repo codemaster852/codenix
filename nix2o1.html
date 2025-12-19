@@ -6,6 +6,7 @@
     <title>Nix 2.1 Studio</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
         
@@ -77,7 +78,6 @@
             <!-- Chat Area -->
             <div id="chat-container" class="flex-1 overflow-y-auto custom-scrollbar p-6">
                 <div class="max-w-3xl mx-auto py-12" id="messages-list">
-                    <!-- Initial State -->
                     <div id="welcome-screen" class="py-20 text-center animate-fade-in">
                         <div class="w-16 h-16 border border-zinc-800 bg-zinc-900 rounded-3xl flex items-center justify-center mx-auto mb-8 shadow-2xl">
                             <i data-lucide="terminal" class="w-8 h-8 text-indigo-500"></i>
@@ -93,33 +93,23 @@
             <!-- Input Area -->
             <div class="p-6 relative z-40">
                 <div class="max-w-3xl mx-auto relative">
-                    
-                    <!-- File Preview Area -->
                     <div id="file-previews" class="flex flex-wrap gap-2 mb-3"></div>
-
                     <div class="border border-zinc-800 bg-[#0c0c0c] rounded-[2.5rem] shadow-2xl overflow-hidden transition-all focus-within:ring-4 focus-within:ring-indigo-500/10 focus-within:border-indigo-500/50" id="input-container">
                         <form id="chat-form">
                             <textarea 
                                 id="user-input"
-                                placeholder="Ask Nix 2.1... Type / for Commands"
+                                placeholder="Ask Nix 2.1... (Enter to send)"
                                 class="w-full bg-transparent px-8 py-6 text-sm focus:outline-none resize-none min-h-[70px] max-h-[200px] text-white placeholder:text-zinc-600"
                                 rows="1"
                             ></textarea>
-                            
                             <input type="file" id="file-input" class="hidden" multiple>
-
                             <div class="flex items-center justify-between px-6 py-4 border-t border-white/5 bg-black/40">
                                 <button type="button" onclick="document.getElementById('file-input').click()" class="p-2.5 rounded-xl text-zinc-500 hover:text-indigo-400 hover:bg-indigo-500/5 transition-all">
                                     <i data-lucide="paperclip" class="w-5 h-5"></i>
                                 </button>
-                                
                                 <div class="flex items-center gap-4">
                                     <span class="text-[10px] text-zinc-500 font-mono hidden sm:block">AI Ready</span>
-                                    <button 
-                                        type="submit"
-                                        id="send-btn"
-                                        class="bg-indigo-600 text-white px-8 py-2.5 rounded-full text-xs font-bold hover:bg-indigo-500 transition-all shadow-[0_4px_15px_rgba(79,70,229,0.3)] flex items-center gap-2 group"
-                                    >
+                                    <button type="submit" id="send-btn" class="bg-indigo-600 text-white px-8 py-2.5 rounded-full text-xs font-bold hover:bg-indigo-500 transition-all shadow-[0_4px_15px_rgba(79,70,229,0.3)] flex items-center gap-2 group">
                                         Send
                                         <i data-lucide="send" class="w-3 h-3 group-hover:translate-x-0.5 transition-transform"></i>
                                     </button>
@@ -132,77 +122,92 @@
         </main>
     </div>
 
-    <!-- Firebase SDKs -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, onAuthStateChanged, signInAnonymously, signInWithCustomToken, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-
-        // Firebase Configuration
-        const firebaseConfig = JSON.parse(__firebase_config);
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-
-        // Global state for chat logic
-        window.currentUser = null;
-
-        // Initialize Authentication (Rule 3)
-        async function initAuth() {
-            try {
-                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                    await signInWithCustomToken(auth, __initial_auth_token);
-                } else {
-                    await signInAnonymously(auth);
-                }
-            } catch (error) {
-                console.error("Auth initialization failed:", error);
-                document.getElementById('user-status').innerText = "Auth Error";
-            }
-        }
-
-        // Auth State Listener
-        onAuthStateChanged(auth, (user) => {
-            window.currentUser = user;
-            const displayName = document.getElementById('user-display-name');
-            const userStatus = document.getElementById('user-status');
-            const userAvatar = document.getElementById('user-avatar');
-
-            if (user) {
-                const email = user.email || "Guest User";
-                displayName.innerText = email;
-                userStatus.innerText = user.isAnonymous ? "Limited Session" : "API Key Active";
-                userAvatar.innerText = (user.email ? user.email[0] : "G").toUpperCase();
-                
-                // If it's a long email, show first part
-                if (email.length > 20) {
-                    displayName.title = email;
-                    displayName.innerText = email.substring(0, 17) + '...';
-                }
-            } else {
-                displayName.innerText = "Signed Out";
-                userStatus.innerText = "No Connection";
-                userAvatar.innerText = "!";
-            }
-            lucide.createIcons();
-        });
-
-        document.getElementById('logout-btn').addEventListener('click', () => signOut(auth));
-
-        // Start Auth process
-        initAuth();
-    </script>
-
     <script>
+        // Use var or direct window assignment to avoid "already declared" errors in hot-reloading environments
+        var SUPABASE_URL = "https://rnlwrngfgvznndlekmrz.supabase.co";
+        var SUPABASE_KEY = "sb_publishable_mtI0_ZBvU_n5oRuqV58QHg_qJt3Gfyt";
+        
+        // Fix: Check for existing instance before creating a new one
+        if (!window.supabaseInstance) {
+            window.supabaseInstance = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        }
+        var supabaseClient = window.supabaseInstance;
+
         const API_KEY = "ak_26w2J55rY5wR44L3ij9Rg1dH6SR7C";
         const WEBHOOK_URL = 'https://cloud.activepieces.com/api/v1/webhooks/WR43cDYER0O9TiHq8exAH/sync';
         
         let theme = 'dark';
         let selectedFiles = [];
+        let currentUser = null;
 
-        // Initialize Lucide Icons
+        // --- AUTHENTICATION LOGIC ---
+        async function checkUser() {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            
+            if (!session) {
+                console.log("No session found. Redirecting to auth.html");
+                window.location.href = "auth.html";
+                return;
+            }
+
+            currentUser = session.user;
+            updateUIWithUser(currentUser);
+        }
+
+        function updateUIWithUser(user) {
+            const displayName = document.getElementById('user-display-name');
+            const userStatus = document.getElementById('user-status');
+            const userAvatar = document.getElementById('user-avatar');
+
+            if (user) {
+                const email = user.email;
+                displayName.innerText = email;
+                userStatus.innerText = "Verified Session";
+                userAvatar.innerText = email[0].toUpperCase();
+                
+                if (email.length > 20) {
+                    displayName.title = email;
+                    displayName.innerText = email.substring(0, 17) + '...';
+                }
+            }
+        }
+
+        async function handleLogout() {
+            await supabaseClient.auth.signOut();
+            window.location.href = "auth.html";
+        }
+
+        // Run auth check on load
+        checkUser();
+
+        // Listen for auth changes
+        supabaseClient.auth.onAuthStateChange((event, session) => {
+            if (event === 'SIGNED_OUT') {
+                window.location.href = "auth.html";
+            } else if (session) {
+                currentUser = session.user;
+                updateUIWithUser(currentUser);
+            } else {
+                window.location.href = "auth.html";
+            }
+        });
+
+        // --- UI LOGIC ---
         lucide.createIcons();
 
-        // Theme Toggling
+        const userInput = document.getElementById('user-input');
+        const chatForm = document.getElementById('chat-form');
+
+        // Enter to send, Shift+Enter for new line
+        userInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                chatForm.dispatchEvent(new Event('submit'));
+            }
+        });
+
+        document.getElementById('logout-btn').addEventListener('click', handleLogout);
+
         function toggleTheme() {
             theme = theme === 'dark' ? 'light' : 'dark';
             document.body.className = theme + " overflow-hidden h-screen";
@@ -237,7 +242,6 @@
             lucide.createIcons();
         }
 
-        // File Management
         document.getElementById('file-input').addEventListener('change', (e) => {
             const files = Array.from(e.target.files);
             selectedFiles = [...selectedFiles, ...files];
@@ -265,12 +269,6 @@
             renderFilePreviews();
         }
 
-        // Chat Logic
-        const chatForm = document.getElementById('chat-form');
-        const userInput = document.getElementById('user-input');
-        const messagesList = document.getElementById('messages-list');
-        const welcomeScreen = document.getElementById('welcome-screen');
-
         chatForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             const text = userInput.value.trim();
@@ -281,6 +279,7 @@
             appendMessage('user', text, selectedFiles);
             
             userInput.value = '';
+            userInput.style.height = 'auto';
             const filesToSend = [...selectedFiles];
             selectedFiles = [];
             renderFilePreviews();
@@ -311,8 +310,8 @@
                         question: question,
                         files: preparedFiles,
                         user: { 
-                            id: window.currentUser ? window.currentUser.uid : 'anonymous',
-                            email: window.currentUser ? window.currentUser.email : 'anonymous@codenix.ai'
+                            id: currentUser?.id || 'anonymous',
+                            email: currentUser?.email || 'anonymous@codenix.ai'
                         }
                     })
                 });
@@ -324,7 +323,7 @@
                 updateBotMessage(botMsgId, rawContent, data);
 
             } catch (err) {
-                updateBotMessage(botMsgId, "Nix Error: Failed to secure connection with Long Cat. Check API Key.", null, true);
+                updateBotMessage(botMsgId, "Nix Error: Failed to secure connection. " + err.message, null, true);
             }
         }
 
@@ -351,7 +350,7 @@
                 </div>
             `;
             
-            messagesList.appendChild(div);
+            document.getElementById('messages-list').appendChild(div);
             scrollChat();
             return id;
         }
@@ -393,7 +392,6 @@
                     body.appendChild(mediaDiv);
                 });
             }
-
             lucide.createIcons();
             scrollChat();
         }
@@ -419,7 +417,7 @@
         }
 
         function clearChat() {
-            messagesList.innerHTML = `
+            document.getElementById('messages-list').innerHTML = `
                 <div id="welcome-screen" class="py-20 text-center animate-fade-in">
                     <div class="w-16 h-16 border border-zinc-800 bg-zinc-900 rounded-3xl flex items-center justify-center mx-auto mb-8 shadow-2xl">
                         <i data-lucide="terminal" class="w-8 h-8 text-indigo-500"></i>
