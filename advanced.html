@@ -1,0 +1,451 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { 
+  Calculator, 
+  Languages, 
+  Mic, 
+  Image as ImageIcon, 
+  ArrowLeft, 
+  Sparkles, 
+  Send, 
+  Copy, 
+  Trash2, 
+  Download,
+  Plus,
+  Equal,
+  Volume2,
+  RefreshCw,
+  History
+} from 'lucide-react';
+
+const App = () => {
+  const [currentTool, setCurrentTool] = useState('menu');
+  const [apiKey] = useState("");
+
+  // --- Math Calculator State ---
+  const [calcInput, setCalcInput] = useState('');
+  const [calcResult, setCalcResult] = useState('');
+  const [calcHistory, setCalcHistory] = useState([]);
+
+  // --- Translator State ---
+  const [sourceText, setSourceText] = useState('');
+  const [translatedText, setTranslatedText] = useState('');
+  const [targetLang, setTargetLang] = useState('Spanish');
+  const [isTranslating, setIsTranslating] = useState(false);
+
+  // --- Voice Gen State ---
+  const [voiceText, setVoiceText] = useState('');
+  const [isSynthesizing, setIsSynthesizing] = useState(false);
+  const [audioUrl, setAudioUrl] = useState(null);
+  const [selectedVoice, setSelectedVoice] = useState('Kore');
+
+  // --- Image Gen State ---
+  const [imagePrompt, setImagePrompt] = useState('');
+  const [generatedImage, setGeneratedImage] = useState(null);
+  const [isGeneratingImg, setIsGeneratingImg] = useState(false);
+
+  // Utility: PCM to WAV
+  const pcmToWav = (pcmData, sampleRate = 24000) => {
+    const buffer = new ArrayBuffer(44 + pcmData.byteLength);
+    const view = new DataView(buffer);
+    const writeString = (offset, string) => {
+      for (let i = 0; i < string.length; i++) view.setUint8(offset + i, string.charCodeAt(i));
+    };
+    writeString(0, 'RIFF');
+    view.setUint32(4, 36 + pcmData.byteLength, true);
+    writeString(8, 'WAVE');
+    writeString(12, 'fmt ');
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true);
+    view.setUint16(22, 1, true);
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * 2, true);
+    view.setUint16(32, 2, true);
+    view.setUint16(34, 16, true);
+    writeString(36, 'data');
+    view.setUint32(40, pcmData.byteLength, true);
+    const pcmUint8 = new Uint8Array(pcmData);
+    for (let i = 0; i < pcmUint8.length; i++) view.setUint8(44 + i, pcmUint8[i]);
+    return new Blob([buffer], { type: 'audio/wav' });
+  };
+
+  // API Call Wrapper with Retry Logic
+  const callGemini = async (model, payload, isImage = false) => {
+    const url = isImage 
+      ? `https://generativelanguage.googleapis.com/v1beta/models/${model}:predict?key=${apiKey}`
+      : `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+    
+    const fetchWithRetry = async (retries = 3) => {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (!response.ok) {
+        if (retries > 0 && (response.status === 429 || response.status >= 500)) {
+          await new Promise(r => setTimeout(r, 1000 * (4 - retries)));
+          return fetchWithRetry(retries - 1);
+        }
+        throw new Error(`HTTP ${response.status}`);
+      }
+      return await response.json();
+    };
+    return fetchWithRetry();
+  };
+
+  // --- Feature Logic ---
+  const handleTranslate = async () => {
+    if (!sourceText.trim()) return;
+    setIsTranslating(true);
+    try {
+      const data = await callGemini('gemini-2.5-flash-preview-09-2025', {
+        contents: [{ parts: [{ text: `Translate the following text to ${targetLang}. Return only the translation without quotes or extra text: "${sourceText}"` }] }]
+      });
+      setTranslatedText(data.candidates[0].content.parts[0].text);
+    } catch (err) { 
+      console.error(err);
+      setTranslatedText("Error: Translation failed. Please try again.");
+    } finally { setIsTranslating(false); }
+  };
+
+  const handleVoiceGen = async () => {
+    if (!voiceText.trim()) return;
+    setIsSynthesizing(true);
+    try {
+      const data = await callGemini('gemini-2.5-flash-preview-tts', {
+        contents: [{ parts: [{ text: voiceText }] }],
+        generationConfig: { 
+          responseModalities: ["AUDIO"],
+          speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: selectedVoice } } }
+        }
+      });
+      const audioBase64 = data.candidates[0].content.parts[0].inlineData.data;
+      const binaryString = atob(audioBase64);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) bytes[i] = binaryString.charCodeAt(i);
+      const blob = pcmToWav(bytes.buffer);
+      if (audioUrl) URL.revokeObjectURL(audioUrl);
+      setAudioUrl(URL.createObjectURL(blob));
+    } catch (err) { console.error(err); }
+    finally { setIsSynthesizing(false); }
+  };
+
+  const handleImageGen = async () => {
+    if (!imagePrompt.trim()) return;
+    setIsGeneratingImg(true);
+    try {
+      const data = await callGemini('imagen-4.0-generate-001', {
+        instances: { prompt: imagePrompt },
+        parameters: { sampleCount: 1 }
+      }, true);
+      setGeneratedImage(`data:image/png;base64,${data.predictions[0].bytesBase64Encoded}`);
+    } catch (err) { console.error(err); }
+    finally { setIsGeneratingImg(false); }
+  };
+
+  const calculate = () => {
+    try {
+      // Use Function constructor instead of direct eval for better bundler compatibility
+      // Sanitizing input to only allow mathematical characters
+      const sanitizedInput = calcInput.replace(/[^-()\d/*+.]/g, '');
+      const res = new Function(`return ${sanitizedInput}`)();
+      const resultString = res.toString();
+      setCalcResult(resultString);
+      setCalcHistory(prev => [{ input: calcInput, result: resultString }, ...prev].slice(0, 5));
+    } catch { 
+      setCalcResult('Error'); 
+    }
+  };
+
+  const renderTool = () => {
+    switch (currentTool) {
+      case 'calc':
+        return (
+          <div className="grid lg:grid-cols-2 gap-8 max-w-5xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div className="bg-slate-900 border border-white/10 rounded-3xl p-8 shadow-2xl">
+              <h2 className="text-2xl font-black mb-6 flex items-center gap-3">
+                <Calculator className="text-sky-400" /> MATH CALCULATOR
+              </h2>
+              <div className="space-y-4">
+                <div className="bg-black/50 p-6 rounded-2xl border border-white/5 text-right">
+                  <div className="text-slate-500 text-sm h-6 font-mono overflow-hidden whitespace-nowrap">{calcInput || '0'}</div>
+                  <div className="text-4xl font-mono font-bold text-white mt-2 overflow-hidden">{calcResult || '0'}</div>
+                </div>
+                <div className="grid grid-cols-4 gap-3">
+                  {['7','8','9','/','4','5','6','*','1','2','3','-','0','.','C','+'].map(btn => (
+                    <button 
+                      key={btn}
+                      onClick={() => btn === 'C' ? (setCalcInput(''), setCalcResult('')) : setCalcInput(p => p + btn)}
+                      className={`p-5 rounded-xl font-bold transition border border-white/5 text-lg ${
+                        ['/','*','-','+'].includes(btn) ? 'bg-sky-500/10 text-sky-400' : 'bg-white/5 hover:bg-white/10'
+                      }`}
+                    >
+                      {btn}
+                    </button>
+                  ))}
+                  <button onClick={calculate} className="col-span-4 p-5 bg-sky-500 hover:bg-sky-400 text-black font-black rounded-xl transition text-xl">
+                    CALCULATE
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div className="bg-slate-900 border border-white/10 rounded-3xl p-8">
+              <h3 className="text-sm font-black text-slate-500 mb-6 uppercase tracking-widest flex items-center gap-2">
+                <History size={16} /> Recent Computations
+              </h3>
+              <div className="space-y-4">
+                {calcHistory.length > 0 ? calcHistory.map((item, idx) => (
+                  <div key={idx} className="p-4 bg-white/5 rounded-2xl border border-white/5 flex justify-between items-center group">
+                    <span className="text-slate-400 font-mono text-sm">{item.input}</span>
+                    <span className="text-sky-400 font-bold font-mono">= {item.result}</span>
+                  </div>
+                )) : (
+                  <div className="py-20 text-center text-slate-600 italic text-sm">No history yet</div>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      case 'translator':
+        return (
+          <div className="grid md:grid-cols-2 gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div className="bg-slate-900 border border-white/10 rounded-3xl p-8">
+              <h2 className="text-xl font-bold mb-4 flex items-center gap-2"><Languages className="text-sky-400" /> SOURCE</h2>
+              <textarea 
+                value={sourceText}
+                onChange={(e) => setSourceText(e.target.value)}
+                className="w-full h-48 bg-black/40 rounded-2xl p-5 border border-white/10 focus:border-sky-500 outline-none resize-none text-lg transition-all"
+                placeholder="Type or paste text to translate..."
+              />
+              <div className="mt-4 flex gap-3">
+                <select 
+                  value={targetLang}
+                  onChange={(e) => setTargetLang(e.target.value)}
+                  className="bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-sm font-bold text-sky-400"
+                >
+                  {['Spanish', 'French', 'German', 'Japanese', 'Arabic', 'Chinese', 'Russian', 'Italian'].map(lang => (
+                    <option key={lang} value={lang}>{lang}</option>
+                  ))}
+                </select>
+                <button 
+                  onClick={handleTranslate}
+                  disabled={isTranslating}
+                  className="flex-1 bg-sky-500 hover:bg-sky-400 text-black font-black py-3 rounded-xl transition disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {isTranslating ? <RefreshCw className="animate-spin w-4 h-4" /> : null}
+                  {isTranslating ? 'PROCESSING...' : 'TRANSLATE'}
+                </button>
+              </div>
+            </div>
+            <div className="bg-slate-900 border border-white/10 rounded-3xl p-8 flex flex-col">
+              <h2 className="text-xl font-bold mb-4 flex items-center gap-2 text-slate-400">RESULT</h2>
+              <div className="flex-1 min-h-[192px] bg-black/20 rounded-2xl p-5 border border-white/5 text-slate-300 overflow-y-auto text-lg leading-relaxed">
+                {translatedText || <span className="text-slate-600 italic">Translation will appear here...</span>}
+              </div>
+              <button 
+                onClick={() => {
+                   if(translatedText) navigator.clipboard.writeText(translatedText);
+                }}
+                className="mt-4 w-full py-3 bg-white/5 hover:bg-white/10 rounded-xl text-xs font-black flex items-center justify-center gap-2 tracking-widest transition"
+              >
+                <Copy className="w-4 h-4" /> COPY TO CLIPBOARD
+              </button>
+            </div>
+          </div>
+        );
+      case 'voice':
+        return (
+          <div className="bg-slate-900 border border-white/10 rounded-3xl p-8 max-w-2xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <h2 className="text-2xl font-black mb-6 flex items-center gap-3">
+              <Mic className="text-sky-400" /> VOICE GENERATOR
+            </h2>
+            <textarea 
+              value={voiceText}
+              onChange={(e) => setVoiceText(e.target.value)}
+              className="w-full h-40 bg-black/40 rounded-2xl p-5 border border-white/10 focus:border-sky-500 outline-none resize-none mb-6 text-lg"
+              placeholder="Enter the script for AI synthesis..."
+            />
+            <div className="grid grid-cols-2 gap-4 mb-6">
+              {['Kore', 'Aoede', 'Charon', 'Leda'].map(v => (
+                <button 
+                  key={v}
+                  onClick={() => setSelectedVoice(v)}
+                  className={`p-4 rounded-xl border-2 font-black transition-all ${selectedVoice === v ? 'bg-sky-500 border-sky-400 text-black shadow-lg shadow-sky-500/20 scale-105' : 'bg-white/5 border-white/5 text-slate-400 hover:border-white/10'}`}
+                >
+                  {v}
+                </button>
+              ))}
+            </div>
+            <button 
+              onClick={handleVoiceGen}
+              disabled={isSynthesizing}
+              className="w-full py-5 bg-sky-500 hover:bg-sky-400 text-black font-black rounded-2xl transition disabled:opacity-50 flex items-center justify-center gap-3 text-lg"
+            >
+              {isSynthesizing ? <RefreshCw className="animate-spin" /> : <Volume2 />} 
+              {isSynthesizing ? 'SYNTHESIZING...' : 'GENERATE AUDIO'}
+            </button>
+            {audioUrl && (
+              <div className="mt-8 p-6 bg-black/40 rounded-2xl border border-sky-500/30 flex flex-col gap-4">
+                <audio controls src={audioUrl} className="w-full" />
+                <a 
+                  href={audioUrl} 
+                  download="speech.wav"
+                  className="text-center text-xs font-bold text-sky-400 hover:text-sky-300 transition uppercase tracking-widest"
+                >
+                  Download Audio File
+                </a>
+              </div>
+            )}
+          </div>
+        );
+      case 'image':
+        return (
+          <div className="bg-slate-900 border border-white/10 rounded-3xl p-8 max-w-4xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <h2 className="text-2xl font-black mb-6 flex items-center gap-3">
+              <ImageIcon className="text-sky-400" /> IMAGE GENERATOR
+            </h2>
+            <div className="flex flex-col sm:flex-row gap-4 mb-8">
+              <input 
+                value={imagePrompt}
+                onChange={(e) => setImagePrompt(e.target.value)}
+                className="flex-1 bg-black/40 rounded-2xl px-6 py-5 border border-white/10 focus:border-sky-500 outline-none font-medium"
+                placeholder="Describe your vision (e.g. 'A cybernetic owl on a neon branch')"
+              />
+              <button 
+                onClick={handleImageGen}
+                disabled={isGeneratingImg}
+                className="bg-sky-500 hover:bg-sky-400 text-black font-black px-10 py-5 rounded-2xl transition disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {isGeneratingImg ? <RefreshCw className="animate-spin" /> : <Sparkles />} GENERATE
+              </button>
+            </div>
+            {generatedImage ? (
+              <div className="relative group rounded-3xl overflow-hidden border border-white/10 bg-black/40 p-2 shadow-2xl">
+                <img src={generatedImage} alt="Generated" className="w-full h-auto rounded-2xl shadow-inner" />
+                <div className="absolute inset-0 bg-black/80 opacity-0 group-hover:opacity-100 transition-all flex flex-col items-center justify-center gap-6 p-8">
+                  <p className="text-white font-medium text-center max-w-md italic">"{imagePrompt}"</p>
+                  <a href={generatedImage} download="ai-masterpiece.png" className="flex items-center gap-3 bg-sky-500 text-black px-8 py-4 rounded-full font-black hover:scale-105 transition active:scale-95">
+                    <Download size={20} /> DOWNLOAD HIGH-RES
+                  </a>
+                </div>
+              </div>
+            ) : (
+              <div className="aspect-video bg-black/40 rounded-3xl border-2 border-dashed border-white/5 flex flex-col items-center justify-center text-slate-600 group hover:border-sky-500/20 transition-colors">
+                {isGeneratingImg ? (
+                   <div className="flex flex-col items-center gap-6">
+                     <div className="w-16 h-16 border-4 border-sky-500/20 border-t-sky-500 rounded-full animate-spin" />
+                     <div className="text-center">
+                       <p className="font-black text-white text-xl tracking-tighter">RENDER ENGINE ACTIVE</p>
+                       <p className="text-sm font-medium text-slate-500">Dreaming in silicon...</p>
+                     </div>
+                   </div>
+                ) : (
+                  <>
+                    <div className="w-20 h-20 bg-white/5 rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                      <ImageIcon className="w-10 h-10 opacity-30" />
+                    </div>
+                    <span className="font-black text-sm tracking-[0.2em] uppercase">Ready for Input</span>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      default:
+        return (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 animate-in fade-in zoom-in-95 duration-500">
+            <ToolCard 
+              icon={<Calculator />} 
+              title="Math Calc" 
+              desc="Secure computational engine for complex arithmetic" 
+              onClick={() => setCurrentTool('calc')}
+              color="from-blue-600 to-sky-400"
+            />
+            <ToolCard 
+              icon={<Languages />} 
+              title="Translator" 
+              desc="Neural machine translation for global dialogue" 
+              onClick={() => setCurrentTool('translator')}
+              color="from-indigo-600 to-purple-400"
+            />
+            <ToolCard 
+              icon={<Mic />} 
+              title="Voice Gen" 
+              desc="Professional grade text-to-speech synthesis" 
+              onClick={() => setCurrentTool('voice')}
+              color="from-emerald-600 to-teal-400"
+            />
+            <ToolCard 
+              icon={<ImageIcon />} 
+              title="Image Gen" 
+              desc="State-of-the-art vision generation platform" 
+              onClick={() => setCurrentTool('image')}
+              color="from-orange-600 to-amber-400"
+            />
+          </div>
+        );
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-[#05070a] text-slate-200 font-sans p-6 sm:p-10 selection:bg-sky-500/40">
+      <div className="max-w-7xl mx-auto">
+        <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6 mb-16">
+          <div className="flex items-center gap-6">
+            {currentTool !== 'menu' && (
+              <button 
+                onClick={() => setCurrentTool('menu')}
+                className="p-4 bg-white/5 hover:bg-white/10 rounded-2xl border border-white/10 transition group"
+              >
+                <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
+              </button>
+            )}
+            <div>
+              <h1 className="text-4xl font-black text-white tracking-tighter sm:text-5xl">ADVANCED STUDIO</h1>
+              <p className="text-slate-500 font-bold uppercase tracking-widest text-[10px] mt-1 flex items-center gap-2">
+                <Sparkles size={12} className="text-sky-500" /> Professional grade AI utilities
+              </p>
+            </div>
+          </div>
+          <button className="flex items-center gap-3 px-8 py-4 bg-white text-black rounded-full text-xs font-black transition hover:scale-105 active:scale-95 shadow-xl shadow-white/10">
+            RETURN TO PORTAL
+          </button>
+        </header>
+
+        <div className="min-h-[60vh]">
+          {renderTool()}
+        </div>
+
+        <footer className="mt-32 py-10 border-t border-white/5 flex flex-col sm:flex-row justify-between items-center gap-6 opacity-40 text-[9px] font-black tracking-[0.3em] uppercase">
+          <div className="flex items-center gap-4">
+            <span>AI SYSTEM V4.8.2</span>
+            <div className="w-1 h-1 bg-sky-500 rounded-full" />
+            <span>ESTABLISHED 2024</span>
+          </div>
+          <div className="flex gap-8">
+            <span className="hover:text-sky-400 cursor-help transition-colors">Neural Security Protocol Active</span>
+            <span className="hover:text-sky-400 cursor-help transition-colors">High-Availability Endpoint</span>
+          </div>
+        </footer>
+      </div>
+    </div>
+  );
+};
+
+const ToolCard = ({ icon, title, desc, onClick, color }) => (
+  <button 
+    onClick={onClick}
+    className="group relative text-left bg-slate-900 border border-white/5 p-10 rounded-[2.5rem] hover:border-sky-500/40 transition-all duration-500 hover:-translate-y-3 overflow-hidden shadow-2xl hover:shadow-sky-500/10"
+  >
+    <div className={`absolute -top-10 -right-10 w-40 h-40 bg-gradient-to-br ${color} opacity-5 blur-3xl group-hover:opacity-20 transition-opacity duration-500`} />
+    <div className={`w-16 h-16 bg-gradient-to-br ${color} rounded-2xl flex items-center justify-center text-white mb-8 shadow-2xl group-hover:scale-110 transition-transform duration-500`}>
+      {React.cloneElement(icon, { size: 32 })}
+    </div>
+    <h3 className="text-2xl font-black text-white mb-3 tracking-tight">{title}</h3>
+    <p className="text-slate-500 text-sm font-bold leading-relaxed">{desc}</p>
+    <div className="mt-10 flex items-center text-sky-400 text-[10px] font-black gap-3 uppercase tracking-widest group-hover:gap-5 transition-all">
+      INITIALIZE UTILITY <Plus size={14} />
+    </div>
+  </button>
+);
+
+export default App;
