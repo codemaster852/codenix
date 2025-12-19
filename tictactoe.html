@@ -76,22 +76,40 @@
 
         .custom-scroll::-webkit-scrollbar { width: 4px; }
         .custom-scroll::-webkit-scrollbar-thumb { background: #222; border-radius: 10px; }
+
+        #auth-guard {
+            position: fixed;
+            inset: 0;
+            background: #000;
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
     </style>
 </head>
-<body class="min-h-screen p-4 md:p-8">
+<body class="min-h-screen p-4 md:p-8 opacity-0 transition-opacity duration-500" id="main-content">
+
+    <!-- Auth Guard Loader -->
+    <div id="auth-guard">
+        <div class="text-center">
+            <div class="w-12 h-12 border-4 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin mx-auto mb-4"></div>
+            <p class="text-xs font-mono text-zinc-500 uppercase tracking-widest">Verifying Neural Link...</p>
+        </div>
+    </div>
 
     <div class="max-w-7xl mx-auto flex justify-between items-center mb-12">
         <div class="flex items-center gap-4">
             <button onclick="window.location.href='portal.html'" class="p-2 hover:bg-zinc-900 rounded-lg transition-colors">
                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M15 19l-7-7 7-7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
             </button>
-            <h1 class="text-xl md:text-2xl font-bold tracking-tight">TicTacGen <span class="text-emerald-500 text-[10px] font-mono ml-2">Kernel v1.0</span></h1>
+            <h1 class="text-xl md:text-2xl font-bold tracking-tight">TicTacGen <span class="text-emerald-500 text-[10px] font-mono ml-2">Kernel v1.1</span></h1>
         </div>
         <div class="flex items-center gap-4">
             <span class="status-badge" id="latency">Sync: 14ms</span>
             <div id="user-badge" class="px-4 py-1.5 rounded-full border border-zinc-800 text-xs font-medium flex items-center gap-2 bg-zinc-900/50">
                 <div class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
-                Grid Linked
+                <span id="user-display">Grid Linked</span>
             </div>
         </div>
     </div>
@@ -135,8 +153,9 @@
                     <div class="p-3 bg-black/40 border border-zinc-800 rounded-xl">
                         <label class="text-[10px] text-zinc-500 uppercase block mb-2">Processing Depth</label>
                         <select id="level-select" class="w-full bg-transparent text-sm text-white focus:outline-none">
-                            <option value="1">Core Speed: Basic</option>
-                            <option value="9" selected>Core Speed: Exhaustive</option>
+                            <option value="1">Core Speed: Basic (Depth 1)</option>
+                            <option value="3">Core Speed: Advanced (Depth 3)</option>
+                            <option value="9" selected>Core Speed: Exhaustive (Max)</option>
                         </select>
                     </div>
                 </div>
@@ -156,6 +175,22 @@
     </div>
 
     <script>
+        // --- AUTH CONFIG ---
+        const SUPABASE_URL = "https://rnlwrngfgvznndlekmrz.supabase.co";
+        const SUPABASE_KEY = "sb_publishable_mtI0_ZBvU_n5oRuqV58QHg_qJt3Gfyt";
+        const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        async function checkAuth() {
+            const { data: { user }, error } = await supabaseClient.auth.getUser();
+            if (error || !user) {
+                window.location.href = 'auth.html';
+                return;
+            }
+            $('#user-display').text(user.email.split('@')[0]);
+            $('#auth-guard').fadeOut();
+            $('#main-content').removeClass('opacity-0');
+        }
+
         (function() {
             let board = Array(9).fill(null);
             let isPlayerTurn = true;
@@ -201,7 +236,8 @@
             }
 
             function aiTurn() {
-                const bestMove = getBestMove();
+                const depthLimit = parseInt($('#level-select').val());
+                const bestMove = getBestMove(depthLimit);
                 makeMove(bestMove, 'O');
 
                 if (checkWinner(board, 'O')) {
@@ -216,7 +252,7 @@
 
                 isPlayerTurn = true;
                 $('#game-status').text('Human Turn').removeClass('text-yellow-500').addClass('text-emerald-500');
-                logMove(`AI -> Index ${bestMove}`);
+                logMove(`AI -> Index ${bestMove} (Depth: ${depthLimit})`);
                 updateAnalysis();
             }
 
@@ -232,13 +268,17 @@
                 cell.html(svg);
             }
 
-            function getBestMove() {
+            function getBestMove(depthLimit) {
                 let bestScore = -Infinity;
                 let move;
+                
+                // If it's the first move and AI goes second, sometimes just take center if available
+                if (board.filter(x => x === null).length === 8 && board[4] === null) return 4;
+
                 for (let i = 0; i < 9; i++) {
                     if (board[i] === null) {
                         board[i] = 'O';
-                        let score = minimax(board, 0, false);
+                        let score = minimax(board, 0, false, depthLimit);
                         board[i] = null;
                         if (score > bestScore) {
                             bestScore = score;
@@ -249,17 +289,17 @@
                 return move;
             }
 
-            function minimax(b, depth, isMaximizing) {
+            function minimax(b, depth, isMaximizing, limit) {
                 if (checkWinner(b, 'O')) return 10 - depth;
                 if (checkWinner(b, 'X')) return depth - 10;
-                if (b.every(cell => cell !== null)) return 0;
+                if (b.every(cell => cell !== null) || depth >= limit) return 0;
 
                 if (isMaximizing) {
                     let bestScore = -Infinity;
                     for (let i = 0; i < 9; i++) {
                         if (b[i] === null) {
                             b[i] = 'O';
-                            let score = minimax(b, depth + 1, false);
+                            let score = minimax(b, depth + 1, false, limit);
                             b[i] = null;
                             bestScore = Math.max(score, bestScore);
                         }
@@ -270,7 +310,7 @@
                     for (let i = 0; i < 9; i++) {
                         if (b[i] === null) {
                             b[i] = 'X';
-                            let score = minimax(b, depth + 1, true);
+                            let score = minimax(b, depth + 1, true, limit);
                             b[i] = null;
                             bestScore = Math.min(score, bestScore);
                         }
@@ -290,7 +330,6 @@
             }
 
             function updateAnalysis() {
-                // Static heuristic for the bar since minimax is perfect
                 let score = 0;
                 if (board[4] === 'O') score += 10;
                 if (board[4] === 'X') score -= 10;
@@ -309,7 +348,6 @@
                 $('#game-status').text(msg.toUpperCase()).removeClass('text-emerald-500 text-yellow-500').addClass('text-white');
                 logMove(`Result: ${msg}`);
                 
-                // Winning line highlight
                 winPatterns.forEach(pattern => {
                     if (pattern.every(i => board[i] === board[pattern[0]] && board[i] !== null)) {
                         pattern.forEach(i => {
@@ -330,7 +368,6 @@
                 logMove('Grid reset. New session started.');
             };
 
-            // Timer Loop
             setInterval(() => {
                 const elapsed = Math.floor((Date.now() - startTime) / 1000);
                 const min = Math.floor(elapsed / 60).toString().padStart(2, '0');
@@ -338,6 +375,8 @@
                 $('#turn-timer').text(`Session: ${min}:${sec}`);
             }, 1000);
 
+            // Entry point
+            checkAuth();
             initGrid();
         })();
     </script>
