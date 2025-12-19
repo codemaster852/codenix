@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CheckerGen | Nix AI Studio</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        
+        body { font-family: 'Inter', sans-serif; transition: background-color 0.3s ease; }
+        .dark { background-color: #050505; color: #EDEDED; }
+        .light { background-color: #F9F9F9; color: #1A1A1A; }
+
+        .dot-grid-dark { background-image: radial-gradient(#1a1a1a 1px, transparent 1px); background-size: 32px 32px; }
+        .dot-grid-light { background-image: radial-gradient(#e5e7eb 1px, transparent 1px); background-size: 32px 32px; }
+
+        .checker-board {
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            aspect-ratio: 1 / 1;
+            width: 100%;
+            max-width: 500px;
+            border: 8px solid #1a1a1a;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        }
+
+        .square {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+
+        .square.dark-sq { background-color: #111111; }
+        .square.light-sq { background-color: #1a1a1a; }
+        .light .square.dark-sq { background-color: #e5e7eb; }
+        .light .square.light-sq { background-color: #f3f4f6; }
+
+        .piece {
+            width: 80%;
+            height: 80%;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            z-index: 10;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .piece.red { 
+            background: linear-gradient(135deg, #ef4444, #991b1b); 
+            box-shadow: 0 4px 10px rgba(239, 68, 68, 0.4);
+        }
+        .piece.black { 
+            background: linear-gradient(135deg, #4f46e5, #312e81); 
+            box-shadow: 0 4px 10px rgba(79, 70, 229, 0.4);
+        }
+        
+        .piece.king::after {
+            content: 'K';
+            color: rgba(255, 255, 255, 0.8);
+            font-weight: 900;
+            font-size: 1.2rem;
+        }
+
+        .piece.selected {
+            transform: scale(1.1);
+            ring: 4px solid #fff;
+            box-shadow: 0 0 20px rgba(255, 255, 255, 0.5);
+        }
+
+        .valid-move::before {
+            content: '';
+            width: 20px;
+            height: 20px;
+            background-color: rgba(99, 102, 241, 0.4);
+            border-radius: 50%;
+            pointer-events: none;
+        }
+
+        @keyframes slideIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
+        .animate-slide { animation: slideIn 0.3s ease forwards; }
+    </style>
+</head>
+<body class="dark overflow-hidden h-screen">
+    <div class="flex h-full w-full">
+        <!-- Sidebar -->
+        <aside class="w-72 border-r hidden md:flex flex-col bg-black border-zinc-800 transition-colors" id="sidebar">
+            <div class="p-6 border-b border-zinc-800 flex items-center gap-3">
+                <div class="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center font-bold text-white">C</div>
+                <span class="font-bold tracking-tight text-lg text-white">CheckerGen</span>
+            </div>
+            
+            <div class="flex-1 p-6 overflow-y-auto custom-scrollbar">
+                <div class="mb-8">
+                    <label class="text-[10px] uppercase tracking-widest text-zinc-500 font-bold mb-4 block">Difficulty Engine</label>
+                    <div class="space-y-2">
+                        <button onclick="setLevel(1)" class="level-btn w-full p-3 rounded-xl border border-zinc-800 bg-zinc-900/50 text-left text-sm text-zinc-300 hover:bg-zinc-800 transition-all flex justify-between items-center" data-level="1">
+                            Novice <span>Lvl 1</span>
+                        </button>
+                        <button onclick="setLevel(2)" class="level-btn w-full p-3 rounded-xl border border-zinc-800 bg-zinc-900/50 text-left text-sm text-zinc-300 hover:bg-zinc-800 transition-all flex justify-between items-center" data-level="2">
+                            Advanced <span>Lvl 2</span>
+                        </button>
+                        <button onclick="setLevel(3)" class="level-btn w-full p-3 rounded-xl border border-indigo-500/30 bg-indigo-500/10 text-left text-sm text-white hover:bg-indigo-500/20 transition-all flex justify-between items-center" data-level="3">
+                            Grandmaster <span>Lvl 3</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="text-[10px] uppercase tracking-widest text-zinc-500 font-bold mb-4 block">Move History</label>
+                    <div id="move-history" class="space-y-1 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+                        <!-- History items -->
+                    </div>
+                </div>
+            </div>
+
+            <div class="p-4 border-t border-zinc-800 bg-zinc-950/50">
+                <div class="flex items-center gap-3 p-2 rounded-xl">
+                    <div id="user-avatar" class="w-8 h-8 rounded-full bg-indigo-500 flex items-center justify-center text-white text-[10px] font-bold">?</div>
+                    <div class="flex-1 overflow-hidden">
+                        <div id="user-display-name" class="text-xs font-bold truncate text-white">Checking...</div>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="flex-1 flex flex-col relative dot-grid-dark" id="main-content">
+            <header class="h-14 border-b border-zinc-800 flex items-center justify-between px-6 backdrop-blur-xl z-30 bg-black/80">
+                <div class="flex items-center gap-3">
+                    <span class="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Status</span>
+                    <span class="h-1.5 w-1.5 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.8)]"></span>
+                    <span class="text-sm font-bold text-white" id="turn-indicator">Your Turn (Black)</span>
+                </div>
+                <div class="flex gap-4">
+                    <button onclick="resetGame()" class="text-[10px] uppercase font-bold tracking-wider border border-zinc-800 text-zinc-400 px-3 py-1.5 rounded-md hover:text-white transition-colors">Reset Game</button>
+                    <button id="logout-btn" class="text-[10px] uppercase font-bold tracking-wider text-zinc-500 hover:text-white transition-colors">Exit</button>
+                </div>
+            </header>
+
+            <div class="flex-1 flex flex-col items-center justify-center p-6">
+                <div class="checker-board" id="board">
+                    <!-- JS will generate squares and pieces -->
+                </div>
+                
+                <div class="mt-8 flex gap-12 text-center">
+                    <div>
+                        <div class="text-[10px] uppercase tracking-widest text-zinc-500 mb-1">Player</div>
+                        <div class="text-2xl font-bold text-indigo-500" id="player-score">0</div>
+                    </div>
+                    <div>
+                        <div class="text-[10px] uppercase tracking-widest text-zinc-500 mb-1">Engine</div>
+                        <div class="text-2xl font-bold text-red-500" id="ai-score">0</div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        var SUPABASE_URL = "https://rnlwrngfgvznndlekmrz.supabase.co";
+        var SUPABASE_KEY = "sb_publishable_mtI0_ZBvU_n5oRuqV58QHg_qJt3Gfyt";
+        
+        if (!window.supabaseInstance) {
+            window.supabaseInstance = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        }
+        var supabaseClient = window.supabaseInstance;
+
+        // Game State
+        let board = [];
+        let selectedPiece = null;
+        let turn = 'black'; // Black = User, Red = AI
+        let currentLevel = 3;
+        let gameOver = false;
+
+        async function checkUser() {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session) {
+                window.location.href = "auth.html";
+                return;
+            }
+            document.getElementById('user-display-name').innerText = session.user.email;
+            document.getElementById('user-avatar').innerText = session.user.email[0].toUpperCase();
+        }
+
+        document.getElementById('logout-btn').addEventListener('click', () => window.location.href = 'nix_studio.html');
+
+        function setLevel(lvl) {
+            currentLevel = lvl;
+            document.querySelectorAll('.level-btn').forEach(btn => {
+                const isSelected = parseInt(btn.dataset.level) === lvl;
+                btn.className = isSelected 
+                    ? "level-btn w-full p-3 rounded-xl border border-indigo-500/30 bg-indigo-500/10 text-left text-sm text-white hover:bg-indigo-500/20 transition-all flex justify-between items-center"
+                    : "level-btn w-full p-3 rounded-xl border border-zinc-800 bg-zinc-900/50 text-left text-sm text-zinc-300 hover:bg-zinc-800 transition-all flex justify-between items-center";
+            });
+        }
+
+        function initBoard() {
+            board = Array(8).fill(null).map(() => Array(8).fill(null));
+            for (let r = 0; r < 3; r++) {
+                for (let c = 0; c < 8; c++) {
+                    if ((r + c) % 2 !== 0) board[r][c] = { color: 'red', king: false };
+                }
+            }
+            for (let r = 5; r < 8; r++) {
+                for (let c = 0; c < 8; c++) {
+                    if ((r + c) % 2 !== 0) board[r][c] = { color: 'black', king: false };
+                }
+            }
+            renderBoard();
+        }
+
+        function renderBoard() {
+            const boardEl = document.getElementById('board');
+            boardEl.innerHTML = '';
+            for (let r = 0; r < 8; r++) {
+                for (let c = 0; c < 8; c++) {
+                    const sq = document.createElement('div');
+                    sq.className = `square ${(r + c) % 2 === 0 ? 'light-sq' : 'dark-sq'}`;
+                    sq.dataset.row = r;
+                    sq.dataset.col = c;
+                    
+                    if (board[r][c]) {
+                        const piece = document.createElement('div');
+                        piece.className = `piece ${board[r][c].color} ${board[r][c].king ? 'king' : ''}`;
+                        if (selectedPiece && selectedPiece.r === r && selectedPiece.c === c) {
+                            piece.classList.add('selected');
+                        }
+                        piece.onclick = (e) => handlePieceClick(r, c, e);
+                        sq.appendChild(piece);
+                    } else if (selectedPiece) {
+                        const moves = getValidMoves(selectedPiece.r, selectedPiece.c);
+                        if (moves.some(m => m.r === r && m.c === c)) {
+                            sq.classList.add('valid-move');
+                            sq.onclick = () => executeMove(selectedPiece.r, selectedPiece.c, r, c);
+                        }
+                    }
+                    boardEl.appendChild(sq);
+                }
+            }
+            updateScores();
+        }
+
+        function handlePieceClick(r, c, e) {
+            if (gameOver || turn !== board[r][c].color) return;
+            selectedPiece = { r, c };
+            renderBoard();
+        }
+
+        function getValidMoves(r, c) {
+            const piece = board[r][c];
+            if (!piece) return [];
+            const moves = [];
+            const dirs = piece.king ? [[1,1],[1,-1],[-1,1],[-1,-1]] : 
+                         (piece.color === 'black' ? [[-1,1],[-1,-1]] : [[1,1],[1,-1]]);
+
+            dirs.forEach(([dr, dc]) => {
+                const nr = r + dr;
+                const nc = c + dc;
+                if (nr >= 0 && nr < 8 && nc >= 0 && nc < 8) {
+                    if (!board[nr][nc]) {
+                        moves.push({ r: nr, c: nc });
+                    } else if (board[nr][nc].color !== piece.color) {
+                        const jr = nr + dr;
+                        const jc = nc + dc;
+                        if (jr >= 0 && jr < 8 && jc >= 0 && jc < 8 && !board[jr][jc]) {
+                            moves.push({ r: jr, c: jc, jump: { r: nr, c: nc } });
+                        }
+                    }
+                }
+            });
+            return moves;
+        }
+
+        function executeMove(fromR, fromC, toR, toC) {
+            const moves = getValidMoves(fromR, fromC);
+            const move = moves.find(m => m.r === toR && m.c === toC);
+            if (!move) return;
+
+            const piece = board[fromR][fromC];
+            board[toR][toC] = piece;
+            board[fromR][fromC] = null;
+
+            if (move.jump) {
+                board[move.jump.r][move.jump.c] = null;
+            }
+
+            if ((turn === 'black' && toR === 0) || (turn === 'red' && toR === 7)) {
+                piece.king = true;
+            }
+
+            addToHistory(fromR, fromC, toR, toC, turn);
+            selectedPiece = null;
+            turn = turn === 'black' ? 'red' : 'black';
+            document.getElementById('turn-indicator').innerText = turn === 'black' ? 'Your Turn (Black)' : 'Engine Thinking...';
+            
+            renderBoard();
+            
+            if (turn === 'red' && !gameOver) {
+                setTimeout(aiMove, 800);
+            }
+        }
+
+        function aiMove() {
+            let allMoves = [];
+            for (let r = 0; r < 8; r++) {
+                for (let c = 0; c < 8; c++) {
+                    if (board[r][c] && board[r][c].color === 'red') {
+                        const moves = getValidMoves(r, c);
+                        moves.forEach(m => allMoves.push({ fromR: r, fromC: c, ...m }));
+                    }
+                }
+            }
+
+            if (allMoves.length === 0) {
+                endGame('Player Wins!');
+                return;
+            }
+
+            // AI Difficulty levels
+            let selectedMove;
+            if (currentLevel === 1) {
+                selectedMove = allMoves[Math.floor(Math.random() * allMoves.length)];
+            } else {
+                // Prefer jumps
+                const jumps = allMoves.filter(m => m.jump);
+                if (jumps.length > 0) {
+                    selectedMove = jumps[Math.floor(Math.random() * jumps.length)];
+                } else {
+                    selectedMove = allMoves[Math.floor(Math.random() * allMoves.length)];
+                }
+            }
+
+            executeMove(selectedMove.fromR, selectedMove.fromC, selectedMove.r, selectedMove.c);
+        }
+
+        function addToHistory(fr, fc, tr, tc, color) {
+            const hist = document.getElementById('move-history');
+            const div = document.createElement('div');
+            div.className = "text-[11px] font-mono p-2 border-b border-zinc-800 flex justify-between text-zinc-500 animate-slide";
+            div.innerHTML = `<span>${color.toUpperCase()}</span> <span>(${fr},${fc}) → (${tr},${tc})</span>`;
+            hist.prepend(div);
+        }
+
+        function updateScores() {
+            let p = 0, a = 0;
+            board.flat().forEach(cell => {
+                if (cell?.color === 'black') p++;
+                if (cell?.color === 'red') a++;
+            });
+            document.getElementById('player-score').innerText = p;
+            document.getElementById('ai-score').innerText = a;
+            
+            if (p === 0) endGame('Engine Wins!');
+            if (a === 0) endGame('Player Wins!');
+        }
+
+        function endGame(msg) {
+            gameOver = true;
+            document.getElementById('turn-indicator').innerText = msg;
+            document.getElementById('turn-indicator').className = "text-sm font-bold text-indigo-500";
+        }
+
+        function resetGame() {
+            gameOver = false;
+            turn = 'black';
+            selectedPiece = null;
+            document.getElementById('turn-indicator').innerText = 'Your Turn (Black)';
+            document.getElementById('turn-indicator').className = "text-sm font-bold text-white";
+            document.getElementById('move-history').innerHTML = '';
+            initBoard();
+        }
+
+        checkUser();
+        initBoard();
+        lucide.createIcons();
+    </script>
+</body>
+</html>
