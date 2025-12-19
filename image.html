@@ -3,37 +3,59 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Image Studio</title>
+    <title>AI Studio - Creative Suite</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
         
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: #0f172a;
-            color: #f8fafc;
+        :root {
+            --bg-deep: #0a0c10;
+            --bg-card: #161b22;
+            --accent: #38bdf8;
+            --accent-glow: rgba(56, 189, 248, 0.3);
+            --border: rgba(255, 255, 255, 0.08);
         }
 
-        .glass {
-            background: rgba(30, 41, 59, 0.7);
-            backdrop-filter: blur(12px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: var(--bg-deep);
+            color: #e6edf3;
+            overflow-x: hidden;
+        }
+
+        /* Loading Overlay for Auth Check */
+        #auth-guard {
+            position: fixed;
+            inset: 0;
+            background: var(--bg-deep);
+            z-index: 9999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: opacity 0.5s ease;
+        }
+
+        .glass-panel {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 24px;
+            box-shadow: 0 10px 30px -10px rgba(0,0,0,0.5);
         }
 
         .gradient-text {
-            background: linear-gradient(135deg, #38bdf8, #818cf8);
+            background: linear-gradient(135deg, #fff 0%, #38bdf8 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
         }
 
         .loader {
-            border: 3px solid rgba(255, 255, 255, 0.1);
-            border-top: 3px solid #38bdf8;
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            border-top: 2px solid var(--accent);
             border-radius: 50%;
             width: 24px;
             height: 24px;
-            animation: spin 1s linear infinite;
+            animation: spin 0.8s linear infinite;
         }
 
         @keyframes spin {
@@ -41,182 +63,238 @@
             100% { transform: rotate(360deg); }
         }
 
-        .image-card:hover .overlay {
-            opacity: 1;
+        .btn-primary {
+            background: var(--accent);
+            color: #000;
+            font-weight: 700;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 0 20px var(--accent-glow);
+            filter: brightness(1.1);
         }
     </style>
 </head>
 <body class="min-h-screen">
 
-    <!-- Navigation -->
-    <nav class="glass sticky top-0 z-50 px-6 py-4 flex justify-between items-center">
-        <div class="flex items-center gap-2">
-            <div class="w-8 h-8 bg-sky-500 rounded-lg flex items-center justify-center">
-                <i class="fas fa-wand-magic-sparkles text-white"></i>
-            </div>
-            <span class="text-xl font-bold tracking-tight">Studio<span class="text-sky-400">AI</span></span>
+    <!-- Auth Guard Overlay -->
+    <div id="auth-guard">
+        <div class="flex flex-col items-center gap-4">
+            <div class="loader"></div>
+            <p class="text-slate-400 text-sm animate-pulse">Verifying Session...</p>
         </div>
-        <div class="flex gap-6">
-            <button onclick="switchPage('home')" class="hover:text-sky-400 transition">Home</button>
-            <button onclick="switchPage('nix-gen')" class="hover:text-sky-400 transition">Nix Image Gen</button>
+    </div>
+
+    <!-- Navigation -->
+    <nav class="sticky top-0 z-50 backdrop-blur-md border-b border-[rgba(255,255,255,0.05)] bg-[rgba(10,12,16,0.8)] px-8 py-5">
+        <div class="max-w-7xl mx-auto flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-sky-500/10 rounded-xl flex items-center justify-center border border-sky-500/20">
+                    <i class="fas fa-sparkles text-sky-400 text-xl"></i>
+                </div>
+                <span class="text-2xl font-extrabold tracking-tight">AI<span class="text-sky-400">Studio</span></span>
+            </div>
+            <div class="flex gap-8 items-center">
+                <a href="portal.html" class="font-medium hover:text-sky-400 transition">Home</a>
+                <div id="user-display" class="hidden flex items-center gap-3 bg-white/5 px-4 py-2 rounded-full border border-white/10">
+                    <div class="w-6 h-6 rounded-full bg-sky-500/20 flex items-center justify-center">
+                        <i class="fas fa-user text-[10px] text-sky-400"></i>
+                    </div>
+                    <span id="user-id-text" class="text-xs font-mono text-slate-400"></span>
+                    <button onclick="handleSignOut()" class="hover:text-red-400 transition ml-2">
+                        <i class="fas fa-right-from-bracket"></i>
+                    </button>
+                </div>
+            </div>
         </div>
     </nav>
 
-    <!-- Main Content Container -->
-    <main class="container mx-auto px-4 py-12">
-        
-        <!-- Page: Home -->
-        <section id="page-home" class="page-content">
-            <div class="text-center max-w-3xl mx-auto mb-16">
-                <h1 class="text-5xl font-extrabold mb-6">Unleash Your <span class="gradient-text">Creativity</span></h1>
-                <p class="text-slate-400 text-lg">Access powerful AI tools to generate, edit, and explore stunning visual content directly from your browser.</p>
-                <div class="mt-10 flex justify-center gap-4">
-                    <button onclick="switchPage('nix-gen')" class="bg-sky-500 hover:bg-sky-600 px-8 py-3 rounded-full font-semibold transition flex items-center gap-2">
-                        Get Started <i class="fas fa-arrow-right"></i>
-                    </button>
-                </div>
-            </div>
-        </section>
-
-        <!-- Page: Nix Image Generator -->
-        <section id="page-nix-gen" class="page-content hidden">
-            <div class="max-w-4xl mx-auto">
-                <div class="flex items-center gap-4 mb-8">
-                    <button onclick="switchPage('home')" class="text-slate-400 hover:text-white">
-                        <i class="fas fa-chevron-left"></i>
-                    </button>
-                    <h2 class="text-3xl font-bold">Nix Image Generator</h2>
-                </div>
-
-                <div class="glass p-8 rounded-3xl shadow-2xl mb-12">
-                    <div class="flex flex-col md:flex-row gap-4">
-                        <div class="flex-grow relative">
-                            <input type="text" id="imagePrompt" 
-                                placeholder="A futuristic cyberpunk city with neon lights..." 
-                                class="w-full bg-slate-900 border border-slate-700 rounded-2xl px-6 py-4 focus:outline-none focus:ring-2 focus:ring-sky-500 transition text-white">
+    <!-- Content -->
+    <main class="max-w-7xl mx-auto px-6 py-16">
+        <section id="page-nix">
+            <div class="max-w-5xl mx-auto">
+                <div class="flex flex-col md:flex-row gap-12">
+                    <!-- Controls Side -->
+                    <div class="w-full md:w-1/3 space-y-8">
+                        <div>
+                            <h2 class="text-3xl font-extrabold mb-2 text-white">Nix Generator</h2>
+                            <p class="text-slate-500">Transform text into high-fidelity art</p>
                         </div>
-                        <button onclick="generateImage()" id="generateBtn" 
-                            class="bg-sky-500 hover:bg-sky-600 px-8 py-4 rounded-2xl font-bold transition flex items-center justify-center gap-3 whitespace-nowrap">
-                            <span id="btnText">Generate Image</span>
-                            <div id="btnLoader" class="loader hidden"></div>
-                        </button>
-                    </div>
-                    <p class="mt-4 text-sm text-slate-500">
-                        <i class="fas fa-info-circle mr-1"></i> Powered by Nix Public API. Generation can take 5-10 seconds.
-                    </p>
-                </div>
 
-                <!-- Result Display -->
-                <div id="resultContainer" class="hidden">
-                    <h3 class="text-xl font-semibold mb-6 flex items-center gap-2">
-                        <i class="fas fa-image text-sky-400"></i> Your Generation
-                    </h3>
-                    <div class="grid grid-cols-1 md:grid-cols-1 gap-8 justify-center">
-                        <div class="relative group rounded-3xl overflow-hidden glass p-4 border-2 border-sky-500/30">
-                            <img id="generatedImg" src="" alt="Generated Visual" class="w-full h-auto rounded-2xl shadow-lg">
-                            <div class="mt-4 flex justify-between items-center">
-                                <span id="displayPrompt" class="text-slate-400 italic text-sm truncate max-w-[70%]"></span>
-                                <button onclick="downloadImage()" class="bg-slate-800 hover:bg-slate-700 p-3 rounded-xl transition">
+                        <div class="space-y-4">
+                            <label class="block text-sm font-semibold text-slate-400">Prompt Description</label>
+                            <textarea id="imagePrompt" rows="5" 
+                                class="w-full bg-[#0d1117] border border-[rgba(255,255,255,0.1)] rounded-xl px-4 py-4 text-white focus:outline-none focus:ring-2 focus:ring-sky-500/50 transition resize-none"
+                                placeholder="A futuristic cyberpunk city with neon lights and flying cars..."></textarea>
+                            
+                            <button onclick="generateImage()" id="genBtn" class="btn-primary w-full py-4 rounded-xl flex items-center justify-center gap-3">
+                                <span id="btnLabel">Generate Image</span>
+                                <div id="btnSpinner" class="loader hidden"></div>
+                            </button>
+                        </div>
+
+                        <div class="p-4 bg-sky-500/5 rounded-xl border border-sky-500/10">
+                            <p class="text-[11px] text-sky-300 leading-relaxed">
+                                <i class="fas fa-info-circle mr-1"></i> Generated images are temporarily cached and cleared upon refresh.
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Output Side -->
+                    <div class="w-full md:w-2/3">
+                        <div id="outputContainer" class="glass-panel overflow-hidden relative group min-h-[500px] flex items-center justify-center p-2">
+                            <div id="emptyState" class="text-center p-12">
+                                <div class="w-20 h-20 bg-white/5 rounded-full flex items-center justify-center mx-auto mb-6">
+                                    <i class="fas fa-image text-slate-600 text-3xl"></i>
+                                </div>
+                                <h3 class="text-xl font-bold text-white mb-2">Ready to Create</h3>
+                                <p class="text-slate-500 text-sm max-w-xs mx-auto">Results will appear here in high definition.</p>
+                            </div>
+
+                            <img id="generatedImg" src="" alt="AI Output" class="hidden w-full h-auto rounded-[20px] transition duration-700">
+                            
+                            <div id="actionBar" class="hidden absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-3 bg-black/60 backdrop-blur-md px-4 py-2 rounded-full border border-white/10 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button onclick="downloadImage()" class="p-2 hover:text-sky-400 transition" title="Download">
                                     <i class="fas fa-download"></i>
                                 </button>
                             </div>
                         </div>
-                    </div>
-                </div>
 
-                <!-- Error Message -->
-                <div id="errorMessage" class="hidden mt-6 p-4 bg-red-500/10 border border-red-500/50 rounded-2xl text-red-400 flex items-center gap-3">
-                    <i class="fas fa-exclamation-triangle"></i>
-                    <span id="errorText">Something went wrong. Please try again.</span>
+                        <div id="genStatus" class="hidden mt-6 text-center text-xs text-slate-500 flex items-center justify-center gap-2">
+                            <div class="loader scale-50"></div>
+                            <span>Synthesizing pixels...</span>
+                        </div>
+                    </div>
                 </div>
             </div>
         </section>
-
     </main>
 
-    <script>
-        function switchPage(pageId) {
-            // Hide all pages
-            document.querySelectorAll('.page-content').forEach(p => p.classList.add('hidden'));
-            // Show requested page
-            document.getElementById('page-' + pageId).classList.remove('hidden');
-            window.scrollTo(0,0);
+    <!-- Error Toast -->
+    <div id="errorToast" class="fixed bottom-10 right-10 translate-y-20 opacity-0 transition-all duration-300 bg-red-500/10 border border-red-500/20 text-red-400 px-6 py-4 rounded-2xl flex items-center gap-3 z-[100] backdrop-blur-lg">
+        <i class="fas fa-circle-exclamation"></i>
+        <span id="errorMsg"></span>
+    </div>
+
+    <!-- Firebase SDKs -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, onAuthStateChanged, signOut, signInWithCustomToken, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+
+        const firebaseConfig = JSON.parse(__firebase_config);
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+
+        // --- AUTH GUARD LOGIC ---
+        async function initAuth() {
+            try {
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    // Fallback to anonymous for testing if no token provided, 
+                    // though real redirect logic happens in onAuthStateChanged
+                    await signInAnonymously(auth);
+                }
+            } catch (e) {
+                console.error("Auth init failed", e);
+            }
         }
 
+        onAuthStateChanged(auth, (user) => {
+            if (!user) {
+                // Not logged in -> Redirect to auth.html
+                window.location.href = 'auth.html';
+            } else {
+                // Logged in -> Remove guard and show user
+                document.getElementById('auth-guard').style.opacity = '0';
+                setTimeout(() => document.getElementById('auth-guard').style.display = 'none', 500);
+                
+                const userDisplay = document.getElementById('user-display');
+                const userText = document.getElementById('user-id-text');
+                userDisplay.classList.remove('hidden');
+                userText.textContent = user.uid.substring(0, 8) + '...';
+            }
+        });
+
+        // Sign Out function attached to window for HTML button access
+        window.handleSignOut = () => {
+            signOut(auth).then(() => {
+                window.location.href = 'auth.html';
+            });
+        };
+
+        initAuth();
+    </script>
+
+    <script>
         async function generateImage() {
-            const promptInput = document.getElementById('imagePrompt');
-            const prompt = promptInput.value.trim();
-            const btn = document.getElementById('generateBtn');
-            const btnText = document.getElementById('btnText');
-            const btnLoader = document.getElementById('btnLoader');
-            const resultContainer = document.getElementById('resultContainer');
-            const generatedImg = document.getElementById('generatedImg');
-            const displayPrompt = document.getElementById('displayPrompt');
-            const errorMessage = document.getElementById('errorMessage');
+            const prompt = document.getElementById('imagePrompt').value.trim();
+            const btn = document.getElementById('genBtn');
+            const label = document.getElementById('btnLabel');
+            const spinner = document.getElementById('btnSpinner');
+            const emptyState = document.getElementById('emptyState');
+            const outputImg = document.getElementById('generatedImg');
+            const actionBar = document.getElementById('actionBar');
+            const status = document.getElementById('genStatus');
 
             if (!prompt) {
-                showError("Please enter a prompt first.");
+                showToast("Please enter a text prompt.");
                 return;
             }
 
-            // UI Loading State
             btn.disabled = true;
-            btn.classList.add('opacity-70', 'cursor-not-allowed');
-            btnText.textContent = "Generating...";
-            btnLoader.classList.remove('hidden');
-            errorMessage.classList.add('hidden');
+            btn.classList.add('opacity-50', 'cursor-not-allowed');
+            label.textContent = "Processing...";
+            spinner.classList.remove('hidden');
+            status.classList.remove('hidden');
+            emptyState.classList.add('hidden');
+            outputImg.classList.add('opacity-40');
 
             try {
-                // Using Pollinations/Nix-style free endpoint for instant generation
-                const seed = Math.floor(Math.random() * 1000000);
-                const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?seed=${seed}&width=1024&height=1024&nologo=true`;
+                const seed = Math.floor(Math.random() * 9999999);
+                const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?seed=${seed}&width=1024&height=1024&nologo=true&enhance=true`;
 
-                // Pre-load the image to ensure it's ready
-                const img = new Image();
-                img.src = imageUrl;
+                const tempImg = new Image();
+                tempImg.src = url;
                 
-                img.onload = () => {
-                    generatedImg.src = imageUrl;
-                    displayPrompt.textContent = prompt;
-                    resultContainer.classList.remove('hidden');
+                tempImg.onload = () => {
+                    outputImg.src = url;
+                    outputImg.classList.remove('hidden', 'opacity-40');
+                    actionBar.classList.remove('hidden');
                     
-                    // Reset UI
                     btn.disabled = false;
-                    btn.classList.remove('opacity-70', 'cursor-not-allowed');
-                    btnText.textContent = "Generate Image";
-                    btnLoader.classList.add('hidden');
-                    
-                    // Smooth scroll to result
-                    resultContainer.scrollIntoView({ behavior: 'smooth' });
+                    btn.classList.remove('opacity-50', 'cursor-not-allowed');
+                    label.textContent = "Generate Image";
+                    spinner.classList.add('hidden');
+                    status.classList.add('hidden');
                 };
-
-                img.onerror = () => {
-                    throw new Error("Failed to load generated image.");
-                };
-
-            } catch (error) {
-                showError(error.message);
+            } catch (err) {
+                showToast("Generation failed. Check connection.");
                 btn.disabled = false;
-                btn.classList.remove('opacity-70', 'cursor-not-allowed');
-                btnText.textContent = "Generate Image";
-                btnLoader.classList.add('hidden');
+                btn.classList.remove('opacity-50', 'cursor-not-allowed');
+                label.textContent = "Generate Image";
+                spinner.classList.add('hidden');
+                status.classList.add('hidden');
             }
         }
 
-        function showError(msg) {
-            const errorDiv = document.getElementById('errorMessage');
-            const errorTxt = document.getElementById('errorText');
-            errorTxt.textContent = msg;
-            errorDiv.classList.remove('hidden');
+        function showToast(msg) {
+            const toast = document.getElementById('errorToast');
+            document.getElementById('errorMsg').textContent = msg;
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            setTimeout(() => {
+                toast.classList.add('translate-y-20', 'opacity-0');
+            }, 3000);
         }
 
         function downloadImage() {
-            const img = document.getElementById('generatedImg');
-            if (!img.src) return;
-            
+            const src = document.getElementById('generatedImg').src;
+            if (!src) return;
             const link = document.createElement('a');
-            link.href = img.src;
-            link.download = 'nix-ai-generation.png';
+            link.href = src;
+            link.download = `nix-gen-${Date.now()}.png`;
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
