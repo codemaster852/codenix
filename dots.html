@@ -1,0 +1,387 @@
+import React, { useState, useEffect, useCallback } from 'react';
+import { Trophy, RefreshCcw, User, Cpu, Hash, Activity, ShieldCheck, Lock } from 'lucide-react';
+
+/**
+ * Since standard npm imports for @supabase/supabase-js can sometimes encounter 
+ * resolution issues in this environment, we use the global window object 
+ * which is populated by the external script.
+ */
+
+const GRID_SIZE = 5; 
+const SUPABASE_URL = "https://rnlwrngfgvznndlekmrz.supabase.co";
+const SUPABASE_KEY = "sb_publishable_mtI0_ZBvU_n5oRuqV58QHg_qJt3Gfyt";
+
+const App = () => {
+  // --- AUTH STATE ---
+  const [session, setSession] = useState(null);
+  const [loadingAuth, setLoadingAuth] = useState(true);
+  const [supabase, setSupabase] = useState(null);
+
+  // --- GAME STATE ---
+  const [board, setBoard] = useState({
+    horizontal: Array(GRID_SIZE).fill().map(() => Array(GRID_SIZE - 1).fill(null)),
+    vertical: Array(GRID_SIZE - 1).fill().map(() => Array(GRID_SIZE).fill(null)),
+    boxes: Array(GRID_SIZE - 1).fill().map(() => Array(GRID_SIZE - 1).fill(null))
+  });
+  
+  const [turn, setTurn] = useState(1); // 1 (User) or 2 (AI/P2)
+  const [scores, setScores] = useState({ 1: 0, 2: 0 });
+  const [logs, setLogs] = useState(["SYSTEM: Protocol 'DOTS_LOGIC' initialized."]);
+  const [winner, setWinner] = useState(null);
+  const [vsAI, setVsAI] = useState(true);
+  const [isAiThinking, setIsAiThinking] = useState(false);
+
+  // --- DYNAMIC SCRIPT LOAD & AUTH CHECK ---
+  useEffect(() => {
+    const script = document.createElement('script');
+    script.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
+    script.async = true;
+    script.onload = () => {
+      const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+      setSupabase(client);
+
+      client.auth.getSession().then(({ data: { session } }) => {
+        setSession(session);
+        setLoadingAuth(false);
+      });
+
+      const { data: { subscription } } = client.auth.onAuthStateChange((_event, session) => {
+        setSession(session);
+      });
+
+      return () => subscription.unsubscribe();
+    };
+    document.body.appendChild(script);
+  }, []);
+
+  const logMessage = (msg) => {
+    setLogs(prev => [`[${new Date().toLocaleTimeString([], {hour12: false})}] ${msg}`, ...prev].slice(0, 8));
+  };
+
+  const checkBoxes = (type, r, c, player, currentBoard) => {
+    let boxCaptured = false;
+    const newBoxes = [...currentBoard.boxes.map(row => [...row])];
+
+    const capture = (row, col) => {
+      if (row >= 0 && row < GRID_SIZE - 1 && col >= 0 && col < GRID_SIZE - 1) {
+        const hTop = currentBoard.horizontal[row][col];
+        const hBot = currentBoard.horizontal[row + 1][col];
+        const vLeft = currentBoard.vertical[row][col];
+        const vRight = currentBoard.vertical[row][col + 1];
+
+        if (hTop !== null && hBot !== null && vLeft !== null && vRight !== null && newBoxes[row][col] === null) {
+          newBoxes[row][col] = player;
+          boxCaptured = true;
+        }
+      }
+    };
+
+    if (type === 'h') {
+      capture(r - 1, c);
+      capture(r, c);
+    } else {
+      capture(r, c - 1);
+      capture(r, c);
+    }
+
+    return { boxCaptured, newBoxes };
+  };
+
+  const makeMove = useCallback((type, r, c) => {
+    if (winner || (type === 'h' ? board.horizontal[r][c] : board.vertical[r][c]) !== null) return false;
+
+    const newBoard = {
+      horizontal: board.horizontal.map(row => [...row]),
+      vertical: board.vertical.map(row => [...row]),
+      boxes: board.boxes.map(row => [...row])
+    };
+
+    if (type === 'h') newBoard.horizontal[r][c] = turn;
+    else newBoard.vertical[r][c] = turn;
+
+    const { boxCaptured, newBoxes } = checkBoxes(type, r, c, turn, newBoard);
+    newBoard.boxes = newBoxes;
+
+    const newScore = { 
+      1: newBoxes.flat().filter(b => b === 1).length,
+      2: newBoxes.flat().filter(b => b === 2).length 
+    };
+
+    setScores(newScore);
+    setBoard(newBoard);
+
+    if (boxCaptured) {
+      logMessage(`P${turn} captured sector.`);
+      if (newScore[1] + newScore[2] === (GRID_SIZE - 1) * (GRID_SIZE - 1)) {
+        const win = newScore[1] > newScore[2] ? 1 : newScore[2] > newScore[1] ? 2 : 'Draw';
+        setWinner(win);
+      }
+      return true; // Stay on same turn
+    } else {
+      setTurn(turn === 1 ? 2 : 1);
+      return false; // Switch turn
+    }
+  }, [board, turn, winner]);
+
+  // --- AI LOGIC ---
+  useEffect(() => {
+    if (vsAI && turn === 2 && !winner && !isAiThinking) {
+      setIsAiThinking(true);
+      
+      const timer = setTimeout(() => {
+        const possibleMoves = [];
+        
+        for(let r=0; r<GRID_SIZE; r++) {
+          for(let c=0; c<GRID_SIZE-1; c++) {
+            if(board.horizontal[r][c] === null) possibleMoves.push({type: 'h', r, c});
+          }
+        }
+        for(let r=0; r<GRID_SIZE-1; r++) {
+          for(let c=0; c<GRID_SIZE; c++) {
+            if(board.vertical[r][c] === null) possibleMoves.push({type: 'v', r, c});
+          }
+        }
+
+        if (possibleMoves.length > 0) {
+          // 1. Try to find a move that completes a box
+          let bestMove = possibleMoves.find(m => {
+             const tempBoard = JSON.parse(JSON.stringify(board));
+             if(m.type === 'h') tempBoard.horizontal[m.r][m.c] = 2;
+             else tempBoard.vertical[m.r][m.c] = 2;
+             const { boxCaptured } = checkBoxes(m.type, m.r, m.c, 2, tempBoard);
+             return boxCaptured;
+          });
+
+          if (!bestMove) {
+            bestMove = possibleMoves[Math.floor(Math.random() * possibleMoves.length)];
+          }
+
+          makeMove(bestMove.type, bestMove.r, bestMove.c);
+        }
+        setIsAiThinking(false);
+      }, 800);
+
+      return () => clearTimeout(timer);
+    }
+  }, [turn, vsAI, winner, board, makeMove, isAiThinking]);
+
+  const resetGame = () => {
+    setBoard({
+      horizontal: Array(GRID_SIZE).fill().map(() => Array(GRID_SIZE - 1).fill(null)),
+      vertical: Array(GRID_SIZE - 1).fill().map(() => Array(GRID_SIZE).fill(null)),
+      boxes: Array(GRID_SIZE - 1).fill().map(() => Array(GRID_SIZE - 1).fill(null))
+    });
+    setTurn(1);
+    setScores({ 1: 0, 2: 0 });
+    setWinner(null);
+    setLogs(["SYSTEM: Data scrubbed. Protocol restarted."]);
+  };
+
+  if (loadingAuth) {
+    return (
+      <div className="min-h-screen bg-[#050505] flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-500"></div>
+      </div>
+    );
+  }
+
+  if (!session) {
+    return (
+      <div className="min-h-screen bg-[#050505] flex items-center justify-center p-4">
+        <div className="max-w-md w-full bg-zinc-900 border border-zinc-800 p-10 rounded-3xl text-center space-y-6">
+          <div className="w-16 h-16 bg-red-500/10 border border-red-500/20 rounded-2xl flex items-center justify-center mx-auto">
+            <Lock className="text-red-500 w-8 h-8" />
+          </div>
+          <h1 className="text-2xl font-bold text-white">ACCESS_DENIED</h1>
+          <p className="text-zinc-500 text-sm">Authentication is required to initialize DOTS_LOGIC protocol. Please sign in via the Nix Portal.</p>
+          <button 
+            onClick={() => window.location.href = 'auth.html'}
+            className="w-full py-3 bg-white text-black rounded-xl font-bold text-sm hover:bg-zinc-200 transition-all"
+          >
+            RETURN TO AUTH
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-[#050505] text-white p-4 font-sans select-none">
+      {/* Header */}
+      <div className="max-w-4xl mx-auto flex justify-between items-center mb-8 border-b border-zinc-800 pb-4">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-emerald-500/10 rounded-lg">
+            <Hash className="text-emerald-500 w-5 h-5" />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold tracking-tight leading-none">DOTS_BLOCKS <span className="text-zinc-500 text-[10px] font-mono ml-2 uppercase">v2.5_AI</span></h1>
+            <div className="flex items-center gap-1 mt-1">
+              <ShieldCheck size={10} className="text-emerald-500" />
+              <span className="text-[9px] font-mono text-zinc-500 uppercase">ENCRYPTED_SESSION: {session.user.email}</span>
+            </div>
+          </div>
+        </div>
+        
+        <div className="flex items-center gap-4">
+          <button 
+            onClick={() => setVsAI(!vsAI)}
+            className={`px-3 py-1.5 rounded-lg border text-[10px] font-mono transition-all ${vsAI ? 'bg-indigo-500/10 border-indigo-500/50 text-indigo-400' : 'bg-zinc-800 border-zinc-700 text-zinc-400'}`}
+          >
+            MODE: {vsAI ? 'VS_AI' : 'LOCAL_PVP'}
+          </button>
+          <button 
+            onClick={resetGame}
+            className="flex items-center gap-2 px-4 py-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-xl transition-all text-xs font-mono"
+          >
+            <RefreshCcw size={14} /> RESET
+          </button>
+        </div>
+      </div>
+
+      <div className="max-w-5xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8">
+        {/* Stats Panel */}
+        <div className="lg:col-span-3 space-y-4">
+          <div className={`p-6 rounded-2xl border transition-all duration-500 ${turn === 1 ? 'border-emerald-500 bg-emerald-500/5' : 'border-zinc-800 bg-zinc-900/30'}`}>
+            <div className="flex items-center justify-between mb-4">
+              <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Operator (P1)</span>
+              <User size={14} className={turn === 1 ? 'text-emerald-500' : 'text-zinc-600'} />
+            </div>
+            <div className="text-4xl font-black mb-1 font-mono">{scores[1]}</div>
+            <div className="text-[10px] text-zinc-500 font-mono uppercase">Nodes Claimed</div>
+          </div>
+
+          <div className={`p-6 rounded-2xl border transition-all duration-500 ${turn === 2 ? 'border-blue-500 bg-blue-500/5' : 'border-zinc-800 bg-zinc-900/30'}`}>
+            <div className="flex items-center justify-between mb-4">
+              <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">{vsAI ? 'Logic_Core (AI)' : 'Rival (P2)'}</span>
+              {vsAI ? <Cpu size={14} className={turn === 2 ? 'text-blue-500' : 'text-zinc-600'} /> : <User size={14} className={turn === 2 ? 'text-blue-500' : 'text-zinc-600'} />}
+            </div>
+            <div className="text-4xl font-black mb-1 font-mono">{scores[2]}</div>
+            <div className="text-[10px] text-zinc-500 font-mono uppercase">Nodes Claimed</div>
+          </div>
+
+          <div className="p-6 rounded-2xl border border-zinc-800 bg-zinc-900/20">
+            <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-4 flex items-center gap-2">
+              <Activity size={12} /> Console Output
+            </h3>
+            <div className="space-y-2 font-mono text-[10px]">
+              {logs.map((log, i) => (
+                <div key={i} className={`${i === 0 ? 'text-zinc-300' : 'text-zinc-600'}`}>
+                  {log}
+                </div>
+              ))}
+              {isAiThinking && (
+                <div className="text-blue-400 animate-pulse">SYSTEM: AI calculating optimal path...</div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Game Canvas */}
+        <div className="lg:col-span-6 flex flex-col items-center justify-center min-h-[500px] relative">
+          {winner && (
+            <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm rounded-3xl animate-in fade-in duration-500">
+              <div className="text-center p-8 bg-zinc-900 border border-zinc-700 rounded-3xl shadow-2xl scale-110">
+                <Trophy className="w-12 h-12 text-yellow-500 mx-auto mb-4" />
+                <h2 className="text-2xl font-bold mb-2 uppercase">
+                  {winner === 'Draw' ? "Conflict Resolution: Tie" : `P${winner} Victorious`}
+                </h2>
+                <button onClick={resetGame} className="mt-4 px-6 py-2 bg-white text-black rounded-full font-bold text-sm hover:bg-zinc-200">
+                  REINITIALIZE
+                </button>
+              </div>
+            </div>
+          )}
+
+          <div className="relative inline-block p-10 bg-zinc-900/30 rounded-[2.5rem] border border-zinc-800 shadow-inner">
+            <div className="relative flex flex-col gap-0">
+              {Array(GRID_SIZE).fill().map((_, r) => (
+                <div key={`row-${r}`} className="flex flex-col">
+                  {/* Dots and Horizontal Lines */}
+                  <div className="flex items-center">
+                    {Array(GRID_SIZE).fill().map((_, c) => (
+                      <React.Fragment key={`dot-h-${r}-${c}`}>
+                        <div className="w-3.5 h-3.5 rounded-full bg-zinc-600 z-20 shadow-[0_0_8px_rgba(0,0,0,0.8)] border-2 border-zinc-900" />
+                        {c < GRID_SIZE - 1 && (
+                          <div 
+                            onClick={() => (turn === 1 || !vsAI) && makeMove('h', r, c)}
+                            className={`h-4 w-16 relative cursor-pointer group transition-all duration-300`}
+                          >
+                            <div className={`absolute top-1/2 left-0 right-0 h-1 -translate-y-1/2 rounded-full transition-all
+                              ${board.horizontal[r][c] === 1 ? 'bg-emerald-500 shadow-[0_0_12px_#10b981]' : 
+                                board.horizontal[r][c] === 2 ? 'bg-blue-500 shadow-[0_0_12px_#3b82f6]' : 
+                                'bg-zinc-800 group-hover:bg-zinc-600'}
+                            `} />
+                          </div>
+                        )}
+                      </React.Fragment>
+                    ))}
+                  </div>
+
+                  {/* Vertical Lines and Boxes */}
+                  {r < GRID_SIZE - 1 && (
+                    <div className="flex items-center">
+                      {Array(GRID_SIZE).fill().map((_, c) => (
+                        <React.Fragment key={`v-box-${r}-${c}`}>
+                          <div 
+                            onClick={() => (turn === 1 || !vsAI) && makeMove('v', r, c)}
+                            className={`w-4 h-16 relative cursor-pointer group transition-all duration-300`}
+                          >
+                            <div className={`absolute left-1/2 top-0 bottom-0 w-1 -translate-x-1/2 rounded-full transition-all
+                              ${board.vertical[r][c] === 1 ? 'bg-emerald-500 shadow-[0_0_12px_#10b981]' : 
+                                board.vertical[r][c] === 2 ? 'bg-blue-500 shadow-[0_0_12px_#3b82f6]' : 
+                                'bg-zinc-800 group-hover:bg-zinc-600'}
+                            `} />
+                          </div>
+                          {c < GRID_SIZE - 1 && (
+                            <div className={`w-16 h-16 flex items-center justify-center transition-all duration-700
+                              ${board.boxes[r][c] === 1 ? 'bg-emerald-500/10' : 
+                                board.boxes[r][c] === 2 ? 'bg-blue-500/10' : 'bg-transparent'}
+                            `}>
+                              {board.boxes[r][c] && (
+                                <div className={`text-[10px] font-black font-mono animate-in zoom-in duration-500
+                                  ${board.boxes[r][c] === 1 ? 'text-emerald-500' : 'text-blue-500'}
+                                `}>
+                                  {board.boxes[r][c] === 1 ? 'USR' : 'SYS'}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </React.Fragment>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Info Panel */}
+        <div className="lg:col-span-3">
+          <div className="p-6 rounded-2xl border border-zinc-800 bg-zinc-900/30 space-y-6">
+            <div>
+              <h4 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-3">Protocol Ruleset</h4>
+              <ul className="text-[11px] text-zinc-400 space-y-2 font-mono list-disc list-inside">
+                <li>Capture squares to earn points</li>
+                <li>Squares grant extra turns</li>
+                <li>AI targets closing boxes first</li>
+              </ul>
+            </div>
+            
+            <div className="pt-4 border-t border-zinc-800">
+              <h4 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-3">System Integrity</h4>
+              <div className="flex items-center gap-2">
+                <div className={`w-2 h-2 rounded-full animate-pulse ${turn === 1 ? 'bg-emerald-500' : 'bg-blue-500'}`} />
+                <span className="text-[10px] font-mono font-bold uppercase">
+                  {turn === 1 ? 'Operator Input Active' : 'System Processing...'}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default App;
