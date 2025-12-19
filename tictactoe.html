@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TicTacToeGen - Codenix AI</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+        body { background-color: #050505; color: #fff; font-family: 'Inter', sans-serif; overflow-x: hidden; }
+        .glass-card { background: rgba(26, 26, 26, 0.6); backdrop-filter: blur(12px); border: 1px solid #333; }
+        
+        #game-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            grid-template-rows: repeat(3, 1fr);
+            gap: 12px;
+            width: 100%;
+            max-width: 400px;
+            aspect-ratio: 1 / 1;
+            margin: 0 auto;
+            position: relative;
+        }
+
+        .cell {
+            background: #111;
+            border: 1px solid #222;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .cell:hover {
+            background: #1a1a1a;
+            border-color: #333;
+            box-shadow: 0 0 20px rgba(16, 185, 129, 0.05);
+        }
+
+        .cell.taken {
+            cursor: default;
+        }
+
+        .mark {
+            width: 60%;
+            height: 60%;
+            stroke-dasharray: 200;
+            stroke-dashoffset: 200;
+            animation: draw 0.5s forwards ease-out;
+        }
+
+        @keyframes draw {
+            to { stroke-dashoffset: 0; }
+        }
+
+        .eval-bar-container { width: 12px; height: 300px; background: #111; border-radius: 20px; overflow: hidden; position: relative; border: 1px solid #222; }
+        #eval-bar-fill { position: absolute; bottom: 0; width: 100%; background: #10b981; transition: height 0.6s cubic-bezier(0.4, 0, 0.2, 1); }
+
+        .status-badge {
+            font-size: 10px;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            padding: 4px 12px;
+            border-radius: 20px;
+            background: rgba(16, 185, 129, 0.1);
+            color: #10b981;
+            border: 1px solid rgba(16, 185, 129, 0.2);
+        }
+
+        .custom-scroll::-webkit-scrollbar { width: 4px; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: #222; border-radius: 10px; }
+    </style>
+</head>
+<body class="min-h-screen p-4 md:p-8">
+
+    <div class="max-w-7xl mx-auto flex justify-between items-center mb-12">
+        <div class="flex items-center gap-4">
+            <button onclick="window.location.href='portal.html'" class="p-2 hover:bg-zinc-900 rounded-lg transition-colors">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M15 19l-7-7 7-7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+            </button>
+            <h1 class="text-xl md:text-2xl font-bold tracking-tight">TicTacGen <span class="text-emerald-500 text-[10px] font-mono ml-2">Kernel v1.0</span></h1>
+        </div>
+        <div class="flex items-center gap-4">
+            <span class="status-badge" id="latency">Sync: 14ms</span>
+            <div id="user-badge" class="px-4 py-1.5 rounded-full border border-zinc-800 text-xs font-medium flex items-center gap-2 bg-zinc-900/50">
+                <div class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+                Grid Linked
+            </div>
+        </div>
+    </div>
+
+    <div class="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-12 items-start">
+        
+        <!-- Left Analysis Column -->
+        <div class="lg:col-span-2 hidden lg:flex flex-col items-center gap-4">
+            <span class="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Advantage</span>
+            <div class="eval-bar-container">
+                <div id="eval-bar-fill" style="height: 50%;"></div>
+            </div>
+            <span class="text-[10px] font-mono text-zinc-400" id="eval-val">0.0</span>
+        </div>
+
+        <!-- Main Game Board -->
+        <div class="lg:col-span-6 flex flex-col items-center">
+            <div id="game-grid">
+                <!-- Cells generated via JS -->
+            </div>
+
+            <div class="w-full max-w-[400px] mt-12 flex justify-between items-center bg-zinc-900/30 p-4 rounded-2xl border border-zinc-800/50 backdrop-blur-md">
+                <div>
+                    <div id="game-status" class="text-xs font-bold text-emerald-500 tracking-wider uppercase">Human Turn</div>
+                    <div class="text-[10px] text-zinc-500 font-mono mt-1" id="turn-timer">Session: 00:00</div>
+                </div>
+                <button onclick="resetGame()" class="p-3 hover:bg-zinc-800 rounded-xl text-zinc-400 hover:text-white transition-all active:scale-95 border border-transparent hover:border-zinc-700">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" stroke-width="2"></path></svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- Sidebar Panel -->
+        <div class="lg:col-span-4 space-y-6">
+            <div class="glass-card rounded-2xl p-6">
+                <div class="flex items-center justify-between mb-6">
+                    <h3 class="text-sm font-bold uppercase tracking-widest text-zinc-400">Logic Core</h3>
+                    <div class="text-[10px] text-emerald-500 font-mono">Minimax.active</div>
+                </div>
+                <div class="space-y-4">
+                    <div class="p-3 bg-black/40 border border-zinc-800 rounded-xl">
+                        <label class="text-[10px] text-zinc-500 uppercase block mb-2">Processing Depth</label>
+                        <select id="level-select" class="w-full bg-transparent text-sm text-white focus:outline-none">
+                            <option value="1">Core Speed: Basic</option>
+                            <option value="9" selected>Core Speed: Exhaustive</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div class="glass-card rounded-2xl p-6 h-[250px] flex flex-col">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-sm font-bold text-zinc-400 uppercase tracking-widest">Telemetry</h3>
+                    <div class="w-2 h-2 rounded-full bg-emerald-900/50 border border-emerald-500/50"></div>
+                </div>
+                <div id="match-log" class="text-xs font-mono text-zinc-500 space-y-2 overflow-y-auto custom-scroll flex-1 pr-2">
+                    <div class="text-emerald-500/70">> Neural link initialized.</div>
+                    <div class="text-zinc-600">> Awaiting user input on grid.</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        (function() {
+            let board = Array(9).fill(null);
+            let isPlayerTurn = true;
+            let gameOver = false;
+            let startTime = Date.now();
+
+            const winPatterns = [
+                [0,1,2], [3,4,5], [6,7,8], // Rows
+                [0,3,6], [1,4,7], [2,5,8], // Cols
+                [0,4,8], [2,4,6]           // Diagonals
+            ];
+
+            function initGrid() {
+                const grid = $('#game-grid');
+                grid.empty();
+                for (let i = 0; i < 9; i++) {
+                    const cell = $('<div class="cell" data-index="' + i + '"></div>');
+                    cell.click(() => handleMove(i));
+                    grid.append(cell);
+                }
+            }
+
+            function handleMove(index) {
+                if (!isPlayerTurn || gameOver || board[index]) return;
+
+                makeMove(index, 'X');
+                
+                if (checkWinner(board, 'X')) {
+                    endGame('Human Dominance');
+                    return;
+                }
+
+                if (isDraw()) {
+                    endGame('System Standoff');
+                    return;
+                }
+
+                isPlayerTurn = false;
+                $('#game-status').text('AI Processing...').removeClass('text-emerald-500').addClass('text-yellow-500');
+                logMove(`User -> Index ${index}`);
+
+                setTimeout(aiTurn, 400);
+            }
+
+            function aiTurn() {
+                const bestMove = getBestMove();
+                makeMove(bestMove, 'O');
+
+                if (checkWinner(board, 'O')) {
+                    endGame('AI Victory');
+                    return;
+                }
+
+                if (isDraw()) {
+                    endGame('System Standoff');
+                    return;
+                }
+
+                isPlayerTurn = true;
+                $('#game-status').text('Human Turn').removeClass('text-yellow-500').addClass('text-emerald-500');
+                logMove(`AI -> Index ${bestMove}`);
+                updateAnalysis();
+            }
+
+            function makeMove(index, p) {
+                board[index] = p;
+                const cell = $(`.cell[data-index="${index}"]`);
+                cell.addClass('taken');
+                
+                const svg = p === 'X' ? 
+                    `<svg class="mark" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2.5" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>` :
+                    `<svg class="mark" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="9"/></svg>`;
+                
+                cell.html(svg);
+            }
+
+            function getBestMove() {
+                let bestScore = -Infinity;
+                let move;
+                for (let i = 0; i < 9; i++) {
+                    if (board[i] === null) {
+                        board[i] = 'O';
+                        let score = minimax(board, 0, false);
+                        board[i] = null;
+                        if (score > bestScore) {
+                            bestScore = score;
+                            move = i;
+                        }
+                    }
+                }
+                return move;
+            }
+
+            function minimax(b, depth, isMaximizing) {
+                if (checkWinner(b, 'O')) return 10 - depth;
+                if (checkWinner(b, 'X')) return depth - 10;
+                if (b.every(cell => cell !== null)) return 0;
+
+                if (isMaximizing) {
+                    let bestScore = -Infinity;
+                    for (let i = 0; i < 9; i++) {
+                        if (b[i] === null) {
+                            b[i] = 'O';
+                            let score = minimax(b, depth + 1, false);
+                            b[i] = null;
+                            bestScore = Math.max(score, bestScore);
+                        }
+                    }
+                    return bestScore;
+                } else {
+                    let bestScore = Infinity;
+                    for (let i = 0; i < 9; i++) {
+                        if (b[i] === null) {
+                            b[i] = 'X';
+                            let score = minimax(b, depth + 1, true);
+                            b[i] = null;
+                            bestScore = Math.min(score, bestScore);
+                        }
+                    }
+                    return bestScore;
+                }
+            }
+
+            function checkWinner(b, p) {
+                return winPatterns.some(pattern => {
+                    return pattern.every(index => b[index] === p);
+                });
+            }
+
+            function isDraw() {
+                return board.every(cell => cell !== null);
+            }
+
+            function updateAnalysis() {
+                // Static heuristic for the bar since minimax is perfect
+                let score = 0;
+                if (board[4] === 'O') score += 10;
+                if (board[4] === 'X') score -= 10;
+                
+                const percent = Math.min(95, Math.max(5, 50 + score));
+                $('#eval-bar-fill').css('height', `${percent}%`);
+                $('#eval-val').text(((percent - 50) / 10).toFixed(1));
+            }
+
+            function logMove(msg) {
+                $('#match-log').prepend(`<div class="border-l-2 border-emerald-500/20 pl-2 py-1 text-zinc-400">> ${msg}</div>`);
+            }
+
+            function endGame(msg) {
+                gameOver = true;
+                $('#game-status').text(msg.toUpperCase()).removeClass('text-emerald-500 text-yellow-500').addClass('text-white');
+                logMove(`Result: ${msg}`);
+                
+                // Winning line highlight
+                winPatterns.forEach(pattern => {
+                    if (pattern.every(i => board[i] === board[pattern[0]] && board[i] !== null)) {
+                        pattern.forEach(i => {
+                            $(`.cell[data-index="${i}"]`).css('background', 'rgba(16, 185, 129, 0.1)');
+                        });
+                    }
+                });
+            }
+
+            window.resetGame = function() {
+                board = Array(9).fill(null);
+                isPlayerTurn = true;
+                gameOver = false;
+                initGrid();
+                $('#game-status').text('Human Turn').removeClass('text-white').addClass('text-emerald-500');
+                $('#eval-bar-fill').css('height', '50%');
+                $('#eval-val').text('0.0');
+                logMove('Grid reset. New session started.');
+            };
+
+            // Timer Loop
+            setInterval(() => {
+                const elapsed = Math.floor((Date.now() - startTime) / 1000);
+                const min = Math.floor(elapsed / 60).toString().padStart(2, '0');
+                const sec = (elapsed % 60).toString().padStart(2, '0');
+                $('#turn-timer').text(`Session: ${min}:${sec}`);
+            }, 1000);
+
+            initGrid();
+        })();
+    </script>
+</body>
+</html>
