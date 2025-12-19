@@ -3,9 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dots and Blocks: Protocol v2.5</title>
+    <title>Dots and Blocks: Protocol v2.6</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap');
         
@@ -17,121 +16,98 @@
         }
 
         .dot {
-            width: 12px;
-            height: 12px;
+            width: 10px;
+            height: 10px;
             background: #3f3f46;
             border-radius: 50%;
             z-index: 20;
             border: 2px solid #09090b;
         }
 
-        .line-h {
-            height: 16px;
-            width: 48px; /* Standard size for level 1, will scale */
-            position: relative;
-            cursor: pointer;
-        }
+        .line-h, .line-v { position: relative; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+        
+        /* Level Sizing Classes */
+        .grid-lv1 .line-h { width: 60px; height: 16px; }
+        .grid-lv1 .line-v { height: 60px; width: 16px; }
+        .grid-lv1 .box { width: 60px; height: 60px; }
 
-        .line-v {
-            width: 16px;
-            height: 48px;
-            position: relative;
-            cursor: pointer;
-        }
+        .grid-lv2 .line-h { width: 44px; height: 14px; }
+        .grid-lv2 .line-v { height: 44px; width: 14px; }
+        .grid-lv2 .box { width: 44px; height: 44px; }
+
+        .grid-lv3 .line-h { width: 32px; height: 12px; }
+        .grid-lv3 .line-v { height: 32px; width: 12px; }
+        .grid-lv3 .box { width: 32px; height: 32px; }
 
         .line-inner {
             position: absolute;
-            background: #18181b;
+            background: #1a1a1e;
             border-radius: 999px;
-            transition: all 0.2s ease;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
-        .line-h .line-inner {
-            top: 50%;
-            left: 0;
-            right: 0;
-            height: 4px;
-            transform: translateY(-50%);
-        }
+        .line-h .line-inner { width: 100%; height: 4px; }
+        .line-v .line-inner { height: 100%; width: 4px; }
 
-        .line-v .line-inner {
-            left: 50%;
-            top: 0;
-            bottom: 0;
-            width: 4px;
-            transform: translateX(-50%);
-        }
-
-        .line-inner.player1 { background: #10b981; box-shadow: 0 0 10px #10b981; }
-        .line-inner.player2 { background: #3b82f6; box-shadow: 0 0 10px #3b82f6; }
+        .line-inner.player1 { background: #10b981; box-shadow: 0 0 12px #10b981; z-index: 10; }
+        .line-inner.player2 { background: #3b82f6; box-shadow: 0 0 12px #3b82f6; z-index: 10; }
         
         .box {
-            width: 48px;
-            height: 48px;
             display: flex;
             align-items: center;
             justify-content: center;
-            transition: background 0.5s ease;
+            transition: all 0.5s ease;
             font-size: 8px;
             font-weight: 800;
         }
 
-        .box.p1-capture { background: rgba(16, 185, 129, 0.15); color: #10b981; }
-        .box.p2-capture { background: rgba(59, 130, 246, 0.15); color: #3b82f6; }
+        .box.p1-capture { background: rgba(16, 185, 129, 0.1); color: #10b981; box-shadow: inset 0 0 15px rgba(16, 185, 129, 0.1); }
+        .box.p2-capture { background: rgba(59, 130, 246, 0.1); color: #3b82f6; box-shadow: inset 0 0 15px rgba(59, 130, 246, 0.1); }
 
         .scanline {
-            width: 100%;
-            height: 2px;
-            background: rgba(16, 185, 129, 0.05);
-            position: absolute;
-            top: 0;
-            z-index: 50;
-            pointer-events: none;
-            animation: scan 4s linear infinite;
+            width: 100%; height: 100%;
+            background: linear-gradient(to bottom, transparent 50%, rgba(0,0,0,0.1) 51%);
+            background-size: 100% 4px;
+            position: fixed; top: 0; left: 0; pointer-events: none; z-index: 100; opacity: 0.1;
         }
 
-        @keyframes scan {
-            0% { top: 0; }
-            100% { top: 100%; }
+        .level-btn.active { border-color: #10b981; color: #10b981; background: rgba(16,185,129,0.05); }
+
+        #auth-guard {
+            position: fixed;
+            inset: 0;
+            background: #050505;
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            gap: 1rem;
         }
-
-        /* Responsive scaling for different levels */
-        .grid-lv1 .line-h, .grid-lv1 .box { width: 64px; }
-        .grid-lv1 .line-v, .grid-lv1 .box { height: 64px; }
-        
-        .grid-lv2 .line-h, .grid-lv2 .box { width: 48px; }
-        .grid-lv2 .line-v, .grid-lv2 .box { height: 48px; }
-
-        .grid-lv3 .line-h, .grid-lv3 .box { width: 32px; }
-        .grid-lv3 .line-v, .grid-lv3 .box { height: 32px; }
     </style>
 </head>
-<body class="p-4 md:p-8">
-    <div class="scanline"></div>
-
-    <!-- Auth Guard Overlay -->
-    <div id="auth-guard" class="fixed inset-0 z-[100] bg-[#050505] flex items-center justify-center p-4">
-        <div class="max-w-md w-full bg-zinc-900 border border-zinc-800 p-10 rounded-3xl text-center space-y-6">
-            <div class="w-16 h-16 bg-red-500/10 border border-red-500/20 rounded-2xl flex items-center justify-center mx-auto">
-                <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-red-500"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-            </div>
-            <h1 class="text-2xl font-bold text-white uppercase italic">Access_Denied</h1>
-            <p class="text-zinc-500 text-sm font-mono">Authentication required for Level_Protocol.</p>
-            <button onclick="window.location.reload()" class="w-full py-3 bg-white text-black rounded-xl font-bold text-sm hover:bg-zinc-200 transition-all">RETRY CONNECTION</button>
-        </div>
+<body class="p-4 md:p-8 min-h-screen flex flex-col">
+    <div id="auth-guard">
+        <div class="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+        <p class="text-[10px] font-bold tracking-widest text-zinc-500 uppercase">Verifying_Session...</p>
     </div>
 
-    <div class="max-w-6xl mx-auto opacity-0 transition-opacity duration-1000" id="game-ui">
-        <!-- Navigation & Level Info -->
+    <div class="scanline"></div>
+
+    <div class="max-w-6xl mx-auto w-full flex-1 flex flex-col">
+        <!-- Navigation -->
         <div class="flex justify-between items-center mb-6 text-[10px] font-bold uppercase tracking-widest text-zinc-500">
             <a href="portal.html" class="flex items-center gap-2 hover:text-white transition-colors group">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" class="group-hover:-translate-x-1 transition-transform"><path d="m15 18-6-6 6-6"/></svg>
                 EXIT_TO_PORTAL
             </a>
-            <div class="flex gap-4" id="level-indicator">
-                <span id="lv1-tag" class="text-emerald-500">LVL_01</span>
-                <span id="lv2-tag" class="opacity-30">LVL_02</span>
-                <span id="lv3-tag" class="opacity-30">LVL_03</span>
+            <div class="flex gap-4 items-center">
+                <div id="user-display" class="text-emerald-500 lowercase opacity-50"></div>
+                <div class="flex gap-2" id="level-selector">
+                    <button onclick="selectLevel(0)" class="level-btn active px-3 py-1 border border-zinc-800 rounded-md transition-all">LVL_01</button>
+                    <button onclick="selectLevel(1)" class="level-btn px-3 py-1 border border-zinc-800 rounded-md transition-all">LVL_02</button>
+                    <button onclick="selectLevel(2)" class="level-btn px-3 py-1 border border-zinc-800 rounded-md transition-all">LVL_03</button>
+                </div>
             </div>
         </div>
 
@@ -139,65 +115,56 @@
         <header class="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-zinc-800 pb-6 gap-4">
             <div>
                 <h1 class="text-3xl font-black tracking-tighter uppercase flex items-center gap-2">
-                    <span class="text-emerald-500">#</span> DOTS_CORE
+                    <span class="text-emerald-500">//</span> DOTS_CORE
                     <span id="level-title" class="text-zinc-400 text-xs bg-zinc-900 px-2 py-0.5 rounded border border-zinc-800">LEVEL_1: MICRO_GRID</span>
                 </h1>
-                <p id="user-display" class="text-[9px] text-zinc-600 mt-1 uppercase font-mono tracking-wider">ENCRYPTED_SESSION: NOT_FOUND</p>
+                <p class="text-[9px] text-zinc-600 mt-1 uppercase font-mono tracking-wider">SYSTEM_READY // AI_MODULE_LOADED</p>
             </div>
             
             <div class="flex items-center gap-3">
-                <button id="toggle-ai" class="px-4 py-2 rounded-xl border border-indigo-500/30 bg-indigo-500/10 text-indigo-400 text-[10px] font-bold uppercase transition-all">
+                <button id="toggle-ai" onclick="toggleMode()" class="px-4 py-2 rounded-xl border border-indigo-500/30 bg-indigo-500/10 text-indigo-400 text-[10px] font-bold uppercase transition-all">
                     MODE: VS_AI
                 </button>
-                <button id="reset-btn" class="flex items-center gap-2 px-4 py-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-xl transition-all text-[10px] font-bold">
-                    FLUSH_MEM
+                <button onclick="initGame()" class="flex items-center gap-2 px-4 py-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-xl transition-all text-[10px] font-bold">
+                    RESET_BOARD
                 </button>
             </div>
         </header>
 
-        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 flex-1">
             <!-- Sidebar Left -->
             <div class="lg:col-span-3 space-y-4">
                 <div id="p1-card" class="p-6 rounded-2xl border border-emerald-500 bg-emerald-500/5 transition-all">
                     <div class="flex justify-between items-center mb-2">
                         <span class="text-[10px] font-bold text-emerald-500/60 uppercase">Operator</span>
-                        <div class="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_#10b981]"></div>
+                        <div class="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_#10b981]" id="p1-turn-dot"></div>
                     </div>
                     <div id="score-1" class="text-5xl font-black font-mono">0</div>
-                    <div class="text-[9px] text-zinc-600 uppercase mt-1">Sectors_Held</div>
                 </div>
 
-                <div id="p2-card" class="p-6 rounded-2xl border border-zinc-800 bg-zinc-900/30 transition-all opacity-50">
+                <div id="p2-card" class="p-6 rounded-2xl border border-zinc-800 bg-zinc-900/30 transition-all">
                     <div class="flex justify-between items-center mb-2">
                         <span id="p2-label" class="text-[10px] font-bold text-zinc-500 uppercase">Logic_Core</span>
-                        <div class="w-2 h-2 rounded-full bg-blue-500 shadow-[0_0_8px_#3b82f6] opacity-0" id="p2-indicator"></div>
+                        <div class="w-2 h-2 rounded-full bg-blue-500 shadow-[0_0_8px_#3b82f6] hidden" id="p2-turn-dot"></div>
                     </div>
                     <div id="score-2" class="text-5xl font-black font-mono">0</div>
-                    <div class="text-[9px] text-zinc-600 uppercase mt-1">Sectors_Held</div>
                 </div>
 
-                <div class="p-4 rounded-2xl border border-zinc-800 bg-zinc-900/10">
-                    <div id="console-logs" class="space-y-2 text-[9px] font-mono text-zinc-600">
-                        <!-- Logs -->
-                    </div>
+                <div class="p-4 rounded-2xl border border-zinc-800 bg-zinc-900/10 h-32 overflow-hidden relative">
+                    <div id="console-logs" class="space-y-1 text-[8px] font-mono text-zinc-600"></div>
                 </div>
             </div>
 
-            <!-- Main Game Grid -->
-            <div class="lg:col-span-6 flex flex-col items-center justify-center min-h-[500px] bg-zinc-900/20 rounded-[2rem] border border-zinc-800/50 relative overflow-hidden">
-                <div id="board-container" class="relative inline-block p-10 bg-black/40 border border-zinc-800 rounded-3xl shadow-2xl transition-all duration-500">
-                    <!-- Board generated by JS -->
-                </div>
+            <!-- Game Grid -->
+            <div class="lg:col-span-6 flex items-center justify-center p-4 bg-zinc-900/20 rounded-[2rem] border border-zinc-800/50 relative min-h-[400px]">
+                <div id="board-container" class="relative inline-block transition-all duration-300"></div>
                 
-                <!-- Winner/Level Overlay -->
-                <div id="winner-overlay" class="hidden absolute inset-0 z-50 bg-black/90 backdrop-blur-sm flex items-center justify-center p-8 text-center animate-in fade-in duration-500">
-                    <div class="max-w-xs w-full space-y-6">
-                        <div id="overlay-icon" class="w-20 h-20 bg-emerald-500/10 border border-emerald-500/20 rounded-3xl flex items-center justify-center mx-auto mb-4">
-                            <!-- SVG -->
-                        </div>
+                <!-- Winner Overlay -->
+                <div id="winner-overlay" class="hidden absolute inset-0 z-50 bg-black/90 backdrop-blur-sm flex items-center justify-center p-8 text-center rounded-[2rem]">
+                    <div class="max-w-xs w-full space-y-4">
                         <h2 id="winner-text" class="text-4xl font-black uppercase italic tracking-tighter">SUCCESS</h2>
-                        <p id="winner-subtext" class="text-zinc-500 text-xs font-mono">Proceeding to NEXT_LEVEL...</p>
-                        <button id="overlay-btn" class="w-full py-4 bg-emerald-500 text-black rounded-xl font-bold text-xs uppercase hover:scale-105 transition-transform">NEXT_PROTOCOL</button>
+                        <p id="winner-subtext" class="text-zinc-500 text-xs font-mono"></p>
+                        <button id="overlay-btn" class="w-full py-4 bg-emerald-500 text-black rounded-xl font-bold text-xs uppercase">CONTINUE</button>
                     </div>
                 </div>
             </div>
@@ -205,10 +172,10 @@
             <!-- Sidebar Right -->
             <div class="lg:col-span-3 space-y-4">
                 <div class="p-6 rounded-2xl border border-zinc-800 bg-zinc-900/30">
-                    <h4 class="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-4">Level_Objectives</h4>
+                    <h4 class="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-4">Core_Progress</h4>
                     <div class="space-y-4">
                         <div class="flex justify-between items-end">
-                            <span class="text-[9px] text-zinc-600 font-mono">CAPTURE_RATE</span>
+                            <span class="text-[9px] text-zinc-600 font-mono">SYNC_STATUS</span>
                             <span id="capture-percent" class="text-xs font-bold text-emerald-500">0%</span>
                         </div>
                         <div class="w-full bg-zinc-800 h-1 rounded-full overflow-hidden">
@@ -222,147 +189,116 @@
                         <div class="w-1.5 h-1.5 rounded-full bg-zinc-700" id="ai-dot"></div>
                         CORE_STATUS: IDLE
                     </div>
-                    <div class="mt-4 pt-4 border-t border-zinc-800">
-                        <div class="text-[8px] text-zinc-600 uppercase mb-2">Grid_Complexity</div>
-                        <div id="complexity-meter" class="flex gap-1">
-                            <div class="h-1.5 w-full bg-emerald-500 rounded-sm"></div>
-                            <div class="h-1.5 w-full bg-zinc-800 rounded-sm"></div>
-                            <div class="h-1.5 w-full bg-zinc-800 rounded-sm"></div>
-                        </div>
+                    <div class="mt-4 pt-4 border-t border-zinc-800 text-[9px] text-zinc-500">
+                        Capture all sectors to proceed to the next protocol.
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
+    <!-- Firebase SDKs -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+
+        const firebaseConfig = JSON.parse(__firebase_config);
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+
+        // AUTH GUARD LOGIC
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                // User is signed in, reveal the page
+                const guard = document.getElementById('auth-guard');
+                if (guard) guard.style.display = 'none';
+                
+                const display = document.getElementById('user-display');
+                if (display) display.innerText = `id:${user.uid.substring(0, 8)}...`;
+                
+                // Initialize game logic once authenticated
+                initGame();
+            } else {
+                // User is not signed in, redirect to auth
+                window.location.href = 'auth.html';
+            }
+        });
+    </script>
+
     <script>
+        // Game State and Logic
         const LEVELS = [
-            { size: 3, name: "MICRO_GRID", complexity: 1 },
-            { size: 5, name: "ARRAY_MATRIX", complexity: 2 },
-            { size: 7, name: "CORE_PROCESSOR", complexity: 3 }
+            { size: 4, name: "MICRO_GRID", css: "grid-lv1" },
+            { size: 6, name: "ARRAY_MATRIX", css: "grid-lv2" },
+            { size: 8, name: "CORE_PROCESSOR", css: "grid-lv3" }
         ];
 
-        const SUPABASE_URL = "https://rnlwrngfgvznndlekmrz.supabase.co";
-        const SUPABASE_KEY = "sb_publishable_mtI0_ZBvU_n5oRuqV58QHg_qJt3Gfyt";
-
         let currentLevel = 0;
-        let gridSize = LEVELS[0].size;
-        let board = { horizontal: [], vertical: [], boxes: [] };
+        let board = { h: [], v: [], boxes: [] };
         let turn = 1;
         let scores = { 1: 0, 2: 0 };
         let vsAI = true;
-        let isAiThinking = false;
         let gameOver = false;
 
-        async function checkAuth() {
-            try {
-                const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-                const { data: { session } } = await supabase.auth.getSession();
-                
-                if (session) {
-                    document.getElementById('auth-guard').style.display = 'none';
-                    document.getElementById('game-ui').classList.remove('opacity-0');
-                    document.getElementById('user-display').innerText = `ENCRYPTED_SESSION: ${session.user.email}`;
-                    initGame();
-                }
-            } catch (e) {
-                console.error("Auth error", e);
-                // Fallback for development if session is missing
-                document.getElementById('auth-guard').style.display = 'none';
-                document.getElementById('game-ui').classList.remove('opacity-0');
-                initGame();
-            }
+        function selectLevel(index) {
+            currentLevel = index;
+            const btns = document.querySelectorAll('.level-btn');
+            btns.forEach((b, i) => i === index ? b.classList.add('active') : b.classList.remove('active'));
+            initGame();
         }
 
-        function initGame(resetLevel = false) {
-            if (resetLevel) currentLevel = 0;
-            gridSize = LEVELS[currentLevel].size;
-            
+        function toggleMode() {
+            vsAI = !vsAI;
+            const toggleBtn = document.getElementById('toggle-ai');
+            const p2Label = document.getElementById('p2-label');
+            if (toggleBtn) toggleBtn.innerText = vsAI ? "MODE: VS_AI" : "MODE: PVP";
+            if (p2Label) p2Label.innerText = vsAI ? "Logic_Core" : "Operator_02";
+            initGame();
+        }
+
+        function initGame() {
+            const size = LEVELS[currentLevel].size;
             board = {
-                horizontal: Array(gridSize).fill().map(() => Array(gridSize - 1).fill(null)),
-                vertical: Array(gridSize - 1).fill().map(() => Array(gridSize).fill(null)),
-                boxes: Array(gridSize - 1).fill().map(() => Array(gridSize - 1).fill(null))
+                h: Array(size).fill().map(() => Array(size - 1).fill(null)),
+                v: Array(size - 1).fill().map(() => Array(size).fill(null)),
+                boxes: Array(size - 1).fill().map(() => Array(size - 1).fill(null))
             };
-            
             turn = 1;
             scores = { 1: 0, 2: 0 };
             gameOver = false;
             
-            document.getElementById('winner-overlay').classList.add('hidden');
-            document.getElementById('level-title').innerText = `LEVEL_${currentLevel + 1}: ${LEVELS[currentLevel].name}`;
+            const overlay = document.getElementById('winner-overlay');
+            if (overlay) overlay.classList.add('hidden');
             
-            // Update indicator UI
-            for(let i=1; i<=3; i++) {
-                const tag = document.getElementById(`lv${i}-tag`);
-                tag.className = i <= currentLevel + 1 ? "text-emerald-500" : "opacity-30";
-            }
-
-            // Complexity Meter
-            const meter = document.getElementById('complexity-meter');
-            meter.innerHTML = '';
-            for(let i=0; i<3; i++) {
-                const bar = document.createElement('div');
-                bar.className = `h-1.5 w-full rounded-sm ${i <= currentLevel ? 'bg-emerald-500' : 'bg-zinc-800'}`;
-                meter.appendChild(bar);
-            }
-
-            renderBoard();
-            updateStats();
-            logMessage(`SYSTEM: Protocol ${LEVELS[currentLevel].name} initialized.`);
+            const title = document.getElementById('level-title');
+            if (title) title.innerText = `LEVEL_${currentLevel + 1}: ${LEVELS[currentLevel].name}`;
+            
+            render();
+            updateUI();
+            log(`SYSTEM: Protocol ${LEVELS[currentLevel].name} initiated.`);
         }
 
-        function logMessage(msg) {
-            const container = document.getElementById('console-logs');
-            const entry = document.createElement('div');
-            entry.innerHTML = `<span class="text-zinc-800">></span> ${msg}`;
-            container.prepend(entry);
-            if (container.children.length > 5) container.removeChild(container.lastChild);
-        }
-
-        function updateStats() {
-            document.getElementById('score-1').innerText = scores[1];
-            document.getElementById('score-2').innerText = scores[2];
-            
-            const p1c = document.getElementById('p1-card');
-            const p2c = document.getElementById('p2-card');
-            const p2i = document.getElementById('p2-indicator');
-            
-            p1c.style.opacity = turn === 1 ? "1" : "0.4";
-            p2c.style.opacity = turn === 2 ? "1" : "0.4";
-            p1c.style.borderColor = turn === 1 ? "#10b981" : "#27272a";
-            p2c.style.borderColor = turn === 2 ? "#3b82f6" : "#27272a";
-            p2i.style.opacity = turn === 2 ? "1" : "0";
-
-            // Progress bar
-            const totalBoxes = (gridSize - 1) * (gridSize - 1);
-            const percent = Math.floor(((scores[1] + scores[2]) / totalBoxes) * 100);
-            document.getElementById('capture-percent').innerText = `${percent}%`;
-            document.getElementById('capture-bar').style.width = `${percent}%`;
-        }
-
-        function renderBoard() {
+        function render() {
             const container = document.getElementById('board-container');
-            container.innerHTML = '';
+            if (!container) return;
             
-            // Apply level class for sizing
-            container.className = `relative inline-block p-10 bg-black/40 border border-zinc-800 rounded-3xl shadow-2xl transition-all duration-500 grid-lv${currentLevel + 1}`;
+            container.innerHTML = '';
+            container.className = `relative inline-block ${LEVELS[currentLevel].css}`;
+            const size = LEVELS[currentLevel].size;
 
-            for (let r = 0; r < gridSize; r++) {
+            for (let r = 0; r < size; r++) {
                 const rowH = document.createElement('div');
                 rowH.className = 'flex items-center';
-                for (let c = 0; c < gridSize; c++) {
+                for (let c = 0; c < size; c++) {
                     const dot = document.createElement('div');
                     dot.className = 'dot';
                     rowH.appendChild(dot);
 
-                    if (c < gridSize - 1) {
+                    if (c < size - 1) {
                         const line = document.createElement('div');
                         line.className = 'line-h';
                         const inner = document.createElement('div');
-                        inner.className = 'line-inner';
-                        if (board.horizontal[r][c] === 1) inner.classList.add('player1');
-                        if (board.horizontal[r][c] === 2) inner.classList.add('player2');
-                        
+                        inner.className = `line-inner ${board.h[r][c] === 1 ? 'player1' : board.h[r][c] === 2 ? 'player2' : ''}`;
                         line.onclick = () => makeMove('h', r, c);
                         line.appendChild(inner);
                         rowH.appendChild(line);
@@ -370,32 +306,22 @@
                 }
                 container.appendChild(rowH);
 
-                if (r < gridSize - 1) {
+                if (r < size - 1) {
                     const rowV = document.createElement('div');
                     rowV.className = 'flex items-center';
-                    for (let c = 0; c < gridSize; c++) {
+                    for (let c = 0; c < size; c++) {
                         const line = document.createElement('div');
                         line.className = 'line-v';
                         const inner = document.createElement('div');
-                        inner.className = 'line-inner';
-                        if (board.vertical[r][c] === 1) inner.classList.add('player1');
-                        if (board.vertical[r][c] === 2) inner.classList.add('player2');
-                        
+                        inner.className = `line-inner ${board.v[r][c] === 1 ? 'player1' : board.v[r][c] === 2 ? 'player2' : ''}`;
                         line.onclick = () => makeMove('v', r, c);
                         line.appendChild(inner);
                         rowV.appendChild(line);
 
-                        if (c < gridSize - 1) {
+                        if (c < size - 1) {
                             const box = document.createElement('div');
-                            box.className = 'box';
-                            if (board.boxes[r][c] === 1) {
-                                box.classList.add('p1-capture');
-                                box.innerText = 'USR';
-                            }
-                            if (board.boxes[r][c] === 2) {
-                                box.classList.add('p2-capture');
-                                box.innerText = 'SYS';
-                            }
+                            box.className = `box ${board.boxes[r][c] === 1 ? 'p1-capture' : board.boxes[r][c] === 2 ? 'p2-capture' : ''}`;
+                            box.innerText = board.boxes[r][c] ? (board.boxes[r][c] === 1 ? 'USR' : 'SYS') : '';
                             rowV.appendChild(box);
                         }
                     }
@@ -405,26 +331,24 @@
         }
 
         function makeMove(type, r, c) {
-            if (gameOver || isAiThinking) return;
-            if (type === 'h' && board.horizontal[r][c] !== null) return;
-            if (type === 'v' && board.vertical[r][c] !== null) return;
+            if (gameOver) return;
+            if (type === 'h' && board.h[r][c]) return;
+            if (type === 'v' && board.v[r][c]) return;
 
             const player = turn;
-            if (type === 'h') board.horizontal[r][c] = player;
-            else board.vertical[r][c] = player;
+            if (type === 'h') board.h[r][c] = player;
+            else board.v[r][c] = player;
 
             let captured = false;
+            const size = LEVELS[currentLevel].size;
 
             const check = (row, col) => {
-                if (row >= 0 && row < gridSize - 1 && col >= 0 && col < gridSize - 1) {
-                    if (board.horizontal[row][col] !== null &&
-                        board.horizontal[row + 1][col] !== null &&
-                        board.vertical[row][col] !== null &&
-                        board.vertical[row][col + 1] !== null &&
-                        board.boxes[row][col] === null) {
+                if (row >= 0 && row < size - 1 && col >= 0 && col < size - 1) {
+                    if (board.h[row][col] && board.h[row + 1][col] && board.v[row][col] && board.v[row][col + 1] && !board.boxes[row][col]) {
                         board.boxes[row][col] = player;
                         scores[player]++;
                         captured = true;
+                        log(`EVENT: Sector [${row},${col}] captured by P${player}`);
                     }
                 }
             };
@@ -432,103 +356,134 @@
             if (type === 'h') { check(r - 1, c); check(r, c); }
             else { check(r, c - 1); check(r, c); }
 
-            if (!captured) turn = (turn === 1) ? 2 : 1;
+            if (!captured) turn = turn === 1 ? 2 : 1;
 
-            renderBoard();
-            updateStats();
+            render();
+            updateUI();
             checkWin();
 
-            if (!captured && turn === 2 && vsAI && !gameOver) runAI();
+            if (!captured && turn === 2 && vsAI && !gameOver) {
+                runAI();
+            }
         }
 
         function runAI() {
-            isAiThinking = true;
-            document.getElementById('ai-status').innerText = 'CORE_STATUS: THINKING';
-            document.getElementById('ai-dot').className = 'w-1.5 h-1.5 rounded-full bg-blue-500 animate-ping';
+            const aiDot = document.getElementById('ai-dot');
+            const aiStatus = document.getElementById('ai-status');
+            
+            if (aiDot) aiDot.className = 'w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse';
+            if (aiStatus) aiStatus.innerText = 'CORE_STATUS: COMPUTING';
 
             setTimeout(() => {
+                const size = LEVELS[currentLevel].size;
                 const moves = [];
-                for(let r=0; r<gridSize; r++) {
-                    for(let c=0; c<gridSize-1; c++) if(board.horizontal[r][c] === null) moves.push({t:'h', r, c});
+                
+                for(let r=0; r<size; r++) {
+                    for(let c=0; c<size-1; c++) if(!board.h[r][c]) moves.push({t:'h', r, c});
                 }
-                for(let r=0; r<gridSize-1; r++) {
-                    for(let c=0; c<gridSize; c++) if(board.vertical[r][c] === null) moves.push({t:'v', r, c});
+                for(let r=0; r<size-1; r++) {
+                    for(let c=0; c<size; c++) if(!board.v[r][c]) moves.push({t:'v', r, c});
                 }
 
-                if (moves.length > 0) {
-                    // Smart-ish AI logic
-                    let move = moves.find(m => {
-                        if (m.t === 'h') {
-                            const r=m.r, c=m.c;
-                            const check1 = (r > 0 && board.horizontal[r-1][c] && board.vertical[r-1][c] && board.vertical[r-1][c+1]);
-                            const check2 = (r < gridSize-1 && board.horizontal[r+1][c] && board.vertical[r][c] && board.vertical[r][c+1]);
-                            return check1 || check2;
-                        } else {
-                            const r=m.r, c=m.c;
-                            const check1 = (c > 0 && board.vertical[r][c-1] && board.horizontal[r][c-1] && board.horizontal[r+1][c-1]);
-                            const check2 = (c < gridSize-1 && board.vertical[r][c+1] && board.horizontal[r][c] && board.horizontal[r+1][c]);
-                            return check1 || check2;
-                        }
-                    });
+                if (moves.length === 0) return;
 
-                    if (!move) move = moves[Math.floor(Math.random() * moves.length)];
-                    
-                    isAiThinking = false;
-                    document.getElementById('ai-status').innerText = 'CORE_STATUS: IDLE';
-                    document.getElementById('ai-dot').className = 'w-1.5 h-1.5 rounded-full bg-zinc-700';
-                    makeMove(move.t, move.r, move.c);
-                }
-            }, 600 + (Math.random() * 400));
+                let bestMove = moves.find(m => {
+                    if (m.t === 'h') {
+                        const r=m.r, c=m.c;
+                        const c1 = r > 0 && board.h[r-1][c] && board.v[r-1][c] && board.v[r-1][c+1];
+                        const c2 = r < size-1 && board.h[r+1][c] && board.v[r][c] && board.v[r][c+1];
+                        return c1 || c2;
+                    } else {
+                        const r=m.r, c=m.c;
+                        const c1 = c > 0 && board.v[r][c-1] && board.h[r][c-1] && board.h[r+1][c-1];
+                        const c2 = c < size-1 && board.v[r][c+1] && board.h[r][c] && board.h[r+1][c];
+                        return c1 || c2;
+                    }
+                });
+
+                if (!bestMove) bestMove = moves[Math.floor(Math.random() * moves.length)];
+
+                if (aiDot) aiDot.className = 'w-1.5 h-1.5 rounded-full bg-zinc-700';
+                if (aiStatus) aiStatus.innerText = 'CORE_STATUS: IDLE';
+                makeMove(bestMove.t, bestMove.r, bestMove.c);
+            }, 600);
+        }
+
+        function updateUI() {
+            const s1 = document.getElementById('score-1');
+            const s2 = document.getElementById('score-2');
+            if (s1) s1.innerText = scores[1];
+            if (s2) s2.innerText = scores[2];
+            
+            const p1c = document.getElementById('p1-card');
+            const p1t = document.getElementById('p1-turn-dot');
+            if (p1c) {
+                p1c.style.opacity = turn === 1 ? '1' : '0.4';
+                p1c.style.borderColor = turn === 1 ? '#10b981' : '#27272a';
+            }
+            if (p1t) p1t.classList.toggle('hidden', turn !== 1);
+
+            const p2c = document.getElementById('p2-card');
+            const p2t = document.getElementById('p2-turn-dot');
+            if (p2c) {
+                p2c.style.opacity = turn === 2 ? '1' : '0.4';
+                p2c.style.borderColor = turn === 2 ? '#3b82f6' : '#27272a';
+            }
+            if (p2t) p2t.classList.toggle('hidden', turn !== 2);
+
+            const size = LEVELS[currentLevel].size;
+            const total = (size - 1) * (size - 1);
+            const percent = Math.floor(((scores[1] + scores[2]) / total) * 100);
+            
+            const capPercent = document.getElementById('capture-percent');
+            const capBar = document.getElementById('capture-bar');
+            if (capPercent) capPercent.innerText = `${percent}%`;
+            if (capBar) capBar.style.width = `${percent}%`;
         }
 
         function checkWin() {
-            const total = scores[1] + scores[2];
-            const max = (gridSize - 1) * (gridSize - 1);
-            if (total === max) {
+            const size = LEVELS[currentLevel].size;
+            const total = (size - 1) * (size - 1);
+            if (scores[1] + scores[2] === total) {
                 gameOver = true;
                 const overlay = document.getElementById('winner-overlay');
                 const winText = document.getElementById('winner-text');
                 const subText = document.getElementById('winner-subtext');
                 const btn = document.getElementById('overlay-btn');
-                const icon = document.getElementById('overlay-icon');
                 
-                overlay.classList.remove('hidden');
-                
+                if (overlay) overlay.classList.remove('hidden');
                 if (scores[1] > scores[2]) {
-                    winText.innerText = "PROTOCOL_SUCCESS";
-                    icon.innerHTML = `<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-emerald-500"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>`;
-                    
-                    if (currentLevel < LEVELS.length - 1) {
-                        subText.innerText = `Sector ${currentLevel + 1} secured. Escalating to ${LEVELS[currentLevel+1].name}.`;
-                        btn.innerText = "INITIALIZE_NEXT_PHASE";
-                        btn.onclick = () => { currentLevel++; initGame(); };
-                    } else {
-                        subText.innerText = "All CORE sectors secured. Grid dominance complete.";
-                        btn.innerText = "RESTART_SIMULATION";
-                        btn.onclick = () => initGame(true);
+                    if (winText) {
+                        winText.innerText = "PROTOCOL_SUCCESS";
+                        winText.className = "text-4xl font-black uppercase italic tracking-tighter text-emerald-500";
+                    }
+                    if (subText) subText.innerText = `Sector ${currentLevel + 1} secured. Operator dominance established.`;
+                    if (btn) {
+                        btn.innerText = currentLevel < 2 ? "INITIALIZE_NEXT_LVL" : "SYSTEM_RESET";
+                        btn.onclick = () => { if(currentLevel < 2) selectLevel(currentLevel+1); else selectLevel(0); };
                     }
                 } else {
-                    winText.innerText = "CORE_FAILURE";
-                    icon.innerHTML = `<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-red-500"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>`;
-                    subText.innerText = "System logic outperformed operator. Memory flush recommended.";
-                    btn.innerText = "RETRY_LEVEL";
-                    btn.onclick = () => initGame();
+                    if (winText) {
+                        winText.innerText = "CORE_FAILURE";
+                        winText.className = "text-4xl font-black uppercase italic tracking-tighter text-red-500";
+                    }
+                    if (subText) subText.innerText = "Logic Core captured majority sectors. Retry required.";
+                    if (btn) {
+                        btn.innerText = "REBOOT_LEVEL";
+                        btn.onclick = () => initGame();
+                    }
                 }
             }
         }
 
-        document.getElementById('toggle-ai').onclick = () => {
-            vsAI = !vsAI;
-            const btn = document.getElementById('toggle-ai');
-            const label = document.getElementById('p2-label');
-            btn.innerText = vsAI ? "MODE: VS_AI" : "MODE: PVP";
-            label.innerText = vsAI ? "Logic_Core" : "Operator_02";
-            initGame();
-        };
-
-        document.getElementById('reset-btn').onclick = () => initGame();
-
-        window.onload = checkAuth;
+        function log(msg) {
+            const container = document.getElementById('console-logs');
+            if (!container) return;
+            const entry = document.createElement('div');
+            entry.innerHTML = `<span class="text-zinc-800">></span> ${msg}`;
+            container.prepend(entry);
+            if (container.children.length > 8) container.removeChild(container.lastChild);
+        }
     </script>
 </body>
 </html>
