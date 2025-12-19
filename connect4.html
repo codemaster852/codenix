@@ -13,43 +13,68 @@
         body { background-color: #000; color: #fff; font-family: 'Inter', sans-serif; overflow-x: hidden; }
         .glass-card { background: rgba(26, 26, 26, 0.6); backdrop-filter: blur(12px); border: 1px solid #333; }
         
-        #board-container {
+        #game-wrapper {
             position: relative;
             width: 100%;
             max-width: 600px;
+            margin: 0 auto;
+        }
+
+        /* The Board Front Face (Blue/Dark with holes) */
+        #board-front {
+            position: relative;
+            width: 100%;
             aspect-ratio: 7 / 6;
-            background: #1a1a1a;
+            background: #1a1a1a; /* Dark sleek board color */
             border: 8px solid #333;
             border-radius: 16px;
-            margin: 0 auto;
             display: grid;
             grid-template-columns: repeat(7, 1fr);
             padding: 10px;
             gap: 8px;
             box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+            z-index: 20; /* Board is on top */
+            pointer-events: none; /* Let clicks pass through to hitboxes */
+        }
+
+        .slot-hole {
+            width: 100%;
+            aspect-ratio: 1 / 1;
+            background: #000; /* This makes the "hole" look empty */
+            border-radius: 50%;
+            box-shadow: inset 0 4px 8px rgba(0,0,0,0.8);
+            border: 2px solid #222;
+        }
+
+        /* Hitbox Overlay (Where user actually clicks) */
+        #hitbox-layer {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            padding: 18px; /* Offset for board border/padding */
+            gap: 8px;
+            z-index: 30; /* Click layer on very top */
         }
 
         .column-hitbox {
-            position: relative;
             height: 100%;
             cursor: pointer;
-            display: grid;
-            grid-template-rows: repeat(6, 1fr);
-            gap: 8px;
-            z-index: 20;
+            transition: background 0.2s;
+            border-radius: 8px;
         }
 
         .column-hitbox:hover {
-            background: rgba(255, 255, 255, 0.03);
+            background: rgba(16, 185, 129, 0.05);
         }
 
-        .slot {
-            width: 100%;
-            aspect-ratio: 1 / 1;
-            background: #000;
-            border-radius: 50%;
-            border: 2px solid #222;
-            z-index: 10;
+        /* Pieces Layer (Behind the board-front) */
+        #pieces-layer {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 10; /* Pieces are behind the board */
+            overflow: hidden;
+            pointer-events: none;
         }
 
         .piece {
@@ -57,7 +82,6 @@
             width: calc(100% / 7 - 14px);
             aspect-ratio: 1 / 1;
             border-radius: 50%;
-            z-index: 5;
             transition: top 0.6s cubic-bezier(0.47, 0, 0.745, 0.715);
         }
 
@@ -71,22 +95,13 @@
             box-shadow: 0 4px 15px rgba(250, 204, 21, 0.4);
         }
 
-        .win-highlight {
-            animation: pulse-win 1s infinite alternate;
-            z-index: 30 !important;
-        }
-
-        @keyframes pulse-win {
-            from { transform: scale(1); filter: brightness(1); }
-            to { transform: scale(1.1); filter: brightness(1.5); }
-        }
-
         .eval-bar-container { width: 30px; height: 400px; background: #222; border-radius: 6px; overflow: hidden; position: relative; border: 1px solid #333; }
         #eval-bar-fill { position: absolute; bottom: 0; width: 100%; background: #ef4444; transition: height 0.6s ease; }
 
         @media (max-width: 640px) {
-            #board-container { max-width: 95vw; padding: 5px; gap: 4px; border-width: 4px; }
-            .slot { gap: 4px; }
+            #game-wrapper { max-width: 95vw; }
+            #board-front { padding: 5px; gap: 4px; border-width: 4px; }
+            #hitbox-layer { padding: 9px; gap: 4px; }
         }
     </style>
 </head>
@@ -114,9 +129,19 @@
                 <div id="eval-bar-fill" style="height: 50%;"></div>
             </div>
             
-            <div class="w-full relative">
-                <div id="board-container">
-                    <!-- 7 Hitbox Columns -->
+            <div id="game-wrapper">
+                <!-- Pieces Layer (Behind) -->
+                <div id="pieces-layer"></div>
+
+                <!-- Board Front (Visual Holes) -->
+                <div id="board-front">
+                    <script>
+                        for(let i=0; i<42; i++) document.write('<div class="slot-hole"></div>');
+                    </script>
+                </div>
+
+                <!-- Interactive Layer (Hitboxes) -->
+                <div id="hitbox-layer">
                     <div class="column-hitbox" onclick="dropPiece(0)"></div>
                     <div class="column-hitbox" onclick="dropPiece(1)"></div>
                     <div class="column-hitbox" onclick="dropPiece(2)"></div>
@@ -124,14 +149,9 @@
                     <div class="column-hitbox" onclick="dropPiece(4)"></div>
                     <div class="column-hitbox" onclick="dropPiece(5)"></div>
                     <div class="column-hitbox" onclick="dropPiece(6)"></div>
-                    
-                    <!-- 42 Static Slots for visual depth -->
-                    <script>
-                        for(let i=0; i<42; i++) document.write('<div class="slot"></div>');
-                    </script>
                 </div>
 
-                <div class="mt-4 md:mt-6 flex justify-between items-center bg-zinc-900 p-4 rounded-xl border border-zinc-800">
+                <div class="mt-6 flex justify-between items-center bg-zinc-900 p-4 rounded-xl border border-zinc-800">
                     <div id="game-status" class="text-xs md:text-sm font-bold text-red-500 tracking-wider uppercase">Your Turn (Red)</div>
                     <button onclick="resetGame()" class="p-2 hover:bg-zinc-800 rounded-lg text-zinc-400 hover:text-white transition-colors">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" stroke-width="2"></path></svg>
@@ -140,7 +160,7 @@
             </div>
         </div>
 
-        <!-- Engine Sidebar -->
+        <!-- Sidebar -->
         <div class="lg:col-span-5 space-y-6">
             <div class="glass-card rounded-2xl p-6">
                 <h3 class="text-lg font-bold mb-4">AI Processing Unit</h3>
@@ -150,13 +170,10 @@
                         <option value="5" selected>Algorithm: Minimax (Hard)</option>
                         <option value="7">Algorithm: Deep Learning (Insane)</option>
                     </select>
-                    <div class="text-[11px] text-zinc-500 italic bg-zinc-900/50 p-3 rounded-lg border border-zinc-800/50 leading-relaxed">
-                        Connect four of your discs in a row (vertical, horizontal, or diagonal) before the AI outcalculates you.
-                    </div>
                 </div>
             </div>
 
-            <div class="glass-card rounded-2xl p-6 h-[250px] md:h-[300px] flex flex-col">
+            <div class="glass-card rounded-2xl p-6 h-[300px] flex flex-col">
                 <h3 class="text-sm font-bold text-zinc-500 uppercase tracking-widest mb-4">Engine Telemetry</h3>
                 <div id="match-log" class="text-xs font-mono text-zinc-400 space-y-2 overflow-y-auto custom-scroll flex-1 pr-2">
                     <div class="text-emerald-500/70">> Connectivity Matrix Ready.</div>
@@ -171,16 +188,13 @@
             const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJubHdybmdmZ3Z6bm5kbGVrbXJ6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjYwMzIxODMsImV4cCI6MjA4MTYwODE4M30.4al_pqjZBYgbfoLlMosT500PC85OGsUggCAL-hmtelA';
             const client = window.supabase.createClient(supabaseUrl, supabaseKey);
 
-            let board = Array(6).fill().map(() => Array(7).fill(0)); // 0: empty, 1: player, 2: ai
+            let board = Array(6).fill().map(() => Array(7).fill(0));
             let isPlayerTurn = true;
             let gameOver = false;
 
             async function validateUser() {
                 const { data: { session } } = await client.auth.getSession();
-                if (!session) { 
-                    window.location.href = 'auth.html'; 
-                    return; 
-                }
+                if (!session) { window.location.href = 'auth.html'; return; }
                 document.getElementById('user-badge').innerHTML = '<span class="text-emerald-500 font-bold text-[10px]">AUTH_SUCCESS</span>';
                 initGame();
             }
@@ -189,7 +203,7 @@
                 board = Array(6).fill().map(() => Array(7).fill(0));
                 isPlayerTurn = true;
                 gameOver = false;
-                $('.piece').remove();
+                $('#pieces-layer').empty();
                 $('#game-status').text('Your Turn').removeClass('text-yellow-500').addClass('text-red-500');
                 updateEval(0);
             }
@@ -227,26 +241,27 @@
             function executeMove(row, col, player) {
                 board[row][col] = player;
                 
-                // Visual Piece Creation
-                const boardRect = document.getElementById('board-container').getBoundingClientRect();
+                const boardRect = document.getElementById('board-front').getBoundingClientRect();
                 const piece = document.createElement('div');
                 piece.className = `piece ${player === 1 ? 'player' : 'ai'}`;
                 
-                // Calculate position relative to container
                 const colWidth = boardRect.width / 7;
                 const rowHeight = boardRect.height / 6;
                 
-                piece.style.left = `${(col * colWidth) + 12}px`;
-                piece.style.top = `-100px`; // Start above board
+                // Adjusting offsets for the internal padding of the board
+                const offsetX = 14; 
+                const offsetY = 14; 
+
+                piece.style.left = `${(col * colWidth) + offsetX}px`;
+                piece.style.top = `-100px`;
                 
-                document.getElementById('board-container').appendChild(piece);
+                document.getElementById('pieces-layer').appendChild(piece);
                 
-                // Trigger gravity
                 setTimeout(() => {
-                    piece.style.top = `${(row * rowHeight) + 10}px`;
+                    piece.style.top = `${(row * rowHeight) + offsetY}px`;
                 }, 50);
 
-                logMove(`${player === 1 ? 'Human' : 'Neural'} placed at ${col + 1}:${row + 1}`);
+                logMove(`${player === 1 ? 'Human' : 'Neural'} dropped at column ${col + 1}`);
             }
 
             function aiTurn() {
@@ -268,37 +283,36 @@
 
             function getBestMove(b, depth) {
                 let bestScore = -Infinity;
-                let move = 3; // Default to center
+                let moves = [];
+                for(let c=0; c<7; c++) if(b[0][c] === 0) moves.push(c);
 
-                // Possible columns
-                const validCols = [];
-                for(let c=0; c<7; c++) if(b[0][c] === 0) validCols.push(c);
+                let bestMove = moves[Math.floor(Math.random() * moves.length)];
 
-                for (let c of validCols) {
+                for (let c of moves) {
                     let r = getAvailableRow(b, c);
                     b[r][c] = 2;
                     let score = minimax(b, depth, -Infinity, Infinity, false);
                     b[r][c] = 0;
                     if (score > bestScore) {
                         bestScore = score;
-                        move = c;
+                        bestMove = c;
                     }
                 }
-                return move;
+                return bestMove;
             }
 
             function minimax(b, depth, alpha, beta, isMax) {
-                if (checkWin(b, 2)) return 100000 + depth;
-                if (checkWin(b, 1)) return -100000 - depth;
+                if (checkWin(b, 2)) return 100000;
+                if (checkWin(b, 1)) return -100000;
                 if (depth === 0) return evaluateBoard(b);
 
-                const validCols = [];
-                for(let c=0; c<7; c++) if(b[0][c] === 0) validCols.push(c);
-                if (validCols.length === 0) return 0;
+                let moves = [];
+                for(let c=0; c<7; c++) if(b[0][c] === 0) moves.push(c);
+                if (moves.length === 0) return 0;
 
                 if (isMax) {
                     let maxEval = -Infinity;
-                    for (let c of validCols) {
+                    for (let c of moves) {
                         let r = getAvailableRow(b, c);
                         b[r][c] = 2;
                         let ev = minimax(b, depth - 1, alpha, beta, false);
@@ -310,7 +324,7 @@
                     return maxEval;
                 } else {
                     let minEval = Infinity;
-                    for (let c of validCols) {
+                    for (let c of moves) {
                         let r = getAvailableRow(b, c);
                         b[r][c] = 1;
                         let ev = minimax(b, depth - 1, alpha, beta, true);
@@ -325,49 +339,26 @@
 
             function evaluateBoard(b) {
                 let score = 0;
-                // Center bias
-                for(let r=0; r<6; r++) if(b[r][3] === 2) score += 3;
-                
-                // Add points for potential connections (simplified)
+                for(let r=0; r<6; r++) if(b[r][3] === 2) score += 4;
+                for(let r=0; r<6; r++) if(b[r][3] === 1) score -= 4;
                 return score;
             }
 
             function checkWin(b, p) {
-                // Horizontal
-                for (let r = 0; r < 6; r++) {
-                    for (let c = 0; c < 4; c++) {
-                        if (b[r][c] === p && b[r][c+1] === p && b[r][c+2] === p && b[r][c+3] === p) return true;
-                    }
-                }
-                // Vertical
-                for (let r = 0; r < 3; r++) {
-                    for (let c = 0; c < 7; c++) {
-                        if (b[r][c] === p && b[r+1][c] === p && b[r+2][c] === p && b[r+3][c] === p) return true;
-                    }
-                }
-                // Diagonal /
-                for (let r = 3; r < 6; r++) {
-                    for (let c = 0; c < 4; c++) {
-                        if (b[r][c] === p && b[r-1][c+1] === p && b[r-2][c+2] === p && b[r-3][c+3] === p) return true;
-                    }
-                }
-                // Diagonal \
-                for (let r = 0; r < 3; r++) {
-                    for (let c = 0; c < 4; c++) {
-                        if (b[r][c] === p && b[r+1][c+1] === p && b[r+2][c+2] === p && b[r+3][c+3] === p) return true;
-                    }
-                }
+                for (let r=0; r<6; r++) for (let c=0; c<4; c++) if (b[r][c]===p && b[r][c+1]===p && b[r][c+2]===p && b[r][c+3]===p) return true;
+                for (let r=0; r<3; r++) for (let c=0; c<7; c++) if (b[r][c]===p && b[r+1][c]===p && b[r+2][c]===p && b[r+3][c]===p) return true;
+                for (let r=3; r<6; r++) for (let c=0; c<4; c++) if (b[r][c]===p && b[r-1][c+1]===p && b[r-2][c+2]===p && b[r-3][c+3]===p) return true;
+                for (let r=0; r<3; r++) for (let c=0; c<4; c++) if (b[r][c]===p && b[r+1][c+1]===p && b[r+2][c+2]===p && b[r+3][c+3]===p) return true;
                 return false;
             }
 
             function updateEval(score) {
-                const percent = Math.min(95, Math.max(5, 50 + (score / 10)));
+                const percent = Math.min(95, Math.max(5, 50 + (score / 5)));
                 $('#eval-bar-fill').css('height', `${percent}%`);
             }
 
             function logMove(msg) {
-                const entry = $(`<div class="border-l-2 border-emerald-500/20 pl-2 py-1">> ${msg}</div>`);
-                $('#match-log').prepend(entry);
+                $('#match-log').prepend(`<div class="border-l-2 border-emerald-500/20 pl-2 py-1">> ${msg}</div>`);
             }
 
             function endGame(msg) {
