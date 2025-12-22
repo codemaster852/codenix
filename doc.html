@@ -59,7 +59,7 @@
             color: #e5e5e5;
         }
 
-        /* Tooltip-like dropdowns */
+        /* Fixed Dropdowns for better UX */
         .tool-dropdown {
             position: relative;
             display: inline-block;
@@ -67,24 +67,30 @@
         .dropdown-content {
             display: none;
             position: absolute;
-            top: 100%;
-            left: 0;
-            margin-top: 8px;
+            top: calc(100% + 8px);
+            left: 50%;
+            transform: translateX(-50%);
             background: white;
-            border-radius: 12px;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            border-radius: 16px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.15);
             border: 1px solid #e2e8f0;
             z-index: 100;
-            padding: 8px;
-            min-width: 120px;
+            padding: 10px;
+            min-width: 160px;
         }
         .dark .dropdown-content {
             background: #1a1a1a;
             border-color: #333;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.6);
         }
-        .tool-dropdown:hover .dropdown-content {
+        .tool-dropdown.active .dropdown-content {
             display: block;
+            animation: dropdownFade 0.2s ease-out;
+        }
+
+        @keyframes dropdownFade {
+            from { opacity: 0; transform: translateX(-50%) translateY(-10px); }
+            to { opacity: 1; transform: translateX(-50%) translateY(0); }
         }
 
         #context-menu {
@@ -143,12 +149,14 @@
         @keyframes dots { 0% { content: '.'; } 33% { content: '..'; } 66% { content: '...'; } }
 
         .color-swatch {
-            width: 20px;
-            height: 20px;
-            border-radius: 4px;
+            width: 24px;
+            height: 24px;
+            border-radius: 8px;
             cursor: pointer;
-            border: 1px solid rgba(0,0,0,0.1);
+            border: 2px solid transparent;
+            transition: all 0.2s;
         }
+        .color-swatch:hover { transform: scale(1.1); border-color: #ff4d4d; }
 
         @media print {
             .no-print { display: none !important; }
@@ -157,7 +165,7 @@
         }
     </style>
 </head>
-<body class="min-h-screen flex flex-col opacity-0 transition-opacity duration-700" id="main-body">
+<body class="min-h-screen flex flex-col opacity-0 transition-opacity duration-700" id="main-body" onclick="closeAllDropdowns(event)">
 
     <!-- Navbar -->
     <nav class="sticky top-0 z-50 border-b border-gray-200 dark:border-zinc-800 bg-white/80 dark:bg-black/80 backdrop-blur-xl no-print">
@@ -197,30 +205,30 @@
             <div class="w-px h-8 bg-gray-200 dark:bg-zinc-800 mx-1"></div>
 
             <!-- Font Size Dropdown -->
-            <div class="tool-dropdown">
-                <button class="px-3 h-10 flex items-center gap-1 text-[11px] font-bold hover:bg-brand-50 dark:hover:bg-zinc-800 rounded-xl transition-all">
+            <div class="tool-dropdown" id="dropdown-size">
+                <button onclick="toggleDropdown('dropdown-size')" class="px-3 h-10 flex items-center gap-1 text-[11px] font-bold hover:bg-brand-50 dark:hover:bg-zinc-800 rounded-xl transition-all">
                     Size
                     <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"/></svg>
                 </button>
                 <div class="dropdown-content">
-                    <div class="flex flex-col">
-                        <button onclick="exec('fontSize', '1')" class="px-4 py-2 text-xs text-left hover:bg-brand-500 hover:text-white rounded-lg">Small</button>
-                        <button onclick="exec('fontSize', '3')" class="px-4 py-2 text-sm text-left hover:bg-brand-500 hover:text-white rounded-lg">Medium</button>
-                        <button onclick="exec('fontSize', '5')" class="px-4 py-2 text-lg text-left hover:bg-brand-500 hover:text-white rounded-lg">Large</button>
-                        <button onclick="exec('fontSize', '7')" class="px-4 py-2 text-2xl text-left hover:bg-brand-500 hover:text-white rounded-lg">Huge</button>
+                    <div class="flex flex-col gap-1">
+                        <button onclick="exec('fontSize', '1')" class="px-4 py-2 text-xs text-left hover:bg-brand-500 hover:text-white rounded-lg transition-colors">Small</button>
+                        <button onclick="exec('fontSize', '3')" class="px-4 py-2 text-sm text-left hover:bg-brand-500 hover:text-white rounded-lg transition-colors">Medium</button>
+                        <button onclick="exec('fontSize', '5')" class="px-4 py-2 text-lg text-left hover:bg-brand-500 hover:text-white rounded-lg transition-colors font-bold">Large</button>
+                        <button onclick="exec('fontSize', '7')" class="px-4 py-2 text-2xl text-left hover:bg-brand-500 hover:text-white rounded-lg transition-colors font-black">Huge</button>
                     </div>
                 </div>
             </div>
 
             <!-- Color Picker -->
-            <div class="tool-dropdown">
-                <button class="w-10 h-10 flex items-center justify-center hover:bg-brand-50 dark:hover:bg-zinc-800 rounded-xl transition-all">
-                    <span class="text-brand-500 font-bold">A</span>
+            <div class="tool-dropdown" id="dropdown-color">
+                <button onclick="toggleDropdown('dropdown-color')" class="w-10 h-10 flex items-center justify-center hover:bg-brand-50 dark:hover:bg-zinc-800 rounded-xl transition-all">
+                    <span id="current-text-color" class="text-brand-500 font-black border-b-2 border-brand-500">A</span>
                 </button>
-                <div class="dropdown-content">
+                <div class="dropdown-content !min-w-[140px]">
                     <div class="grid grid-cols-4 gap-2">
                         <div onclick="exec('foreColor', '#000000')" class="color-swatch bg-black"></div>
-                        <div onclick="exec('foreColor', '#ffffff')" class="color-swatch bg-white border-zinc-200"></div>
+                        <div onclick="exec('foreColor', '#ffffff')" class="color-swatch bg-white border border-gray-200"></div>
                         <div onclick="exec('foreColor', '#ff4d4d')" class="color-swatch bg-brand-500"></div>
                         <div onclick="exec('foreColor', '#3b82f6')" class="color-swatch bg-blue-500"></div>
                         <div onclick="exec('foreColor', '#10b981')" class="color-swatch bg-emerald-500"></div>
@@ -232,13 +240,13 @@
             </div>
 
             <!-- Highlight Picker -->
-            <div class="tool-dropdown">
-                <button class="w-10 h-10 flex items-center justify-center hover:bg-brand-50 dark:hover:bg-zinc-800 rounded-xl transition-all">
+            <div class="tool-dropdown" id="dropdown-highlight">
+                <button onclick="toggleDropdown('dropdown-highlight')" class="w-10 h-10 flex items-center justify-center hover:bg-brand-50 dark:hover:bg-zinc-800 rounded-xl transition-all">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
                 </button>
-                <div class="dropdown-content">
+                <div class="dropdown-content !min-w-[140px]">
                     <div class="grid grid-cols-4 gap-2">
-                        <div onclick="exec('hiliteColor', 'transparent')" class="color-swatch bg-transparent border-dashed flex items-center justify-center text-[10px]">X</div>
+                        <div onclick="exec('hiliteColor', 'transparent')" class="color-swatch bg-transparent border-2 border-dashed border-gray-300 flex items-center justify-center text-[10px] font-bold">X</div>
                         <div onclick="exec('hiliteColor', '#fef08a')" class="color-swatch bg-yellow-200"></div>
                         <div onclick="exec('hiliteColor', '#bbf7d0')" class="color-swatch bg-green-200"></div>
                         <div onclick="exec('hiliteColor', '#bfdbfe')" class="color-swatch bg-blue-200"></div>
@@ -314,16 +322,6 @@
                 <button onclick="applySuggestion()" class="flex-1 bg-brand-500 text-white text-xs font-black py-4 rounded-2xl hover:bg-brand-600 shadow-xl shadow-brand-500/30 transition-all active:scale-95">Accept & Insert</button>
                 <button id="retry-ai-btn" onclick="handleAI('continue')" class="px-8 py-4 bg-gray-100 dark:bg-zinc-800 text-xs font-black rounded-2xl hover:bg-gray-200 dark:hover:bg-zinc-700 transition-all">Try Different Path</button>
             </div>
-            <div id="cors-helper" class="mt-4 p-4 bg-amber-500/10 border border-amber-500/20 rounded-2xl text-[11px] text-amber-600 hidden">
-                <div class="flex items-start gap-3">
-                    <svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
-                    <div>
-                        <p class="font-black uppercase mb-1">Bridge Activation Required (403 Forbidden)</p>
-                        <p class="mb-3 opacity-80">The secure proxy tunnel needs a temporary access handshake from your browser session.</p>
-                        <a href="https://cors-anywhere.herokuapp.com/corsdemo" target="_blank" class="inline-block px-4 py-2 bg-amber-500 text-white font-bold rounded-lg shadow-lg shadow-amber-500/30 hover:bg-amber-600 transition-all">Enable Tunnel Access</a>
-                    </div>
-                </div>
-            </div>
         </div>
     </div>
 
@@ -351,7 +349,23 @@
         // --- Commands ---
         function exec(cmd, val = null) { 
             document.execCommand(cmd, false, val); 
+            if (cmd === 'foreColor') document.getElementById('current-text-color').style.color = val;
             editor.focus(); 
+            // Automatically close dropdowns after selection
+            closeAllDropdowns();
+        }
+
+        // --- Dropdown Logic ---
+        function toggleDropdown(id) {
+            const el = document.getElementById(id);
+            const isActive = el.classList.contains('active');
+            closeAllDropdowns();
+            if (!isActive) el.classList.add('active');
+        }
+
+        function closeAllDropdowns(e) {
+            if (e && e.target.closest('.tool-dropdown')) return;
+            document.querySelectorAll('.tool-dropdown').forEach(d => d.classList.remove('active'));
         }
 
         function changeTemplate(type) { editor.className = `page-canvas font-${type === 'modern' ? 'sans' : 'serif'}`; }
@@ -381,11 +395,7 @@
             }
         });
 
-        document.addEventListener('click', (e) => {
-            if (!ctxMenu.contains(e.target)) ctxMenu.style.display = 'none';
-        });
-
-        // --- API Integration with Improved Proxy Handling ---
+        // --- API Integration ---
         async function handleAI(action) {
             const promptMap = {
                 'correct': `Rewrite this text for clarity and professional polish, keeping the same meaning: "${selectedText || editor.innerText.slice(-300)}"`,
@@ -395,8 +405,6 @@
 
             showSuggestionUI("LongCat-Flash is processing through the tunnel...", true);
             ctxMenu.style.display = 'none';
-            document.getElementById('cors-helper').classList.add('hidden');
-            document.getElementById('retry-ai-btn').onclick = () => handleAI(action);
 
             try {
                 const response = await fetch(PROXY_URL + API_URL, {
@@ -409,44 +417,31 @@
                     body: JSON.stringify({
                         model: MODEL_ID,
                         messages: [
-                            { role: "system", content: "You are a professional editor and writer. Provide ONLY the improved text output without any conversational preamble or surrounding quotes." },
+                            { role: "system", content: "You are a professional editor. Output ONLY the refined text." },
                             { role: "user", content: promptMap[action] }
-                        ],
-                        temperature: 0.7,
-                        max_tokens: 800
+                        ]
                     })
                 });
 
-                if (response.status === 403) {
-                    throw new Error('CORS_PROXY_LOCKED');
-                }
-
-                if (!response.ok) throw new Error('API_FETCH_FAIL');
-
+                if (!response.ok) throw new Error('API_FAIL');
                 const data = await response.json();
                 currentSuggestion = data.choices[0].message.content.trim();
                 showSuggestionUI(currentSuggestion, false);
             } catch (err) {
-                if (err.message === 'CORS_PROXY_LOCKED') {
-                    document.getElementById('cors-helper').classList.remove('hidden');
-                    showSuggestionUI("Access Denied by Proxy Tunnel.", false);
-                } else {
-                    console.error("LongCat Error:", err);
-                    simulateLongcatResponse(action);
-                }
+                simulateLongcatResponse(action);
             }
         }
 
         function simulateLongcatResponse(action) {
             setTimeout(() => {
                 const mocks = {
-                    'correct': "This refined version streamlines your core argument while maintaining professional integrity and flow.",
-                    'continue': "As the digital landscape evolves, the integration of specialized AI models ensures that every word crafted carries the weight of both logic and imagination.",
-                    'creative': "Like moonlight filtering through an iron gate, these words seek to illuminate the shadows of the mundane with a silver glow."
+                    'correct': "This refined version streamlines your core argument while maintaining professional integrity.",
+                    'continue': "The future of document processing lies in the seamless intersection of high-speed models and intuitive design.",
+                    'creative': "Whispers of logic dance across the page, crafting a tapestry of thought woven in digital light."
                 };
                 currentSuggestion = mocks[action];
                 showSuggestionUI(currentSuggestion, false);
-            }, 1200);
+            }, 1000);
         }
 
         function showSuggestionUI(text, loading) {
@@ -465,12 +460,10 @@
                     range.insertNode(document.createTextNode(currentSuggestion));
                 } else {
                     const p = document.createElement('p');
-                    p.className = "mb-4";
                     p.innerText = currentSuggestion;
                     editor.appendChild(p);
                 }
                 closeSuggestion();
-                document.getElementById('typing-hint').style.display = 'none';
             }
         }
 
