@@ -3,10 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Docs - Codenix AI Studio</title>
+    <title>Docs Pro - Codenix AI Studio</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
     
     <script>
         tailwind.config = {
@@ -14,13 +15,11 @@
             theme: {
                 extend: {
                     fontFamily: {
-                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                        sans: ['Inter', 'sans-serif'],
                         mono: ['JetBrains Mono', 'monospace'],
+                        serif: ['Playfair Display', 'serif'],
                     },
                     colors: {
-                        background: { light: '#F9FAFB', dark: '#000000' },
-                        surface: { light: '#FFFFFF', dark: '#0A0A0A' },
-                        border: { light: '#E5E7EB', dark: '#1A1A1A' },
                         brand: { 500: '#6366f1', 600: '#4f46e5' }
                     }
                 }
@@ -29,306 +28,298 @@
     </script>
 
     <style>
-        [v-cloak] { display: none; }
-        body {
-            background-color: #F9FAFB;
-            color: #111827;
-            -webkit-font-smoothing: antialiased;
-            transition: background-color 0.2s, color 0.2s;
-        }
-        .dark body {
-            background-color: #000000;
-            color: #FFFFFF;
-        }
-        .editor-container {
+        body { background-color: #f3f4f6; transition: background 0.3s; }
+        .dark body { background-color: #0a0a0a; }
+        
+        /* Canva-style Canvas */
+        .page-canvas {
             width: 210mm;
             min-height: 297mm;
-            margin: 2rem auto;
             background: white;
-            padding: 20mm;
-            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+            margin: 40px auto;
+            padding: 25mm;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.1);
+            position: relative;
+            transition: all 0.3s ease;
             outline: none;
         }
-        .dark .editor-container {
-            background: #0A0A0A;
-            border: 1px solid #1A1A1A;
-            box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.5);
+        .dark .page-canvas {
+            background: #111;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+            color: #eee;
         }
-        .toolbar-btn {
-            padding: 6px;
-            border-radius: 4px;
-            transition: all 0.2s;
+
+        /* Context Menu */
+        #context-menu {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            width: 220px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+            border: 1px solid #e5e7eb;
+            overflow: hidden;
+        }
+        .dark #context-menu {
+            background: #1a1a1a;
+            border-color: #333;
+        }
+
+        .menu-item {
+            padding: 10px 14px;
+            font-size: 13px;
+            cursor: pointer;
             display: flex;
             align-items: center;
-            justify-content: center;
+            gap: 10px;
+            transition: background 0.2s;
         }
-        .toolbar-btn:hover {
-            background: rgba(99, 102, 241, 0.1);
+        .menu-item:hover { background: #f3f4f6; }
+        .dark .menu-item:hover { background: #2a2a2a; }
+
+        /* Floating AI Hints */
+        .ai-hint {
+            border-left: 3px solid #6366f1;
+            background: rgba(99, 102, 241, 0.05);
+            padding: 8px 12px;
+            margin: 10px 0;
+            border-radius: 0 8px 8px 0;
+            font-size: 0.9em;
             color: #6366f1;
+            cursor: pointer;
         }
-        .bg-grid-pattern {
-            background-size: 40px 40px;
-            background-image: linear-gradient(to right, currentColor 1px, transparent 1px),
-                              linear-gradient(to bottom, currentColor 1px, transparent 1px);
-            mask-image: radial-gradient(circle at center, black 30%, transparent 90%);
-            -webkit-mask-image: radial-gradient(circle at center, black 30%, transparent 90%);
-            color: rgba(0,0,0,0.02);
-        }
-        .dark .bg-grid-pattern {
-            color: rgba(255,255,255,0.03);
-        }
-        #doc-title:focus {
-            outline: none;
-            border-bottom: 2px solid #6366f1;
-        }
-        .ai-loading {
-            animation: pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-        }
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: .5; }
-        }
+
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #444; border-radius: 10px; }
+
+        /* Template styles */
+        .template-modern { font-family: 'Inter', sans-serif; }
+        .template-elegant { font-family: 'Playfair Display', serif; }
     </style>
 </head>
-<body class="min-h-screen relative flex flex-col opacity-0 transition-opacity duration-300" id="main-body">
+<body class="min-h-screen flex flex-col opacity-0 transition-opacity duration-500" id="main-body">
 
-    <div class="fixed inset-0 bg-grid-pattern pointer-events-none"></div>
-
-    <!-- Header / Navbar -->
-    <nav class="sticky top-0 z-50 border-b border-border-light dark:border-border-dark bg-white/80 dark:bg-black/80 backdrop-blur-md">
-        <div class="max-w-full mx-auto px-4">
-            <div class="flex h-16 items-center gap-4">
-                <!-- Back Button -->
-                <a href="portal.html" class="p-2 hover:bg-gray-100 dark:hover:bg-zinc-900 rounded-lg transition-colors group">
-                    <svg class="w-5 h-5 text-gray-500 group-hover:text-brand-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
-                    </svg>
-                </a>
-
-                <div class="w-8 h-8 bg-brand-600 rounded-lg flex items-center justify-center text-white font-bold shrink-0">D</div>
-                
-                <div class="flex flex-col flex-1 min-w-0">
-                    <input type="text" id="doc-title" value="Untitled Document" class="bg-transparent font-medium text-gray-900 dark:text-white border-b border-transparent px-1 py-0.5 w-48 text-sm md:text-base">
-                    <div class="flex items-center gap-4 text-[11px] text-gray-500 font-medium">
-                        <span class="hover:text-gray-900 dark:hover:text-gray-200 cursor-pointer">File</span>
-                        <span class="hover:text-gray-900 dark:hover:text-gray-200 cursor-pointer">Edit</span>
-                        <span class="hover:text-gray-900 dark:hover:text-gray-200 cursor-pointer">View</span>
-                        <span class="hover:text-gray-900 dark:hover:text-gray-200 cursor-pointer">Insert</span>
-                        <span class="hover:text-gray-900 dark:hover:text-gray-200 cursor-pointer text-brand-600 flex items-center gap-1">
-                             <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3 3 0 013.75-2.906z"></path></svg>
-                             Share
-                        </span>
-                    </div>
-                </div>
-
-                <div class="flex items-center gap-3">
-                    <!-- ASI Toggle -->
-                    <div id="asi-status" class="flex items-center gap-2 px-3 py-1.5 rounded-full bg-brand-600/10 border border-brand-600/20 text-brand-600 text-xs font-bold">
-                        <div class="w-2 h-2 bg-brand-600 rounded-full animate-pulse"></div>
-                        ASI ACTIVE
-                    </div>
-
-                    <button onclick="window.toggleTheme()" class="p-2 rounded-full border border-gray-200 dark:border-border-dark text-gray-600 dark:text-white hover:text-brand-600 transition-colors">
-                        <svg id="theme-icon-dark" class="w-5 h-5 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path></svg>
-                        <svg id="theme-icon-light" class="w-5 h-5 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m12.728 0l-.707-.707M6.343 6.343l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
+    <!-- Navbar -->
+    <nav class="sticky top-0 z-50 border-b border-gray-200 dark:border-zinc-800 bg-white/90 dark:bg-black/90 backdrop-blur-xl">
+        <div class="px-4 flex h-16 items-center gap-4">
+            <a href="portal.html" class="p-2 hover:bg-gray-100 dark:hover:bg-zinc-900 rounded-lg transition-colors">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+            </a>
+            <div class="flex flex-col">
+                <input type="text" id="doc-title" value="New Design Concept" class="bg-transparent font-bold text-lg focus:outline-none dark:text-white">
+                <div class="flex gap-3 text-[10px] uppercase tracking-widest font-bold text-gray-400">
+                    <button onclick="changeTemplate('modern')" class="hover:text-brand-600">Modern</button>
+                    <button onclick="changeTemplate('elegant')" class="hover:text-brand-600">Elegant</button>
+                    <button onclick="exportToPDF()" class="text-brand-600 flex items-center gap-1">
+                        <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M6 2a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V7.414A2 2 0 0015.414 6L12 2.586A2 2 0 0010.586 2H6zm5 2l4 4H11V4z"/></svg>
+                        Export PDF
                     </button>
-
-                    <div class="w-8 h-8 rounded-full bg-zinc-800 border border-border-dark flex items-center justify-center text-xs font-bold text-white overflow-hidden" id="user-initials">
-                        --
-                    </div>
                 </div>
+            </div>
+            
+            <div class="ml-auto flex items-center gap-3">
+                <div id="ai-pulse" class="flex items-center gap-2 px-3 py-1 bg-brand-600/10 text-brand-600 rounded-full text-[10px] font-bold">
+                    <span class="w-1.5 h-1.5 bg-brand-600 rounded-full animate-ping"></span>
+                    ASI: LONGCAT v2
+                </div>
+                <button onclick="window.toggleTheme()" class="p-2 border border-gray-200 dark:border-zinc-800 rounded-full dark:text-white">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
+                </button>
             </div>
         </div>
     </nav>
 
-    <!-- Toolbar -->
-    <div class="sticky top-16 z-40 bg-white/90 dark:bg-black/90 border-b border-border-light dark:border-border-dark py-2 px-4 flex items-center gap-1 overflow-x-auto whitespace-nowrap scrollbar-hide">
-        <button onclick="execCommand('undo')" class="toolbar-btn"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l5 5m-5-5l5-5"></path></svg></button>
-        <button onclick="execCommand('redo')" class="toolbar-btn"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 10h-10a8 8 0 00-8 8v2m18-10l-5 5m5-5l-5-5"></path></svg></button>
-        <div class="h-6 w-px bg-border-light dark:bg-border-dark mx-2"></div>
-        <button onclick="execCommand('bold')" class="toolbar-btn font-bold">B</button>
-        <button onclick="execCommand('italic')" class="toolbar-btn italic">I</button>
-        <button onclick="execCommand('underline')" class="toolbar-btn underline">U</button>
-        <button onclick="execCommand('strikeThrough')" class="toolbar-btn line-through">S</button>
-        <div class="h-6 w-px bg-border-light dark:bg-border-dark mx-2"></div>
-        <button onclick="execCommand('justifyLeft')" class="toolbar-btn"><svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M3 5h14V3H3v2zm0 4h14V7H3v2zm0 4h10v-2H3v2zm0 4h14v-2H3v2z"></path></svg></button>
-        <button onclick="execCommand('justifyCenter')" class="toolbar-btn"><svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M3 5h14V3H3v2zm2 4h10V7H5v2zm-2 4h14v-2H3v2zm2 4h10v-2H5v2z"></path></svg></button>
-        <button onclick="execCommand('justifyRight')" class="toolbar-btn"><svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M3 5h14V3H3v2zm0 4h14V7H3v2zm4 4h10v-2H7v2zm-4 4h14v-2H3v2z"></path></svg></button>
-        <div class="h-6 w-px bg-border-light dark:bg-border-dark mx-2"></div>
-        <button onclick="triggerAI()" class="flex items-center gap-2 px-3 py-1 bg-brand-600 text-white rounded-md text-sm font-bold hover:bg-brand-500 transition-all shadow-lg shadow-brand-600/20 ml-2">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
-            ASI Write
-        </button>
-        <div class="ml-auto flex items-center gap-2 text-[10px] text-gray-400 font-mono">
-            <span id="word-count">0 words</span>
-            <span>|</span>
-            <span id="save-status">All changes saved</span>
+    <!-- Toolbar (Canva-like) -->
+    <div class="flex items-center justify-center gap-2 py-2 bg-gray-50 dark:bg-zinc-950 border-b border-gray-200 dark:border-zinc-900 sticky top-16 z-40">
+        <div class="flex items-center gap-1 bg-white dark:bg-zinc-900 p-1 rounded-xl shadow-sm border border-gray-200 dark:border-zinc-800">
+            <button onclick="exec('bold')" class="p-2 hover:bg-gray-100 dark:hover:bg-zinc-800 rounded-lg"><b>B</b></button>
+            <button onclick="exec('italic')" class="p-2 hover:bg-gray-100 dark:hover:bg-zinc-800 rounded-lg"><i>I</i></button>
+            <button onclick="exec('insertUnorderedList')" class="p-2 hover:bg-gray-100 dark:hover:bg-zinc-800 rounded-lg">List</button>
+            <div class="w-px h-6 bg-gray-200 dark:bg-zinc-800 mx-1"></div>
+            <button onclick="openAISuggest()" class="px-3 py-1 text-xs font-bold bg-brand-600 text-white rounded-lg flex items-center gap-1">
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                ASI Suggestions
+            </button>
         </div>
     </div>
 
-    <!-- Page Content -->
-    <main class="flex-1 overflow-y-auto z-10 custom-scrollbar">
-        <div id="editor" class="editor-container text-gray-800 dark:text-gray-300" contenteditable="true" spellcheck="false">
-            <h1>Welcome to Codenix Docs</h1>
-            <p>Start writing your next big project here. This editor is powered by <strong>Codenix ASI (Artificial Super Intelligence)</strong>.</p>
+    <!-- Main Workspace -->
+    <div class="flex-1 overflow-y-auto bg-gray-100 dark:bg-zinc-950 p-4 custom-scrollbar" id="workspace">
+        <div id="editor" class="page-canvas template-modern" contenteditable="true" spellcheck="false">
+            <h1 class="text-4xl font-bold mb-6">Innovative Document Design</h1>
+            <p>Welcome to the next generation of <strong>Codenix AI Docs</strong>. This interface combines the structured power of Google Docs with the visual flexibility of Canva.</p>
             <p><br></p>
-            <p><em>Pro Tip: Highlight text and click "ASI Write" to improve your content, or just place your cursor anywhere to generate ideas.</em></p>
+            <p>Highlight any text and right-click to unleash Longcat ASI power.</p>
         </div>
-    </main>
+    </div>
 
-    <!-- AI Overlay -->
-    <div id="ai-overlay" class="fixed bottom-8 right-8 z-50 transform translate-y-20 opacity-0 transition-all duration-300">
-        <div class="glass-card p-4 rounded-2xl shadow-2xl border-brand-600/30 max-w-sm w-full bg-white dark:bg-black">
-            <div class="flex items-center gap-3 mb-3">
-                <div class="w-8 h-8 bg-brand-600 rounded-lg flex items-center justify-center text-white ai-loading">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
-                </div>
-                <div>
-                    <h4 class="text-xs font-bold uppercase tracking-wider text-brand-600">ASI Generating</h4>
-                    <p class="text-[10px] text-gray-500">Longcat Engine v2.1</p>
-                </div>
+    <!-- AI Context Menu -->
+    <div id="context-menu">
+        <div class="px-3 py-2 border-b border-gray-100 dark:border-zinc-800">
+            <span class="text-[10px] font-bold text-brand-600 uppercase">ASI Operations</span>
+        </div>
+        <div class="menu-item" onclick="handleAI('correct')">
+            <svg class="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+            Correct Grammar & Flow
+        </div>
+        <div class="menu-item" onclick="handleAI('continue')">
+            <svg class="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5l7 7-7 7M5 5l7 7-7 7"/></svg>
+            Continue Writing
+        </div>
+        <div class="menu-item" onclick="handleAI('summarize')">
+            <svg class="w-4 h-4 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h7"/></svg>
+            Summarize Selection
+        </div>
+    </div>
+
+    <!-- AI Floating Suggestion Box -->
+    <div id="ai-suggestion-box" class="fixed bottom-10 left-1/2 -translate-x-1/2 z-50 w-full max-w-lg hidden">
+        <div class="bg-white dark:bg-zinc-900 border border-brand-600/30 rounded-2xl shadow-2xl p-4">
+            <div class="flex justify-between items-center mb-2">
+                <span class="text-xs font-bold text-brand-600">ASI SUGGESTION</span>
+                <button onclick="closeSuggestion()" class="text-gray-400 hover:text-red-500">&times;</button>
             </div>
-            <div id="ai-progress-text" class="text-sm text-gray-600 dark:text-gray-400 italic">Analyzing context...</div>
+            <div id="suggestion-content" class="text-sm text-gray-700 dark:text-gray-300 mb-4 italic"></div>
+            <div class="flex gap-2">
+                <button onclick="applySuggestion()" class="flex-1 bg-brand-600 text-white text-xs font-bold py-2 rounded-lg">Apply</button>
+                <button onclick="regenerateAI()" class="px-4 py-2 border border-gray-200 dark:border-zinc-800 text-xs rounded-lg">Regenerate</button>
+            </div>
         </div>
     </div>
 
     <script>
-        (function() {
-            const ASI_API_KEY = 'ak_26w2J55rY5wR44L3ij9Rg1dH6SR7C';
+        const LONG_CAT_KEY = "ak_26w2J55rY5wR44L3ij9Rg1dH6SR7C";
+        const editor = document.getElementById('editor');
+        const ctxMenu = document.getElementById('context-menu');
+        let selectedText = "";
+        let currentSuggestion = "";
+
+        // --- Auth Guard ---
+        (async () => {
             const supabaseUrl = 'https://rnlwrngfgvznndlekmrz.supabase.co';
             const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJubHdybmdmZ3Z6bm5kbGVrbXJ6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjYwMzIxODMsImV4cCI6MjA4MTYwODE4M30.4al_pqjZBYgbfoLlMosT500PC85OGsUggCAL-hmtelA';
             const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
-
-            const editor = document.getElementById('editor');
-            const wordCountDisplay = document.getElementById('word-count');
-            const saveStatusDisplay = document.getElementById('save-status');
-
-            // --- Auth Guard ---
-            async function checkAuth() {
-                const { data: { session } } = await supabase.auth.getSession();
-                if (!session) {
-                    window.location.href = 'auth.html';
-                } else {
-                    document.getElementById('main-body').classList.remove('opacity-0');
-                    const user = session.user;
-                    const name = user.user_metadata.full_name || user.email.split('@')[0];
-                    document.getElementById('user-initials').textContent = name.substring(0, 2).toUpperCase();
-                }
-            }
-
-            // --- Rich Text Commands ---
-            window.execCommand = (command, value = null) => {
-                document.execCommand(command, false, value);
-                editor.focus();
-            };
-
-            // --- ASI Interaction (Longcat API) ---
-            window.triggerAI = async () => {
-                const selection = window.getSelection();
-                const selectedText = selection.toString();
-                const contextText = editor.innerText.substring(0, 1000); // Send partial context
-
-                showAIOverlay(true);
-                updateAIStatus('Thinking...');
-
-                try {
-                    const response = await fetch('https://api.longcat.ai/v1/generate', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${ASI_API_KEY}`
-                        },
-                        body: JSON.stringify({
-                            prompt: selectedText 
-                                ? `Improve this text: "${selectedText}"` 
-                                : `Continue this document: ${contextText}`,
-                            max_tokens: 250,
-                            temperature: 0.7
-                        })
-                    });
-
-                    // Note: Since this is a placeholder API key and endpoint provided by user, 
-                    // we handle the real-world flow. In a real environment, we'd parse the stream or JSON.
-                    
-                    updateAIStatus('Writing...');
-                    
-                    // Mocking a successful response for UI purposes
-                    setTimeout(() => {
-                        const result = "This is an AI generated enhancement for your Codenix document. It leverages advanced neural networks to ensure your communication is clear, concise, and impactful.";
-                        
-                        if (selectedText) {
-                            execCommand('insertHTML', `<span class="bg-brand-600/10 text-brand-600 font-medium">${result}</span>`);
-                        } else {
-                            const p = document.createElement('p');
-                            p.innerHTML = result;
-                            editor.appendChild(p);
-                        }
-                        
-                        showAIOverlay(false);
-                        updateSaveStatus();
-                    }, 1500);
-
-                } catch (error) {
-                    console.error('ASI Error:', error);
-                    updateAIStatus('Error connecting to ASI cluster.');
-                    setTimeout(() => showAIOverlay(false), 2000);
-                }
-            };
-
-            function showAIOverlay(show) {
-                const overlay = document.getElementById('ai-overlay');
-                if (show) {
-                    overlay.classList.remove('translate-y-20', 'opacity-0');
-                } else {
-                    overlay.classList.add('translate-y-20', 'opacity-0');
-                }
-            }
-
-            function updateAIStatus(text) {
-                document.getElementById('ai-progress-text').innerText = text;
-            }
-
-            // --- Stats & State ---
-            function updateStats() {
-                const text = editor.innerText || "";
-                const words = text.trim().split(/\s+/).filter(w => w.length > 0).length;
-                wordCountDisplay.innerText = `${words} words`;
-            }
-
-            function updateSaveStatus() {
-                saveStatusDisplay.innerText = "Saving...";
-                setTimeout(() => {
-                    saveStatusDisplay.innerText = "All changes saved";
-                }, 800);
-            }
-
-            // --- Theme Support ---
-            window.toggleTheme = function() {
-                const html = document.getElementById('html-root');
-                const isDark = html.classList.toggle('dark');
-                localStorage.setItem('theme', isDark ? 'dark' : 'light');
-                updateThemeIcons(isDark);
-            };
-
-            function updateThemeIcons(isDark) {
-                document.getElementById('theme-icon-dark').classList.toggle('hidden', isDark);
-                document.getElementById('theme-icon-light').classList.toggle('hidden', !isDark);
-            }
-
-            // --- Init ---
-            editor.addEventListener('input', () => {
-                updateStats();
-                updateSaveStatus();
-            });
-
-            const savedTheme = localStorage.getItem('theme') || 'dark';
-            document.getElementById('html-root').classList.toggle('dark', savedTheme === 'dark');
-            updateThemeIcons(savedTheme === 'dark');
-
-            checkAuth();
-            updateStats();
-
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) window.location.href = 'auth.html';
+            else document.getElementById('main-body').classList.remove('opacity-0');
         })();
+
+        // --- Editor Commands ---
+        function exec(cmd) { document.execCommand(cmd, false, null); }
+
+        function changeTemplate(type) {
+            editor.className = `page-canvas template-${type}`;
+        }
+
+        // --- PDF Export ---
+        function exportToPDF() {
+            const element = document.getElementById('editor');
+            const opt = {
+                margin: 10,
+                filename: `${document.getElementById('doc-title').value}.pdf`,
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2 },
+                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            };
+            html2pdf().set(opt).from(element).save();
+        }
+
+        // --- Custom Context Menu Logic ---
+        document.addEventListener('contextmenu', e => {
+            const selection = window.getSelection();
+            if (selection.toString().length > 0) {
+                e.preventDefault();
+                selectedText = selection.toString();
+                ctxMenu.style.display = 'block';
+                ctxMenu.style.left = e.pageX + 'px';
+                ctxMenu.style.top = e.pageY + 'px';
+            } else {
+                ctxMenu.style.display = 'none';
+            }
+        });
+
+        document.addEventListener('click', () => ctxMenu.style.display = 'none');
+
+        // --- AI Operations (Longcat.chat Pattern) ---
+        async function handleAI(action) {
+            const promptMap = {
+                'correct': `Fix grammar, spelling, and professional tone for: "${selectedText}"`,
+                'continue': `Continue writing naturally after this text: "${selectedText}"`,
+                'summarize': `Summarize this into 2 bullet points: "${selectedText}"`
+            };
+
+            showSuggestionUI("Longcat is analyzing context...", true);
+
+            try {
+                // Fetch from longcat.chat API
+                const response = await fetch('https://api.longcat.chat/v1/chat/completions', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${LONG_CAT_KEY}`
+                    },
+                    body: JSON.stringify({
+                        model: "longcat-v2",
+                        messages: [{ role: "user", content: promptMap[action] }],
+                        temperature: 0.7
+                    })
+                });
+
+                const data = await response.json();
+                currentSuggestion = data.choices[0].message.content;
+                showSuggestionUI(currentSuggestion, false);
+                
+                // Add Hint to editor
+                addAIHint(action);
+
+            } catch (err) {
+                showSuggestionUI("Error: ASI cluster unreachable. Please check API key.", false);
+            }
+        }
+
+        function showSuggestionUI(text, loading) {
+            const box = document.getElementById('ai-suggestion-box');
+            const content = document.getElementById('suggestion-content');
+            box.classList.remove('hidden');
+            content.innerText = text;
+            if (loading) content.classList.add('animate-pulse');
+            else content.classList.remove('animate-pulse');
+        }
+
+        function applySuggestion() {
+            if (currentSuggestion) {
+                document.execCommand('insertHTML', false, `<span>${currentSuggestion}</span>`);
+                closeSuggestion();
+            }
+        }
+
+        function closeSuggestion() {
+            document.getElementById('ai-suggestion-box').classList.add('hidden');
+        }
+
+        function addAIHint(type) {
+            const hint = document.createElement('div');
+            hint.className = "ai-hint";
+            hint.contentEditable = "false";
+            hint.innerText = `💡 ASI Suggestion: Found a better way to phrase your ${type}. Click to see more hints.`;
+            hint.onclick = () => openAISuggest();
+            editor.appendChild(hint);
+        }
+
+        function openAISuggest() {
+            handleAI('continue');
+        }
+
+        // --- Theme ---
+        window.toggleTheme = () => {
+            const root = document.getElementById('html-root');
+            root.classList.toggle('dark');
+            localStorage.setItem('theme', root.classList.contains('dark') ? 'dark' : 'light');
+        };
+
+        if (localStorage.getItem('theme') === 'light') document.getElementById('html-root').classList.remove('dark');
+
     </script>
 </body>
 </html>
