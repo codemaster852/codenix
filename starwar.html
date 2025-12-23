@@ -52,12 +52,28 @@
             justify-content: center;
             transition: background 0.3s;
             z-index: 5;
+            cursor: pointer;
         }
+
+        .cell:hover { background: rgba(255, 255, 255, 0.05); }
 
         .player-soil { background: rgba(0, 242, 255, 0.05); border: 0.5px solid rgba(0, 242, 255, 0.15); }
         .ai1-soil { background: rgba(255, 62, 62, 0.1); border: 0.5px solid rgba(255, 62, 62, 0.2); }
         .ai2-soil { background: rgba(168, 85, 247, 0.1); border: 0.5px solid rgba(168, 85, 247, 0.2); }
         .ai3-soil { background: rgba(34, 197, 94, 0.1); border: 0.5px solid rgba(34, 197, 94, 0.2); }
+
+        .move-target {
+            background: rgba(0, 242, 255, 0.15) !important;
+            box-shadow: inset 0 0 15px rgba(0, 242, 255, 0.3);
+            z-index: 10;
+            animation: pulse-target 1.5s infinite;
+        }
+
+        @keyframes pulse-target {
+            0% { opacity: 0.6; }
+            50% { opacity: 1; }
+            100% { opacity: 0.6; }
+        }
 
         .unit {
             width: 50px;
@@ -72,6 +88,7 @@
             transition: all 0.4s cubic-bezier(0.1, 0.7, 0.1, 1);
             border: 2px solid rgba(255,255,255,0.5);
             border-radius: 12px;
+            pointer-events: auto;
         }
         .unit-player { background: var(--accent); color: #000; box-shadow: 0 0 15px var(--accent); }
         .unit-enemy { background: var(--danger); color: #fff; box-shadow: 0 0 10px var(--danger); }
@@ -87,6 +104,7 @@
             outline: 4px solid white; 
             outline-offset: 4px; 
             z-index: 100;
+            transform: scale(1.15);
         }
 
         .glass-panel {
@@ -95,13 +113,11 @@
             border: 1px solid rgba(255, 255, 255, 0.1);
         }
 
-        .btn-game {
-            background: rgba(255,255,255,0.05);
-            border: 1px solid rgba(255,255,255,0.1);
-            transition: all 0.2s;
+        .toggle-active {
+            background: var(--accent) !important;
+            color: black !important;
+            border-color: white !important;
         }
-        .btn-game:hover { background: var(--accent); color: #000; }
-        .btn-game:active { transform: scale(0.95); }
 
         #viewport {
             width: 100%;
@@ -130,7 +146,7 @@
     <div class="hud-top glass-panel flex flex-wrap items-center justify-between px-4 py-3 md:px-6 md:py-4 z-50">
         <div class="flex flex-col mb-2 md:mb-0">
             <h1 class="orbitron text-accent text-xl md:text-2xl font-black tracking-tighter leading-none">WAR GENESIS</h1>
-            <p id="war-status" class="text-[8px] md:text-[10px] orbitron text-gray-400 mt-1 uppercase">Operational Priority: Expansion</p>
+            <p id="war-status" class="text-[8px] md:text-[10px] orbitron text-gray-400 mt-1 uppercase tracking-widest">Automation Systems: Online</p>
         </div>
 
         <div class="flex flex-wrap gap-2 md:gap-4">
@@ -143,13 +159,13 @@
                 <span id="res-rank" class="text-indigo-400 font-bold orbitron text-sm md:text-base">D-4</span>
             </div>
             <div class="bg-white/5 border border-white/10 px-3 py-1 rounded flex flex-col items-center min-w-[70px] md:min-w-[100px]">
-                <span class="text-[7px] text-gray-500 uppercase font-bold">Combat Force</span>
+                <span class="text-[7px] text-gray-500 uppercase font-bold">Units</span>
                 <span id="res-units" class="text-amber-400 font-bold orbitron text-sm md:text-base">0</span>
             </div>
         </div>
 
-        <div class="hidden md:flex gap-2">
-            <button onclick="saveGame()" class="p-2 btn-game rounded text-[10px] orbitron">SAVE</button>
+        <div class="flex gap-2">
+            <button onclick="saveGame()" class="p-2 bg-white/5 border border-white/10 rounded text-[10px] orbitron hover:bg-white hover:text-black">SAVE</button>
             <button onclick="resetGame()" class="p-2 bg-red-500/10 border border-red-500/20 rounded text-[10px] orbitron">WIPE</button>
         </div>
     </div>
@@ -158,7 +174,6 @@
     <div id="viewport">
         <div id="city-grid-container"></div>
         
-        <!-- Zoom Buttons -->
         <div class="mobile-controls">
             <button onclick="changeZoom(0.1)" class="w-12 h-12 glass-panel rounded-full flex items-center justify-center text-white text-xl font-bold">+</button>
             <button onclick="changeZoom(-0.1)" class="w-12 h-12 glass-panel rounded-full flex items-center justify-center text-white text-xl font-bold">-</button>
@@ -166,17 +181,32 @@
         </div>
     </div>
 
+    <!-- AUTOMATION PANEL -->
+    <div class="absolute top-24 left-4 z-50 flex flex-col gap-2">
+        <div class="glass-panel p-3 rounded-xl w-44">
+            <p class="text-[8px] text-accent font-bold orbitron mb-2 uppercase">Auto-Control</p>
+            <div class="flex flex-col gap-2">
+                <button id="toggle-auto-recruit" onclick="toggleAutomation('autoRecruit')" class="text-[9px] orbitron py-1 px-2 border border-white/20 rounded bg-white/5 transition-all">
+                    AUTO-RECRUIT
+                </button>
+                <button id="toggle-auto-expand" onclick="toggleAutomation('autoExpand')" class="text-[9px] orbitron py-1 px-2 border border-white/20 rounded bg-white/5 transition-all">
+                    AUTO-EXPAND
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- UI PANELS -->
     <div class="absolute bottom-4 left-4 z-50 flex flex-col gap-4 pointer-events-none w-full max-w-[300px] md:max-w-sm">
         <div class="glass-panel p-3 md:p-4 rounded-2xl pointer-events-auto">
-            <p class="text-[9px] text-accent font-bold orbitron mb-2 md:mb-3 tracking-widest">BUILD OPTIONS</p>
+            <p class="text-[9px] text-accent font-bold orbitron mb-2 md:mb-3 tracking-widest">BUILD COMMAND</p>
             <div id="build-menu" class="grid grid-cols-2 md:grid-cols-3 gap-2"></div>
         </div>
         
-        <div class="glass-panel p-3 md:p-4 rounded-2xl pointer-events-auto hidden md:block">
-            <p class="text-[9px] text-red-500 font-bold orbitron mb-2 tracking-widest">SITUATION REPORT</p>
+        <div class="glass-panel p-3 md:p-4 rounded-2xl pointer-events-auto">
+            <p class="text-[9px] text-red-500 font-bold orbitron mb-2 tracking-widest">BATTLE LOG</p>
             <div id="log" class="text-[10px] h-20 overflow-y-auto text-gray-400 font-mono space-y-1">
-                <p class="text-accent">> Satellite Link established...</p>
+                <p class="text-accent">> Systems Online...</p>
             </div>
         </div>
     </div>
@@ -190,9 +220,7 @@
                 <p id="sel-stats" class="text-[9px] text-accent font-mono"></p>
             </div>
         </div>
-        <div id="selection-actions" class="grid grid-cols-1 gap-2">
-            <!-- Dynamic Actions -->
-        </div>
+        <div id="selection-actions" class="grid grid-cols-1 gap-2"></div>
     </div>
 </div>
 
@@ -201,16 +229,16 @@
         GRID_SIZE: 60,
         CELL_SIZE: 70,
         UNIT_TYPES: {
-            infantry: { cost: 1500, icon: '🎖️', power: 100, range: 1, speed: 2, desc: 'Basic Ground Unit' },
-            tank:     { cost: 4000, icon: '🚜', power: 250, range: 1, speed: 1, desc: 'Heavy Armor' },
-            rocket:   { cost: 8000, icon: '🚀', power: 150, range: 3, speed: 1, desc: 'Long Range Siege' },
-            nawawy:   { cost: 25000, icon: '⚛️', power: 999, range: 1, speed: 1, desc: 'Nuclear Annihilator' }
+            infantry: { cost: 100, icon: '🎖️', power: 100, range: 2, desc: 'Scout' },
+            tank:     { cost: 100, icon: '🚜', power: 250, range: 2, desc: 'Heavy' },
+            rocket:   { cost: 100, icon: '🚀', power: 150, range: 2, desc: 'Arty' },
+            nawawy:   { cost: 100, icon: '⚛️', power: 999, range: 4, desc: 'Nuke' }
         },
         BUILDINGS: {
-            palace:   { cost: 0, icon: '🏛️', class: 'bg-amber-500 shadow-xl', income: 100 },
-            barracks: { cost: 4000, icon: '🎖️', class: 'bg-slate-700 border-2 border-accent' },
-            factory:  { cost: 6000, icon: '🏭', class: 'bg-zinc-800 border-t-4 border-orange-500', income: 800 },
-            silo:     { cost: 12000, icon: '🚀', class: 'bg-red-900 border-2 border-white' }
+            palace:   { cost: 0, icon: '🏛️', class: 'bg-amber-500 shadow-xl', income: 200 },
+            barracks: { cost: 4000, icon: '🎖️', class: 'bg-slate-700 border-2 border-accent', income: 50 },
+            factory:  { cost: 6000, icon: '🏭', class: 'bg-zinc-800 border-t-4 border-orange-500', income: 1000 },
+            silo:     { cost: 12000, icon: '🚀', class: 'bg-red-900 border-2 border-white', income: 100 }
         }
     };
 
@@ -219,16 +247,12 @@
         territory: [], 
         buildings: [], 
         units: [],     
-        nations: {
-            'player': { name: 'United Terra' },
-            'ai1': { name: 'Eastern Bloc' },
-            'ai2': { name: 'Northern Legion' },
-            'ai3': { name: 'Pacific Coast' }
-        },
         selectedUnitId: null,
         activeBuild: null,
         mapPos: { x: -1800, y: -1800 },
-        zoom: 0.6
+        zoom: 0.6,
+        autoRecruit: false,
+        autoExpand: false
     };
 
     function init() {
@@ -259,8 +283,59 @@
         updateBuildMenu();
         renderAll();
         
-        setInterval(economyTick, 2000);
-        setInterval(aiTick, 4500);
+        setInterval(economyTick, 1000);
+        setInterval(aiTick, 4000);
+        setInterval(automationTick, 2000);
+    }
+
+    function toggleAutomation(type) {
+        state[type] = !state[type];
+        const btn = document.getElementById(`toggle-${type === 'autoRecruit' ? 'auto-recruit' : 'auto-expand'}`);
+        if (state[type]) btn.classList.add('toggle-active');
+        else btn.classList.remove('toggle-active');
+        addLog(`${type.toUpperCase()} ${state[type] ? 'ENABLED' : 'DISABLED'}`);
+    }
+
+    function automationTick() {
+        if (state.autoRecruit && state.money >= 100) {
+            const spawners = state.buildings.filter(b => ['barracks', 'silo', 'palace'].includes(b.type));
+            if (spawners.length > 0) {
+                const b = spawners[Math.floor(Math.random() * spawners.length)];
+                const types = Object.keys(CONFIG.UNIT_TYPES);
+                const type = types[Math.floor(Math.random() * types.length)];
+                spawnUnit(b.x, b.y, type);
+            }
+        }
+
+        if (state.autoExpand) {
+            state.units.filter(u => u.owner === 'player').forEach(u => {
+                // Find nearest non-sovereign tile
+                let bestTile = null;
+                let minDist = 999;
+                
+                // Simple search in range
+                for(let dx = -3; dx <= 3; dx++) {
+                    for(let dy = -3; dy <= 3; dy++) {
+                        const nx = u.x + dx;
+                        const ny = u.y + dy;
+                        if (nx < 0 || ny < 0 || nx >= CONFIG.GRID_SIZE || ny >= CONFIG.GRID_SIZE) continue;
+                        
+                        const soil = state.territory.find(t => t.x === nx && t.y === ny);
+                        if (!soil || soil.owner !== 'player') {
+                            const d = Math.abs(dx) + Math.abs(dy);
+                            if (d < minDist && d > 0) {
+                                minDist = d;
+                                bestTile = {x: nx, y: ny};
+                            }
+                        }
+                    }
+                }
+
+                if (bestTile && minDist <= CONFIG.UNIT_TYPES[u.type].range) {
+                    moveUnit(u, bestTile.x, bestTile.y);
+                }
+            });
+        }
     }
 
     function handleCellClick(x, y, event) {
@@ -270,12 +345,25 @@
                 addBuilding(x, y, state.activeBuild);
                 state.activeBuild = null;
             } else {
-                addLog("CAN ONLY BUILD ON SOVEREIGN SOIL", "text-red-400");
+                addLog("BUILD AREA INVALID", "text-red-400");
             }
             return;
         }
 
-        // Check if clicked a unit
+        if (state.selectedUnitId) {
+            const myUnit = state.units.find(u => u.id === state.selectedUnitId);
+            const cfg = CONFIG.UNIT_TYPES[myUnit.type];
+            const dist = Math.abs(myUnit.x - x) + Math.abs(myUnit.y - y);
+            
+            if (dist > 0 && dist <= cfg.range) {
+                moveUnit(myUnit, x, y);
+                state.selectedUnitId = null;
+                hidePanel();
+                renderAll();
+                return;
+            }
+        }
+
         const unit = state.units.find(u => u.x === x && u.y === y && u.owner === 'player');
         if (unit) {
             state.selectedUnitId = unit.id;
@@ -284,25 +372,6 @@
             return;
         }
 
-        // If unit selected, move it
-        if (state.selectedUnitId) {
-            const myUnit = state.units.find(u => u.id === state.selectedUnitId);
-            const dist = Math.abs(myUnit.x - x) + Math.abs(myUnit.y - y);
-            
-            // Movement logic: Allow movement if it's within range
-            if (dist > 0 && dist <= 2) {
-                moveUnit(myUnit, x, y);
-                state.selectedUnitId = null;
-                hidePanel();
-            } else {
-                state.selectedUnitId = null;
-                hidePanel();
-            }
-            renderAll();
-            return;
-        }
-
-        // Building check
         const b = state.buildings.find(b => b.x === x && b.y === y);
         if (b) {
             showBuildingPanel(b);
@@ -310,16 +379,18 @@
         }
 
         hidePanel();
+        state.selectedUnitId = null;
+        renderAll();
     }
 
     function addBuilding(x, y, type, free = false) {
         const cfg = CONFIG.BUILDINGS[type];
-        if (!free && state.money < cfg.cost) { addLog("FUNDS CRITICAL"); return; }
+        if (!free && state.money < cfg.cost) { addLog("FUNDS LOW"); return; }
         if (state.buildings.some(b => b.x === x && b.y === y)) return;
 
         if (!free) state.money -= cfg.cost;
         state.buildings.push({ x, y, type });
-        addLog(`COMMISSIONED: ${type.toUpperCase()}`, "text-cyan-400");
+        addLog(`BUILDING: ${type.toUpperCase()}`, "text-cyan-400");
         renderAll();
         updateUI();
     }
@@ -334,7 +405,7 @@
                 soil.owner = unit.owner;
                 if (unit.owner === 'player') {
                     state.money += 300;
-                    addLog("TERRITORY SEIZED", "text-green-400");
+                    addLog("SEIZED SECTOR", "text-green-400");
                 }
             }
         } else {
@@ -343,7 +414,7 @@
 
         if (unit.type === 'nawawy') {
             state.buildings = state.buildings.filter(b => b.x !== nx || b.y !== ny);
-            addLog("NUCLEAR IMPACT DETECTED", "text-yellow-400");
+            addLog("NUKE STRIKE CONFIRMED", "text-yellow-400");
         }
 
         const enemies = state.units.filter(u => u.x === nx && u.y === ny && u.owner !== unit.owner);
@@ -351,11 +422,10 @@
             if (unit.power >= enemy.power) {
                 state.units = state.units.filter(u => u.id !== enemy.id);
                 unit.power -= 20;
-                addLog("ENEMIES NEUTRALIZED", "text-orange-400");
+                addLog("ENEMY NEUTRALIZED", "text-orange-400");
             } else {
                 state.units = state.units.filter(u => u.id !== unit.id);
-                state.selectedUnitId = null;
-                addLog("UNIT LOST IN ACTION", "text-red-500");
+                addLog("LOSS SUSTAINED", "text-red-500");
             }
         });
 
@@ -363,10 +433,10 @@
     }
 
     function economyTick() {
-        let income = state.territory.filter(t => t.owner === 'player').length * 10;
+        let income = state.territory.filter(t => t.owner === 'player').length * 20;
         state.buildings.forEach(b => {
             const cfg = CONFIG.BUILDINGS[b.type];
-            if (cfg.income) income += (cfg.income / 10);
+            if (cfg.income) income += (cfg.income / 5);
         });
         state.money += income;
         updateUI();
@@ -377,7 +447,7 @@
             const soil = state.territory.filter(t => t.owner === id);
             if (soil.length === 0) return;
 
-            if (Math.random() > 0.7) {
+            if (Math.random() > 0.8) {
                 const s = soil[Math.floor(Math.random() * soil.length)];
                 state.units.push({
                     id: Math.random(),
@@ -398,6 +468,8 @@
     }
 
     function renderAll() {
+        document.querySelectorAll('.cell').forEach(c => c.classList.remove('move-target'));
+
         state.territory.forEach(t => {
             const cell = document.getElementById(`cell-${t.x}-${t.y}`);
             if (cell) cell.className = `cell ${t.owner}-soil`;
@@ -408,11 +480,22 @@
             if (cell) {
                 const cfg = CONFIG.BUILDINGS[b.type];
                 cell.innerHTML = `<span class="text-3xl">${cfg.icon}</span>`;
-                // Split classes by spaces to avoid InvalidCharacterError
-                const classList = cfg.class.split(' ');
-                classList.forEach(cls => cell.classList.add(cls));
+                cfg.class.split(' ').forEach(cls => cell.classList.add(cls));
             }
         });
+
+        if (state.selectedUnitId) {
+            const unit = state.units.find(u => u.id === state.selectedUnitId);
+            const range = CONFIG.UNIT_TYPES[unit.type].range;
+            for(let dx = -range; dx <= range; dx++) {
+                for(let dy = -range; dy <= range; dy++) {
+                    if (Math.abs(dx) + Math.abs(dy) <= range) {
+                        const cell = document.getElementById(`cell-${unit.x + dx}-${unit.y + dy}`);
+                        if (cell) cell.classList.add('move-target');
+                    }
+                }
+            }
+        }
 
         document.querySelectorAll('.unit').forEach(u => u.remove());
         const grid = document.getElementById('city-grid-container');
@@ -434,28 +517,28 @@
         const p = document.getElementById('selection-panel');
         p.classList.remove('hidden');
         document.getElementById('sel-title').innerText = unit.type;
-        document.getElementById('sel-stats').innerText = `POWER: ${unit.power} | ATK RANGE: 1`;
+        document.getElementById('sel-stats').innerText = `PWR: ${unit.power} | RNG: ${CONFIG.UNIT_TYPES[unit.type].range}`;
         document.getElementById('sel-icon').innerText = CONFIG.UNIT_TYPES[unit.type].icon;
         
         const actions = document.getElementById('selection-actions');
-        actions.innerHTML = '<p class="text-[9px] text-gray-500 italic">Select adjacent tile to move</p>';
+        actions.innerHTML = '<p class="text-[9px] text-accent animate-pulse font-bold">CLICK TARGET TO MARCH</p>';
     }
 
     function showBuildingPanel(b) {
         const p = document.getElementById('selection-panel');
         p.classList.remove('hidden');
         document.getElementById('sel-title').innerText = b.type;
-        document.getElementById('sel-stats').innerText = `STATUS: OPERATIONAL`;
+        document.getElementById('sel-stats').innerText = `COMMAND HUB`;
         document.getElementById('sel-icon').innerText = CONFIG.BUILDINGS[b.type].icon;
         
         const actions = document.getElementById('selection-actions');
         actions.innerHTML = '';
         
-        if (b.type === 'barracks' || b.type === 'silo') {
+        if (['barracks', 'silo', 'palace'].includes(b.type)) {
             Object.entries(CONFIG.UNIT_TYPES).forEach(([id, u]) => {
                 const btn = document.createElement('button');
                 btn.className = "w-full py-2 bg-accent text-black orbitron text-[9px] font-black rounded hover:bg-white";
-                btn.innerText = `TRAIN ${id.toUpperCase()} ($${u.cost})`;
+                btn.innerText = `RECRUIT ${id.toUpperCase()} ($${u.cost})`;
                 btn.onclick = () => spawnUnit(b.x, b.y, id);
                 actions.appendChild(btn);
             });
@@ -467,7 +550,7 @@
         if (state.money < cfg.cost) return;
         state.money -= cfg.cost;
         state.units.push({
-            id: Date.now(),
+            id: Date.now() + Math.random(),
             x, y,
             owner: 'player',
             type: type,
@@ -485,9 +568,9 @@
         Object.entries(CONFIG.BUILDINGS).forEach(([id, cfg]) => {
             if (id === 'palace') return;
             const btn = document.createElement('button');
-            btn.className = "p-2 bg-white/5 border border-white/10 rounded flex flex-col items-center pointer-events-auto hover:border-accent";
+            btn.className = "p-2 bg-white/5 border border-white/10 rounded flex flex-col items-center pointer-events-auto hover:border-accent transition-all";
             btn.innerHTML = `<span class="text-xl">${cfg.icon}</span><span class="text-[8px] orbitron font-bold">$${cfg.cost}</span>`;
-            btn.onclick = () => { state.activeBuild = id; addLog(`ORDER: PLACE ${id.toUpperCase()}`); };
+            btn.onclick = () => { state.activeBuild = id; addLog(`READY: PLACE ${id.toUpperCase()}`); };
             menu.appendChild(btn);
         });
     }
@@ -522,7 +605,7 @@
     window.ontouchmove = (e) => { if (!isDragging) return; state.mapPos.x = e.touches[0].clientX - startX; state.mapPos.y = e.touches[0].clientY - startY; applyTransform(); };
     window.onmouseup = window.ontouchend = () => isDragging = false;
 
-    function saveGame() { localStorage.setItem('war_genesis_save', JSON.stringify(state)); addLog("STATE SAVED"); }
+    function saveGame() { localStorage.setItem('war_genesis_save', JSON.stringify(state)); addLog("SYSTEMS SAVED"); }
     function resetGame() { localStorage.removeItem('war_genesis_save'); location.reload(); }
 
     window.onload = init;
