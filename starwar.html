@@ -40,9 +40,9 @@
             width: 2400px;
             height: 2400px;
             background: radial-gradient(circle, #0a0d14 0%, #020406 100%);
-            position: relative;
+            position: absolute;
             transform-origin: 0 0;
-            transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            transition: transform 0.1s linear;
         }
 
         /* Border Styling */
@@ -133,8 +133,8 @@
             opacity: 0.6;
         }
 
-        /* Zoom Controls Overlay */
-        .zoom-controls {
+        /* Zoom & Map Controls Overlay */
+        .map-controls {
             position: absolute;
             right: 20px;
             bottom: 120px;
@@ -144,7 +144,7 @@
             gap: 10px;
         }
 
-        .zoom-btn {
+        .ctrl-btn {
             width: 44px;
             height: 44px;
             border-radius: 10px;
@@ -160,7 +160,7 @@
             transition: all 0.2s;
         }
 
-        .zoom-btn:active {
+        .ctrl-btn:active {
             transform: scale(0.9);
             background: rgba(0, 242, 255, 0.1);
         }
@@ -168,10 +168,19 @@
         /* Mobile Adjustments */
         @media (max-width: 768px) {
             .cell { width: 50px; height: 50px; }
-            .zoom-controls { right: 10px; bottom: 100px; }
+            .map-controls { right: 10px; bottom: 100px; }
             .hud-top { padding: 0.5rem; height: auto; flex-wrap: wrap; gap: 0.5rem; }
             .sidebar-left { position: fixed; bottom: 0; left: 0; right: 0; width: 100%; top: auto; z-index: 100; max-height: 45vh; border-radius: 20px 20px 0 0; }
         }
+
+        #viewport {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            position: relative;
+            cursor: grab;
+        }
+        #viewport:active { cursor: grabbing; }
 
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: var(--accent); border-radius: 10px; }
@@ -216,14 +225,15 @@
 
     <!-- MAIN VIEWPORT -->
     <div class="flex-grow relative bg-[#010204]">
-        <!-- ZOOM CONTROLS -->
-        <div class="zoom-controls">
-            <button class="zoom-btn orbitron" onclick="adjustZoom(0.1)">+</button>
-            <button class="zoom-btn orbitron" onclick="adjustZoom(-0.1)">−</button>
-            <button class="zoom-btn text-[10px] orbitron" onclick="resetZoom()">1:1</button>
+        <!-- MAP CONTROLS -->
+        <div class="map-controls">
+            <button class="ctrl-btn orbitron" onclick="adjustZoom(0.1)">+</button>
+            <button class="ctrl-btn orbitron" onclick="adjustZoom(-0.1)">−</button>
+            <button class="ctrl-btn text-[10px] orbitron" onclick="centerOnPalace()">📍</button>
+            <button class="ctrl-btn text-[10px] orbitron" onclick="resetZoom()">1:1</button>
         </div>
 
-        <div id="viewport" class="w-full h-full overflow-auto cursor-grab active:cursor-grabbing touch-pan-x touch-pan-y">
+        <div id="viewport">
             <div id="city-grid-container">
                 <!-- Borders -->
                 <div id="p-border" class="player-border"></div>
@@ -262,7 +272,7 @@
                     <p class="text-[8px] md:text-[9px] text-accent orbitron font-bold">CHIEF OF STAFF</p>
                     <p id="tension-level" class="text-[8px] text-red-500 orbitron">TENSION: 0%</p>
                 </div>
-                <p id="narrator-text" class="text-[10px] md:text-xs text-gray-300 italic">"Welcome, Mr. President. Our neighbors are watching."</p>
+                <p id="narrator-text" class="text-[10px] md:text-xs text-gray-300 italic">"Welcome, Mr. President. Drag the map to scout territory."</p>
             </div>
         </div>
     </div>
@@ -292,43 +302,100 @@
     };
 
     let state = {
-        money: 5000, 
-        pop: 0, 
-        power: 0,
-        xp: 0, 
-        level: 1,
-        tension: 0,
-        buildings: [], 
-        currentSelected: null, 
-        zoom: 1.0,
-        completedTasks: []
+        money: 5000, pop: 0, power: 0, xp: 0, level: 1, tension: 0,
+        buildings: [], currentSelected: null, zoom: 1.0, completedTasks: [],
+        mapPos: { x: -600, y: -600 }
     };
 
-    function adjustZoom(delta) {
-        state.zoom = Math.min(Math.max(0.3, state.zoom + delta), 1.5);
+    // Pan variables
+    let isPanning = false;
+    let startPan = { x: 0, y: 0 };
+    let lastMapPos = { x: -600, y: -600 };
+    let hasMoved = false;
+
+    function applyMapTransform() {
         const grid = document.getElementById('city-grid-container');
-        grid.style.transform = `scale(${state.zoom})`;
+        grid.style.transform = `scale(${state.zoom}) translate(${state.mapPos.x}px, ${state.mapPos.y}px)`;
+    }
+
+    function adjustZoom(delta) {
+        state.zoom = Math.min(Math.max(0.3, state.zoom + delta), 2.0);
+        applyMapTransform();
     }
 
     function resetZoom() {
         state.zoom = 1.0;
-        document.getElementById('city-grid-container').style.transform = `scale(1)`;
+        applyMapTransform();
     }
 
-    function saveGame() { localStorage.setItem('starwar_save_v5', JSON.stringify(state)); }
+    function centerOnPalace() {
+        const cs = CONFIG.CELL_SIZE;
+        const palace = state.buildings.find(b => b.type === 'palace') || { x: 15, y: 15 };
+        const view = document.getElementById('viewport');
+        state.mapPos.x = -(palace.x * cs) + (view.clientWidth / (2 * state.zoom));
+        state.mapPos.y = -(palace.y * cs) + (view.clientHeight / (2 * state.zoom));
+        applyMapTransform();
+    }
+
+    function initPanControls() {
+        const view = document.getElementById('viewport');
+
+        const onStart = (e) => {
+            isPanning = true;
+            hasMoved = false;
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            startPan = { x: clientX, y: clientY };
+            lastMapPos = { ...state.mapPos };
+        };
+
+        const onMove = (e) => {
+            if (!isPanning) return;
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            
+            const dx = (clientX - startPan.x) / state.zoom;
+            const dy = (clientY - startPan.y) / state.zoom;
+            
+            if (Math.abs(dx) > 5 || Math.abs(dy) > 5) hasMoved = true;
+            
+            state.mapPos.x = lastMapPos.x + dx;
+            state.mapPos.y = lastMapPos.y + dy;
+            
+            // Constrain map movement (approximate)
+            const limit = 2400;
+            state.mapPos.x = Math.max(-limit, Math.min(0, state.mapPos.x));
+            state.mapPos.y = Math.max(-limit, Math.min(0, state.mapPos.y));
+            
+            applyMapTransform();
+        };
+
+        const onEnd = () => { isPanning = false; };
+
+        view.addEventListener('mousedown', onStart);
+        window.addEventListener('mousemove', onMove);
+        window.addEventListener('mouseup', onEnd);
+        
+        view.addEventListener('touchstart', onStart, { passive: false });
+        window.addEventListener('touchmove', onMove, { passive: false });
+        window.addEventListener('touchend', onEnd);
+    }
+
+    function saveGame() { localStorage.setItem('starwar_save_v6', JSON.stringify(state)); }
 
     function loadGame() {
-        const saved = localStorage.getItem('starwar_save_v5');
+        const saved = localStorage.getItem('starwar_save_v6');
         if (saved) { 
             state = JSON.parse(saved); 
             renderBuildings(); 
-            resetZoom();
+            applyMapTransform();
         } else { 
             placeBuilding(15, 15, 'palace', true); 
+            centerOnPalace();
         }
     }
 
-    function resetGame() { localStorage.removeItem('starwar_save_v5'); location.reload(); }
+    function resetGame() { localStorage.removeItem('starwar_save_v6'); location.reload(); }
 
     function showForeignToast(x, y) {
         const cs = CONFIG.CELL_SIZE;
@@ -346,8 +413,8 @@
         const cs = CONFIG.CELL_SIZE;
 
         document.getElementById('p-border').style = `left: ${10*cs}px; top: ${10*cs}px; width: ${10*cs}px; height: ${10*cs}px;`;
-        document.getElementById('n-border-1').style = `left: 0; top: ${10*cs}px; width: ${9*cs}px; height: ${10*cs}px;`;
-        document.getElementById('n-border-2').style = `left: ${21*cs}px; top: ${10*cs}px; width: ${10*cs}px; height: ${10*cs}px;`;
+        document.getElementById('n-border-1').style = `left: 0; top: ${10*cs}px; width: 9*cs; height: 10*cs;`;
+        document.getElementById('n-border-2').style = `left: ${21*cs}px; top: ${10*cs}px; width: 10*cs; height: 10*cs;`;
 
         for (let y = 0; y < CONFIG.GRID_SIZE; y++) {
             for (let x = 0; x < CONFIG.GRID_SIZE; x++) {
@@ -356,10 +423,10 @@
                 cell.style.left = (x * cs) + 'px';
                 cell.style.top = (y * cs) + 'px';
                 const inZone = x >= 10 && x < 20 && y >= 10 && y < 20;
-                
                 if (!inZone) cell.classList.add('out-of-bounds');
                 
-                cell.onpointerdown = (e) => {
+                cell.onclick = (e) => {
+                    if (hasMoved) return; // Don't click while dragging
                     handleCellClick(x, y, inZone);
                 };
                 grid.appendChild(cell);
@@ -368,17 +435,14 @@
         updateBuildMenu();
         updateTaskList();
         updateUI();
-        
-        const vp = document.getElementById('viewport');
-        vp.scrollLeft = (15 * cs) - (vp.clientWidth / 2);
-        vp.scrollTop = (15 * cs) - (vp.clientHeight / 2);
+        initPanControls();
     }
 
     function handleCellClick(x, y, inZone) {
         if (!inZone) { 
             showForeignToast(x, y);
             state.tension = Math.min(100, state.tension + 2);
-            triggerNarrator("Our incursions are causing diplomatic friction. Border tension is rising."); 
+            triggerNarrator("Your scouts were spotted in foreign territory. Tension is increasing."); 
             updateUI();
             return; 
         }
@@ -389,7 +453,7 @@
 
     function placeBuilding(x, y, type, free = false) {
         const data = CONFIG.BUILDINGS[type];
-        if (!free && state.money < data.cost) { triggerNarrator("Treasury depleted. We need more factories."); return; }
+        if (!free && state.money < data.cost) { triggerNarrator("Insufficient funds for this construction."); return; }
         if (state.buildings.some(b => b.x === x && b.y === y)) return;
 
         if (!free) state.money -= data.cost;
@@ -397,7 +461,6 @@
         state.buildings.push(bObj);
         renderBuilding(bObj);
         
-        // Stats
         if (data.pop) state.pop += data.pop;
         if (data.power) state.power += data.power;
         state.xp += data.xp;
@@ -424,8 +487,8 @@
         const nextXp = state.level * CONFIG.XP_STEP;
         if (state.xp >= nextXp) {
             state.level++;
-            state.money += (state.level * 5000); // Level bonus
-            triggerNarrator(`National Level ${state.level} attained! The treasury has been granted a federal bonus.`);
+            state.money += (state.level * 5000);
+            triggerNarrator(`National Level ${state.level} achieved! Grants issued.`);
             updateBuildMenu();
         }
     }
@@ -437,7 +500,7 @@
             if (count >= task.count) {
                 state.completedTasks.push(task.id);
                 state.money += task.reward;
-                triggerNarrator(`Directive Complete: ${task.title}. Reward: $${task.reward} added to treasury.`);
+                triggerNarrator(`Task Complete: ${task.title}. Reward: $${task.reward}.`);
                 updateTaskList();
             }
         });
@@ -459,9 +522,10 @@
                 </div>
                 <p class="text-[8px] text-emerald-400">$${data.cost}</p>
             `;
-            btn.onclick = () => {
+            btn.onclick = (e) => {
+                e.stopPropagation();
                 if (isLocked) return;
-                state.currentSelected = id;
+                state.currentSelected = state.currentSelected === id ? null : id;
                 updateBuildMenu();
             };
             menu.appendChild(btn);
@@ -479,7 +543,7 @@
             item.innerHTML = `
                 <div class="flex justify-between items-start">
                     <span class="text-[9px] orbitron text-white">${task.title}</span>
-                    <span class="text-[8px] text-gray-400">${isDone ? 'COMPLETED' : `${count}/${task.count}`}</span>
+                    <span class="text-[8px] text-gray-400">${isDone ? 'DONE' : `${count}/${task.count}`}</span>
                 </div>
                 <p class="text-[8px] text-gray-500 mt-1">${task.goal}</p>
             `;
@@ -492,7 +556,7 @@
         document.getElementById('res-pop').innerText = state.pop.toLocaleString();
         document.getElementById('res-power').innerText = state.power.toLocaleString();
         document.getElementById('level-display').innerText = `LVL ${state.level}`;
-        document.getElementById('tension-level').innerText = `TENSION: ${state.tension}%`;
+        document.getElementById('tension-level').innerText = `TENSION: ${Math.floor(state.tension)}%`;
         
         const prevLevelXp = (state.level - 1) * CONFIG.XP_STEP;
         const currentProgress = state.xp - prevLevelXp;
@@ -502,15 +566,10 @@
 
     function triggerNarrator(text) { document.getElementById('narrator-text').innerText = text; }
 
-    // Logic Loops
     setInterval(() => {
         const factories = state.buildings.filter(b => b.type === 'factory').length;
-        const income = (factories * 50) + (state.pop * 0.5); // Population also gives slight tax
-        state.money += income;
-        
-        // Passive tension decay
+        state.money += (factories * 50) + (state.pop * 0.5);
         if (state.tension > 0) state.tension = Math.max(0, state.tension - 0.1);
-        
         updateUI();
     }, 2000);
 
