@@ -13,6 +13,7 @@
             --panel-bg: rgba(10, 14, 20, 0.95);
             --accent: #00f2ff;
             --road-grey: #2a2d35;
+            --danger: #ff3e3e;
         }
 
         * {
@@ -72,8 +73,34 @@
         }
 
         .cell.out-of-bounds {
-            cursor: not-allowed;
-            background: rgba(0, 0, 0, 0.2);
+            cursor: pointer;
+            background: rgba(255, 62, 62, 0.03);
+        }
+        .cell.out-of-bounds:hover {
+            background: rgba(255, 62, 62, 0.1);
+        }
+
+        /* Floating Tooltip */
+        .foreign-toast {
+            position: absolute;
+            background: rgba(255, 62, 62, 0.9);
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 10px;
+            pointer-events: none;
+            z-index: 1000;
+            white-space: nowrap;
+            animation: fadeUp 1.5s forwards;
+            font-family: 'Orbitron', sans-serif;
+            border: 1px solid white;
+        }
+
+        @keyframes fadeUp {
+            0% { opacity: 0; transform: translateY(0); }
+            20% { opacity: 1; transform: translateY(-20px); }
+            80% { opacity: 1; }
+            100% { opacity: 0; transform: translateY(-40px); }
         }
 
         /* Building Visuals */
@@ -93,14 +120,6 @@
             backdrop-filter: blur(12px);
             border: 1px solid rgba(255, 255, 255, 0.1);
         }
-
-        .approval-bar {
-            height: 4px;
-            background: #1e293b;
-            border-radius: 2px;
-            overflow: hidden;
-        }
-        .approval-fill { height: 100%; transition: width 1s; }
 
         /* Zoom Controls Overlay */
         .zoom-controls {
@@ -253,15 +272,26 @@
         document.getElementById('city-grid-container').style.transform = `scale(1)`;
     }
 
-    function saveGame() { localStorage.setItem('starwar_save_v3', JSON.stringify(state)); }
+    function saveGame() { localStorage.setItem('starwar_save_v4', JSON.stringify(state)); }
 
     function loadGame() {
-        const saved = localStorage.getItem('starwar_save_v3');
+        const saved = localStorage.getItem('starwar_save_v4');
         if (saved) { state = JSON.parse(saved); renderBuildings(); resetZoom(); }
         else { placeBuilding(15, 15, 'palace', true); }
     }
 
-    function resetGame() { localStorage.removeItem('starwar_save_v3'); location.reload(); }
+    function resetGame() { localStorage.removeItem('starwar_save_v4'); location.reload(); }
+
+    function showForeignToast(x, y) {
+        const cs = CONFIG.CELL_SIZE;
+        const toast = document.createElement('div');
+        toast.className = 'foreign-toast';
+        toast.innerText = 'FOREIGN SOIL';
+        toast.style.left = (x * cs) + 'px';
+        toast.style.top = (y * cs) + 'px';
+        document.getElementById('city-grid-container').appendChild(toast);
+        setTimeout(() => toast.remove(), 1500);
+    }
 
     function initGrid() {
         const grid = document.getElementById('city-grid-container');
@@ -278,10 +308,11 @@
                 cell.style.left = (x * cs) + 'px';
                 cell.style.top = (y * cs) + 'px';
                 const inZone = x >= 10 && x < 20 && y >= 10 && y < 20;
+                
                 if (!inZone) cell.classList.add('out-of-bounds');
                 
                 cell.onpointerdown = (e) => {
-                    if (state.currentSelected) handleCellClick(x, y, inZone);
+                    handleCellClick(x, y, inZone);
                 };
                 grid.appendChild(cell);
             }
@@ -295,8 +326,14 @@
     }
 
     function handleCellClick(x, y, inZone) {
-        if (!inZone) { triggerNarrator("Commander, that is foreign soil."); return; }
-        placeBuilding(x, y, state.currentSelected);
+        if (!inZone) { 
+            showForeignToast(x, y);
+            triggerNarrator("Commander, that land belongs to our neighbors. Building there is a violation of international law."); 
+            return; 
+        }
+        if (state.currentSelected) {
+            placeBuilding(x, y, state.currentSelected);
+        }
     }
 
     function placeBuilding(x, y, type, free = false) {
@@ -345,14 +382,18 @@
             if (id === 'palace' && state.buildings.some(b => b.type === 'palace')) return;
             const isLocked = data.lvl && state.level < data.lvl;
             const btn = document.createElement('button');
-            btn.className = `shrink-0 w-24 md:w-full p-2 rounded-lg text-left transition-all ${isLocked ? 'opacity-20 grayscale' : 'bg-white/5 border border-white/10'}`;
+            const isSelected = state.currentSelected === id;
+            btn.className = `shrink-0 w-24 md:w-full p-2 rounded-lg text-left transition-all ${isLocked ? 'opacity-20 grayscale' : 'bg-white/5 border border-white/10'} ${isSelected ? 'border-accent ring-1 ring-accent' : ''}`;
             btn.innerHTML = `
                 <div class="flex justify-between items-center text-[9px] font-bold">
                     <span>${data.icon} ${id.toUpperCase()}</span>
                 </div>
                 <p class="text-[8px] text-emerald-400">$${data.cost}</p>
             `;
-            btn.onclick = () => state.currentSelected = id;
+            btn.onclick = () => {
+                state.currentSelected = id;
+                updateBuildMenu();
+            };
             menu.appendChild(btn);
         });
     }
