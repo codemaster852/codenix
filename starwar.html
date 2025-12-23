@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StarWar: New Genesis - Presidential Command</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Inter:wght@300;400;600&display=swap');
+
+        :root {
+            --bg-deep: #020406;
+            --panel-bg: rgba(10, 14, 20, 0.95);
+            --accent: #00f2ff;
+            --road-grey: #2a2d35;
+            --border-line: #ff3e3e;
+        }
+
+        body {
+            background-color: var(--bg-deep);
+            color: #e6edf3;
+            font-family: 'Inter', sans-serif;
+            overflow: hidden;
+            margin: 0;
+            user-select: none;
+        }
+
+        .orbitron { font-family: 'Orbitron', sans-serif; }
+
+        /* Territorial Grid */
+        #city-grid-container {
+            width: 3000px;
+            height: 3000px;
+            background: radial-gradient(circle, #0a0d14 0%, #020406 100%);
+            position: relative;
+        }
+
+        /* Border Styling */
+        .player-border {
+            position: absolute;
+            border: 2px dashed var(--accent);
+            box-shadow: 0 0 30px rgba(0, 242, 255, 0.2);
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        .neighbor-border {
+            position: absolute;
+            border: 2px solid rgba(255, 62, 62, 0.3);
+            background: rgba(255, 62, 62, 0.02);
+            pointer-events: none;
+        }
+
+        .cell {
+            width: 60px;
+            height: 60px;
+            position: absolute;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+            border: 1px solid rgba(255, 255, 255, 0.03);
+            z-index: 2;
+        }
+
+        .cell.out-of-bounds {
+            cursor: not-allowed;
+            background: rgba(0, 0, 0, 0.4);
+        }
+
+        /* Building Visuals */
+        .b-road { background: var(--road-grey) !important; border: none !important; border-radius: 0; z-index: 3; }
+        .b-road::after { content: ''; position: absolute; width: 100%; height: 2px; background: rgba(255,255,255,0.1); }
+        
+        .b-palace { background: linear-gradient(135deg, #ffd700, #b8860b); clip-path: polygon(50% 0%, 100% 38%, 82% 100%, 18% 100%, 0% 38%); border: 2px solid #fff; z-index: 10; }
+        .b-house { background: #1e293b; border-bottom: 4px solid #3b82f6; border-radius: 4px; z-index: 10; }
+        .b-factory { background: #334155; border-top: 6px solid #f97316; border-radius: 2px; z-index: 10; }
+        .b-police { background: #1e3a8a; border: 2px solid #60a5fa; box-shadow: 0 0 10px #60a5fa; z-index: 10; }
+
+        .building-icon { font-size: 28px; filter: drop-shadow(0 0 5px rgba(0,0,0,0.5)); }
+
+        /* UI */
+        .glass-panel {
+            background: var(--panel-bg);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .task-card {
+            background: rgba(255,255,255,0.03);
+            border-left: 3px solid var(--accent);
+            transition: transform 0.2s;
+        }
+        .task-card:hover { transform: translateX(5px); background: rgba(255,255,255,0.05); }
+
+        .hidden-view { display: none !important; }
+
+        .approval-bar {
+            height: 4px;
+            background: #1e293b;
+            border-radius: 2px;
+            overflow: hidden;
+        }
+        .approval-fill { height: 100%; transition: width 1s; }
+    </style>
+</head>
+<body>
+
+<div id="game-container" class="w-screen h-screen flex flex-col relative overflow-hidden">
+    
+    <!-- TOP HUD -->
+    <div class="h-20 glass-panel border-b border-white/10 flex items-center justify-between px-8 z-50">
+        <div class="flex items-center gap-6">
+            <div class="flex flex-col">
+                <span class="orbitron text-accent text-xl font-bold">TERRA <span class="text-white">NOVA</span></span>
+                <div class="flex items-center gap-3">
+                    <span id="rank-display" class="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Acting President</span>
+                    <div class="w-40 bg-gray-800 rounded-full h-1.5 overflow-hidden">
+                        <div id="level-bar" class="h-full bg-gradient-to-r from-purple-500 to-accent shadow-[0_0_10px_#8b5cf6]"></div>
+                    </div>
+                    <span id="level-display" class="orbitron text-xs text-white">LVL 1</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex gap-4">
+            <div class="glass-panel px-4 py-1 rounded-lg flex flex-col items-center">
+                <span class="text-[8px] text-gray-500 uppercase">Treasury</span>
+                <span id="res-money" class="text-emerald-400 font-bold orbitron text-sm">$0</span>
+            </div>
+            <div class="glass-panel px-4 py-1 rounded-lg flex flex-col items-center">
+                <span class="text-[8px] text-gray-500 uppercase">Population</span>
+                <span id="res-pop" class="text-blue-400 font-bold orbitron text-sm">0</span>
+            </div>
+            <div class="glass-panel px-4 py-1 rounded-lg flex flex-col items-center">
+                <span class="text-[8px] text-gray-500 uppercase">Approval</span>
+                <div class="w-16 approval-bar mt-1">
+                    <div id="approval-fill" class="approval-fill bg-green-500" style="width: 50%"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex gap-2">
+            <button onclick="saveGame()" class="px-3 py-2 bg-white/5 border border-white/10 rounded text-[10px] orbitron hover:bg-white/10">SAVE</button>
+            <button onclick="resetGame()" class="px-3 py-2 bg-red-500/10 border border-red-500/20 rounded text-[10px] orbitron hover:bg-red-500/20">RESET</button>
+        </div>
+    </div>
+
+    <!-- MAIN VIEWPORT -->
+    <div class="flex-grow relative bg-[#010204]">
+        <div id="viewport" class="w-full h-full overflow-auto cursor-grab active:cursor-grabbing">
+            <div id="city-grid-container">
+                <!-- Borders -->
+                <div class="player-border" style="left: 600px; top: 600px; width: 600px; height: 600px;"></div>
+                <div class="neighbor-border" style="left: 0; top: 600px; width: 590px; height: 600px;"><span class="p-4 orbitron text-[10px] text-red-500/40">United Federation</span></div>
+                <div class="neighbor-border" style="left: 1210px; top: 600px; width: 600px; height: 600px;"><span class="p-4 orbitron text-[10px] text-red-500/40">Sino-Republic</span></div>
+                <!-- Cells generated by JS -->
+            </div>
+        </div>
+
+        <!-- LEFT BUILD MENU -->
+        <div class="absolute left-6 top-6 w-60 z-50 flex flex-col gap-4">
+            <div class="glass-panel p-4 rounded-xl">
+                <p class="text-[10px] text-accent font-bold mb-3 orbitron tracking-widest uppercase">Construction Yard</p>
+                <div id="build-menu" class="space-y-2 max-h-[50vh] overflow-y-auto pr-2 custom-scrollbar"></div>
+            </div>
+
+            <div class="glass-panel p-4 rounded-xl">
+                <p class="text-[10px] text-yellow-500 font-bold mb-3 orbitron uppercase">National Tasks</p>
+                <div id="task-list" class="space-y-2"></div>
+            </div>
+        </div>
+
+        <!-- RIGHT INFO PANEL -->
+        <div class="absolute right-6 top-6 w-64 z-50 flex flex-col gap-4">
+            <div id="stats-panel" class="glass-panel p-4 rounded-xl">
+                <h3 class="orbitron text-xs text-white mb-3">STATE INTELLIGENCE</h3>
+                <div class="space-y-2 text-[10px]">
+                    <div class="flex justify-between border-b border-white/5 pb-1">
+                        <span class="text-gray-500">Stability</span>
+                        <span id="stat-stability" class="text-white">High</span>
+                    </div>
+                    <div class="flex justify-between border-b border-white/5 pb-1">
+                        <span class="text-gray-500">Economy</span>
+                        <span id="stat-economy" class="text-white">Developing</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-500">Next Election</span>
+                        <span id="stat-election" class="text-accent italic">In 4 Years</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- NARRATOR BOX -->
+        <div class="absolute bottom-6 left-1/2 -translate-x-1/2 w-full max-w-2xl glass-panel p-5 rounded-2xl flex items-center gap-4 z-50 border-b-4 border-accent">
+            <div class="w-12 h-12 bg-accent/20 border border-accent rounded-lg flex items-center justify-center shrink-0">
+                <span class="text-xl">🤵</span>
+            </div>
+            <div>
+                <p class="text-[9px] text-accent orbitron font-bold">CHIEF OF STAFF</p>
+                <p id="narrator-text" class="text-xs text-gray-300 italic">"Welcome to your Palace, Mr. President. Our 100-square territory is secure. Let's build some roads to connect our future."</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const CONFIG = {
+        GRID_SIZE: 50, // 50x50 total grid
+        PLAYER_ZONE: { x: 10, y: 10, size: 10 }, // 100 squares
+        CELL_SIZE: 60,
+        XP_STEP: 3000,
+        BUILDINGS: {
+            palace:  { cost: 0,     xp: 1000, icon: '🏛️', class: 'b-palace',  desc: 'National Capital', limit: 1 },
+            road:    { cost: 100,   xp: 50,   icon: '🛣️', class: 'b-road',    desc: 'Basic Transit' },
+            house:   { cost: 800,   xp: 250,  icon: '🏘️', class: 'b-house',   desc: '+100 Citizens', pop: 100 },
+            factory: { cost: 2500,  xp: 600,  icon: '🏭', class: 'b-factory', desc: 'Produces Exports', income: 150 },
+            police:  { cost: 4000,  xp: 1000, icon: '🚓', class: 'b-police',  desc: '+Stability', lvl: 2 },
+            park:    { cost: 1500,  xp: 400,  icon: '🌳', class: 'b-park',    desc: '+Approval', lvl: 2 },
+            bank:    { cost: 8000,  xp: 2000, icon: '🏦', class: 'b-bank',    desc: 'Boosts Taxes', lvl: 3 }
+        },
+        TASKS: [
+            { id: 1, title: "Initial Settlement", goal: "Build 3 Houses", reward: 2000, xp: 500 },
+            { id: 2, title: "Connectivity", goal: "Build 10 Roads", reward: 1000, xp: 200 },
+            { id: 3, title: "Industrialization", goal: "Build 2 Factories", reward: 5000, xp: 1000 }
+        ]
+    };
+
+    let state = {
+        money: 5000,
+        pop: 0,
+        xp: 0,
+        level: 1,
+        approval: 75,
+        buildings: [], // {x, y, type}
+        activeTasks: [CONFIG.TASKS[0]],
+        currentSelected: null
+    };
+
+    // Persistence
+    function saveGame() {
+        localStorage.setItem('starwar_save', JSON.stringify(state));
+        addLog("Progress saved to browser.");
+    }
+
+    function loadGame() {
+        const saved = localStorage.getItem('starwar_save');
+        if (saved) {
+            state = JSON.parse(saved);
+            renderBuildings();
+        } else {
+            // New Game: Place Palace
+            placeBuilding(15, 15, 'palace', true);
+        }
+    }
+
+    function resetGame() {
+        localStorage.removeItem('starwar_save');
+        location.reload();
+    }
+
+    function initGrid() {
+        const container = document.getElementById('city-grid-container');
+        for (let y = 0; y < CONFIG.GRID_SIZE; y++) {
+            for (let x = 0; x < CONFIG.GRID_SIZE; x++) {
+                const cell = document.createElement('div');
+                cell.className = 'cell';
+                cell.style.left = (x * CONFIG.CELL_SIZE) + 'px';
+                cell.style.top = (y * CONFIG.CELL_SIZE) + 'px';
+                
+                // Check if inside 100sq player zone
+                const inZone = x >= CONFIG.PLAYER_ZONE.x && x < CONFIG.PLAYER_ZONE.x + CONFIG.PLAYER_ZONE.size &&
+                               y >= CONFIG.PLAYER_ZONE.y && y < CONFIG.PLAYER_ZONE.y + CONFIG.PLAYER_ZONE.size;
+                
+                if (!inZone) cell.classList.add('out-of-bounds');
+                cell.onclick = () => handleCellClick(x, y, inZone);
+                container.appendChild(cell);
+            }
+        }
+        updateBuildMenu();
+        updateTasks();
+        updateUI();
+        
+        // Center view on palace
+        const viewport = document.getElementById('viewport');
+        viewport.scrollLeft = (CONFIG.PLAYER_ZONE.x * CONFIG.CELL_SIZE) - (viewport.clientWidth / 2);
+        viewport.scrollTop = (CONFIG.PLAYER_ZONE.y * CONFIG.CELL_SIZE) - (viewport.clientHeight / 2);
+    }
+
+    function handleCellClick(x, y, inZone) {
+        if (!inZone) {
+            triggerNarrator("Commander, that is foreign soil. Our jurisdiction ends at the dashed border.");
+            return;
+        }
+        if (state.currentSelected) {
+            placeBuilding(x, y, state.currentSelected);
+        }
+    }
+
+    function placeBuilding(x, y, type, free = false) {
+        const data = CONFIG.BUILDINGS[type];
+        if (!free && state.money < data.cost) {
+            triggerNarrator("Treasury is dry! We need more factory exports.");
+            return;
+        }
+
+        // Check occupancy
+        if (state.buildings.some(b => b.x === x && b.y === y)) return;
+
+        if (!free) state.money -= data.cost;
+        
+        const bObj = { x, y, type };
+        state.buildings.push(bObj);
+        
+        // Visual
+        renderBuilding(bObj);
+        
+        // Update Stats
+        if (data.pop) state.pop += data.pop;
+        state.xp += data.xp;
+        
+        checkLevel();
+        updateUI();
+        updateBuildMenu();
+        saveGame();
+    }
+
+    function renderBuilding(b) {
+        const data = CONFIG.BUILDINGS[b.type];
+        const cell = document.querySelector(`.cell[style*="left: ${b.x * CONFIG.CELL_SIZE}px"][style*="top: ${b.y * CONFIG.CELL_SIZE}px"]`);
+        cell.className = `cell building ${data.class}`;
+        cell.innerHTML = `<span class="building-icon">${data.icon}</span>`;
+    }
+
+    function renderBuildings() {
+        state.buildings.forEach(renderBuilding);
+    }
+
+    function checkLevel() {
+        const popRequirement = state.level * 500;
+        if (state.pop >= popRequirement || state.xp >= (state.level * CONFIG.XP_STEP)) {
+            state.level++;
+            triggerNarrator(`Congratulations, Mr. President! Your rank has increased to Level ${state.level}. New buildings unlocked.`);
+            checkTasks();
+        }
+    }
+
+    function updateBuildMenu() {
+        const menu = document.getElementById('build-menu');
+        menu.innerHTML = '';
+        Object.entries(CONFIG.BUILDINGS).forEach(([id, data]) => {
+            if (id === 'palace' && state.buildings.some(b => b.type === 'palace')) return;
+            
+            const isLocked = data.lvl && state.level < data.lvl;
+            const btn = document.createElement('button');
+            btn.disabled = isLocked;
+            btn.className = `w-full p-2 rounded-lg text-left transition-all ${isLocked ? 'opacity-20 grayscale' : 'bg-white/5 border border-white/10 hover:border-accent'}`;
+            btn.innerHTML = `
+                <div class="flex justify-between items-center">
+                    <span class="text-[10px] font-bold text-white">${data.icon} ${id.toUpperCase()}</span>
+                    <span class="text-[9px] text-emerald-400">$${data.cost}</span>
+                </div>
+                <p class="text-[8px] text-gray-500">${data.desc}</p>
+            `;
+            btn.onclick = () => {
+                state.currentSelected = id;
+                triggerNarrator(`Designate construction site for ${id.toUpperCase()}...`);
+            };
+            menu.appendChild(btn);
+        });
+    }
+
+    function updateTasks() {
+        const list = document.getElementById('task-list');
+        list.innerHTML = '';
+        state.activeTasks.forEach(task => {
+            const div = document.createElement('div');
+            div.className = 'task-card p-3 rounded-lg cursor-pointer';
+            div.innerHTML = `
+                <p class="text-[10px] text-white font-bold">${task.title}</p>
+                <p class="text-[8px] text-gray-400 mt-1">${task.goal}</p>
+                <div class="flex justify-between mt-2">
+                    <span class="text-[8px] text-emerald-400">+$${task.reward}</span>
+                    <span class="text-[8px] text-purple-400">+${task.xp} XP</span>
+                </div>
+            `;
+            div.onclick = () => checkTaskCompletion(task);
+            list.appendChild(div);
+        });
+    }
+
+    function checkTaskCompletion(task) {
+        let count = 0;
+        if (task.id === 1) count = state.buildings.filter(b => b.type === 'house').length;
+        if (task.id === 2) count = state.buildings.filter(b => b.type === 'road').length;
+        if (task.id === 3) count = state.buildings.filter(b => b.type === 'factory').length;
+
+        const target = parseInt(task.goal.match(/\d+/)[0]);
+        if (count >= target) {
+            state.money += task.reward;
+            state.xp += task.xp;
+            state.activeTasks = state.activeTasks.filter(t => t.id !== task.id);
+            // Add next task if available
+            const next = CONFIG.TASKS.find(t => t.id === task.id + 1);
+            if (next) state.activeTasks.push(next);
+            
+            triggerNarrator(`Task Complete! The Treasury has received $${task.reward}.`);
+            updateTasks();
+            updateUI();
+        } else {
+            triggerNarrator(`Task Incomplete: We need ${target - count} more structures.`);
+        }
+    }
+
+    function updateUI() {
+        document.getElementById('res-money').innerText = `$${Math.floor(state.money).toLocaleString()}`;
+        document.getElementById('res-pop').innerText = state.pop.toLocaleString();
+        document.getElementById('level-display').innerText = `LVL ${state.level}`;
+        
+        const nextXp = state.level * CONFIG.XP_STEP;
+        const xpPerc = (state.xp / nextXp) * 100;
+        document.getElementById('level-bar').style.width = `${xpPerc}%`;
+
+        document.getElementById('approval-fill').style.width = state.approval + '%';
+        document.getElementById('approval-fill').className = `approval-fill ${state.approval > 50 ? 'bg-green-500' : 'bg-red-500'}`;
+    }
+
+    function triggerNarrator(text) {
+        document.getElementById('narrator-text').innerText = text;
+    }
+
+    function addLog(msg) {
+        console.log(msg);
+    }
+
+    // Passive Economy Loop
+    setInterval(() => {
+        // Factory Income
+        const factories = state.buildings.filter(b => b.type === 'factory').length;
+        state.money += (factories * 5); 
+        
+        // Population growth/Voting influence
+        if (state.pop > 0) {
+            state.approval += (Math.random() - 0.5) * 2;
+            state.approval = Math.max(0, Math.min(100, state.approval));
+        }
+
+        updateUI();
+    }, 2000);
+
+    window.onload = () => {
+        initGrid();
+        loadGame();
+    };
+</script>
+
+</body>
+</html>
