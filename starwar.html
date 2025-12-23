@@ -3,17 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>War Genesis: Total Conflict</title>
+    <title>War Genesis: 3D Total Conflict</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Inter:wght@300;400;600&display=swap');
 
         :root {
             --bg-deep: #020406;
-            --panel-bg: rgba(7, 10, 15, 0.95);
+            --panel-bg: rgba(7, 10, 15, 0.9);
             --accent: #00f2ff;
             --danger: #ff3e3e;
-            --nuke: #dfff00;
         }
 
         body {
@@ -25,590 +25,491 @@
             user-select: none;
             width: 100vw;
             height: 100vh;
-            touch-action: none;
         }
 
         .orbitron { font-family: 'Orbitron', sans-serif; }
 
-        #city-grid-container {
-            width: 4200px;
-            height: 4200px;
-            background: 
-                radial-gradient(circle at 50% 50%, #0a0d14 0%, #020406 100%),
-                linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
-            background-size: 100% 100%, 70px 70px, 70px 70px;
-            position: absolute;
-            transform-origin: 0 0;
-            will-change: transform;
-        }
-
-        .cell {
-            width: 70px;
-            height: 70px;
-            position: absolute;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: background 0.3s;
-            z-index: 5;
-            cursor: pointer;
-        }
-
-        .cell:hover { background: rgba(255, 255, 255, 0.05); }
-
-        .player-soil { background: rgba(0, 242, 255, 0.05); border: 0.5px solid rgba(0, 242, 255, 0.15); }
-        .ai1-soil { background: rgba(255, 62, 62, 0.1); border: 0.5px solid rgba(255, 62, 62, 0.2); }
-        .ai2-soil { background: rgba(168, 85, 247, 0.1); border: 0.5px solid rgba(168, 85, 247, 0.2); }
-        .ai3-soil { background: rgba(34, 197, 94, 0.1); border: 0.5px solid rgba(34, 197, 94, 0.2); }
-
-        .move-target {
-            background: rgba(0, 242, 255, 0.15) !important;
-            box-shadow: inset 0 0 15px rgba(0, 242, 255, 0.3);
-            z-index: 10;
-            animation: pulse-target 1.5s infinite;
-        }
-
-        @keyframes pulse-target {
-            0% { opacity: 0.6; }
-            50% { opacity: 1; }
-            100% { opacity: 0.6; }
-        }
-
-        .unit {
-            width: 50px;
-            height: 50px;
-            position: absolute;
-            z-index: 50;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 24px;
-            cursor: pointer;
-            transition: all 0.4s cubic-bezier(0.1, 0.7, 0.1, 1);
-            border: 2px solid rgba(255,255,255,0.5);
-            border-radius: 12px;
-            pointer-events: auto;
-        }
-        .unit-player { background: var(--accent); color: #000; box-shadow: 0 0 15px var(--accent); }
-        .unit-enemy { background: var(--danger); color: #fff; box-shadow: 0 0 10px var(--danger); }
-        .unit-nuke { background: var(--nuke) !important; color: #000 !important; animation: pulse-nuke 1s infinite; }
-        
-        @keyframes pulse-nuke {
-            0% { transform: scale(1); box-shadow: 0 0 10px var(--nuke); }
-            50% { transform: scale(1.1); box-shadow: 0 0 25px var(--nuke); }
-            100% { transform: scale(1); box-shadow: 0 0 10px var(--nuke); }
-        }
-
-        .unit.selected { 
-            outline: 4px solid white; 
-            outline-offset: 4px; 
-            z-index: 100;
-            transform: scale(1.15);
-        }
-
         .glass-panel {
             background: var(--panel-bg);
-            backdrop-filter: blur(20px);
+            backdrop-filter: blur(15px);
             border: 1px solid rgba(255, 255, 255, 0.1);
         }
+
+        #three-container {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+
+        .ui-overlay {
+            position: relative;
+            z-index: 10;
+            pointer-events: none;
+            height: 100%;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .pointer-events-auto { pointer-events: auto; }
 
         .toggle-active {
             background: var(--accent) !important;
             color: black !important;
-            border-color: white !important;
+            box-shadow: 0 0 15px var(--accent);
         }
 
-        #viewport {
-            width: 100%;
-            height: 100%;
-            overflow: hidden;
-            position: relative;
-            background: #000;
+        .defense-active {
+            border-color: #dfff00 !important;
+            color: #dfff00 !important;
+            animation: pulse-border 2s infinite;
         }
 
-        .mobile-controls {
-            position: absolute;
-            right: 20px;
-            bottom: 20px;
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-            z-index: 100;
+        @keyframes pulse-border {
+            0%, 100% { border-color: rgba(223, 255, 0, 0.5); }
+            50% { border-color: rgba(223, 255, 0, 1); box-shadow: 0 0 10px rgba(223, 255, 0, 0.3); }
         }
+
+        #log::-webkit-scrollbar { width: 4px; }
+        #log::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
     </style>
 </head>
 <body>
 
-<div id="game-container" class="w-screen h-screen flex flex-col relative overflow-hidden">
-    
+<div id="three-container"></div>
+
+<div class="ui-overlay">
     <!-- TOP HUD -->
-    <div class="hud-top glass-panel flex flex-wrap items-center justify-between px-4 py-3 md:px-6 md:py-4 z-50">
-        <div class="flex flex-col mb-2 md:mb-0">
-            <h1 class="orbitron text-accent text-xl md:text-2xl font-black tracking-tighter leading-none">WAR GENESIS</h1>
-            <p id="war-status" class="text-[8px] md:text-[10px] orbitron text-gray-400 mt-1 uppercase tracking-widest">Automation Systems: Online</p>
+    <div class="hud-top glass-panel flex flex-wrap items-center justify-between px-6 py-4 pointer-events-auto">
+        <div class="flex flex-col">
+            <h1 class="orbitron text-accent text-2xl font-black tracking-tighter leading-none">WAR GENESIS 3D</h1>
+            <p id="war-status" class="text-[10px] orbitron text-gray-400 mt-1 uppercase tracking-widest">Global Conflict: 10 AI Active</p>
         </div>
 
-        <div class="flex flex-wrap gap-2 md:gap-4">
-            <div class="bg-white/5 border border-white/10 px-3 py-1 rounded flex flex-col items-center min-w-[70px] md:min-w-[100px]">
+        <div class="flex gap-4">
+            <div class="bg-white/5 border border-white/10 px-4 py-1 rounded flex flex-col items-center min-w-[100px]">
                 <span class="text-[7px] text-gray-500 uppercase font-bold">Treasury</span>
-                <span id="res-money" class="text-emerald-400 font-bold orbitron text-sm md:text-base">$0</span>
+                <span id="res-money" class="text-emerald-400 font-bold orbitron text-base">$0</span>
             </div>
-            <div class="bg-white/5 border border-white/10 px-3 py-1 rounded flex flex-col items-center min-w-[70px] md:min-w-[100px]">
-                <span class="text-[7px] text-gray-500 uppercase font-bold">Pop. Rank</span>
-                <span id="res-rank" class="text-indigo-400 font-bold orbitron text-sm md:text-base">D-4</span>
-            </div>
-            <div class="bg-white/5 border border-white/10 px-3 py-1 rounded flex flex-col items-center min-w-[70px] md:min-w-[100px]">
+            <div class="bg-white/5 border border-white/10 px-4 py-1 rounded flex flex-col items-center min-w-[100px]">
                 <span class="text-[7px] text-gray-500 uppercase font-bold">Units</span>
-                <span id="res-units" class="text-amber-400 font-bold orbitron text-sm md:text-base">0</span>
+                <span id="res-units" class="text-amber-400 font-bold orbitron text-base">0</span>
             </div>
         </div>
 
         <div class="flex gap-2">
-            <button onclick="saveGame()" class="p-2 bg-white/5 border border-white/10 rounded text-[10px] orbitron hover:bg-white hover:text-black">SAVE</button>
-            <button onclick="resetGame()" class="p-2 bg-red-500/10 border border-red-500/20 rounded text-[10px] orbitron">WIPE</button>
+            <button onclick="buyDefense()" id="btn-defense" class="px-3 py-2 bg-white/5 border border-white/10 rounded text-[10px] orbitron hover:bg-white hover:text-black transition-all">
+                BUY AEGIS DEFENSE ($3,000)
+            </button>
+            <button onclick="resetGame()" class="p-2 bg-red-500/10 border border-red-500/20 rounded text-[10px] orbitron">RESET</button>
         </div>
     </div>
 
-    <!-- VIEWPORT -->
-    <div id="viewport">
-        <div id="city-grid-container"></div>
-        
-        <div class="mobile-controls">
-            <button onclick="changeZoom(0.1)" class="w-12 h-12 glass-panel rounded-full flex items-center justify-center text-white text-xl font-bold">+</button>
-            <button onclick="changeZoom(-0.1)" class="w-12 h-12 glass-panel rounded-full flex items-center justify-center text-white text-xl font-bold">-</button>
-            <button onclick="resetCamera()" class="w-12 h-12 glass-panel rounded-full flex items-center justify-center text-white text-xs">RESET</button>
+    <!-- MIDDLE LEFT -->
+    <div class="flex-1 flex items-center px-4">
+        <div class="glass-panel p-3 rounded-xl w-48 pointer-events-auto space-y-2">
+            <p class="text-[8px] text-accent font-bold orbitron mb-2 uppercase">Command Auto</p>
+            <button id="toggle-autoRecruit" onclick="toggleAutomation('autoRecruit')" class="w-full text-[9px] orbitron py-2 px-2 border border-white/10 rounded bg-white/5">AUTO-RECRUIT</button>
+            <button id="toggle-autoExpand" onclick="toggleAutomation('autoExpand')" class="w-full text-[9px] orbitron py-2 px-2 border border-white/10 rounded bg-white/5">AUTO-EXPAND</button>
+            <div class="h-[1px] bg-white/10 my-2"></div>
+            <p class="text-[7px] text-gray-500 orbitron uppercase">Active Threats</p>
+            <div id="ai-status-list" class="space-y-1 max-h-32 overflow-y-auto pr-1"></div>
         </div>
     </div>
 
-    <!-- AUTOMATION PANEL -->
-    <div class="absolute top-24 left-4 z-50 flex flex-col gap-2">
-        <div class="glass-panel p-3 rounded-xl w-44">
-            <p class="text-[8px] text-accent font-bold orbitron mb-2 uppercase">Auto-Control</p>
-            <div class="flex flex-col gap-2">
-                <button id="toggle-auto-recruit" onclick="toggleAutomation('autoRecruit')" class="text-[9px] orbitron py-1 px-2 border border-white/20 rounded bg-white/5 transition-all">
-                    AUTO-RECRUIT
-                </button>
-                <button id="toggle-auto-expand" onclick="toggleAutomation('autoExpand')" class="text-[9px] orbitron py-1 px-2 border border-white/20 rounded bg-white/5 transition-all">
-                    AUTO-EXPAND
-                </button>
+    <!-- BOTTOM UI -->
+    <div class="flex flex-col md:flex-row gap-4 p-4 items-end justify-between">
+        <div class="glass-panel p-4 rounded-2xl w-full max-w-sm pointer-events-auto">
+            <p class="text-[9px] text-accent font-bold orbitron mb-3 tracking-widest uppercase">Factory Selection</p>
+            <div id="build-menu" class="grid grid-cols-2 gap-2"></div>
+        </div>
+
+        <div class="glass-panel p-4 rounded-2xl w-full max-w-xs pointer-events-auto">
+            <p class="text-[9px] text-red-500 font-bold orbitron mb-2 tracking-widest">TACTICAL FEED</p>
+            <div id="log" class="text-[10px] h-24 overflow-y-auto text-gray-400 font-mono space-y-1">
+                <p class="text-accent">> Hyper-War Protocol Initialized...</p>
             </div>
         </div>
     </div>
+</div>
 
-    <!-- UI PANELS -->
-    <div class="absolute bottom-4 left-4 z-50 flex flex-col gap-4 pointer-events-none w-full max-w-[300px] md:max-w-sm">
-        <div class="glass-panel p-3 md:p-4 rounded-2xl pointer-events-auto">
-            <p class="text-[9px] text-accent font-bold orbitron mb-2 md:mb-3 tracking-widest">BUILD COMMAND</p>
-            <div id="build-menu" class="grid grid-cols-2 md:grid-cols-3 gap-2"></div>
-        </div>
-        
-        <div class="glass-panel p-3 md:p-4 rounded-2xl pointer-events-auto">
-            <p class="text-[9px] text-red-500 font-bold orbitron mb-2 tracking-widest">BATTLE LOG</p>
-            <div id="log" class="text-[10px] h-20 overflow-y-auto text-gray-400 font-mono space-y-1">
-                <p class="text-accent">> Systems Online...</p>
-            </div>
-        </div>
-    </div>
-
-    <!-- UNIT COMMAND PANEL -->
-    <div id="selection-panel" class="hidden absolute top-32 right-4 w-56 md:w-64 glass-panel p-4 rounded-2xl z-50 border-r-4 border-accent">
-        <div class="flex items-center gap-3 mb-4">
-            <div id="sel-icon" class="text-3xl"></div>
-            <div>
-                <p id="sel-title" class="orbitron text-xs font-bold text-white uppercase"></p>
-                <p id="sel-stats" class="text-[9px] text-accent font-mono"></p>
-            </div>
-        </div>
-        <div id="selection-actions" class="grid grid-cols-1 gap-2"></div>
+<div id="unit-menu" class="hidden fixed glass-panel p-4 rounded-xl z-50 w-48 pointer-events-auto border-l-4 border-accent">
+    <p id="menu-title" class="orbitron text-xs font-bold text-white mb-1"></p>
+    <p id="menu-stats" class="text-[9px] text-accent mb-3"></p>
+    <div id="menu-actions" class="flex flex-col gap-2">
+        <p class="text-[8px] text-gray-400">Right click ground to relocate</p>
     </div>
 </div>
 
 <script>
+    // --- CONFIG ---
     const CONFIG = {
-        GRID_SIZE: 60,
-        CELL_SIZE: 70,
         UNIT_TYPES: {
-            infantry: { cost: 100, icon: '🎖️', power: 100, range: 2, desc: 'Scout' },
-            tank:     { cost: 100, icon: '🚜', power: 250, range: 2, desc: 'Heavy' },
-            rocket:   { cost: 100, icon: '🚀', power: 150, range: 2, desc: 'Arty' },
-            nawawy:   { cost: 100, icon: '⚛️', power: 999, range: 4, desc: 'Nuke' }
+            infantry: { cost: 100, color: 0x00f2ff, power: 100, speed: 0.12, type: 'infantry' },
+            tank:     { cost: 350, color: 0x888888, power: 300, speed: 0.07, type: 'tank' },
+            plane:    { cost: 600, color: 0xffffff, power: 450, speed: 0.25, type: 'plane' },
+            nuke:     { cost: 1500, color: 0xdfff00, power: 1500, speed: 0.04, type: 'nuke' }
         },
-        BUILDINGS: {
-            palace:   { cost: 0, icon: '🏛️', class: 'bg-amber-500 shadow-xl', income: 200 },
-            barracks: { cost: 4000, icon: '🎖️', class: 'bg-slate-700 border-2 border-accent', income: 50 },
-            factory:  { cost: 6000, icon: '🏭', class: 'bg-zinc-800 border-t-4 border-orange-500', income: 1000 },
-            silo:     { cost: 12000, icon: '🚀', class: 'bg-red-900 border-2 border-white', income: 100 }
-        }
+        AEGIS_COST: 3000,
+        AI_PLAYERS: [
+            { id: 1, name: "Bot Zero", level: 1, color: 0xff4444, pos: {x: 70, z: 0} },
+            { id: 2, name: "Stalker", level: 2, color: 0xff8844, pos: {x: 70, z: 30} },
+            { id: 3, name: "Viper", level: 3, color: 0x44ff44, pos: {x: 70, z: -30} },
+            { id: 4, name: "Sentinel", level: 4, color: 0x4488ff, pos: {x: 0, z: 70} },
+            { id: 5, name: "Titan", level: 5, color: 0x8844ff, pos: {x: -70, z: 70} },
+            { id: 6, name: "Ghost", level: 6, color: 0xff44ff, pos: {x: -70, z: 0} },
+            { id: 7, name: "Raven", level: 7, color: 0x00ff88, pos: {x: -70, z: -70} },
+            { id: 8, name: "Colossus", level: 8, color: 0xffcc00, pos: {x: 0, z: -70} },
+            { id: 9, name: "MAX-ALPHA", level: 9, color: 0xffffff, pos: {x: 50, z: 50}, master: true },
+            { id: 10, name: "MAX-OMEGA", level: 10, color: 0xff0000, pos: {x: -50, z: -50}, master: true }
+        ]
     };
 
     let state = {
-        money: 10000,
-        territory: [], 
-        buildings: [], 
-        units: [],     
-        selectedUnitId: null,
-        activeBuild: null,
-        mapPos: { x: -1800, y: -1800 },
-        zoom: 0.6,
+        money: 1000,
+        units: [],
+        selectedUnit: null,
         autoRecruit: false,
-        autoExpand: false
+        autoExpand: false,
+        aegisDefense: false,
+        mouse: new THREE.Vector2(),
+        raycaster: new THREE.Raycaster()
     };
 
+    let scene, camera, renderer, terrain;
+    let unitMeshes = new Map();
+
+    // --- 3D MODEL FACTORY ---
+    function createUnitModel(type, color) {
+        const group = new THREE.Group();
+        const mat = new THREE.MeshStandardMaterial({ 
+            color: color, 
+            emissive: color, 
+            emissiveIntensity: 0.2 
+        });
+
+        if (type === 'infantry') {
+            // "Pawn" style character
+            const base = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.4, 0.2, 8), mat);
+            const body = new THREE.Mesh(new THREE.ConeGeometry(0.35, 1, 8), mat);
+            const head = new THREE.Mesh(new THREE.SphereGeometry(0.25, 8, 8), mat);
+            body.position.y = 0.5;
+            head.position.y = 1.1;
+            group.add(base, body, head);
+        } else if (type === 'tank') {
+            // Detailed Tank
+            const body = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.5, 1.8), mat);
+            const turret = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.4, 0.7), mat);
+            const gun = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 1, 8), mat);
+            turret.position.y = 0.45;
+            gun.rotation.x = Math.PI / 2;
+            gun.position.y = 0.45;
+            gun.position.z = 0.8;
+            group.add(body, turret, gun);
+        } else if (type === 'plane') {
+            // Sleek Fighter
+            const fuselage = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.05, 2, 8), mat);
+            const wings = new THREE.Mesh(new THREE.BoxGeometry(2, 0.05, 0.6), mat);
+            const tail = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.05, 0.3), mat);
+            fuselage.rotation.x = Math.PI / 2;
+            wings.position.z = -0.2;
+            tail.position.z = -0.8;
+            group.add(fuselage, wings, tail);
+        } else if (type === 'nuke') {
+            // Rocket Silo
+            const body = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.4, 2, 8), mat);
+            const cone = new THREE.Mesh(new THREE.ConeGeometry(0.4, 0.6, 8), mat);
+            const fins = new THREE.Mesh(new THREE.BoxGeometry(1, 0.5, 0.1), mat);
+            cone.position.y = 1.3;
+            fins.position.y = -0.5;
+            group.add(body, cone, fins);
+        }
+        return group;
+    }
+
+    // --- INITIALIZATION ---
     function init() {
-        const grid = document.getElementById('city-grid-container');
-        
-        for (let x = 0; x < CONFIG.GRID_SIZE; x++) {
-            for (let y = 0; y < CONFIG.GRID_SIZE; y++) {
-                let owner = null;
-                if (x >= 25 && x < 35 && y >= 25 && y < 35) owner = 'player';
-                else if (x < 10 && y < 10) owner = 'ai1';
-                else if (x > 50 && y < 10) owner = 'ai2';
-                else if (x < 10 && y > 50) owner = 'ai3';
-                
-                if (owner) state.territory.push({ x, y, owner });
+        scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x020406);
+        scene.fog = new THREE.FogExp2(0x020406, 0.015);
 
-                const cell = document.createElement('div');
-                cell.className = 'cell';
-                cell.id = `cell-${x}-${y}`;
-                cell.style.left = (x * CONFIG.CELL_SIZE) + 'px';
-                cell.style.top = (y * CONFIG.CELL_SIZE) + 'px';
-                cell.onclick = (e) => handleCellClick(x, y, e);
-                grid.appendChild(cell);
-            }
+        camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(50, 60, 50);
+        camera.lookAt(0, 0, 0);
+
+        renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        document.getElementById('three-container').appendChild(renderer.domElement);
+
+        const ambient = new THREE.AmbientLight(0xffffff, 0.4);
+        scene.add(ambient);
+        const light = new THREE.PointLight(0xffffff, 1.5, 200);
+        light.position.set(0, 100, 0);
+        scene.add(light);
+
+        // Ground
+        terrain = new THREE.Mesh(
+            new THREE.PlaneGeometry(300, 300),
+            new THREE.MeshStandardMaterial({ color: 0x0a0f1a, roughness: 0.8 })
+        );
+        terrain.rotation.x = -Math.PI / 2;
+        scene.add(terrain);
+
+        const grid = new THREE.GridHelper(300, 60, 0x00f2ff, 0x111111);
+        grid.position.y = 0.01;
+        scene.add(grid);
+
+        window.addEventListener('resize', onResize);
+        window.addEventListener('mousedown', onMouseDown);
+        
+        setupAIStatus();
+        animate();
+        setInterval(gameTick, 1000);
+    }
+
+    function setupAIStatus() {
+        const list = document.getElementById('ai-status-list');
+        CONFIG.AI_PLAYERS.forEach(ai => {
+            const div = document.createElement('div');
+            div.className = "text-[8px] flex justify-between items-center bg-white/5 p-1 rounded";
+            div.innerHTML = `
+                <span style="color: #${ai.color.toString(16).padStart(6, '0')}">${ai.name}</span>
+                <span class="text-gray-500">LVL ${ai.level}</span>
+            `;
+            list.appendChild(div);
+        });
+    }
+
+    // --- CORE LOGIC ---
+    function gameTick() {
+        state.money += 100 + (state.units.filter(u => u.owner === 'player').length * 10);
+
+        // Aegis
+        if (state.aegisDefense) {
+            state.units.filter(u => u.owner !== 'player').forEach(enemy => {
+                const d = Math.sqrt(enemy.x*enemy.x + enemy.z*enemy.z);
+                if (d < 25) {
+                    addLog(`AEGIS FIRING: ${enemy.owner.toUpperCase()} UNIT DESTROYED`, "text-yellow-400");
+                    destroyUnit(enemy.id);
+                    createExplosion(enemy.x, enemy.z, 0xffff00);
+                }
+            });
         }
 
-        addBuilding(30, 30, 'palace', true);
-        applyTransform();
-        updateBuildMenu();
-        renderAll();
-        
-        setInterval(economyTick, 1000);
-        setInterval(aiTick, 4000);
-        setInterval(automationTick, 2000);
-    }
-
-    function toggleAutomation(type) {
-        state[type] = !state[type];
-        const btn = document.getElementById(`toggle-${type === 'autoRecruit' ? 'auto-recruit' : 'auto-expand'}`);
-        if (state[type]) btn.classList.add('toggle-active');
-        else btn.classList.remove('toggle-active');
-        addLog(`${type.toUpperCase()} ${state[type] ? 'ENABLED' : 'DISABLED'}`);
-    }
-
-    function automationTick() {
-        if (state.autoRecruit && state.money >= 100) {
-            const spawners = state.buildings.filter(b => ['barracks', 'silo', 'palace'].includes(b.type));
-            if (spawners.length > 0) {
-                const b = spawners[Math.floor(Math.random() * spawners.length)];
+        // AI Systems
+        CONFIG.AI_PLAYERS.forEach(ai => {
+            const aiUnits = state.units.filter(u => u.owner === ai.name);
+            const spawnRate = ai.master ? 0.8 : (ai.level * 0.1);
+            
+            if (Math.random() < spawnRate) {
                 const types = Object.keys(CONFIG.UNIT_TYPES);
-                const type = types[Math.floor(Math.random() * types.length)];
-                spawnUnit(b.x, b.y, type);
+                const pick = ai.master ? types[Math.floor(Math.random() * 2) + 2] : types[Math.floor(Math.random() * 2)];
+                spawnUnit(ai.pos.x, ai.pos.z, pick, ai.name, ai.color);
             }
-        }
 
+            aiUnits.forEach(u => {
+                // AI Units always move towards player center
+                u.targetX = 0;
+                u.targetZ = 0;
+            });
+        });
+
+        // Auto Player Logic
+        if (state.autoRecruit && state.money >= 500) {
+            spawnUnit(0, 0, 'tank', 'player', CONFIG.UNIT_TYPES.tank.color);
+        }
         if (state.autoExpand) {
             state.units.filter(u => u.owner === 'player').forEach(u => {
-                // Find nearest non-sovereign tile
-                let bestTile = null;
-                let minDist = 999;
+                if (Math.random() > 0.8) {
+                    u.targetX = (Math.random() - 0.5) * 100;
+                    u.targetZ = (Math.random() - 0.5) * 100;
+                }
+            });
+        }
+
+        updateUI();
+    }
+
+    function spawnUnit(x, z, type, owner, color) {
+        const cfg = CONFIG.UNIT_TYPES[type];
+        if (owner === 'player' && state.money < cfg.cost) return;
+        if (owner === 'player') state.money -= cfg.cost;
+
+        const id = Math.random().toString(36).substr(2, 9);
+        const unit = { id, x, z, targetX: x, targetZ: z, type, owner, color, power: cfg.power };
+        state.units.push(unit);
+
+        const model = createUnitModel(type, color);
+        model.position.set(x, 0, z);
+        model.userData = { id };
+        scene.add(model);
+        unitMeshes.set(id, model);
+        
+        if (owner === 'player') addLog(`BATTALION DEPLOYED: ${type.toUpperCase()}`);
+    }
+
+    function destroyUnit(id) {
+        state.units = state.units.filter(u => u.id !== id);
+        const mesh = unitMeshes.get(id);
+        if (mesh) {
+            scene.remove(mesh);
+            unitMeshes.delete(id);
+        }
+    }
+
+    function onMouseDown(event) {
+        state.mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+        state.mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+        state.raycaster.setFromCamera(state.mouse, camera);
+        
+        const intersects = state.raycaster.intersectObjects(scene.children, true);
+        if (intersects.length > 0) {
+            const hit = intersects[0];
+            let mesh = hit.object;
+            while(mesh.parent && !mesh.userData.id) mesh = mesh.parent;
+
+            if (mesh.userData.id) {
+                const unit = state.units.find(u => u.id === mesh.userData.id);
+                if (unit && unit.owner === 'player') {
+                    state.selectedUnit = unit;
+                    showUnitMenu(event.clientX, event.clientY, unit);
+                }
+                return;
+            }
+
+            if (state.selectedUnit && (hit.object === terrain)) {
+                state.selectedUnit.targetX = hit.point.x;
+                state.selectedUnit.targetZ = hit.point.z;
+                addLog("UNIT RELOCATING...");
+                hideUnitMenu();
+                state.selectedUnit = null;
+            } else {
+                hideUnitMenu();
+                state.selectedUnit = null;
+            }
+        }
+    }
+
+    function animate() {
+        requestAnimationFrame(animate);
+
+        state.units.forEach(u => {
+            const mesh = unitMeshes.get(u.id);
+            if (mesh) {
+                const cfg = CONFIG.UNIT_TYPES[u.type];
+                const dx = u.targetX - u.x;
+                const dz = u.targetZ - u.z;
+                const d = Math.sqrt(dx*dx + dz*dz);
                 
-                // Simple search in range
-                for(let dx = -3; dx <= 3; dx++) {
-                    for(let dy = -3; dy <= 3; dy++) {
-                        const nx = u.x + dx;
-                        const ny = u.y + dy;
-                        if (nx < 0 || ny < 0 || nx >= CONFIG.GRID_SIZE || ny >= CONFIG.GRID_SIZE) continue;
-                        
-                        const soil = state.territory.find(t => t.x === nx && t.y === ny);
-                        if (!soil || soil.owner !== 'player') {
-                            const d = Math.abs(dx) + Math.abs(dy);
-                            if (d < minDist && d > 0) {
-                                minDist = d;
-                                bestTile = {x: nx, y: ny};
+                if (d > 0.5) {
+                    u.x += (dx / d) * cfg.speed;
+                    u.z += (dz / d) * cfg.speed;
+                    mesh.position.set(u.x, (u.type === 'plane' ? 6 : 0), u.z);
+                    mesh.lookAt(u.targetX, (u.type === 'plane' ? 6 : 0), u.targetZ);
+                }
+
+                // Conflict
+                state.units.forEach(other => {
+                    if (other.owner !== u.owner) {
+                        const dist = Math.sqrt(Math.pow(u.x - other.x, 2) + Math.pow(u.z - other.z, 2));
+                        if (dist < 2.5) {
+                            if (u.power >= other.power) {
+                                createExplosion(other.x, other.z, other.color);
+                                destroyUnit(other.id);
                             }
                         }
                     }
-                }
-
-                if (bestTile && minDist <= CONFIG.UNIT_TYPES[u.type].range) {
-                    moveUnit(u, bestTile.x, bestTile.y);
-                }
-            });
-        }
-    }
-
-    function handleCellClick(x, y, event) {
-        if (state.activeBuild) {
-            const soil = state.territory.find(t => t.x === x && t.y === y);
-            if (soil && soil.owner === 'player') {
-                addBuilding(x, y, state.activeBuild);
-                state.activeBuild = null;
-            } else {
-                addLog("BUILD AREA INVALID", "text-red-400");
-            }
-            return;
-        }
-
-        if (state.selectedUnitId) {
-            const myUnit = state.units.find(u => u.id === state.selectedUnitId);
-            const cfg = CONFIG.UNIT_TYPES[myUnit.type];
-            const dist = Math.abs(myUnit.x - x) + Math.abs(myUnit.y - y);
-            
-            if (dist > 0 && dist <= cfg.range) {
-                moveUnit(myUnit, x, y);
-                state.selectedUnitId = null;
-                hidePanel();
-                renderAll();
-                return;
-            }
-        }
-
-        const unit = state.units.find(u => u.x === x && u.y === y && u.owner === 'player');
-        if (unit) {
-            state.selectedUnitId = unit.id;
-            showUnitPanel(unit);
-            renderAll();
-            return;
-        }
-
-        const b = state.buildings.find(b => b.x === x && b.y === y);
-        if (b) {
-            showBuildingPanel(b);
-            return;
-        }
-
-        hidePanel();
-        state.selectedUnitId = null;
-        renderAll();
-    }
-
-    function addBuilding(x, y, type, free = false) {
-        const cfg = CONFIG.BUILDINGS[type];
-        if (!free && state.money < cfg.cost) { addLog("FUNDS LOW"); return; }
-        if (state.buildings.some(b => b.x === x && b.y === y)) return;
-
-        if (!free) state.money -= cfg.cost;
-        state.buildings.push({ x, y, type });
-        addLog(`BUILDING: ${type.toUpperCase()}`, "text-cyan-400");
-        renderAll();
-        updateUI();
-    }
-
-    function moveUnit(unit, nx, ny) {
-        unit.x = nx;
-        unit.y = ny;
-
-        const soil = state.territory.find(t => t.x === nx && t.y === ny);
-        if (soil) {
-            if (soil.owner !== unit.owner) {
-                soil.owner = unit.owner;
-                if (unit.owner === 'player') {
-                    state.money += 300;
-                    addLog("SEIZED SECTOR", "text-green-400");
-                }
-            }
-        } else {
-            state.territory.push({ x: nx, y: ny, owner: unit.owner });
-        }
-
-        if (unit.type === 'nawawy') {
-            state.buildings = state.buildings.filter(b => b.x !== nx || b.y !== ny);
-            addLog("NUKE STRIKE CONFIRMED", "text-yellow-400");
-        }
-
-        const enemies = state.units.filter(u => u.x === nx && u.y === ny && u.owner !== unit.owner);
-        enemies.forEach(enemy => {
-            if (unit.power >= enemy.power) {
-                state.units = state.units.filter(u => u.id !== enemy.id);
-                unit.power -= 20;
-                addLog("ENEMY NEUTRALIZED", "text-orange-400");
-            } else {
-                state.units = state.units.filter(u => u.id !== unit.id);
-                addLog("LOSS SUSTAINED", "text-red-500");
-            }
-        });
-
-        renderAll();
-    }
-
-    function economyTick() {
-        let income = state.territory.filter(t => t.owner === 'player').length * 20;
-        state.buildings.forEach(b => {
-            const cfg = CONFIG.BUILDINGS[b.type];
-            if (cfg.income) income += (cfg.income / 5);
-        });
-        state.money += income;
-        updateUI();
-    }
-
-    function aiTick() {
-        ['ai1', 'ai2', 'ai3'].forEach(id => {
-            const soil = state.territory.filter(t => t.owner === id);
-            if (soil.length === 0) return;
-
-            if (Math.random() > 0.8) {
-                const s = soil[Math.floor(Math.random() * soil.length)];
-                state.units.push({
-                    id: Math.random(),
-                    x: s.x, y: s.y,
-                    owner: id,
-                    type: 'infantry',
-                    power: 100
                 });
             }
-
-            state.units.filter(u => u.owner === id).forEach(u => {
-                const target = { x: 30, y: 30 };
-                let nx = u.x + Math.sign(target.x - u.x);
-                let ny = u.y + Math.sign(target.y - u.y);
-                moveUnit(u, nx, ny);
-            });
         });
+
+        renderer.render(scene, camera);
     }
 
-    function renderAll() {
-        document.querySelectorAll('.cell').forEach(c => c.classList.remove('move-target'));
-
-        state.territory.forEach(t => {
-            const cell = document.getElementById(`cell-${t.x}-${t.y}`);
-            if (cell) cell.className = `cell ${t.owner}-soil`;
-        });
-
-        state.buildings.forEach(b => {
-            const cell = document.getElementById(`cell-${b.x}-${b.y}`);
-            if (cell) {
-                const cfg = CONFIG.BUILDINGS[b.type];
-                cell.innerHTML = `<span class="text-3xl">${cfg.icon}</span>`;
-                cfg.class.split(' ').forEach(cls => cell.classList.add(cls));
-            }
-        });
-
-        if (state.selectedUnitId) {
-            const unit = state.units.find(u => u.id === state.selectedUnitId);
-            const range = CONFIG.UNIT_TYPES[unit.type].range;
-            for(let dx = -range; dx <= range; dx++) {
-                for(let dy = -range; dy <= range; dy++) {
-                    if (Math.abs(dx) + Math.abs(dy) <= range) {
-                        const cell = document.getElementById(`cell-${unit.x + dx}-${unit.y + dy}`);
-                        if (cell) cell.classList.add('move-target');
-                    }
-                }
-            }
-        }
-
-        document.querySelectorAll('.unit').forEach(u => u.remove());
-        const grid = document.getElementById('city-grid-container');
-        state.units.forEach(u => {
-            const el = document.createElement('div');
-            el.className = `unit unit-${u.owner === 'player' ? 'player' : 'enemy'} ${u.type === 'nawawy' ? 'unit-nuke' : ''} ${state.selectedUnitId === u.id ? 'selected' : ''}`;
-            el.style.left = (u.x * CONFIG.CELL_SIZE + 10) + 'px';
-            el.style.top = (u.y * CONFIG.CELL_SIZE + 10) + 'px';
-            el.innerHTML = CONFIG.UNIT_TYPES[u.type]?.icon || '🎖️';
-            el.onclick = (e) => {
-                e.stopPropagation();
-                handleCellClick(u.x, u.y);
+    function createExplosion(x, z, color) {
+        const geo = new THREE.SphereGeometry(0.2, 4, 4);
+        const mat = new THREE.MeshBasicMaterial({ color: color });
+        for(let i=0; i<10; i++) {
+            const p = new THREE.Mesh(geo, mat);
+            p.position.set(x, 1, z);
+            scene.add(p);
+            const v = new THREE.Vector3((Math.random()-0.5)*2, Math.random()*2, (Math.random()-0.5)*2);
+            const tick = () => {
+                p.position.addScaledVector(v, 0.1);
+                p.scale.multiplyScalar(0.9);
+                if (p.scale.x > 0.1) requestAnimationFrame(tick);
+                else scene.remove(p);
             };
-            grid.appendChild(el);
-        });
-    }
-
-    function showUnitPanel(unit) {
-        const p = document.getElementById('selection-panel');
-        p.classList.remove('hidden');
-        document.getElementById('sel-title').innerText = unit.type;
-        document.getElementById('sel-stats').innerText = `PWR: ${unit.power} | RNG: ${CONFIG.UNIT_TYPES[unit.type].range}`;
-        document.getElementById('sel-icon').innerText = CONFIG.UNIT_TYPES[unit.type].icon;
-        
-        const actions = document.getElementById('selection-actions');
-        actions.innerHTML = '<p class="text-[9px] text-accent animate-pulse font-bold">CLICK TARGET TO MARCH</p>';
-    }
-
-    function showBuildingPanel(b) {
-        const p = document.getElementById('selection-panel');
-        p.classList.remove('hidden');
-        document.getElementById('sel-title').innerText = b.type;
-        document.getElementById('sel-stats').innerText = `COMMAND HUB`;
-        document.getElementById('sel-icon').innerText = CONFIG.BUILDINGS[b.type].icon;
-        
-        const actions = document.getElementById('selection-actions');
-        actions.innerHTML = '';
-        
-        if (['barracks', 'silo', 'palace'].includes(b.type)) {
-            Object.entries(CONFIG.UNIT_TYPES).forEach(([id, u]) => {
-                const btn = document.createElement('button');
-                btn.className = "w-full py-2 bg-accent text-black orbitron text-[9px] font-black rounded hover:bg-white";
-                btn.innerText = `RECRUIT ${id.toUpperCase()} ($${u.cost})`;
-                btn.onclick = () => spawnUnit(b.x, b.y, id);
-                actions.appendChild(btn);
-            });
+            tick();
         }
     }
 
-    function spawnUnit(x, y, type) {
-        const cfg = CONFIG.UNIT_TYPES[type];
-        if (state.money < cfg.cost) return;
-        state.money -= cfg.cost;
-        state.units.push({
-            id: Date.now() + Math.random(),
-            x, y,
-            owner: 'player',
-            type: type,
-            power: cfg.power
-        });
-        renderAll();
-        updateUI();
-    }
-
-    function hidePanel() { document.getElementById('selection-panel').classList.add('hidden'); }
-
-    function updateBuildMenu() {
-        const menu = document.getElementById('build-menu');
-        menu.innerHTML = '';
-        Object.entries(CONFIG.BUILDINGS).forEach(([id, cfg]) => {
-            if (id === 'palace') return;
-            const btn = document.createElement('button');
-            btn.className = "p-2 bg-white/5 border border-white/10 rounded flex flex-col items-center pointer-events-auto hover:border-accent transition-all";
-            btn.innerHTML = `<span class="text-xl">${cfg.icon}</span><span class="text-[8px] orbitron font-bold">$${cfg.cost}</span>`;
-            btn.onclick = () => { state.activeBuild = id; addLog(`READY: PLACE ${id.toUpperCase()}`); };
-            menu.appendChild(btn);
-        });
-    }
-
+    // --- UI HELPERS ---
     function updateUI() {
-        document.getElementById('res-money').innerText = `$${Math.floor(state.money).toLocaleString()}`;
+        document.getElementById('res-money').innerText = `$${Math.floor(state.money)}`;
         document.getElementById('res-units').innerText = state.units.filter(u => u.owner === 'player').length;
     }
 
-    function addLog(msg, colorClass = "text-gray-400") {
+    function addLog(msg, color = "text-gray-400") {
         const log = document.getElementById('log');
         const p = document.createElement('p');
-        p.className = colorClass;
+        p.className = color;
         p.innerText = `> ${msg}`;
         log.prepend(p);
     }
 
-    function changeZoom(amt) {
-        state.zoom = Math.max(0.2, Math.min(1.5, state.zoom + amt));
-        applyTransform();
-    }
-    function resetCamera() { state.zoom = 0.6; state.mapPos = { x: -1800, y: -1800 }; applyTransform(); }
-    function applyTransform() {
-        document.getElementById('city-grid-container').style.transform = `translate(${state.mapPos.x}px, ${state.mapPos.y}px) scale(${state.zoom})`;
+    function toggleAutomation(key) {
+        state[key] = !state[key];
+        document.getElementById('toggle-' + key).classList.toggle('toggle-active', state[key]);
+        addLog(`${key.toUpperCase()} TOGGLED`);
     }
 
-    let isDragging = false, startX, startY;
-    const vp = document.getElementById('viewport');
-    vp.onmousedown = (e) => { isDragging = true; startX = e.clientX - state.mapPos.x; startY = e.clientY - state.mapPos.y; };
-    vp.ontouchstart = (e) => { isDragging = true; startX = e.touches[0].clientX - state.mapPos.x; startY = e.touches[0].clientY - state.mapPos.y; };
-    window.onmousemove = (e) => { if (!isDragging) return; state.mapPos.x = e.clientX - startX; state.mapPos.y = e.clientY - startY; applyTransform(); };
-    window.ontouchmove = (e) => { if (!isDragging) return; state.mapPos.x = e.touches[0].clientX - startX; state.mapPos.y = e.touches[0].clientY - startY; applyTransform(); };
-    window.onmouseup = window.ontouchend = () => isDragging = false;
+    function buyDefense() {
+        if (state.money >= CONFIG.AEGIS_COST) {
+            state.money -= CONFIG.AEGIS_COST;
+            state.aegisDefense = true;
+            document.getElementById('btn-defense').classList.add('defense-active');
+            document.getElementById('btn-defense').innerText = "AEGIS: ACTIVE";
+            addLog("AEGIS ORBITAL WEAPONRY ONLINE", "text-yellow-400");
+        }
+    }
 
-    function saveGame() { localStorage.setItem('war_genesis_save', JSON.stringify(state)); addLog("SYSTEMS SAVED"); }
-    function resetGame() { localStorage.removeItem('war_genesis_save'); location.reload(); }
+    function showUnitMenu(x, y, unit) {
+        const menu = document.getElementById('unit-menu');
+        menu.style.display = 'block';
+        menu.style.left = x + 'px';
+        menu.style.top = y + 'px';
+        document.getElementById('menu-title').innerText = unit.type.toUpperCase();
+        document.getElementById('menu-stats').innerText = `COMBAT POWER: ${unit.power}`;
+    }
 
-    window.onload = init;
+    function hideUnitMenu() {
+        document.getElementById('unit-menu').style.display = 'none';
+    }
+
+    function onResize() {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+
+    function resetGame() { location.reload(); }
+
+    window.onload = () => {
+        init();
+        const build = document.getElementById('build-menu');
+        Object.entries(CONFIG.UNIT_TYPES).forEach(([type, cfg]) => {
+            const btn = document.createElement('button');
+            btn.className = "p-2 bg-white/5 border border-white/10 rounded text-[9px] orbitron hover:border-accent transition-all pointer-events-auto";
+            btn.innerHTML = `<div class="text-[10px] mb-1">${type.toUpperCase()}</div>$${cfg.cost}`;
+            btn.onclick = (e) => { e.stopPropagation(); spawnUnit(0, 0, type, 'player', cfg.color); };
+            build.appendChild(btn);
+        });
+    };
 </script>
 
 </body>
