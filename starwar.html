@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>StarWar: New Genesis - Presidential Command</title>
+    <title>StarWar: New Genesis - War Room</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Inter:wght@300;400;600&display=swap');
@@ -16,11 +16,7 @@
             --danger: #ff3e3e;
             --army-gold: #fbbf24;
             --success: #10b981;
-        }
-
-        * {
-            box-sizing: border-box;
-            -webkit-tap-highlight-color: transparent;
+            --ai-enemy: #ff4444;
         }
 
         body {
@@ -39,25 +35,12 @@
         #city-grid-container {
             width: 3000px;
             height: 3000px;
-            background: radial-gradient(circle, #0a0d14 0%, #020406 100%);
+            background: 
+                linear-gradient(rgba(255,255,255,0.05) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255,255,255,0.05) 1px, transparent 1px);
+            background-size: 60px 60px;
             position: absolute;
             transform-origin: 0 0;
-            transition: transform 0.1s linear;
-        }
-
-        .player-border {
-            position: absolute;
-            border: 2px dashed var(--accent);
-            box-shadow: 0 0 30px rgba(0, 242, 255, 0.2);
-            pointer-events: none;
-            z-index: 1;
-        }
-
-        .neighbor-border {
-            position: absolute;
-            border: 2px solid rgba(255, 62, 62, 0.2);
-            background: rgba(255, 62, 62, 0.01);
-            pointer-events: none;
         }
 
         .cell {
@@ -67,25 +50,37 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            transition: background 0.2s;
-            border: 1px solid rgba(255, 255, 255, 0.02);
-            z-index: 2;
+            transition: background 0.3s, box-shadow 0.3s;
+            z-index: 10;
         }
 
-        .cell.out-of-bounds { cursor: pointer; background: rgba(255, 62, 62, 0.03); }
-        .cell.out-of-bounds:hover { background: rgba(255, 62, 62, 0.1); }
+        .cell.player-soil { background: rgba(0, 242, 255, 0.05); border: 0.5px solid rgba(0, 242, 255, 0.1); }
+        .cell.enemy-soil { background: rgba(255, 62, 62, 0.1); border: 0.5px solid rgba(255, 62, 62, 0.2); }
+        .cell.neutral-soil { background: transparent; }
 
-        /* Building Visuals */
-        .b-road { background: var(--road-grey) !important; border: none !important; }
-        .b-palace { background: linear-gradient(135deg, #ffd700, #b8860b); clip-path: polygon(50% 0%, 100% 38%, 82% 100%, 18% 100%, 0% 38%); border: 2px solid #fff; }
-        .b-house { background: #1e293b; border-bottom: 4px solid #3b82f6; border-radius: 4px; }
-        .b-factory { background: #334155; border-top: 6px solid #f97316; }
-        .b-barracks { background: #3f6212; border: 2px solid #a3e635; box-shadow: 0 0 10px rgba(163, 230, 53, 0.3); }
-        .b-airport { background: #475569; border: 3px double #94a3b8; border-radius: 8px; }
-        .b-lab { background: #1e1b4b; border-left: 4px solid #818cf8; }
-        .b-solar { background: #064e3b; border: 1px solid #10b981; }
+        /* Unit Styles */
+        .unit {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            position: absolute;
+            z-index: 50;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            cursor: pointer;
+            transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+            border: 2px solid white;
+            box-shadow: 0 0 15px rgba(0,0,0,0.5);
+        }
+        .unit-player { background: var(--accent); border-color: #fff; box-shadow: 0 0 10px var(--accent); }
+        .unit-enemy { background: var(--danger); border-color: #fff; box-shadow: 0 0 10px var(--danger); }
+        .unit.selected { ring: 4px solid #fff; ring-offset: 2px; transform: scale(1.2); z-index: 60; }
 
-        .building-icon { font-size: 24px; filter: drop-shadow(0 0 5px rgba(0,0,0,0.5)); }
+        .b-palace { background: gold; border-radius: 10%; box-shadow: 0 0 20px gold; }
+        .b-barracks { background: #3f6212; border: 2px solid #a3e635; }
+        .b-factory { background: #334155; border-top: 4px solid orange; }
 
         .glass-panel {
             background: var(--panel-bg);
@@ -93,151 +88,90 @@
             border: 1px solid rgba(255, 255, 255, 0.1);
         }
 
-        .map-controls {
-            position: absolute;
-            right: 20px;
-            bottom: 120px;
-            z-index: 100;
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
-
-        .ctrl-btn {
-            width: 44px;
-            height: 44px;
-            border-radius: 10px;
-            background: var(--panel-bg);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            color: var(--accent);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 20px;
-            cursor: pointer;
-        }
-
         #viewport {
             width: 100%;
             height: 100%;
             overflow: hidden;
             position: relative;
-            cursor: grab;
-        }
-        #viewport:active { cursor: grabbing; }
-
-        .toast {
-            position: absolute;
-            padding: 4px 10px;
-            border-radius: 4px;
-            font-size: 11px;
-            font-weight: bold;
-            pointer-events: none;
-            z-index: 1000;
-            animation: slideUpFade 1.5s forwards;
-            font-family: 'Orbitron', sans-serif;
+            background: #05070a;
         }
 
-        @keyframes slideUpFade {
-            0% { opacity: 0; transform: translateY(0); }
-            20% { opacity: 1; transform: translateY(-20px); }
-            100% { opacity: 0; transform: translateY(-50px); }
+        .action-btn {
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+            transition: all 0.2s;
         }
+        .action-btn:hover { background: var(--accent); color: black; }
 
-        @media (max-width: 768px) {
-            .cell { width: 50px; height: 50px; }
-            .sidebar-left { position: fixed; bottom: 0; left: 0; right: 0; width: 100%; top: auto; z-index: 100; max-height: 45vh; border-radius: 20px 20px 0 0; }
+        @keyframes pulse-red {
+            0% { box-shadow: 0 0 0 0 rgba(255, 62, 62, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(255, 62, 62, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(255, 62, 62, 0); }
         }
+        .invading { animation: pulse-red 2s infinite; }
     </style>
 </head>
 <body>
 
 <div id="game-container" class="w-screen h-screen flex flex-col relative overflow-hidden">
     
-    <!-- TOP HUD -->
-    <div class="hud-top glass-panel border-b border-white/10 flex items-center justify-between px-4 md:px-8 py-2 md:h-20 z-50">
+    <!-- HUD -->
+    <div class="hud-top glass-panel flex items-center justify-between px-6 py-3 z-50">
         <div class="flex flex-col">
-            <span class="orbitron text-accent text-sm md:text-xl font-bold">TERRA NOVA</span>
-            <div class="flex items-center gap-2">
-                <span id="level-display" class="orbitron text-[10px] text-white">LVL 1</span>
-                <div class="w-20 md:w-40 bg-gray-800 rounded-full h-1 overflow-hidden">
-                    <div id="level-bar" class="h-full bg-accent"></div>
-                </div>
-            </div>
+            <span class="orbitron text-accent text-xl font-bold tracking-tighter">COMMAND & CONQUER</span>
+            <span id="level-display" class="text-[10px] orbitron opacity-70">LVL 1 PRESIDENT</span>
         </div>
 
-        <div class="flex gap-2 md:gap-4 flex-wrap justify-center">
-            <div class="glass-panel px-3 py-1 rounded-lg flex flex-col items-center">
-                <span class="text-[7px] md:text-[8px] text-gray-500 uppercase">Treasury</span>
-                <span id="res-money" class="text-emerald-400 font-bold orbitron text-[10px] md:text-sm">$0</span>
+        <div class="flex gap-6">
+            <div class="flex flex-col items-center">
+                <span class="text-[8px] text-gray-500 uppercase font-bold">Treasury</span>
+                <span id="res-money" class="text-emerald-400 font-bold orbitron">$5,000</span>
             </div>
-            <div class="glass-panel px-3 py-1 rounded-lg flex flex-col items-center">
-                <span class="text-[7px] md:text-[8px] text-gray-500 uppercase">Passport Rating</span>
-                <span id="res-passport" class="text-indigo-400 font-bold orbitron text-[10px] md:text-sm">E-Rank</span>
+            <div class="flex flex-col items-center">
+                <span class="text-[8px] text-gray-500 uppercase font-bold">Sovereign Soil</span>
+                <span id="res-territory" class="text-indigo-400 font-bold orbitron">225 sq</span>
             </div>
-            <div class="glass-panel px-3 py-1 rounded-lg flex flex-col items-center">
-                <span class="text-[7px] md:text-[8px] text-gray-500 uppercase">Power</span>
-                <span id="res-power" class="text-amber-400 font-bold orbitron text-[10px] md:text-sm">0</span>
+            <div class="flex flex-col items-center">
+                <span class="text-[8px] text-gray-500 uppercase font-bold">Military Units</span>
+                <span id="res-units" class="text-amber-400 font-bold orbitron">0</span>
             </div>
         </div>
 
         <div class="flex gap-2">
-            <button onclick="saveGame()" class="p-2 bg-white/5 border border-white/10 rounded text-[9px] orbitron">SAVE</button>
-            <button onclick="resetGame()" class="p-2 bg-red-500/10 border border-red-500/20 rounded text-[9px] orbitron">RESET</button>
+            <button onclick="saveGame()" class="px-3 py-1 bg-white/10 rounded text-[10px] orbitron hover:bg-white/20">SAVE</button>
+            <button onclick="resetGame()" class="px-3 py-1 bg-red-500/20 rounded text-[10px] orbitron hover:bg-red-500/40">RESET</button>
         </div>
     </div>
 
-    <!-- MAIN VIEWPORT -->
-    <div class="flex-grow relative bg-[#010204]">
-        <div class="map-controls">
-            <button class="ctrl-btn orbitron" onclick="adjustZoom(0.1)">+</button>
-            <button class="ctrl-btn orbitron" onclick="adjustZoom(-0.1)">−</button>
-            <button class="ctrl-btn" onclick="centerOnPalace()">📍</button>
+    <!-- MAP -->
+    <div id="viewport">
+        <div id="city-grid-container">
+            <!-- Soil and Units Rendered Here -->
         </div>
+    </div>
 
-        <div id="viewport">
-            <div id="city-grid-container">
-                <div id="p-border" class="player-border"></div>
-                <div id="n-border-1" class="neighbor-border"><span class="p-2 orbitron text-[8px] text-red-500/30">United Federation</span></div>
-                <div id="n-border-2" class="neighbor-border"><span class="p-2 orbitron text-[8px] text-red-500/30">Sino-Republic</span></div>
-            </div>
+    <!-- UI OVERLAYS -->
+    <div class="absolute bottom-6 left-6 z-50 flex flex-col gap-4 pointer-events-none w-64">
+        <div class="glass-panel p-4 rounded-xl pointer-events-auto">
+            <p class="text-[10px] text-accent font-bold orbitron mb-2">CONSTRUCTION</p>
+            <div id="build-menu" class="grid grid-cols-2 gap-2"></div>
         </div>
-
-        <!-- LEFT SIDEBAR -->
-        <div class="sidebar-left absolute left-4 top-4 md:top-24 w-full md:w-72 z-50 flex flex-col gap-4 pointer-events-none">
-            <!-- BUILD MENU -->
-            <div class="glass-panel p-4 rounded-xl pointer-events-auto">
-                <div class="flex justify-between items-center mb-3">
-                    <p class="text-[10px] text-accent font-bold orbitron uppercase">Administration</p>
-                    <button id="train-army-btn" onclick="trainArmy()" class="hidden bg-amber-500/20 border border-amber-500/40 text-amber-400 text-[8px] px-2 py-1 rounded-md orbitron animate-pulse">
-                        TRAIN ARMY (-$1000)
-                    </button>
-                </div>
-                <div id="build-menu" class="flex md:grid md:grid-cols-2 gap-2 overflow-x-auto md:overflow-y-auto md:max-h-[50vh] pb-2">
-                    <!-- Buttons JS -->
-                </div>
-            </div>
-
-            <!-- TASKS -->
-            <div class="hidden md:block glass-panel p-4 rounded-xl pointer-events-auto">
-                <p class="text-[10px] text-emerald-400 font-bold mb-2 orbitron uppercase">Intelligence directives</p>
-                <div id="task-list" class="space-y-2 max-h-[25vh] overflow-y-auto pr-1"></div>
+        
+        <div class="glass-panel p-4 rounded-xl pointer-events-auto">
+            <p class="text-[10px] text-amber-500 font-bold orbitron mb-2">BATTLE LOG</p>
+            <div id="log" class="text-[9px] h-20 overflow-y-auto text-gray-400 font-mono italic">
+                - System Online...<br>
+                - Awaiting orders...
             </div>
         </div>
+    </div>
 
-        <!-- NARRATOR -->
-        <div class="narrator-box absolute bottom-6 left-1/2 -translate-x-1/2 w-[90%] max-w-xl glass-panel p-4 rounded-2xl flex items-center gap-4 z-50 border-b-4 border-accent">
-            <div class="w-12 h-12 bg-accent/20 border border-accent rounded-lg flex items-center justify-center shrink-0">
-                <span class="text-2xl">🤵</span>
-            </div>
-            <div class="flex-grow">
-                <div class="flex justify-between items-center mb-1">
-                    <p class="text-[9px] text-accent orbitron font-bold uppercase">Department of Intelligence</p>
-                    <p id="tension-level" class="text-[9px] text-red-500 orbitron font-bold">TENSION: 0%</p>
-                </div>
-                <p id="narrator-text" class="text-[11px] text-gray-300 italic">"Welcome, Mr. President. Our neighbors are wary of our expansion."</p>
-            </div>
-        </div>
+    <!-- SELECTION PANEL -->
+    <div id="selection-panel" class="hidden absolute top-24 right-6 w-48 glass-panel p-4 rounded-xl z-50 border-r-4 border-accent">
+        <p id="sel-title" class="orbitron text-xs font-bold text-accent mb-1">Unit Selected</p>
+        <p id="sel-stats" class="text-[10px] text-gray-400 mb-3">Power: 100 | Ready</p>
+        <button id="spawn-btn" class="w-full py-2 bg-accent text-black text-[10px] font-bold orbitron rounded mb-2 hidden">SPAWN ARMY ($2000)</button>
+        <p class="text-[8px] text-gray-500 italic">Click adjacent soil to move/attack</p>
     </div>
 </div>
 
@@ -245,330 +179,295 @@
     const CONFIG = {
         GRID_SIZE: 50,
         CELL_SIZE: 60,
-        XP_STEP: 4000,
-        BUILDINGS: {
-            palace:   { cost: 0,     xp: 1000, icon: '🏛️', class: 'b-palace',  desc: 'Capital', limit: 1 },
-            road:     { cost: 100,   xp: 50,   icon: '🛣️', class: 'b-road',    desc: 'Transit' },
-            house:    { cost: 1200,  xp: 300,  icon: '🏘️', class: 'b-house',   desc: 'Residential', pop: 150 },
-            factory:  { cost: 3500,  xp: 800,  icon: '🏭', class: 'b-factory', desc: 'Industry', income: 250 },
-            barracks: { cost: 6000,  xp: 1500, icon: '🎖️', class: 'b-barracks', desc: 'Military Hub', power: 100, lvl: 1 },
-            airport:  { cost: 15000, xp: 4000, icon: '✈️', class: 'b-airport',  desc: 'Air Terminal', income: 1200, lvl: 3 },
-            lab:      { cost: 8000,  xp: 2500, icon: '🧬', class: 'b-lab',      desc: 'Research Lab', income: 500, lvl: 2 },
-            solar:    { cost: 5000,  xp: 1200, icon: '🛰️', class: 'b-solar',    desc: 'Solar Array', income: 800, lvl: 2 }
-        },
-        TASKS: [
-            { id: 't1', title: 'Foundations', goal: 'Build 1 Palace', type: 'palace', count: 1, reward: 2000 },
-            { id: 't2', title: 'Aviation Era', goal: 'Build 1 Airport', type: 'airport', count: 1, reward: 10000 },
-            { id: 't3', title: 'Warmonger', goal: 'Build 3 Barracks', type: 'barracks', count: 3, reward: 8000 },
-            { id: 't4', title: 'Research Hub', goal: 'Build 2 Labs', type: 'lab', count: 2, reward: 12000 }
-        ]
+        TYPES: {
+            palace:   { cost: 0, icon: '🏛️', class: 'b-palace', desc: 'HQ' },
+            barracks: { cost: 4000, icon: '🎖️', class: 'b-barracks', desc: 'Army Spawn' },
+            factory:  { cost: 3000, icon: '🏭', class: 'b-factory', desc: 'Income', income: 400 }
+        }
     };
 
     let state = {
-        money: 5000, pop: 0, power: 0, xp: 0, level: 1, tension: 0,
-        buildings: [], currentSelected: null, zoom: 1.0, completedTasks: [],
-        mapPos: { x: -700, y: -700 }
+        money: 5000,
+        level: 1,
+        xp: 0,
+        territory: [], // Array of {x, y, owner: 'player'|'ai1'|'ai2'}
+        buildings: [], // Array of {x, y, type}
+        units: [],     // Array of {id, x, y, owner: 'player'|'ai', power: 100}
+        selectedId: null,
+        zoom: 0.8,
+        mapPos: { x: 100, y: 100 }
     };
 
-    let isPanning = false;
-    let startPan = { x: 0, y: 0 };
-    let lastMapPos = { ...state.mapPos };
-    let hasMoved = false;
-
-    function applyMapTransform() {
-        const container = document.getElementById('city-grid-container');
-        if (container) {
-            container.style.transform = `scale(${state.zoom}) translate(${state.mapPos.x}px, ${state.mapPos.y}px)`;
-        }
-    }
-
-    function adjustZoom(delta) {
-        state.zoom = Math.min(Math.max(0.2, state.zoom + delta), 2.0);
-        applyMapTransform();
-    }
-
-    function centerOnPalace() {
-        const palace = state.buildings.find(b => b.type === 'palace') || { x: 15, y: 15 };
-        const view = document.getElementById('viewport');
-        if (view) {
-            state.mapPos.x = -(palace.x * CONFIG.CELL_SIZE) + (view.clientWidth / (2 * state.zoom));
-            state.mapPos.y = -(palace.y * CONFIG.CELL_SIZE) + (view.clientHeight / (2 * state.zoom));
-            applyMapTransform();
-        }
-    }
-
-    function initPanControls() {
-        const view = document.getElementById('viewport');
-        if (!view) return;
-
-        const onStart = (e) => {
-            isPanning = true;
-            hasMoved = false;
-            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-            startPan = { x: clientX, y: clientY };
-            lastMapPos = { ...state.mapPos };
-        };
-        const onMove = (e) => {
-            if (!isPanning) return;
-            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-            const dx = (clientX - startPan.x) / state.zoom;
-            const dy = (clientY - startPan.y) / state.zoom;
-            if (Math.abs(dx) > 5 || Math.abs(dy) > 5) hasMoved = true;
-            state.mapPos.x = lastMapPos.x + dx;
-            state.mapPos.y = lastMapPos.y + dy;
-            applyMapTransform();
-        };
-        const onEnd = () => isPanning = false;
-        view.addEventListener('mousedown', onStart);
-        window.addEventListener('mousemove', onMove);
-        window.addEventListener('mouseup', onEnd);
-        view.addEventListener('touchstart', onStart, { passive: false });
-        window.addEventListener('touchmove', onMove, { passive: false });
-        window.addEventListener('touchend', onEnd);
-    }
-
-    function saveGame() { localStorage.setItem('starwar_save_v7', JSON.stringify(state)); }
-    function loadGame() {
-        const saved = localStorage.getItem('starwar_save_v7');
-        if (saved) { 
-            state = JSON.parse(saved); 
-            renderBuildings(); 
-            applyMapTransform(); 
-        } else { 
-            placeBuilding(15, 15, 'palace', true); 
-            centerOnPalace(); 
-        }
-    }
-    function resetGame() { localStorage.removeItem('starwar_save_v7'); location.reload(); }
-
-    function spawnToast(x, y, text, colorClass = 'bg-white text-black') {
-        const cs = CONFIG.CELL_SIZE;
-        const container = document.getElementById('city-grid-container');
-        if (!container) return;
-        const t = document.createElement('div');
-        t.className = `toast ${colorClass}`;
-        t.innerText = text;
-        t.style.left = (x * cs) + 'px';
-        t.style.top = (y * cs) + 'px';
-        container.appendChild(t);
-        setTimeout(() => t.remove(), 1500);
-    }
-
-    function initGrid() {
+    // Initialize map
+    function initMap() {
         const grid = document.getElementById('city-grid-container');
-        if (!grid) return;
+        
+        // Setup initial territories
+        for (let x = 0; x < CONFIG.GRID_SIZE; x++) {
+            for (let y = 0; y < CONFIG.GRID_SIZE; y++) {
+                let owner = null;
+                if (x >= 15 && x < 30 && y >= 15 && y < 30) owner = 'player';
+                else if (x < 10 && y < 15) owner = 'ai1';
+                else if (x > 40 && y > 35) owner = 'ai2';
+                
+                if (owner) state.territory.push({ x, y, owner });
 
-        const cs = CONFIG.CELL_SIZE;
-        const pBorder = document.getElementById('p-border');
-        const nBorder1 = document.getElementById('n-border-1');
-        const nBorder2 = document.getElementById('n-border-2');
-
-        if (pBorder) pBorder.style = `left:${10*cs}px;top:${10*cs}px;width:${15*cs}px;height:${15*cs}px;`;
-        if (nBorder1) nBorder1.style = `left:0;top:${10*cs}px;width:${9*cs}px;height:${15*cs}px;`;
-        if (nBorder2) nBorder2.style = `left:${26*cs}px;top:${10*cs}px;width:${10*cs}px;height:${15*cs}px;`;
-
-        for (let y = 0; y < CONFIG.GRID_SIZE; y++) {
-            for (let x = 0; x < CONFIG.GRID_SIZE; x++) {
                 const cell = document.createElement('div');
                 cell.className = 'cell';
-                cell.style.left = (x * cs) + 'px';
-                cell.style.top = (y * cs) + 'px';
-                cell.dataset.x = x;
-                cell.dataset.y = y;
-                
-                const inZone = x >= 10 && x < 25 && y >= 10 && y < 25;
-                if (!inZone) cell.classList.add('out-of-bounds');
-                
-                cell.onclick = () => {
-                    if (hasMoved) return;
-                    if (!inZone) {
-                        state.tension = Math.min(100, state.tension + 5);
-                        const gain = Math.floor(Math.random() * 200) + 50;
-                        state.money += gain;
-                        state.xp += 20;
-                        spawnToast(x, y, `SURVEY: +$${gain}`, 'bg-emerald-500 text-white');
-                        triggerNarrator("The neighboring states protest our unauthorized surveys!");
-                        updateUI();
-                    } else if (state.currentSelected) {
-                        placeBuilding(x, y, state.currentSelected);
-                    }
-                };
+                cell.id = `cell-${x}-${y}`;
+                cell.style.left = (x * CONFIG.CELL_SIZE) + 'px';
+                cell.style.top = (y * CONFIG.CELL_SIZE) + 'px';
+                cell.onclick = () => handleCellClick(x, y);
                 grid.appendChild(cell);
             }
         }
-        updateBuildMenu();
-        updateTaskList();
+        
+        // Starting Palace
+        addBuilding(22, 22, 'palace');
+        renderAll();
         updateUI();
-        initPanControls();
+        updateBuildMenu();
+        
+        // Start Loops
+        setInterval(gameTick, 2000);
+        setInterval(aiTick, 5000);
     }
 
-    function placeBuilding(x, y, type, free = false) {
-        const data = CONFIG.BUILDINGS[type];
-        if (!free && state.money < data.cost) { triggerNarrator("Treasury insufficient."); return; }
+    function handleCellClick(x, y) {
+        // If building mode active
+        if (state.activeBuild) {
+            if (isPlayerSoil(x, y)) {
+                addBuilding(x, y, state.activeBuild);
+                state.activeBuild = null;
+            } else {
+                addLog("Cannot build on foreign or neutral soil!");
+            }
+            return;
+        }
+
+        // If unit selected
+        if (state.selectedId !== null) {
+            const unit = state.units.find(u => u.id === state.selectedId);
+            if (unit && unit.owner === 'player') {
+                const dist = Math.abs(unit.x - x) + Math.abs(unit.y - y);
+                if (dist === 1) {
+                    moveUnit(unit, x, y);
+                    return;
+                }
+            }
+        }
+
+        // Select existing building or unit
+        const building = state.buildings.find(b => b.x === x && b.y === y);
+        if (building && building.type === 'barracks') {
+            showSelection('Barracks', 'Military Output Hub', true, x, y);
+            return;
+        }
+
+        hideSelection();
+    }
+
+    function isPlayerSoil(x, y) {
+        return state.territory.some(t => t.x === x && t.y === y && t.owner === 'player');
+    }
+
+    function addBuilding(x, y, type) {
+        const cfg = CONFIG.TYPES[type];
+        if (state.money < cfg.cost) return;
         if (state.buildings.some(b => b.x === x && b.y === y)) return;
 
-        if (!free) state.money -= data.cost;
+        state.money -= cfg.cost;
         state.buildings.push({ x, y, type });
-        renderBuilding({ x, y, type });
-        
-        if (data.pop) state.pop += data.pop;
-        if (data.power) state.power += data.power;
-        state.xp += data.xp;
-        
-        checkTasks();
-        checkLevel();
-        updateUI();
-        updateBuildMenu();
-        saveGame();
-    }
-
-    function trainArmy() {
-        if (state.money < 1000) { triggerNarrator("Not enough funds to train troops."); return; }
-        state.money -= 1000;
-        state.power += 50;
-        spawnToast(15, 15, "ARMY TRAINED +50 PWR", "bg-amber-600 text-white");
+        renderAll();
         updateUI();
     }
 
-    function renderBuilding(b) {
-        const data = CONFIG.BUILDINGS[b.type];
-        const cs = CONFIG.CELL_SIZE;
-        // Use attribute selector precisely
-        const cell = document.querySelector(`.cell[data-x="${b.x}"][data-y="${b.y}"]`);
-        if(cell) {
-            cell.className = `cell building ${data.class}`;
-            cell.innerHTML = `<span class="building-icon">${data.icon}</span>`;
+    function spawnArmy(x, y) {
+        if (state.money < 2000) return;
+        state.money -= 2000;
+        const id = Date.now();
+        state.units.push({ id, x, y, owner: 'player', power: 100 + (state.level * 20) });
+        renderAll();
+        updateUI();
+    }
+
+    function moveUnit(unit, nx, ny) {
+        unit.x = nx;
+        unit.y = ny;
+
+        // Check Annexation
+        const tIdx = state.territory.findIndex(t => t.x === nx && t.y === ny);
+        if (tIdx > -1) {
+            const currentOwner = state.territory[tIdx].owner;
+            if (currentOwner !== unit.owner) {
+                state.territory[tIdx].owner = unit.owner;
+                if (unit.owner === 'player') {
+                    state.money += 200;
+                    addLog(`Annexed territory at [${nx},${ny}]! +$200`);
+                }
+            }
+        } else {
+            // Claiming neutral soil
+            state.territory.push({ x: nx, y: ny, owner: unit.owner });
+        }
+
+        // Combat Check
+        const enemies = state.units.filter(u => u.x === nx && u.y === ny && u.owner !== unit.owner);
+        enemies.forEach(enemy => resolveCombat(unit, enemy));
+
+        renderAll();
+        updateUI();
+    }
+
+    function resolveCombat(u1, u2) {
+        addLog(`BATTLE ENGAGED at [${u1.x},${u1.y}]`);
+        if (u1.power >= u2.power) {
+            state.units = state.units.filter(u => u.id !== u2.id);
+            u1.power -= 20;
+            addLog("Victory! Enemy unit destroyed.");
+        } else {
+            state.units = state.units.filter(u => u.id !== u1.id);
+            u2.power -= 20;
+            addLog("Defeat! Our unit was lost.");
         }
     }
 
-    function renderBuildings() { state.buildings.forEach(renderBuilding); }
-
-    function checkLevel() {
-        const nextXp = state.level * CONFIG.XP_STEP;
-        if (state.xp >= nextXp) {
-            state.level++;
-            state.money += (state.level * 5000);
-            triggerNarrator(`Global Influence Upgraded to Level ${state.level}! Passport rank increased.`);
-            updateBuildMenu();
-        }
-    }
-
-    function checkTasks() {
-        CONFIG.TASKS.forEach(task => {
-            if (state.completedTasks.includes(task.id)) return;
-            const count = state.buildings.filter(b => b.type === task.type).length;
-            if (count >= task.count) {
-                state.completedTasks.push(task.id);
-                state.money += task.reward;
-                triggerNarrator(`DIRECTIVE SECURED: ${task.title}. Reward: $${task.reward}.`);
-                updateTaskList();
+    function aiTick() {
+        // AI Spawns units if they have territory
+        ['ai1', 'ai2'].forEach(ai => {
+            const aiSoil = state.territory.filter(t => t.owner === ai);
+            if (aiSoil.length > 0 && Math.random() > 0.7) {
+                const start = aiSoil[0];
+                state.units.push({ id: Math.random(), x: start.x, y: start.y, owner: 'ai', power: 80 + (state.level * 15) });
             }
         });
+
+        // AI Moves units toward player palace
+        state.units.filter(u => u.owner === 'ai').forEach(u => {
+            const palace = state.buildings.find(b => b.type === 'palace') || {x: 25, y: 25};
+            const dx = palace.x - u.x;
+            const dy = palace.y - u.y;
+            
+            let nx = u.x, ny = u.y;
+            if (Math.abs(dx) > Math.abs(dy)) nx += Math.sign(dx);
+            else ny += Math.sign(dy);
+
+            moveUnit(u, nx, ny);
+        });
+    }
+
+    function gameTick() {
+        state.buildings.forEach(b => {
+            const cfg = CONFIG.TYPES[b.type];
+            if (cfg.income) state.money += (cfg.income / 10);
+        });
+        updateUI();
+    }
+
+    function renderAll() {
+        // Render Soil
+        state.territory.forEach(t => {
+            const cell = document.getElementById(`cell-${t.x}-${t.y}`);
+            if (cell) {
+                cell.className = `cell ${t.owner}-soil`;
+            }
+        });
+
+        // Render Buildings
+        state.buildings.forEach(b => {
+            const cell = document.getElementById(`cell-${b.x}-${b.y}`);
+            if (cell) {
+                const cfg = CONFIG.TYPES[b.type];
+                cell.innerHTML = `<span class="text-2xl">${cfg.icon}</span>`;
+                cell.classList.add(cfg.class);
+            }
+        });
+
+        // Render Units
+        // Clear old unit DOM
+        document.querySelectorAll('.unit').forEach(u => u.remove());
+        const grid = document.getElementById('city-grid-container');
+        state.units.forEach(u => {
+            const el = document.createElement('div');
+            el.className = `unit unit-${u.owner === 'player' ? 'player' : 'enemy'} ${state.selectedId === u.id ? 'selected' : ''}`;
+            el.style.left = (u.x * CONFIG.CELL_SIZE + 10) + 'px';
+            el.style.top = (u.y * CONFIG.CELL_SIZE + 10) + 'px';
+            el.innerHTML = u.owner === 'player' ? '🎖️' : '💀';
+            el.onclick = (e) => {
+                e.stopPropagation();
+                if (u.owner === 'player') {
+                    state.selectedId = u.id;
+                    showSelection('Army Unit', `Power: ${u.power.toFixed(0)}`, false);
+                    renderAll();
+                }
+            };
+            grid.appendChild(el);
+        });
+    }
+
+    function updateUI() {
+        document.getElementById('res-money').innerText = `$${Math.floor(state.money).toLocaleString()}`;
+        document.getElementById('res-territory').innerText = `${state.territory.filter(t => t.owner === 'player').length} sq`;
+        document.getElementById('res-units').innerText = state.units.filter(u => u.owner === 'player').length;
+    }
+
+    function showSelection(title, stats, canSpawn, x, y) {
+        const p = document.getElementById('selection-panel');
+        p.classList.remove('hidden');
+        document.getElementById('sel-title').innerText = title;
+        document.getElementById('sel-stats').innerText = stats;
+        const btn = document.getElementById('spawn-btn');
+        if (canSpawn) {
+            btn.classList.remove('hidden');
+            btn.onclick = () => spawnArmy(x, y);
+        } else {
+            btn.classList.add('hidden');
+        }
+    }
+
+    function hideSelection() {
+        document.getElementById('selection-panel').classList.add('hidden');
+        state.selectedId = null;
     }
 
     function updateBuildMenu() {
         const menu = document.getElementById('build-menu');
-        if (!menu) return;
-        menu.innerHTML = '';
-        Object.entries(CONFIG.BUILDINGS).forEach(([id, data]) => {
-            if (id === 'palace' && state.buildings.some(b => b.type === 'palace')) return;
-            const isLocked = data.lvl && state.level < data.lvl;
+        Object.entries(CONFIG.TYPES).forEach(([id, cfg]) => {
+            if (id === 'palace') return;
             const btn = document.createElement('button');
-            const isSelected = state.currentSelected === id;
-            btn.className = `shrink-0 p-2 rounded-lg text-left transition-all ${isLocked ? 'opacity-30' : 'bg-white/5 border border-white/10 pointer-events-auto'} ${isSelected ? 'border-accent shadow-[0_0_10px_rgba(0,242,255,0.3)]' : ''}`;
-            btn.innerHTML = `
-                <div class="flex justify-between items-center text-[9px] font-bold orbitron">
-                    <span>${data.icon} ${id.toUpperCase()}</span>
-                    ${isLocked ? `<span class="text-xs">🔒L${data.lvl}</span>` : ''}
-                </div>
-                <p class="text-[9px] text-emerald-400 mt-1">$${data.cost || 'FREE'}</p>
-            `;
-            btn.onclick = (e) => {
-                e.stopPropagation();
-                if (isLocked) return;
-                state.currentSelected = state.currentSelected === id ? null : id;
-                updateBuildMenu();
+            btn.className = "action-btn p-2 rounded text-[10px] orbitron flex flex-col items-center pointer-events-auto";
+            btn.innerHTML = `<span>${cfg.icon}</span><span>$${cfg.cost}</span>`;
+            btn.onclick = () => {
+                state.activeBuild = id;
+                addLog(`Construction ready: Place ${id} on your soil.`);
             };
             menu.appendChild(btn);
         });
-
-        // Toggle Army Button
-        const hasBarracks = state.buildings.some(b => b.type === 'barracks');
-        const trainBtn = document.getElementById('train-army-btn');
-        if (trainBtn) trainBtn.classList.toggle('hidden', !hasBarracks);
     }
 
-    function updateTaskList() {
-        const list = document.getElementById('task-list');
-        if (!list) return;
-        list.innerHTML = '';
-        CONFIG.TASKS.forEach(task => {
-            const isDone = state.completedTasks.includes(task.id);
-            const count = state.buildings.filter(b => b.type === task.type).length;
-            const item = document.createElement('div');
-            item.className = `p-2 rounded-md border-l-2 ${isDone ? 'border-green-500 bg-green-500/5' : 'border-accent bg-white/5'}`;
-            item.innerHTML = `
-                <div class="flex justify-between text-[9px] orbitron">
-                    <span class="text-white">${task.title}</span>
-                    <span class="${isDone ? 'text-green-500' : 'text-gray-400'}">${isDone ? 'COMPLETED' : `${count}/${task.count}`}</span>
-                </div>
-                <p class="text-[8px] text-gray-500">${task.goal}</p>
-            `;
-            list.appendChild(item);
-        });
+    function addLog(msg) {
+        const log = document.getElementById('log');
+        log.innerHTML = `> ${msg}<br>${log.innerHTML}`;
     }
 
-    function getPassportRank() {
-        const ranks = ['E-Rank', 'D-Rank', 'C-Rank', 'B-Rank', 'A-Rank', 'S-Rank', 'Omega'];
-        return ranks[Math.min(state.level - 1, ranks.length - 1)];
-    }
-
-    function updateUI() {
-        const moneyEl = document.getElementById('res-money');
-        const popEl = document.getElementById('res-pop');
-        const powerEl = document.getElementById('res-power');
-        const passportEl = document.getElementById('res-passport');
-        const levelEl = document.getElementById('level-display');
-        const tensionEl = document.getElementById('tension-level');
-        const levelBar = document.getElementById('level-bar');
-
-        if (moneyEl) moneyEl.innerText = `$${Math.floor(state.money).toLocaleString()}`;
-        if (popEl) popEl.innerText = state.pop.toLocaleString();
-        if (powerEl) powerEl.innerText = state.power.toLocaleString();
-        if (passportEl) passportEl.innerText = getPassportRank();
-        if (levelEl) levelEl.innerText = `LVL ${state.level}`;
-        if (tensionEl) tensionEl.innerText = `TENSION: ${Math.floor(state.tension)}%`;
-        
-        if (levelBar) {
-            const prevLevelXp = (state.level - 1) * CONFIG.XP_STEP;
-            const xpPerc = Math.min(100, ((state.xp - prevLevelXp) / CONFIG.XP_STEP) * 100);
-            levelBar.style.width = `${xpPerc}%`;
-        }
-    }
-
-    function triggerNarrator(text) { 
-        const el = document.getElementById('narrator-text');
-        if (el) el.innerText = text; 
-    }
-
-    setInterval(() => {
-        let income = state.pop * (0.2 + (state.level * 0.1)); 
-        state.buildings.forEach(b => {
-            const data = CONFIG.BUILDINGS[b.type];
-            if (data && data.income) income += (data.income / 30); 
-        });
-        
-        state.money += income;
-        if (state.tension > 0) state.tension = Math.max(0, state.tension - 0.2);
-        updateUI();
-    }, 1000);
-
-    window.onload = () => { 
-        initGrid(); 
-        loadGame(); 
+    // Viewport panning
+    let isDragging = false;
+    let startX, startY;
+    const vp = document.getElementById('viewport');
+    vp.onmousedown = (e) => {
+        isDragging = true;
+        startX = e.clientX - state.mapPos.x;
+        startY = e.clientY - state.mapPos.y;
     };
+    window.onmousemove = (e) => {
+        if (!isDragging) return;
+        state.mapPos.x = e.clientX - startX;
+        state.mapPos.y = e.clientY - startY;
+        document.getElementById('city-grid-container').style.transform = `translate(${state.mapPos.x}px, ${state.mapPos.y}px) scale(${state.zoom})`;
+    };
+    window.onmouseup = () => isDragging = false;
+
+    window.onload = initMap;
 </script>
 
 </body>
