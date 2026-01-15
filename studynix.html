@@ -1,0 +1,772 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StudyNix - Student Workspace</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore-compat.js"></script>
+
+    <style>
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #1e293b; }
+        ::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #64748b; }
+
+        /* Range Slider Customization */
+        input[type=range] {
+            -webkit-appearance: none;
+            background: transparent;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 16px;
+            width: 16px;
+            border-radius: 50%;
+            background: #ffffff;
+            cursor: pointer;
+            margin-top: -6px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            cursor: pointer;
+            background: #334155;
+            border-radius: 2px;
+        }
+
+        /* Animations */
+        @keyframes pulse-ring {
+            0% { transform: scale(0.95); opacity: 0.5; }
+            50% { transform: scale(1); opacity: 1; }
+            100% { transform: scale(0.95); opacity: 0.5; }
+        }
+        .animate-breathe { animation: pulse-ring 4s infinite ease-in-out; }
+        
+        .hidden-view { display: none; }
+        .active-view { display: block; }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-200 font-sans min-h-screen flex flex-col">
+
+    <!-- Auth Overlay (Loading Screen) -->
+    <div id="auth-overlay" class="fixed inset-0 z-50 bg-slate-950 flex flex-col items-center justify-center transition-opacity duration-500">
+        <div class="relative w-24 h-24 mb-6">
+            <div class="absolute inset-0 border-4 border-slate-800 rounded-full"></div>
+            <div class="absolute inset-0 border-4 border-t-indigo-500 border-r-transparent border-b-transparent border-l-transparent rounded-full animate-spin"></div>
+            <i data-lucide="cpu" class="absolute inset-0 m-auto text-indigo-500 w-8 h-8"></i>
+        </div>
+        <h2 class="text-2xl font-bold text-white mb-2">StudyNix</h2>
+        <p class="text-slate-400 text-sm animate-pulse">Authenticating User...</p>
+    </div>
+
+    <!-- Main App Container (Hidden until Auth) -->
+    <div id="app-container" class="flex-1 flex flex-col opacity-0 transition-opacity duration-700 pointer-events-none">
+        
+        <!-- Navigation -->
+        <nav class="border-b border-slate-800 bg-slate-950/80 backdrop-blur-md sticky top-0 z-40">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="flex items-center justify-between h-16">
+                    <div class="flex items-center gap-3">
+                        <div class="bg-indigo-600 p-2 rounded-lg">
+                            <i data-lucide="cpu" class="text-white w-6 h-6"></i>
+                        </div>
+                        <div>
+                            <h1 class="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 to-cyan-400">
+                                StudyNix
+                            </h1>
+                            <p class="text-[10px] text-slate-500 uppercase tracking-widest font-semibold">Workspace</p>
+                        </div>
+                    </div>
+
+                    <!-- Desktop Nav -->
+                    <div class="hidden md:flex items-center gap-1 bg-slate-900/50 p-1 rounded-lg border border-slate-800">
+                        <button onclick="switchTab('dashboard')" id="btn-dashboard" class="px-4 py-2 rounded-md text-sm font-medium transition-all bg-slate-700 text-white">
+                            Dashboard
+                        </button>
+                        <button onclick="switchTab('ai')" id="btn-ai" class="px-4 py-2 rounded-md text-sm font-medium transition-all text-slate-400 hover:text-slate-200">
+                            Ask Nix
+                        </button>
+                    </div>
+
+                    <div class="flex items-center gap-3">
+                        <div class="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center border border-slate-700" title="User ID">
+                            <span class="text-xs font-bold text-indigo-400">US</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </nav>
+
+        <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1 w-full">
+            
+            <!-- Mobile Tab Switcher -->
+            <div class="md:hidden mb-6 flex bg-slate-900 rounded-lg p-1">
+                <button onclick="switchTab('dashboard')" id="btn-mob-dashboard" class="flex-1 py-2 rounded-md text-sm font-medium transition-all bg-indigo-600 text-white">
+                    Dashboard
+                </button>
+                <button onclick="switchTab('ai')" id="btn-mob-ai" class="flex-1 py-2 rounded-md text-sm font-medium transition-all text-slate-400">
+                    Ask AI
+                </button>
+            </div>
+
+            <!-- DASHBOARD VIEW -->
+            <div id="dashboard-view" class="active-view">
+                <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                    
+                    <!-- Left Column: Timer & Sounds -->
+                    <div class="lg:col-span-7 space-y-6">
+                        
+                        <!-- Timer Card -->
+                        <div class="flex flex-col items-center justify-center p-8 bg-slate-800 rounded-xl border border-slate-700 shadow-sm relative overflow-hidden">
+                            <div id="timer-bg-gradient" class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-indigo-500 to-transparent opacity-50"></div>
+
+                            <!-- Timer Modes -->
+                            <div class="flex gap-2 mb-8 bg-slate-900/50 p-1.5 rounded-xl">
+                                <button onclick="setTimerMode('pomodoro')" id="mode-pomodoro" class="px-4 py-2 rounded-lg text-sm font-medium transition-all bg-slate-700 text-white shadow-sm">Focus</button>
+                                <button onclick="setTimerMode('short')" id="mode-short" class="px-4 py-2 rounded-lg text-sm font-medium transition-all text-slate-400 hover:bg-slate-800">Short Break</button>
+                                <button onclick="setTimerMode('long')" id="mode-long" class="px-4 py-2 rounded-lg text-sm font-medium transition-all text-slate-400 hover:bg-slate-800">Long Break</button>
+                            </div>
+
+                            <!-- Timer Circle -->
+                            <div class="relative mb-8">
+                                <svg width="280" height="280" class="transform -rotate-90">
+                                    <circle cx="140" cy="140" r="120" stroke="#0f172a" stroke-width="8" fill="transparent"></circle>
+                                    <circle id="timer-ring" cx="140" cy="140" r="120" stroke="#6366f1" stroke-width="8" fill="transparent" stroke-dasharray="753.98" stroke-dashoffset="0" stroke-linecap="round" class="transition-all duration-1000"></circle>
+                                </svg>
+                                <div class="absolute inset-0 flex flex-col items-center justify-center">
+                                    <div id="timer-display" class="text-6xl font-mono font-bold tracking-tighter text-indigo-400">25:00</div>
+                                    <p id="timer-status" class="text-slate-500 text-sm mt-2 font-medium tracking-wide uppercase">Paused</p>
+                                </div>
+                            </div>
+
+                            <!-- Controls -->
+                            <div class="flex gap-4">
+                                <button onclick="toggleTimer()" id="btn-timer-toggle" class="w-16 h-16 rounded-2xl bg-indigo-600 hover:bg-indigo-700 flex items-center justify-center text-white shadow-lg transition-transform hover:scale-105 active:scale-95">
+                                    <i data-lucide="play" class="ml-1 w-7 h-7"></i>
+                                </button>
+                                <button onclick="resetTimer()" class="w-16 h-16 rounded-2xl bg-slate-700 hover:bg-slate-600 text-slate-300 flex items-center justify-center transition-colors hover:text-white">
+                                    <i data-lucide="rotate-ccw" class="w-6 h-6"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Audio Sanctuary -->
+                        <div class="bg-slate-900/50 rounded-xl p-6 border border-slate-800">
+                            <div class="flex items-center gap-2 mb-4">
+                                <i data-lucide="volume-2" class="text-indigo-400 w-5 h-5"></i>
+                                <h3 class="font-bold text-slate-200">Audio Sanctuary</h3>
+                            </div>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4" id="sound-grid">
+                                <!-- Sound Cards generated by JS -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Right Column: Tasks -->
+                    <div class="lg:col-span-5 flex flex-col h-[600px] lg:h-auto bg-slate-800 rounded-xl border border-slate-700 shadow-sm overflow-hidden">
+                        <div class="p-4 border-b border-slate-700 flex justify-between items-center bg-slate-800 z-10">
+                            <h2 class="font-bold text-slate-200 flex items-center gap-2">
+                                <i data-lucide="list" class="text-indigo-400 w-5 h-5"></i> Tasks
+                            </h2>
+                            <div class="flex bg-slate-900 rounded-lg p-1 text-xs font-medium">
+                                <button onclick="filterTasks('all')" id="filter-all" class="px-3 py-1 rounded-md transition-colors bg-indigo-600 text-white">All</button>
+                                <button onclick="filterTasks('active')" id="filter-active" class="px-3 py-1 rounded-md transition-colors text-slate-400 hover:text-slate-200">Active</button>
+                                <button onclick="filterTasks('completed')" id="filter-completed" class="px-3 py-1 rounded-md transition-colors text-slate-400 hover:text-slate-200">Done</button>
+                            </div>
+                        </div>
+
+                        <div id="task-list" class="p-4 flex-1 overflow-y-auto space-y-2">
+                            <!-- Tasks injected here -->
+                            <div class="text-center text-slate-500 mt-10">Loading tasks...</div>
+                        </div>
+
+                        <form onsubmit="addTask(event)" class="p-4 border-t border-slate-700 bg-slate-800">
+                            <div class="relative">
+                                <input type="text" id="new-task-input" placeholder="Add a new task..." class="w-full bg-slate-900 border border-slate-700 text-slate-200 rounded-lg pl-4 pr-10 py-2.5 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all placeholder-slate-500">
+                                <button type="submit" class="absolute right-2 top-2 p-1 bg-indigo-600 text-white rounded-md hover:bg-indigo-500 transition-colors">
+                                    <i data-lucide="plus" class="w-4 h-4"></i>
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <!-- AI VIEW -->
+            <div id="ai-view" class="hidden-view">
+                <div class="max-w-3xl mx-auto flex flex-col h-[600px] bg-slate-800 rounded-xl overflow-hidden border border-slate-700 shadow-xl">
+                    <div class="p-4 bg-slate-900 border-b border-slate-700 flex items-center justify-between">
+                        <div class="flex items-center gap-2">
+                            <i data-lucide="brain" class="text-indigo-400 w-5 h-5"></i>
+                            <span class="font-bold text-slate-100">Nix AI</span>
+                        </div>
+                        <div class="text-xs text-slate-500 bg-slate-800 px-2 py-1 rounded">Long Cat v1.0</div>
+                    </div>
+
+                    <div id="chat-messages" class="flex-1 overflow-y-auto p-4 space-y-4">
+                        <div class="flex justify-start">
+                            <div class="max-w-[85%] rounded-2xl p-3 text-sm leading-relaxed bg-slate-700 text-slate-200 rounded-bl-none border border-slate-600">
+                                Hi! I'm Nix, your study companion. Need help organizing your schedule or explaining a topic?
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="p-4 bg-slate-900 border-t border-slate-700">
+                        <div class="flex gap-2">
+                            <input type="text" id="chat-input" onkeydown="if(event.key === 'Enter') sendChatMessage()" placeholder="Ask for study tips..." class="flex-1 bg-slate-800 border border-slate-700 text-slate-200 rounded-xl px-4 py-2 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all placeholder-slate-500">
+                            <button onclick="sendChatMessage()" id="send-btn" class="p-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-500 transition-colors">
+                                <i data-lucide="send" class="w-5 h-5"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="mt-4 text-center text-xs text-slate-500">
+                   Powered by Gemini • Configured for Student Assistance
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <script>
+        // --- Firebase Config & Global Variables ---
+        const firebaseConfig = JSON.parse(__firebase_config);
+        const app = firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+
+        let currentUser = null;
+        let tasks = [];
+        let taskFilter = 'all';
+
+        // --- Auth Logic ---
+        function initAuth() {
+            auth.onAuthStateChanged((user) => {
+                if (user) {
+                    currentUser = user;
+                    // Hide overlay, show app
+                    document.getElementById('auth-overlay').classList.add('opacity-0', 'pointer-events-none');
+                    const appContainer = document.getElementById('app-container');
+                    appContainer.classList.remove('opacity-0', 'pointer-events-none');
+                    appContainer.classList.add('opacity-100', 'pointer-events-auto');
+                    
+                    // Init data
+                    initTasksListener();
+                } else {
+                    // Try to sign in if not signed in
+                    signIn();
+                }
+            });
+        }
+
+        async function signIn() {
+            try {
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await auth.signInWithCustomToken(__initial_auth_token);
+                } else {
+                    await auth.signInAnonymously();
+                }
+            } catch (error) {
+                console.error("Auth Failed:", error);
+                document.querySelector('#auth-overlay p').textContent = "Authentication Failed. Please refresh.";
+                document.querySelector('#auth-overlay p').classList.add('text-red-500');
+            }
+        }
+
+        // --- Tabs Logic ---
+        function switchTab(tabName) {
+            const dashboardView = document.getElementById('dashboard-view');
+            const aiView = document.getElementById('ai-view');
+            const btnDash = document.getElementById('btn-dashboard');
+            const btnAi = document.getElementById('btn-ai');
+            const btnMobDash = document.getElementById('btn-mob-dashboard');
+            const btnMobAi = document.getElementById('btn-mob-ai');
+
+            if (tabName === 'dashboard') {
+                dashboardView.classList.remove('hidden-view');
+                dashboardView.classList.add('active-view');
+                aiView.classList.remove('active-view');
+                aiView.classList.add('hidden-view');
+
+                // Desktop Styles
+                btnDash.className = "px-4 py-2 rounded-md text-sm font-medium transition-all bg-slate-700 text-white";
+                btnAi.className = "px-4 py-2 rounded-md text-sm font-medium transition-all text-slate-400 hover:text-slate-200";
+                
+                // Mobile Styles
+                btnMobDash.className = "flex-1 py-2 rounded-md text-sm font-medium transition-all bg-indigo-600 text-white";
+                btnMobAi.className = "flex-1 py-2 rounded-md text-sm font-medium transition-all text-slate-400";
+
+            } else {
+                dashboardView.classList.remove('active-view');
+                dashboardView.classList.add('hidden-view');
+                aiView.classList.remove('hidden-view');
+                aiView.classList.add('active-view');
+
+                // Desktop Styles
+                btnDash.className = "px-4 py-2 rounded-md text-sm font-medium transition-all text-slate-400 hover:text-slate-200";
+                btnAi.className = "px-4 py-2 rounded-md text-sm font-medium transition-all bg-slate-700 text-white";
+
+                // Mobile Styles
+                btnMobDash.className = "flex-1 py-2 rounded-md text-sm font-medium transition-all text-slate-400";
+                btnMobAi.className = "flex-1 py-2 rounded-md text-sm font-medium transition-all bg-indigo-600 text-white";
+            }
+        }
+
+        // --- Timer Logic ---
+        let timerInterval = null;
+        let timeLeft = 25 * 60;
+        let isTimerRunning = false;
+        let currentMode = 'pomodoro';
+
+        const modes = {
+            pomodoro: { min: 25, color: 'text-indigo-400', ring: '#6366f1' },
+            short: { min: 5, color: 'text-emerald-400', ring: '#34d399' },
+            long: { min: 15, color: 'text-cyan-400', ring: '#22d3ee' }
+        };
+
+        function formatTime(seconds) {
+            const m = Math.floor(seconds / 60);
+            const s = seconds % 60;
+            return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+        }
+
+        function updateTimerUI() {
+            const display = document.getElementById('timer-display');
+            const ring = document.getElementById('timer-ring');
+            
+            display.textContent = formatTime(timeLeft);
+            
+            const totalTime = modes[currentMode].min * 60;
+            const progress = (totalTime - timeLeft) / totalTime;
+            const circumference = 2 * Math.PI * 120; // r=120
+            const offset = circumference - (progress * circumference);
+            
+            ring.style.strokeDashoffset = offset;
+        }
+
+        function toggleTimer() {
+            const btn = document.getElementById('btn-timer-toggle');
+            const status = document.getElementById('timer-status');
+            
+            if (isTimerRunning) {
+                // Pause
+                clearInterval(timerInterval);
+                isTimerRunning = false;
+                btn.innerHTML = `<i data-lucide="play" class="ml-1 w-7 h-7"></i>`;
+                btn.classList.remove('bg-amber-500', 'hover:bg-amber-600');
+                btn.classList.add('bg-indigo-600', 'hover:bg-indigo-700');
+                status.textContent = 'Paused';
+            } else {
+                // Play
+                // Resume Audio Context on user interaction
+                if (audioCtx.state === 'suspended') audioCtx.resume();
+                
+                timerInterval = setInterval(() => {
+                    timeLeft--;
+                    if (timeLeft <= 0) {
+                        clearInterval(timerInterval);
+                        isTimerRunning = false;
+                        timeLeft = 0;
+                        new Audio('https://actions.google.com/sounds/v1/alarms/beep_short.ogg').play().catch(()=>{});
+                        // Reset UI state
+                        btn.innerHTML = `<i data-lucide="play" class="ml-1 w-7 h-7"></i>`;
+                        btn.classList.remove('bg-amber-500');
+                        btn.classList.add('bg-indigo-600');
+                        status.textContent = 'Finished';
+                    }
+                    updateTimerUI();
+                }, 1000);
+                
+                isTimerRunning = true;
+                btn.innerHTML = `<i data-lucide="pause" class="w-7 h-7"></i>`;
+                btn.classList.remove('bg-indigo-600', 'hover:bg-indigo-700');
+                btn.classList.add('bg-amber-500', 'hover:bg-amber-600');
+                status.textContent = 'Running';
+            }
+            lucide.createIcons();
+        }
+
+        function resetTimer() {
+            clearInterval(timerInterval);
+            isTimerRunning = false;
+            timeLeft = modes[currentMode].min * 60;
+            updateTimerUI();
+            
+            const btn = document.getElementById('btn-timer-toggle');
+            btn.innerHTML = `<i data-lucide="play" class="ml-1 w-7 h-7"></i>`;
+            btn.classList.remove('bg-amber-500');
+            btn.classList.add('bg-indigo-600');
+            document.getElementById('timer-status').textContent = 'Ready';
+            lucide.createIcons();
+        }
+
+        function setTimerMode(mode) {
+            currentMode = mode;
+            
+            // Reset UI Colors
+            const display = document.getElementById('timer-display');
+            const ring = document.getElementById('timer-ring');
+            const gradient = document.getElementById('timer-bg-gradient');
+            
+            display.className = `text-6xl font-mono font-bold tracking-tighter ${modes[mode].color}`;
+            ring.setAttribute('stroke', modes[mode].ring);
+            
+            // Highlight active button
+            ['pomodoro', 'short', 'long'].forEach(m => {
+                const btn = document.getElementById(`mode-${m}`);
+                if (m === mode) {
+                    btn.className = "px-4 py-2 rounded-lg text-sm font-medium transition-all bg-slate-700 text-white shadow-sm";
+                } else {
+                    btn.className = "px-4 py-2 rounded-lg text-sm font-medium transition-all text-slate-400 hover:bg-slate-800";
+                }
+            });
+
+            resetTimer();
+        }
+
+        // --- Audio Logic (Web Audio API) ---
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const activeSounds = {}; // { type: { gainNode, sourceNode, ... } }
+
+        const soundConfig = [
+            { id: 'rain', label: 'Rainy Mood', icon: 'cloud-rain', type: 'noise', filterVal: 800 },
+            { id: 'binaural', label: 'Deep Focus', icon: 'zap', type: 'binaural' },
+            { id: 'white', label: 'White Noise', icon: 'wind', type: 'noise', filterVal: 20000 },
+            { id: 'brown', label: 'Coffee Shop', icon: 'coffee', type: 'noise', filterVal: 200 }
+        ];
+
+        function renderSounds() {
+            const container = document.getElementById('sound-grid');
+            container.innerHTML = soundConfig.map(sound => `
+                <div id="sound-card-${sound.id}" class="p-4 rounded-xl border bg-slate-800 border-slate-700 hover:border-slate-600 transition-all duration-300">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex items-center gap-3">
+                            <div id="sound-icon-${sound.id}" class="p-2 rounded-lg bg-slate-700 text-slate-400">
+                                <i data-lucide="${sound.icon}" class="w-5 h-5"></i>
+                            </div>
+                            <span id="sound-label-${sound.id}" class="font-medium text-slate-300">${sound.label}</span>
+                        </div>
+                        <button onclick="toggleSound('${sound.id}')" id="sound-toggle-${sound.id}" class="w-10 h-6 rounded-full relative transition-colors bg-slate-600">
+                            <div class="absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-all duration-200"></div>
+                        </button>
+                    </div>
+                    <div class="transition-opacity duration-300 opacity-40 pointer-events-none" id="sound-slider-container-${sound.id}">
+                        <input type="range" min="0" max="1" step="0.01" value="0.2" oninput="changeVolume('${sound.id}', this.value)" class="w-full h-1.5 bg-slate-900 rounded-lg appearance-none cursor-pointer">
+                    </div>
+                </div>
+            `).join('');
+            lucide.createIcons();
+        }
+
+        function toggleSound(id) {
+            // Resume context if needed
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+
+            const config = soundConfig.find(s => s.id === id);
+            const isActive = !!activeSounds[id];
+            
+            // UI References
+            const card = document.getElementById(`sound-card-${id}`);
+            const iconBox = document.getElementById(`sound-icon-${id}`);
+            const label = document.getElementById(`sound-label-${id}`);
+            const toggle = document.getElementById(`sound-toggle-${id}`);
+            const toggleDot = toggle.querySelector('div');
+            const sliderCont = document.getElementById(`sound-slider-container-${id}`);
+
+            if (isActive) {
+                // Stop Sound
+                stopSoundNodes(id);
+                delete activeSounds[id];
+
+                // Update UI to Inactive
+                card.classList.remove('bg-indigo-600', 'border-indigo-500', 'shadow-lg', 'shadow-indigo-500/20');
+                card.classList.add('bg-slate-800', 'border-slate-700');
+                iconBox.classList.remove('bg-indigo-500', 'text-white');
+                iconBox.classList.add('bg-slate-700', 'text-slate-400');
+                label.classList.remove('text-white');
+                label.classList.add('text-slate-300');
+                toggle.classList.remove('bg-emerald-400');
+                toggle.classList.add('bg-slate-600');
+                toggleDot.classList.remove('left-5');
+                toggleDot.classList.add('left-1');
+                sliderCont.classList.remove('opacity-100', 'pointer-events-auto');
+                sliderCont.classList.add('opacity-40', 'pointer-events-none');
+            } else {
+                // Start Sound
+                const vol = sliderCont.querySelector('input').value;
+                startSoundNodes(id, config, vol);
+
+                // Update UI to Active
+                card.classList.add('bg-indigo-600', 'border-indigo-500', 'shadow-lg', 'shadow-indigo-500/20');
+                card.classList.remove('bg-slate-800', 'border-slate-700');
+                iconBox.classList.add('bg-indigo-500', 'text-white');
+                iconBox.classList.remove('bg-slate-700', 'text-slate-400');
+                label.classList.add('text-white');
+                label.classList.remove('text-slate-300');
+                toggle.classList.add('bg-emerald-400');
+                toggle.classList.remove('bg-slate-600');
+                toggleDot.classList.add('left-5');
+                toggleDot.classList.remove('left-1');
+                sliderCont.classList.add('opacity-100', 'pointer-events-auto');
+                sliderCont.classList.remove('opacity-40', 'pointer-events-none');
+            }
+        }
+
+        function changeVolume(id, val) {
+            if (activeSounds[id] && activeSounds[id].gain) {
+                activeSounds[id].gain.gain.value = val;
+            }
+        }
+
+        function startSoundNodes(id, config, volume) {
+            const gain = audioCtx.createGain();
+            gain.gain.value = volume;
+            gain.connect(audioCtx.destination);
+            
+            const nodes = { gain, sources: [] };
+
+            if (config.type === 'binaural') {
+                const osc1 = audioCtx.createOscillator();
+                const osc2 = audioCtx.createOscillator();
+                osc1.frequency.value = 400; 
+                osc2.frequency.value = 440; 
+                
+                const merger = audioCtx.createChannelMerger(2);
+                const leftPan = audioCtx.createStereoPanner();
+                const rightPan = audioCtx.createStereoPanner();
+                leftPan.pan.value = -1;
+                rightPan.pan.value = 1;
+
+                osc1.connect(leftPan).connect(merger, 0, 0);
+                osc2.connect(rightPan).connect(merger, 0, 1);
+                merger.connect(gain);
+                
+                osc1.start();
+                osc2.start();
+                nodes.sources.push(osc1, osc2);
+            } else {
+                // Noise
+                const bufferSize = 2 * audioCtx.sampleRate;
+                const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+                const data = buffer.getChannelData(0);
+                
+                let lastOut = 0;
+                for (let i = 0; i < bufferSize; i++) {
+                    const white = Math.random() * 2 - 1;
+                    if(id === 'white') {
+                         data[i] = white;
+                    } else {
+                         // Simple brown/pink approx
+                         data[i] = (lastOut + (0.02 * white)) / 1.02;
+                         lastOut = data[i];
+                         data[i] *= 3.5; 
+                    }
+                }
+
+                const noise = audioCtx.createBufferSource();
+                noise.buffer = buffer;
+                noise.loop = true;
+                
+                const filter = audioCtx.createBiquadFilter();
+                filter.type = 'lowpass';
+                filter.frequency.value = config.filterVal;
+
+                noise.connect(filter).connect(gain);
+                noise.start();
+                nodes.sources.push(noise);
+            }
+
+            activeSounds[id] = nodes;
+        }
+
+        function stopSoundNodes(id) {
+            if (activeSounds[id]) {
+                activeSounds[id].sources.forEach(s => {
+                    try { s.stop(); } catch(e){}
+                });
+                activeSounds[id] = null;
+            }
+        }
+
+
+        // --- Tasks Logic (Firestore) ---
+        function initTasksListener() {
+            if (!currentUser) return;
+
+            db.collection('artifacts').doc(appId).collection('users').doc(currentUser.uid).collection('tasks')
+                .onSnapshot((snapshot) => {
+                    tasks = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    // Sort locally
+                    tasks.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+                    renderTasks();
+                }, (error) => {
+                    console.error("Task Error", error);
+                });
+        }
+
+        function renderTasks() {
+            const list = document.getElementById('task-list');
+            
+            const filtered = tasks.filter(t => {
+                if (taskFilter === 'active') return !t.completed;
+                if (taskFilter === 'completed') return t.completed;
+                return true;
+            });
+
+            if (filtered.length === 0) {
+                list.innerHTML = `<div class="text-center text-slate-500 mt-10"><p>No tasks found.</p><p class="text-xs mt-1">Add one to get started!</p></div>`;
+                return;
+            }
+
+            list.innerHTML = filtered.map(task => `
+                <div class="group flex items-center gap-3 p-3 rounded-lg border transition-all ${task.completed ? 'bg-slate-900/50 border-slate-800 opacity-60' : 'bg-slate-700 border-slate-600 hover:border-indigo-500/50'}">
+                    <button onclick="toggleTask('${task.id}', ${!task.completed})" class="flex-shrink-0 w-5 h-5 rounded border flex items-center justify-center transition-colors ${task.completed ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-slate-500 hover:border-indigo-400'}">
+                        ${task.completed ? '<i data-lucide="check" class="w-3 h-3"></i>' : ''}
+                    </button>
+                    <span class="flex-1 text-sm ${task.completed ? 'line-through text-slate-500' : 'text-slate-200'}">${escapeHtml(task.text)}</span>
+                    <button onclick="deleteTask('${task.id}')" class="opacity-0 group-hover:opacity-100 text-rose-400 hover:text-rose-300 transition-opacity p-1">
+                        <i data-lucide="trash-2" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            `).join('');
+            lucide.createIcons();
+        }
+
+        function addTask(e) {
+            e.preventDefault();
+            const input = document.getElementById('new-task-input');
+            const text = input.value.trim();
+            if (!text || !currentUser) return;
+
+            db.collection('artifacts').doc(appId).collection('users').doc(currentUser.uid).collection('tasks').add({
+                text: text,
+                completed: false,
+                createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+            input.value = '';
+        }
+
+        function toggleTask(id, newState) {
+            db.collection('artifacts').doc(appId).collection('users').doc(currentUser.uid).collection('tasks').doc(id).update({
+                completed: newState
+            });
+        }
+
+        function deleteTask(id) {
+            db.collection('artifacts').doc(appId).collection('users').doc(currentUser.uid).collection('tasks').doc(id).delete();
+        }
+
+        function filterTasks(f) {
+            taskFilter = f;
+            // Update Buttons
+            ['all', 'active', 'completed'].forEach(btn => {
+                const el = document.getElementById(`filter-${btn}`);
+                if (btn === f) {
+                    el.className = "px-3 py-1 rounded-md transition-colors bg-indigo-600 text-white";
+                } else {
+                    el.className = "px-3 py-1 rounded-md transition-colors text-slate-400 hover:text-slate-200";
+                }
+            });
+            renderTasks();
+        }
+
+        // --- AI Logic (Gemini) ---
+        async function sendChatMessage() {
+            const input = document.getElementById('chat-input');
+            const container = document.getElementById('chat-messages');
+            const text = input.value.trim();
+            if (!text) return;
+
+            // Add User Message
+            container.innerHTML += `
+                <div class="flex justify-end">
+                    <div class="max-w-[85%] rounded-2xl p-3 text-sm leading-relaxed bg-indigo-600 text-white rounded-br-none">
+                        ${escapeHtml(text)}
+                    </div>
+                </div>
+            `;
+            input.value = '';
+            container.scrollTop = container.scrollHeight;
+
+            // Loading State
+            const loadingId = 'loading-' + Date.now();
+            container.innerHTML += `
+                <div id="${loadingId}" class="flex justify-start">
+                    <div class="bg-slate-700 rounded-2xl p-3 rounded-bl-none flex gap-2 items-center">
+                        <div class="w-2 h-2 bg-indigo-400 rounded-full animate-bounce" style="animation-delay: 0ms"></div>
+                        <div class="w-2 h-2 bg-indigo-400 rounded-full animate-bounce" style="animation-delay: 150ms"></div>
+                        <div class="w-2 h-2 bg-indigo-400 rounded-full animate-bounce" style="animation-delay: 300ms"></div>
+                    </div>
+                </div>
+            `;
+            container.scrollTop = container.scrollHeight;
+
+            try {
+                const apiKey = ""; // Runtime key
+                const response = await fetch(
+                    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`,
+                    {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            contents: [{ parts: [{ text: text }] }],
+                            systemInstruction: { parts: [{ text: "You are Nix, a helpful study assistant. Keep answers concise." }] }
+                        })
+                    }
+                );
+                const data = await response.json();
+                const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || "Connection error.";
+                
+                // Remove loading
+                document.getElementById(loadingId).remove();
+
+                // Add Bot Message
+                container.innerHTML += `
+                    <div class="flex justify-start">
+                        <div class="max-w-[85%] rounded-2xl p-3 text-sm leading-relaxed bg-slate-700 text-slate-200 rounded-bl-none border border-slate-600">
+                            ${formatMarkdown(reply)}
+                        </div>
+                    </div>
+                `;
+            } catch (err) {
+                document.getElementById(loadingId).remove();
+                container.innerHTML += `<div class="text-xs text-red-400 text-center">Error connecting to AI.</div>`;
+            }
+            container.scrollTop = container.scrollHeight;
+        }
+
+        // Helpers
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function formatMarkdown(text) {
+            // Simple bolding and line breaks for demo
+            return text.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>').replace(/\n/g, '<br/>');
+        }
+
+        // --- Init ---
+        window.addEventListener('load', () => {
+            renderSounds();
+            initAuth();
+            lucide.createIcons();
+        });
+
+    </script>
+</body>
+</html>
