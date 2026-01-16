@@ -7,16 +7,42 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
         
         body { font-family: 'Plus Jakarta Sans', sans-serif; height: 100vh; overflow: hidden; margin: 0; background: #0f172a; }
         
+        /* Loading Overlay */
+        #loading-screen {
+            position: fixed;
+            inset: 0;
+            background: #0f172a;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: white;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid rgba(255,255,255,0.1);
+            border-left-color: #6366f1;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
         .app-container {
             display: flex;
             height: 100vh;
             width: 100vw;
             position: relative;
+            visibility: hidden; 
         }
 
         #editor-pane {
@@ -83,17 +109,23 @@
         .preview-hidden #editor-pane { width: 100% !important; }
         .resizing { cursor: col-resize; user-select: none; }
         
-        /* Helper styles for casing preservation */
         .preserve-case { text-transform: none !important; }
     </style>
 </head>
 <body class="dark">
 
+    <div id="loading-screen">
+        <div class="spinner mb-4"></div>
+        <p class="text-sm font-medium text-slate-400">Verifying session...</p>
+    </div>
+
     <div class="app-container" id="main-layout">
-        <!-- LEFT: EDITOR -->
         <div id="editor-pane">
             <header class="p-4 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center sticky top-0 bg-white dark:bg-black z-30">
                 <div class="flex items-center gap-3">
+                    <a href="portal.html" class="p-2 bg-slate-100 dark:bg-slate-900 rounded-lg text-slate-500 hover:text-indigo-600 transition-colors" title="Back to Portal">
+                        <i class="fa-solid fa-house"></i>
+                    </a>
                     <div class="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white">
                         <i class="fa-solid fa-file-pen"></i>
                     </div>
@@ -107,35 +139,35 @@
                         <i class="fa-solid fa-eye"></i>
                     </button>
                     <button onclick="downloadPDF()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2">
-                        <i class="fa-solid fa-download"></i> <span>Export</span>
+                        <i class="fa-solid fa-download"></i> <span class="hidden md:inline">Export</span>
+                    </button>
+                    <button onclick="handleLogout()" class="p-2.5 rounded-xl bg-red-100 dark:bg-red-900/20 text-red-500 hover:bg-red-200 transition-all" title="Logout">
+                        <i class="fa-solid fa-right-from-bracket"></i>
                     </button>
                 </div>
             </header>
 
             <div class="p-8 space-y-8 overflow-y-auto">
-                <!-- Personal Info -->
                 <section>
                     <h3 class="text-xs font-black uppercase tracking-widest text-indigo-500 mb-4">Personal Info</h3>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <input type="text" id="in-name" oninput="sync()" placeholder="Full Name (Case Sensitive)" class="form-input">
-                        <input type="text" id="in-tailored-title" oninput="sync()" placeholder="Tailored Job Title (e.g. Senior Backend Dev)" class="form-input">
+                        <input type="text" id="in-name" oninput="sync()" placeholder="Full Name" class="form-input">
+                        <input type="text" id="in-tailored-title" oninput="sync()" placeholder="Tailored Job Title" class="form-input">
                         <input type="email" id="in-email" oninput="sync()" placeholder="Email" class="form-input">
                         <input type="text" id="in-phone" oninput="sync()" placeholder="Phone" class="form-input">
                     </div>
-                    <textarea id="in-summary" oninput="sync()" placeholder="Short professional summary... (Punctuation preserved)" class="form-input h-24 mt-4 resize-none"></textarea>
+                    <textarea id="in-summary" oninput="sync()" placeholder="Professional summary..." class="form-input h-24 mt-4 resize-none"></textarea>
                 </section>
 
-                <!-- Skills -->
                 <section>
                     <h3 class="text-xs font-black uppercase tracking-widest text-indigo-500 mb-4">Skills & Keywords</h3>
                     <div class="space-y-3">
-                        <input type="text" id="in-hard-skills" oninput="sync()" placeholder="Hard Skills (e.g. React, SQL, Cloud)" class="form-input">
-                        <input type="text" id="in-soft-skills" oninput="sync()" placeholder="Soft Skills (e.g. Leadership, Communication)" class="form-input">
-                        <input type="text" id="in-action-verbs" oninput="sync()" placeholder="Action Verbs (e.g. Managed, Developed, Orchestrated)" class="form-input">
+                        <input type="text" id="in-hard-skills" oninput="sync()" placeholder="Hard Skills (Comma separated)" class="form-input">
+                        <input type="text" id="in-soft-skills" oninput="sync()" placeholder="Soft Skills (Comma separated)" class="form-input">
+                        <input type="text" id="in-action-verbs" oninput="sync()" placeholder="Action Verbs" class="form-input">
                     </div>
                 </section>
 
-                <!-- Experience -->
                 <section>
                     <div class="flex justify-between items-center mb-4">
                         <h3 class="text-xs font-black uppercase tracking-widest text-indigo-500">Work History</h3>
@@ -144,7 +176,6 @@
                     <div id="exp-inputs" class="space-y-4"></div>
                 </section>
 
-                <!-- Education -->
                 <section>
                     <div class="flex justify-between items-center mb-4">
                         <h3 class="text-xs font-black uppercase tracking-widest text-indigo-500">Education</h3>
@@ -155,14 +186,11 @@
             </div>
         </div>
 
-        <!-- RESIZER BAR -->
         <div id="resizer"></div>
 
-        <!-- RIGHT: LIVE PREVIEW -->
         <div id="preview-pane">
             <div class="a4-wrapper" id="zoom-container">
                 <div class="a4-page" id="pdf-content">
-                    <!-- Header -->
                     <div class="border-b-4 border-slate-800 pb-6 mb-6">
                         <h1 id="pv-name" class="text-4xl font-extrabold text-slate-900 tracking-tight preserve-case mb-1">YOUR NAME</h1>
                         <p id="pv-tailored-title" class="text-lg font-semibold text-indigo-600 preserve-case italic mb-3">Tailored Job Title</p>
@@ -174,36 +202,25 @@
                     </div>
 
                     <div class="grid grid-cols-12 gap-8">
-                        <!-- Main -->
                         <div class="col-span-8 space-y-8">
                             <section>
                                 <h2 class="text-xs font-bold uppercase tracking-widest text-slate-400 border-b border-slate-100 pb-1 mb-3">Professional Summary</h2>
-                                <p id="pv-summary" class="text-[12px] leading-relaxed text-slate-700 preserve-case">Your summary will respect your casing and punctuation...</p>
+                                <p id="pv-summary" class="text-[12px] leading-relaxed text-slate-700 preserve-case">Summary...</p>
                             </section>
-
                             <section>
-                                <h2 class="text-xs font-bold uppercase tracking-widest text-slate-400 border-b border-slate-100 pb-1 mb-4">Professional Experience</h2>
+                                <h2 class="text-xs font-bold uppercase tracking-widest text-slate-400 border-b border-slate-100 pb-1 mb-4">Experience</h2>
                                 <div id="pv-exp-list" class="space-y-6"></div>
                             </section>
                         </div>
-
-                        <!-- Sidebar -->
                         <div class="col-span-4 space-y-8">
                             <section>
                                 <h2 class="text-xs font-bold uppercase tracking-widest text-slate-400 mb-3">Hard Skills</h2>
                                 <div id="pv-hard-skills" class="flex flex-wrap gap-1.5"></div>
                             </section>
-
                             <section>
                                 <h2 class="text-xs font-bold uppercase tracking-widest text-slate-400 mb-3">Soft Skills</h2>
                                 <div id="pv-soft-skills" class="flex flex-wrap gap-1.5"></div>
                             </section>
-
-                            <section>
-                                <h2 class="text-xs font-bold uppercase tracking-widest text-slate-400 mb-3">Key Action Verbs</h2>
-                                <div id="pv-action-verbs" class="flex flex-wrap gap-1.5 italic text-indigo-700 text-[10px] font-bold"></div>
-                            </section>
-
                             <section>
                                 <h2 class="text-xs font-bold uppercase tracking-widest text-slate-400 mb-3">Education</h2>
                                 <div id="pv-edu-list" class="space-y-4"></div>
@@ -216,6 +233,27 @@
     </div>
 
     <script>
+        // Updated Supabase Credentials
+        const SUPABASE_URL = "https://rnlwrngfgvznndlekmrz.supabase.co";
+        const SUPABASE_ANON_KEY = "sb_publishable_mtI0_ZBvU_n5oRuqV58QHg_qJt3Gfyt";
+        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        async function checkAuth() {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session) {
+                window.location.href = 'auth.html';
+            } else {
+                document.getElementById('loading-screen').style.display = 'none';
+                document.getElementById('main-layout').style.visibility = 'visible';
+                adjustZoom();
+            }
+        }
+
+        async function handleLogout() {
+            await supabaseClient.auth.signOut();
+            window.location.href = 'auth.html';
+        }
+
         const resizer = document.getElementById('resizer');
         const leftSide = document.getElementById('editor-pane');
         const layout = document.getElementById('main-layout');
@@ -237,12 +275,9 @@
             const container = document.getElementById('preview-pane');
             const wrapper = document.getElementById('zoom-container');
             if (!container || !wrapper) return;
-            const pageWidth = 794; 
-            const scale = (container.offsetWidth - 60) / pageWidth;
+            const scale = (container.offsetWidth - 60) / 794;
             wrapper.style.transform = `scale(${Math.min(scale, 1)})`;
         }
-
-        window.addEventListener('resize', adjustZoom);
 
         function addExp() {
             const id = 'exp-' + Date.now();
@@ -250,9 +285,9 @@
                 <div id="${id}" class="p-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl relative group">
                     <button onclick="document.getElementById('${id}').remove(); sync();" class="absolute top-2 right-2 text-slate-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"><i class="fa-solid fa-circle-xmark"></i></button>
                     <input type="text" placeholder="Organization" class="form-input exp-comp mb-2" oninput="sync()">
-                    <input type="text" placeholder="Role (e.g. Lead Engineer)" class="form-input exp-role mb-2" oninput="sync()">
+                    <input type="text" placeholder="Role" class="form-input exp-role mb-2" oninput="sync()">
                     <input type="text" placeholder="Time Period" class="form-input exp-date mb-2" oninput="sync()">
-                    <textarea placeholder="Contributions... (Use punctuation as desired)" class="form-input exp-desc h-20 resize-none" oninput="sync()"></textarea>
+                    <textarea placeholder="Contributions..." class="form-input exp-desc h-20 resize-none" oninput="sync()"></textarea>
                 </div>
             `;
             document.getElementById('exp-inputs').insertAdjacentHTML('beforeend', html);
@@ -272,30 +307,22 @@
         }
 
         function sync() {
-            // Respect casing directly from input
             const getVal = (id) => document.getElementById(id).value;
-            
             document.getElementById('pv-name').innerText = getVal('in-name') || "YOUR NAME";
-            document.getElementById('pv-tailored-title').innerText = getVal('in-tailored-title') || "Tailored Job Title";
+            document.getElementById('pv-tailored-title').innerText = getVal('in-tailored-title') || "Tailored Title";
             document.getElementById('pv-email').innerText = getVal('in-email') || "email@example.com";
             document.getElementById('pv-phone').innerText = getVal('in-phone') || "000-000-0000";
             document.getElementById('pv-summary').innerText = getVal('in-summary') || "Summary...";
 
-            // Skills logic
             const syncSkills = (inputId, outputId, colorClass) => {
                 const list = getVal(inputId).split(',').filter(s => s.trim());
                 document.getElementById(outputId).innerHTML = list.map(s => `
                     <span class="px-2 py-0.5 ${colorClass} text-[10px] font-bold rounded border preserve-case">${s.trim()}</span>
                 `).join('');
             };
-
             syncSkills('in-hard-skills', 'pv-hard-skills', 'bg-slate-900 text-white border-slate-900');
             syncSkills('in-soft-skills', 'pv-soft-skills', 'bg-white text-slate-700 border-slate-200');
-            
-            const actionVerbs = getVal('in-action-verbs').split(',').filter(s => s.trim());
-            document.getElementById('pv-action-verbs').innerHTML = actionVerbs.map(v => `<span>${v.trim()} • </span>`).join('').slice(0, -3);
 
-            // Experience Sync
             const expList = document.getElementById('pv-exp-list');
             expList.innerHTML = '';
             document.querySelectorAll('#exp-inputs > div').forEach(card => {
@@ -310,26 +337,8 @@
                                 <h4 class="font-bold text-[14px] text-slate-900">${role}</h4>
                                 <span class="text-[10px] font-bold text-slate-400 uppercase">${date}</span>
                             </div>
-                            <p class="text-[11px] font-bold text-indigo-600 mb-2">${comp}</p>
+                            <p class="text-[11px] font-bold text-indigo-600 mb-1">${comp}</p>
                             <p class="text-[12px] text-slate-600 leading-relaxed whitespace-pre-line">${desc}</p>
-                        </div>
-                    `;
-                }
-            });
-
-            // Education Sync
-            const eduList = document.getElementById('pv-edu-list');
-            eduList.innerHTML = '';
-            document.querySelectorAll('#edu-inputs > div').forEach(card => {
-                const inst = card.querySelector('.edu-inst').value;
-                const deg = card.querySelector('.edu-deg').value;
-                const year = card.querySelector('.edu-year').value;
-                if(inst || deg) {
-                    eduList.innerHTML += `
-                        <div class="preserve-case">
-                            <h4 class="font-bold text-[12px] text-slate-800">${deg}</h4>
-                            <p class="text-[11px] font-medium text-indigo-600">${inst}</p>
-                            <p class="text-[10px] text-slate-400 mt-0.5">${year}</p>
                         </div>
                     `;
                 }
@@ -338,17 +347,15 @@
 
         async function downloadPDF() {
             const element = document.getElementById('pdf-content');
-            const opt = {
-                margin: 0,
-                filename: (document.getElementById('in-name').value || 'Resume') + '_CV.pdf',
-                image: { type: 'jpeg', quality: 1 },
-                html2canvas: { scale: 3, useCORS: true },
-                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-            };
+            const opt = { margin: 0, filename: 'CV.pdf', html2canvas: { scale: 3 }, jsPDF: { unit: 'mm', format: 'a4' } };
             html2pdf().set(opt).from(element).save();
         }
 
-        window.onload = () => { addExp(); sync(); adjustZoom(); };
+        window.onload = () => {
+            checkAuth();
+            addExp();
+            sync();
+        };
     </script>
 </body>
 </html>
