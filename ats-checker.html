@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ATS Scanner | Instant CV Review</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+        
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background: #0f172a; color: white; min-height: 100vh; }
+        
+        #loading-screen {
+            position: fixed;
+            inset: 0;
+            background: #0f172a;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid rgba(255,255,255,0.1);
+            border-left-color: #6366f1;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .glass-card {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .upload-area {
+            border: 2px dashed rgba(99, 102, 241, 0.3);
+            transition: all 0.3s ease;
+        }
+
+        .upload-area:hover, .upload-area.dragover {
+            border-color: #6366f1;
+            background: rgba(99, 102, 241, 0.05);
+        }
+
+        .progress-ring {
+            transition: stroke-dashoffset 0.35s;
+            transform: rotate(-90deg);
+            transform-origin: 50% 50%;
+        }
+
+        .app-hidden { display: none; }
+    </style>
+</head>
+<body>
+
+    <!-- Loading Screen -->
+    <div id="loading-screen">
+        <div class="spinner mb-4"></div>
+        <p class="text-sm font-medium text-slate-400">Verifying session...</p>
+    </div>
+
+    <div id="main-content" class="app-hidden">
+        <!-- Header -->
+        <header class="p-6 flex justify-between items-center border-b border-white/5 bg-slate-900/50">
+            <div class="flex items-center gap-4">
+                <a href="portal.html" class="p-2.5 bg-slate-800 rounded-xl text-slate-400 hover:text-indigo-400 transition-all">
+                    <i class="fa-solid fa-house"></i>
+                </a>
+                <div>
+                    <h1 class="text-xl font-bold">ATS Scanner</h1>
+                    <p class="text-[10px] text-indigo-400 font-bold uppercase tracking-wider">Optimize your reach</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-3">
+                <a href="cv-builder.html" class="text-sm font-semibold text-slate-400 hover:text-white px-4">CV Builder</a>
+                <button onclick="handleLogout()" class="p-2.5 bg-red-500/10 text-red-400 rounded-xl hover:bg-red-500/20 transition-all">
+                    <i class="fa-solid fa-right-from-bracket"></i>
+                </button>
+            </div>
+        </header>
+
+        <main class="max-w-4xl mx-auto p-6 md:py-12">
+            <!-- Step 1: Upload -->
+            <div id="upload-view" class="space-y-8">
+                <div class="text-center space-y-3">
+                    <h2 class="text-3xl font-extrabold tracking-tight">Check your CV's Score</h2>
+                    <p class="text-slate-400 max-w-lg mx-auto leading-relaxed">Our AI analyzes your CV against 50+ common Applicant Tracking System rules to ensure you don't get filtered out.</p>
+                </div>
+
+                <div id="drop-zone" class="upload-area glass-card rounded-3xl p-12 text-center cursor-pointer">
+                    <input type="file" id="file-input" class="hidden" accept=".pdf,.doc,.docx">
+                    <div class="w-20 h-20 bg-indigo-600/20 text-indigo-500 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                        <i class="fa-solid fa-cloud-arrow-up text-3xl"></i>
+                    </div>
+                    <h3 class="text-xl font-bold mb-2">Upload your Resume</h3>
+                    <p class="text-slate-400 text-sm mb-6">Drag and drop your PDF or DOCX file here</p>
+                    <button onclick="document.getElementById('file-input').click()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-3 rounded-xl font-bold transition-all shadow-lg shadow-indigo-500/20">
+                        Select File
+                    </button>
+                </div>
+            </div>
+
+            <!-- Step 2: Processing -->
+            <div id="processing-view" class="app-hidden py-20 text-center">
+                <div class="spinner mx-auto mb-6 scale-150"></div>
+                <h3 class="text-2xl font-bold mb-2">Analyzing Resume...</h3>
+                <p id="analysis-step" class="text-slate-400 animate-pulse">Checking keyword density</p>
+            </div>
+
+            <!-- Step 3: Results -->
+            <div id="results-view" class="app-hidden space-y-8">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <!-- Score Card -->
+                    <div class="glass-card p-8 rounded-3xl text-center flex flex-col items-center justify-center">
+                        <div class="relative w-32 h-32 flex items-center justify-center mb-4">
+                            <svg class="w-full h-full">
+                                <circle class="text-slate-800" stroke-width="8" stroke="currentColor" fill="transparent" r="58" cx="64" cy="64"/>
+                                <circle id="score-circle" class="text-indigo-500 progress-ring" stroke-width="8" stroke-dasharray="364.4" stroke-dashoffset="364.4" stroke-linecap="round" stroke="currentColor" fill="transparent" r="58" cx="64" cy="64"/>
+                            </svg>
+                            <span id="final-score" class="absolute text-3xl font-black">0</span>
+                        </div>
+                        <h4 class="font-bold text-lg">Overall Score</h4>
+                        <p class="text-xs text-slate-400 mt-1">Based on ATS compatibility</p>
+                    </div>
+
+                    <!-- Breakdown -->
+                    <div class="md:col-span-2 glass-card p-8 rounded-3xl space-y-6">
+                        <h3 class="font-bold text-xl flex items-center gap-2">
+                            <i class="fa-solid fa-chart-simple text-indigo-500"></i> Analysis Results
+                        </h3>
+                        <div class="space-y-4">
+                            <div class="flex justify-between items-center p-4 bg-white/5 rounded-2xl">
+                                <div class="flex items-center gap-3">
+                                    <i class="fa-solid fa-check-circle text-emerald-500"></i>
+                                    <span class="text-sm font-medium">Format Compatibility</span>
+                                </div>
+                                <span class="text-xs font-bold text-emerald-500">PASS</span>
+                            </div>
+                            <div class="flex justify-between items-center p-4 bg-white/5 rounded-2xl">
+                                <div class="flex items-center gap-3">
+                                    <i id="keyword-icon" class="fa-solid fa-circle-exclamation text-amber-500"></i>
+                                    <span class="text-sm font-medium">Keyword Density</span>
+                                </div>
+                                <span id="keyword-status" class="text-xs font-bold text-amber-500">OPTIMIZE</span>
+                            </div>
+                            <div class="flex justify-between items-center p-4 bg-white/5 rounded-2xl">
+                                <div class="flex items-center gap-3">
+                                    <i class="fa-solid fa-circle-exclamation text-red-500"></i>
+                                    <span class="text-sm font-medium">Contact Information</span>
+                                </div>
+                                <span class="text-xs font-bold text-red-500">MISSING LINKEDIN</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="glass-card p-8 rounded-3xl">
+                    <h3 class="font-bold text-xl mb-6">Recommendations</h3>
+                    <ul class="space-y-4 text-sm text-slate-300">
+                        <li class="flex gap-3">
+                            <i class="fa-solid fa-lightbulb text-indigo-400 mt-1"></i>
+                            <span>Include more <strong>action verbs</strong> (e.g., Developed, Managed, Accelerated) in your experience section.</span>
+                        </li>
+                        <li class="flex gap-3">
+                            <i class="fa-solid fa-lightbulb text-indigo-400 mt-1"></i>
+                            <span>Avoid complex <strong>table layouts</strong> or graphics that might confuse older ATS parsers.</span>
+                        </li>
+                        <li class="flex gap-3">
+                            <i class="fa-solid fa-lightbulb text-indigo-400 mt-1"></i>
+                            <span>Add a professional <strong>LinkedIn URL</strong> to increase recruiter trust by 40%.</span>
+                        </li>
+                    </ul>
+                    <div class="mt-8 flex gap-4">
+                        <button onclick="location.reload()" class="flex-1 py-4 bg-slate-800 hover:bg-slate-700 rounded-2xl font-bold transition-all">
+                            Scan Another
+                        </button>
+                        <a href="cv-builder.html" class="flex-1 py-4 bg-indigo-600 hover:bg-indigo-700 text-center rounded-2xl font-bold transition-all">
+                            Fix in Editor
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // Supabase Init
+        const SUPABASE_URL = "https://rnlwrngfgvznndlekmrz.supabase.co";
+        const SUPABASE_ANON_KEY = "sb_publishable_mtI0_ZBvU_n5oRuqV58QHg_qJt3Gfyt";
+        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        async function checkAuth() {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session) {
+                window.location.href = 'auth.html';
+            } else {
+                document.getElementById('loading-screen').style.display = 'none';
+                document.getElementById('main-content').classList.remove('app-hidden');
+            }
+        }
+
+        async function handleLogout() {
+            await supabaseClient.auth.signOut();
+            window.location.href = 'auth.html';
+        }
+
+        // Upload & Processing Logic
+        const dropZone = document.getElementById('drop-zone');
+        const fileInput = document.getElementById('file-input');
+
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, e => {
+                e.preventDefault();
+                e.stopPropagation();
+            }, false);
+        });
+
+        dropZone.addEventListener('dragover', () => dropZone.classList.add('dragover'));
+        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+        dropZone.addEventListener('drop', (e) => {
+            dropZone.classList.remove('dragover');
+            handleFiles(e.dataTransfer.files[0]);
+        });
+
+        fileInput.addEventListener('change', (e) => handleFiles(e.target.files[0]));
+
+        function handleFiles(file) {
+            if (!file) return;
+            
+            // Switch Views
+            document.getElementById('upload-view').classList.add('app-hidden');
+            document.getElementById('processing-view').classList.remove('app-hidden');
+
+            // Simulate Analysis Steps
+            const steps = [
+                "Extracting text layers...",
+                "Identifying section headers...",
+                "Calculating keyword density...",
+                "Scanning for contact info...",
+                "Comparing against industry standards..."
+            ];
+
+            let i = 0;
+            const interval = setInterval(() => {
+                if (i < steps.length) {
+                    document.getElementById('analysis-step').innerText = steps[i];
+                    i++;
+                } else {
+                    clearInterval(interval);
+                    showResults();
+                }
+            }, 800);
+        }
+
+        function showResults() {
+            document.getElementById('processing-view').classList.add('app-hidden');
+            document.getElementById('results-view').classList.remove('app-hidden');
+
+            // Animate Score
+            const targetScore = 74;
+            let currentScore = 0;
+            const scoreDisplay = document.getElementById('final-score');
+            const circle = document.getElementById('score-circle');
+            const radius = 58;
+            const circumference = 2 * Math.PI * radius;
+
+            const scoreInterval = setInterval(() => {
+                if (currentScore <= targetScore) {
+                    scoreDisplay.innerText = currentScore;
+                    const offset = circumference - (currentScore / 100) * circumference;
+                    circle.style.strokeDashoffset = offset;
+                    currentScore++;
+                } else {
+                    clearInterval(scoreInterval);
+                }
+            }, 20);
+        }
+
+        window.onload = checkAuth;
+    </script>
+</body>
+</html>
