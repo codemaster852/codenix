@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Recruiter AI | Bulk CV Screener</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+        
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background: #020617; color: white; min-height: 100vh; }
+        
+        .glass-card {
+            background: rgba(15, 23, 42, 0.8);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .step-node {
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            font-size: 12px;
+            font-weight: 800;
+            transition: all 0.3s ease;
+        }
+
+        .active-step { background: #6366f1; box-shadow: 0 0 20px rgba(99, 102, 241, 0.4); }
+        .inactive-step { background: #1e293b; color: #64748b; }
+
+        .candidate-row:hover { background: rgba(99, 102, 241, 0.05); }
+
+        .app-hidden { display: none; }
+        
+        #loading-screen {
+            position: fixed; inset: 0; background: #020617; z-index: 9999;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="loading-screen">
+        <div class="w-10 h-10 border-4 border-indigo-500/20 border-l-indigo-500 rounded-full animate-spin mb-4"></div>
+        <p class="text-sm text-slate-500">Initializing Enterprise Portal...</p>
+    </div>
+
+    <div id="main-content" class="app-hidden">
+        <!-- Navigation -->
+        <nav class="border-b border-white/5 bg-slate-900/50 p-4 sticky top-0 z-40 backdrop-blur-md">
+            <div class="max-w-7xl mx-auto flex justify-between items-center">
+                <div class="flex items-center gap-3">
+                    <div class="bg-indigo-600 p-2 rounded-lg">
+                        <i class="fa-solid fa-briefcase"></i>
+                    </div>
+                    <span class="font-bold text-lg tracking-tight">Recruit<span class="text-indigo-400">AI</span></span>
+                    <span class="text-[10px] bg-indigo-500/10 text-indigo-400 px-2 py-0.5 rounded-full font-bold ml-2">ENTERPRISE</span>
+                </div>
+                <div class="flex items-center gap-6">
+                    <div class="hidden md:flex gap-4 text-sm font-medium text-slate-400">
+                        <a href="#" class="hover:text-white transition-colors">Dashboard</a>
+                        <a href="#" class="text-white">Active Jobs</a>
+                        <a href="#" class="hover:text-white transition-colors">Talent Pool</a>
+                    </div>
+                    <button onclick="handleLogout()" class="text-slate-400 hover:text-red-400 transition-colors">
+                        <i class="fa-solid fa-power-off"></i>
+                    </button>
+                </div>
+            </div>
+        </nav>
+
+        <main class="max-w-6xl mx-auto p-6 space-y-8">
+            <!-- Header Section -->
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <div>
+                    <h2 class="text-3xl font-extrabold">Batch Candidate Screener</h2>
+                    <p class="text-slate-400 text-sm mt-1">Upload multiple CVs to find the perfect match for your job role.</p>
+                </div>
+                <div class="flex items-center gap-4 bg-slate-900/80 p-1.5 rounded-2xl border border-white/5">
+                    <div id="step-1" class="step-node active-step">1</div>
+                    <div class="w-8 h-0.5 bg-slate-800"></div>
+                    <div id="step-2" class="step-node inactive-step">2</div>
+                    <div class="w-8 h-0.5 bg-slate-800"></div>
+                    <div id="step-3" class="step-node inactive-step">3</div>
+                </div>
+            </div>
+
+            <!-- View 1: Job Description -->
+            <section id="view-job" class="animate-in fade-in duration-500">
+                <div class="glass-card rounded-3xl p-8 space-y-6">
+                    <div>
+                        <label class="block text-sm font-bold text-indigo-400 mb-2 uppercase tracking-widest">Step 1: The Requirement</label>
+                        <h3 class="text-xl font-bold">Paste Job Description</h3>
+                        <p class="text-slate-400 text-sm">Our AI will extract required skills, years of experience, and keywords from this text.</p>
+                    </div>
+                    <textarea id="jd-input" rows="8" class="w-full bg-slate-800/50 border border-white/10 rounded-2xl p-4 text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all" placeholder="Paste the full job description here (e.g., Senior React Developer with 5 years experience, expert in Tailwind and Node.js...)"></textarea>
+                    <button onclick="goToUpload()" class="w-full md:w-auto px-10 py-4 bg-indigo-600 hover:bg-indigo-700 rounded-xl font-bold transition-all flex items-center justify-center gap-2">
+                        Next: Upload CVs <i class="fa-solid fa-arrow-right"></i>
+                    </button>
+                </div>
+            </section>
+
+            <!-- View 2: Bulk Upload -->
+            <section id="view-upload" class="app-hidden animate-in slide-in-from-right-10 duration-500">
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                    <div class="lg:col-span-2 space-y-6">
+                        <div class="glass-card rounded-3xl p-8 border-2 border-dashed border-indigo-500/30 text-center">
+                            <input type="file" id="bulk-input" multiple class="hidden" accept=".pdf,.doc,.docx">
+                            <div class="w-16 h-16 bg-indigo-500/10 text-indigo-500 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                                <i class="fa-solid fa-users-rectangle text-2xl"></i>
+                            </div>
+                            <h3 class="text-xl font-bold">Upload Candidate Resumes</h3>
+                            <p class="text-slate-400 text-sm mb-6">You can select up to 50 files at once (PDF/DOCX)</p>
+                            <button onclick="document.getElementById('bulk-input').click()" class="px-8 py-3 bg-white text-black rounded-xl font-bold hover:bg-slate-200 transition-all">
+                                Select Files
+                            </button>
+                        </div>
+                        <div id="file-list" class="space-y-2 max-h-60 overflow-y-auto pr-2">
+                            <!-- Files will appear here -->
+                        </div>
+                    </div>
+                    <div class="space-y-6">
+                        <div class="glass-card rounded-3xl p-6">
+                            <h4 class="font-bold mb-4 flex items-center gap-2">
+                                <i class="fa-solid fa-wand-magic-sparkles text-indigo-400"></i> Extracted Criteria
+                            </h4>
+                            <div id="criteria-tags" class="flex flex-wrap gap-2">
+                                <span class="text-[10px] px-2 py-1 bg-slate-800 rounded-md border border-white/5 text-slate-400 italic">Extracting from JD...</span>
+                            </div>
+                        </div>
+                        <button id="start-scan-btn" onclick="startBulkScan()" disabled class="w-full py-4 bg-indigo-600/50 text-slate-400 cursor-not-allowed rounded-xl font-bold transition-all">
+                            Start AI Screening
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- View 3: Leaderboard -->
+            <section id="view-results" class="app-hidden animate-in fade-in duration-1000">
+                <div class="grid grid-cols-1 gap-6">
+                    <div class="flex items-center justify-between">
+                        <h3 class="text-xl font-bold flex items-center gap-2">
+                            <i class="fa-solid fa-ranking-star text-amber-400"></i> Best Matches Found
+                        </h3>
+                        <div class="text-xs text-slate-500">Sorted by Match Score</div>
+                    </div>
+                    
+                    <div class="glass-card rounded-3xl overflow-hidden">
+                        <table class="w-full text-left">
+                            <thead class="bg-slate-900/50 text-[10px] uppercase tracking-widest text-slate-500 font-black">
+                                <tr>
+                                    <th class="px-6 py-4">Candidate</th>
+                                    <th class="px-6 py-4">Match Score</th>
+                                    <th class="px-6 py-4">Top Skills Detected</th>
+                                    <th class="px-6 py-4">Experience</th>
+                                    <th class="px-6 py-4 text-right">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="results-body">
+                                <!-- AI results here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script>
+        const SUPABASE_URL = "https://rnlwrngfgvznndlekmrz.supabase.co";
+        const SUPABASE_ANON_KEY = "sb_publishable_mtI0_ZBvU_n5oRuqV58QHg_qJt3Gfyt";
+        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        let selectedFiles = [];
+        let extractedSkills = [];
+
+        async function checkAuth() {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session) {
+                window.location.href = 'auth.html';
+            } else {
+                document.getElementById('loading-screen').style.display = 'none';
+                document.getElementById('main-content').classList.remove('app-hidden');
+            }
+        }
+
+        async function handleLogout() {
+            await supabaseClient.auth.signOut();
+            window.location.href = 'auth.html';
+        }
+
+        function goToUpload() {
+            const jd = document.getElementById('jd-input').value;
+            if (!jd.trim()) return alert("Please provide a Job Description first.");
+
+            // Extract keywords (Simulation)
+            const commonSkills = ["React", "JavaScript", "Node.js", "Python", "SQL", "Tailwind", "AWS", "Docker", "Management", "Communication"];
+            extractedSkills = commonSkills.filter(skill => jd.toLowerCase().includes(skill.toLowerCase()));
+            
+            if (extractedSkills.length === 0) extractedSkills = ["Relevant Experience", "Technical Background"];
+
+            document.getElementById('criteria-tags').innerHTML = extractedSkills.map(s => 
+                `<span class="px-2 py-1 bg-indigo-500/10 text-indigo-400 rounded-lg text-xs font-bold border border-indigo-500/20">${s}</span>`
+            ).join('');
+
+            document.getElementById('view-job').classList.add('app-hidden');
+            document.getElementById('view-upload').classList.remove('app-hidden');
+            document.getElementById('step-2').className = "step-node active-step";
+        }
+
+        document.getElementById('bulk-input').addEventListener('change', (e) => {
+            selectedFiles = Array.from(e.target.files);
+            const list = document.getElementById('file-list');
+            list.innerHTML = selectedFiles.map((f, i) => `
+                <div class="flex items-center justify-between p-3 bg-slate-800/40 rounded-xl border border-white/5">
+                    <div class="flex items-center gap-3">
+                        <i class="fa-solid fa-file-pdf text-red-400"></i>
+                        <span class="text-xs font-medium truncate w-40">${f.name}</span>
+                    </div>
+                    <span class="text-[10px] text-slate-500 uppercase">${(f.size/1024).toFixed(0)} KB</span>
+                </div>
+            `).join('');
+
+            const btn = document.getElementById('start-scan-btn');
+            if (selectedFiles.length > 0) {
+                btn.disabled = false;
+                btn.className = "w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold transition-all shadow-lg shadow-indigo-500/20";
+            }
+        });
+
+        function startBulkScan() {
+            document.getElementById('view-upload').classList.add('app-hidden');
+            document.getElementById('step-3').className = "step-node active-step";
+            
+            // Show processing screen simulation logic
+            const tbody = document.getElementById('results-body');
+            document.getElementById('view-results').classList.remove('app-hidden');
+            
+            // Simulation of "Select Best CVs" logic
+            const results = selectedFiles.map(file => {
+                const score = Math.floor(Math.random() * 40) + 60; // Random score 60-100
+                return {
+                    name: file.name.replace(/\.[^/.]+$/, ""),
+                    score: score,
+                    skills: extractedSkills.slice(0, 3).join(", "),
+                    exp: Math.floor(Math.random() * 8) + 1 + " Years"
+                };
+            }).sort((a, b) => b.score - a.score);
+
+            tbody.innerHTML = results.map((res, idx) => `
+                <tr class="candidate-row border-b border-white/5 transition-colors">
+                    <td class="px-6 py-5">
+                        <div class="flex items-center gap-3">
+                            <div class="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center font-bold text-xs">
+                                ${res.name.charAt(0)}
+                            </div>
+                            <span class="text-sm font-bold">${res.name}</span>
+                            ${idx === 0 ? '<span class="text-[8px] bg-amber-500/20 text-amber-400 px-1.5 py-0.5 rounded font-black uppercase">Best Match</span>' : ''}
+                        </div>
+                    </td>
+                    <td class="px-6 py-5">
+                        <div class="flex items-center gap-2">
+                            <div class="w-24 h-2 bg-slate-800 rounded-full overflow-hidden">
+                                <div class="h-full bg-indigo-500" style="width: ${res.score}%"></div>
+                            </div>
+                            <span class="text-xs font-bold">${res.score}%</span>
+                        </div>
+                    </td>
+                    <td class="px-6 py-5">
+                        <span class="text-xs text-slate-400">${res.skills}</span>
+                    </td>
+                    <td class="px-6 py-5">
+                        <span class="text-xs font-medium">${res.exp}</span>
+                    </td>
+                    <td class="px-6 py-5 text-right">
+                        <button class="p-2 hover:text-indigo-400"><i class="fa-solid fa-download"></i></button>
+                        <button class="p-2 hover:text-indigo-400"><i class="fa-solid fa-envelope"></i></button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        window.onload = checkAuth;
+    </script>
+</body>
+</html>
