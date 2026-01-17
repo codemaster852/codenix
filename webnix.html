@@ -7,19 +7,10 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css"/>
     <style>
-        :root {
-            --primary: #6366f1;
-            --bg-dark: #0f172a;
-            --panel-bg: #1e293b;
-        }
-        body {
-            background-color: var(--bg-dark);
-            color: white;
-            font-family: 'Inter', sans-serif;
-            margin: 0;
-            overflow-x: hidden;
-        }
+        :root { --primary: #6366f1; --bg-dark: #0f172a; --panel-bg: #1e293b; }
+        body { background-color: var(--bg-dark); color: white; font-family: 'Inter', sans-serif; margin: 0; overflow-x: hidden; }
         .editor-layout { overflow: hidden; height: 100vh; display: flex; flex-direction: column; }
         .canvas-area {
             background-image: radial-gradient(#334155 1px, transparent 1px);
@@ -28,70 +19,59 @@
             width: 100%;
             transition: all 0.2s ease;
         }
-        .draggable-item { cursor: grab; transition: all 0.2s; }
-        .dropped-element { position: relative; outline: 1px solid transparent; cursor: pointer; }
+        .draggable-item { cursor: grab; transition: all 0.2s; padding: 0.75rem; border-radius: 0.5rem; background: #1e293b; border: 1px solid #334155; font-size: 0.875rem; display: flex; align-items: center; margin-bottom: 0.5rem; }
+        .draggable-item:hover { background: #334155; }
+        .dropped-element { position: relative; outline: 1px solid transparent; transition: outline 0.1s; }
         .dropped-element:hover { outline: 2px solid var(--primary); }
         .element-controls {
-            display: none;
-            position: absolute;
-            top: -30px;
-            right: 0;
-            background: var(--primary);
-            padding: 2px 8px;
-            border-radius: 4px;
-            z-index: 50;
+            display: none; position: absolute; top: -30px; right: 0;
+            background: var(--primary); padding: 2px 8px; border-radius: 4px; z-index: 50; gap: 8px;
         }
         .dropped-element:hover > .element-controls { display: flex; }
-        .sidebar { width: 300px; background: var(--panel-bg); overflow-y: auto; }
-        #toast {
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            transform: translateY(100px);
-            transition: transform 0.3s ease;
-            z-index: 1000;
-        }
+        .sidebar { width: 320px; background: var(--panel-bg); overflow-y: auto; display: flex; flex-direction: column; }
+        #toast { position: fixed; bottom: 20px; right: 20px; transform: translateY(100px); transition: transform 0.3s ease; z-index: 2000; }
         #toast.show { transform: translateY(0); }
         .page-item.active { background: #334155; border-color: var(--primary); }
-        
-        /* Preview Mode Override */
         .preview-mode .element-controls { display: none !important; }
-        .preview-mode .dropped-element { outline: none !important; cursor: default; }
+        .preview-mode .dropped-element { outline: none !important; }
         .preview-mode .canvas-area { background-image: none; background-color: white; }
+        
+        /* Custom Inputs */
+        input[type="color"] { appearance: none; border: none; width: 30px; height: 30px; border-radius: 50%; cursor: pointer; background: none; }
+        input[type="range"] { accent-color: var(--primary); }
     </style>
 </head>
 <body>
 
-    <div id="toast" class="bg-indigo-600 text-white px-6 py-3 rounded-lg shadow-xl z-[1001]">
+    <div id="toast" class="bg-indigo-600 text-white px-6 py-3 rounded-lg shadow-xl">
         <span id="toast-msg"></span>
     </div>
 
-    <!-- MAIN APP CONTAINER -->
     <div id="app-shell" class="editor-layout">
-        
-        <!-- Header -->
-        <header id="main-header" class="h-16 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-6 shrink-0">
+        <header class="h-16 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-6 shrink-0">
             <div class="flex items-center space-x-4">
                 <div class="bg-indigo-600 p-2 rounded-lg"><i class="fas fa-cubes text-xl"></i></div>
                 <div>
                     <h1 class="font-bold text-lg leading-none">WebNix Pro</h1>
-                    <span class="text-xs text-slate-500 uppercase">Codenix AI Studio</span>
+                    <span class="text-xs text-slate-500 uppercase">AI Web Studio</span>
                 </div>
             </div>
 
-            <div id="editor-nav" class="hidden flex items-center space-x-4">
-                <button id="preview-toggle" onclick="togglePreview()" class="text-xs bg-slate-700 hover:bg-slate-600 px-3 py-2 rounded flex items-center">
-                    <i class="fas fa-eye mr-2"></i> Preview Mode
+            <div id="editor-nav" class="hidden flex items-center space-x-3">
+                <button onclick="togglePreview()" id="preview-btn" class="text-xs bg-slate-800 px-3 py-2 rounded-md hover:bg-slate-700">
+                    <i class="fas fa-eye mr-2"></i> Preview
                 </button>
-                <div class="h-6 w-[1px] bg-slate-700 mx-2"></div>
-                <button onclick="saveProject()" class="text-sm bg-slate-800 hover:bg-slate-700 px-4 py-2 rounded-md"><i class="fas fa-save mr-2"></i> Save</button>
-                <button onclick="shareProject()" class="text-sm bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded-md"><i class="fas fa-share-alt mr-2"></i> Share Link</button>
-                <button onclick="closeEditor()" class="text-sm text-slate-400 hover:text-white px-2"><i class="fas fa-times"></i></button>
+                <button onclick="extractHtml()" class="text-xs bg-slate-800 px-3 py-2 rounded-md hover:bg-slate-700">
+                    <i class="fas fa-code mr-2"></i> Extract HTML
+                </button>
+                <div class="h-6 w-[1px] bg-slate-700 mx-1"></div>
+                <button onclick="saveProject()" class="text-xs bg-indigo-600 px-4 py-2 rounded-md font-bold">Save Changes</button>
+                <button onclick="shareProject()" class="text-xs bg-slate-800 px-3 py-2 rounded-md"><i class="fas fa-share"></i></button>
+                <button onclick="location.reload()" class="text-slate-400 px-2"><i class="fas fa-times"></i></button>
             </div>
 
             <div id="dashboard-nav" class="flex items-center space-x-4">
-                <button onclick="createNewProject()" class="bg-indigo-600 px-4 py-2 rounded-md text-sm font-medium">+ New Project</button>
-                <button onclick="handleLogout()" class="text-slate-400 text-sm">Logout</button>
+                <button onclick="createNewProject()" class="bg-indigo-600 px-4 py-2 rounded-md text-sm font-medium hover:bg-indigo-500">+ New Website</button>
             </div>
         </header>
 
@@ -99,56 +79,53 @@
             <!-- Dashboard -->
             <div id="view-dashboard" class="flex-1 p-8 overflow-y-auto">
                 <div class="max-w-6xl mx-auto">
-                    <h2 class="text-3xl font-bold mb-8">My Websites</h2>
-                    <div id="projects-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+                    <h2 class="text-2xl font-bold mb-6">Recent Projects</h2>
+                    <div id="projects-grid" class="grid grid-cols-1 md:grid-cols-3 gap-6"></div>
                 </div>
             </div>
 
-            <!-- Editor -->
+            <!-- Editor UI -->
             <div id="view-editor" class="flex-1 flex hidden">
-                <aside class="sidebar border-r border-slate-800 p-4 shrink-0">
-                    <h3 class="text-[10px] font-bold text-slate-500 uppercase mb-4 tracking-widest">Site Pages</h3>
-                    <div id="pages-list" class="space-y-1 mb-6"></div>
-                    <button onclick="addNewPage()" class="w-full text-xs bg-slate-800 py-2 rounded border border-slate-700 mb-8 font-medium">+ New Page</button>
+                <!-- Left Sidebar -->
+                <aside class="sidebar border-r border-slate-800 p-4">
+                    <div class="mb-8">
+                        <h3 class="text-[10px] font-bold text-slate-500 uppercase mb-4 tracking-widest">Pages</h3>
+                        <div id="pages-list" class="space-y-1 mb-3"></div>
+                        <button onclick="addNewPage()" class="w-full text-xs bg-slate-800 py-2 rounded border border-slate-700">+ Add Page</button>
+                    </div>
 
-                    <h3 class="text-[10px] font-bold text-slate-500 uppercase mb-4 tracking-widest">Add Elements</h3>
+                    <h3 class="text-[10px] font-bold text-slate-500 uppercase mb-4 tracking-widest">Layouts</h3>
                     <div class="space-y-2">
-                        <div draggable="true" ondragstart="onDragStart(event, 'navbar')" class="draggable-item bg-slate-800 p-3 rounded-lg border border-slate-700 text-sm flex items-center hover:bg-slate-700">
-                            <i class="fas fa-window-maximize w-6 text-indigo-400"></i> Modern Nav
-                        </div>
-                        <div draggable="true" ondragstart="onDragStart(event, 'hero')" class="draggable-item bg-slate-800 p-3 rounded-lg border border-slate-700 text-sm flex items-center hover:bg-slate-700">
-                            <i class="fas fa-star w-6 text-yellow-400"></i> Hero Section
-                        </div>
-                        <div draggable="true" ondragstart="onDragStart(event, 'pricing')" class="draggable-item bg-slate-800 p-3 rounded-lg border border-slate-700 text-sm flex items-center hover:bg-slate-700">
-                            <i class="fas fa-tag w-6 text-orange-400"></i> Pricing Table
-                        </div>
-                        <div draggable="true" ondragstart="onDragStart(event, 'features')" class="draggable-item bg-slate-800 p-3 rounded-lg border border-slate-700 text-sm flex items-center hover:bg-slate-700">
-                            <i class="fas fa-th-large w-6 text-emerald-400"></i> Features Grid
-                        </div>
-                        <div draggable="true" ondragstart="onDragStart(event, 'testimonials')" class="draggable-item bg-slate-800 p-3 rounded-lg border border-slate-700 text-sm flex items-center hover:bg-slate-700">
-                            <i class="fas fa-comment-dots w-6 text-purple-400"></i> Testimonials
-                        </div>
-                        <div draggable="true" ondragstart="onDragStart(event, 'footer')" class="draggable-item bg-slate-800 p-3 rounded-lg border border-slate-700 text-sm flex items-center hover:bg-slate-700">
-                            <i class="fas fa-shoe-prints w-6 text-pink-400"></i> Footer
-                        </div>
+                        <div draggable="true" ondragstart="onDragStart(event, 'navbar')" class="draggable-item"><i class="fas fa-bars w-6 text-indigo-400"></i> Navigation</div>
+                        <div draggable="true" ondragstart="onDragStart(event, 'hero')" class="draggable-item"><i class="fas fa-rocket w-6 text-orange-400"></i> Hero Section</div>
+                        <div draggable="true" ondragstart="onDragStart(event, 'features')" class="draggable-item"><i class="fas fa-th w-6 text-emerald-400"></i> Features</div>
+                    </div>
+                    
+                    <h3 class="text-[10px] font-bold text-slate-500 uppercase my-6 tracking-widest">Media & Interaction</h3>
+                    <div class="space-y-2">
+                        <div draggable="true" ondragstart="onDragStart(event, 'image')" class="draggable-item"><i class="fas fa-image w-6 text-blue-400"></i> Image Block</div>
+                        <div draggable="true" ondragstart="onDragStart(event, 'video')" class="draggable-item"><i class="fas fa-video w-6 text-red-400"></i> Video Embed</div>
+                        <div draggable="true" ondragstart="onDragStart(event, 'button')" class="draggable-item"><i class="fas fa-mouse-pointer w-6 text-purple-400"></i> Call to Action</div>
                     </div>
                 </aside>
 
+                <!-- Working Canvas -->
                 <div class="flex-1 overflow-auto bg-slate-900 flex justify-center p-8">
-                    <div id="canvas" ondragover="onDragOver(event)" ondrop="onDrop(event)" class="canvas-area max-w-5xl bg-white shadow-2xl rounded-sm text-slate-900">
-                        <!-- Canvas Content -->
-                    </div>
+                    <div id="canvas" ondragover="onDragOver(event)" ondrop="onDrop(event)" class="canvas-area max-w-5xl bg-white shadow-2xl rounded-sm text-slate-900"></div>
                 </div>
 
-                <aside class="sidebar border-l border-slate-800 p-4 shrink-0">
-                    <h3 class="text-[10px] font-bold text-slate-500 uppercase mb-4 tracking-widest">Inspector</h3>
-                    <div id="inspector-content" class="text-slate-400 text-xs italic">Select an element to configure interactions</div>
+                <!-- Right Sidebar: Visual Inspector -->
+                <aside class="sidebar border-l border-slate-800 p-5">
+                    <h3 class="text-[10px] font-bold text-slate-500 uppercase mb-6 tracking-widest">Visual Inspector</h3>
+                    <div id="inspector-content" class="space-y-6">
+                        <div class="text-slate-500 text-sm italic">Click an element to customize its appearance.</div>
+                    </div>
                 </aside>
             </div>
         </main>
     </div>
 
-    <!-- LIVE VIEWER CONTAINER -->
+    <!-- Live Website View -->
     <div id="live-viewer" class="hidden min-h-screen bg-white text-slate-900"></div>
 
     <script>
@@ -156,12 +133,8 @@
         const SUPABASE_KEY = "sb_publishable_mtI0_ZBvU_n5oRuqV58QHg_qJt3Gfyt";
         const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-        let currentUser = null;
-        let currentProject = null;
-        let activeElement = null;
-        let projectPages = { "index": "" };
-        let activePage = "index";
-        let isPreviewMode = false;
+        let currentUser = null, currentProject = null, activeElement = null;
+        let projectPages = { "index": "" }, activePage = "index", isPreview = false;
 
         async function initApp() {
             const urlParams = new URLSearchParams(window.location.search);
@@ -178,305 +151,216 @@
         }
 
         async function renderLiveSite(id) {
-            const { data, error } = await client.from('websites').select('*').eq('id', id).single();
-            if (error || !data) {
-                document.body.innerHTML = `<div class='h-screen flex items-center justify-center bg-slate-950 text-white'>Site not found.</div>`;
-                return;
-            }
+            const { data } = await client.from('websites').select('*').eq('id', id).single();
+            if (!data) return document.body.innerHTML = "Site not found.";
             document.getElementById('app-shell').classList.add('hidden');
             const viewer = document.getElementById('live-viewer');
             viewer.classList.remove('hidden');
-            const pages = JSON.parse(data.html_content || '{"index":""}');
-            
-            const renderPage = () => {
-                const hash = window.location.hash.replace('#/', '') || 'index';
-                viewer.innerHTML = pages[hash] || pages['index'] || 'Page not found';
-                cleanOutput(viewer);
+            const pages = JSON.parse(data.html_content);
+            const render = () => {
+                const h = window.location.hash.replace('#/', '') || 'index';
+                viewer.innerHTML = pages[h] || pages['index'];
+                viewer.querySelectorAll('.element-controls').forEach(e => e.remove());
+                viewer.querySelectorAll('.dropped-element').forEach(e => { e.style.outline = 'none'; e.classList.remove('animate-active'); });
             };
-
-            window.addEventListener('hashchange', renderPage);
-            renderPage();
-        }
-
-        function cleanOutput(container) {
-            container.querySelectorAll('.element-controls').forEach(el => el.remove());
-            container.querySelectorAll('.dropped-element').forEach(el => {
-                el.style.outline = 'none';
-                el.classList.remove('ring-2', 'ring-indigo-500');
-            });
+            window.onhashchange = render;
+            render();
         }
 
         async function loadProjects() {
-            const grid = document.getElementById('projects-grid');
             const { data } = await client.from('websites').select('*').eq('user_id', currentUser.id).order('updated_at', { ascending: false });
-            
-            grid.innerHTML = (data || []).map(site => `
-                <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 group hover:border-indigo-500 transition">
-                    <h3 class="font-bold mb-1">${site.title}</h3>
-                    <p class="text-[10px] text-slate-500 mb-6 font-mono">ID: ${site.id}</p>
+            document.getElementById('projects-grid').innerHTML = (data || []).map(s => `
+                <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 hover:border-indigo-500 transition cursor-default">
+                    <h3 class="font-bold mb-1">${s.title}</h3>
+                    <p class="text-[10px] text-slate-500 mb-4 uppercase">Last Updated: ${new Date(s.updated_at).toLocaleDateString()}</p>
                     <div class="flex space-x-2">
-                        <button onclick="openEditorById('${site.id}')" class="flex-1 bg-indigo-600 hover:bg-indigo-500 py-2 rounded-lg text-sm font-medium">Edit Site</button>
-                        <button onclick="window.open('?id=${site.id}', '_blank')" class="bg-slate-700 hover:bg-slate-600 px-3 rounded-lg"><i class="fas fa-external-link-alt"></i></button>
+                        <button onclick="openEditor('${s.id}')" class="flex-1 bg-indigo-600 hover:bg-indigo-500 py-2 rounded-lg text-sm font-bold">Design</button>
+                        <button onclick="window.open('?id=${s.id}', '_blank')" class="bg-slate-700 px-3 rounded-lg"><i class="fas fa-external-link-alt text-xs"></i></button>
                     </div>
                 </div>
             `).join('');
         }
 
-        async function openEditorById(id) {
+        async function openEditor(id) {
             const { data } = await client.from('websites').select('*').eq('id', id).single();
             currentProject = data;
+            projectPages = JSON.parse(data.html_content || '{"index":""}');
             document.getElementById('view-dashboard').classList.add('hidden');
             document.getElementById('view-editor').classList.remove('hidden');
-            document.getElementById('dashboard-nav').classList.add('hidden');
             document.getElementById('editor-nav').classList.remove('hidden');
-            
-            projectPages = JSON.parse(data.html_content || '{"index":""}');
             switchPage('index');
         }
 
-        function switchPage(page) {
-            if (!isPreviewMode) {
-                projectPages[activePage] = document.getElementById('canvas').innerHTML;
-            }
-            activePage = page;
+        function switchPage(p) {
+            if(!isPreview) projectPages[activePage] = document.getElementById('canvas').innerHTML;
+            activePage = p;
             const canvas = document.getElementById('canvas');
-            canvas.innerHTML = projectPages[page] || `<div class="p-20 text-center text-slate-300 border-2 border-dashed m-10 rounded-xl">/${page} is empty. Drop elements here!</div>`;
-            
-            if (!isPreviewMode) {
-                Array.from(canvas.querySelectorAll('.dropped-element')).forEach(attachElementListeners);
-            }
+            canvas.innerHTML = projectPages[p] || `<div class="p-20 text-center opacity-30">Drop components here</div>`;
+            if(!isPreview) canvas.querySelectorAll('.dropped-element').forEach(attachListeners);
             renderPagesList();
         }
 
         function renderPagesList() {
-            const list = document.getElementById('pages-list');
-            list.innerHTML = Object.keys(projectPages).map(p => `
-                <div onclick="switchPage('${p}')" class="page-item ${p === activePage ? 'active' : ''} cursor-pointer text-xs p-2 rounded border border-transparent hover:border-slate-700 flex justify-between items-center">
-                    <span><i class="fas fa-file-code mr-2 opacity-50"></i>/${p === 'index' ? 'home' : p}</span>
-                    ${p !== 'index' ? `<i onclick="deletePage(event, '${p}')" class="fas fa-trash text-[10px] hover:text-red-400"></i>` : ''}
+            document.getElementById('pages-list').innerHTML = Object.keys(projectPages).map(p => `
+                <div onclick="switchPage('${p}')" class="page-item ${p === activePage ? 'active' : ''} cursor-pointer text-xs p-2 rounded flex justify-between">
+                    <span>/${p}</span>
+                    ${p !== 'index' ? `<i onclick="deletePage('${p}')" class="fas fa-times opacity-40 hover:opacity-100"></i>` : ''}
                 </div>
             `).join('');
         }
 
         function addNewPage() {
-            const name = prompt("Enter page name (e.g., about, contact):").toLowerCase().replace(/\s+/g, '-');
-            if (name && !projectPages[name]) {
-                projectPages[name] = "";
-                switchPage(name);
-            }
-        }
-
-        function deletePage(e, name) {
-            e.stopPropagation();
-            if (confirm(`Delete page /${name}?`)) {
-                delete projectPages[name];
-                switchPage('index');
-            }
-        }
-
-        function togglePreview() {
-            isPreviewMode = !isPreviewMode;
-            const canvas = document.getElementById('canvas');
-            const btn = document.getElementById('preview-toggle');
-            
-            if (isPreviewMode) {
-                projectPages[activePage] = canvas.innerHTML;
-                btn.innerHTML = '<i class="fas fa-pencil-alt mr-2"></i> Edit Mode';
-                btn.classList.replace('bg-slate-700', 'bg-emerald-600');
-                canvas.classList.add('preview-mode');
-                // Make links work
-                canvas.querySelectorAll('a').forEach(link => {
-                    const href = link.getAttribute('href');
-                    if (href && href.startsWith('#/')) {
-                        link.onclick = (e) => {
-                            e.preventDefault();
-                            switchPage(href.replace('#/', ''));
-                        };
-                    }
-                });
-                cleanOutput(canvas);
-            } else {
-                btn.innerHTML = '<i class="fas fa-eye mr-2"></i> Preview Mode';
-                btn.classList.replace('bg-emerald-600', 'bg-slate-700');
-                canvas.classList.remove('preview-mode');
-                switchPage(activePage);
-            }
-        }
-
-        async function createNewProject() {
-            const { data } = await client.from('websites').insert([{ 
-                user_id: currentUser.id, title: "My New Website", html_content: '{"index":""}' 
-            }]).select();
-            if (data) openEditorById(data[0].id);
-        }
-
-        async function saveProject() {
-            if (isPreviewMode) togglePreview(); // Return to edit mode to capture HTML
-            projectPages[activePage] = document.getElementById('canvas').innerHTML;
-            await client.from('websites').update({ 
-                html_content: JSON.stringify(projectPages),
-                updated_at: new Date()
-            }).eq('id', currentProject.id);
-            showToast("Progress Saved Successfully");
-        }
-
-        function shareProject() {
-            const shareUrl = window.location.origin + window.location.pathname + "?id=" + currentProject.id;
-            navigator.clipboard.writeText(shareUrl);
-            showToast("Public Link Copied!");
-        }
-
-        // --- Components Library ---
-        function createComponent(type) {
-            const div = document.createElement('div');
-            div.className = "dropped-element";
-            div.dataset.type = type;
-            let html = '';
-            
-            if(type === 'navbar') {
-                html = `<nav class="p-6 flex justify-between items-center border-b bg-white">
-                    <div class="text-xl font-bold text-indigo-600">WEBNIX</div>
-                    <div class="space-x-8 text-sm font-medium">
-                        <a href="#/index" class="hover:text-indigo-600">Home</a>
-                        <a href="#/about" class="hover:text-indigo-600">About</a>
-                        <a href="#/pricing" class="hover:text-indigo-600">Pricing</a>
-                    </div>
-                </nav>`;
-            } else if(type === 'hero') {
-                html = `<section class="py-24 px-10 text-center bg-slate-50">
-                    <h1 class="text-6xl font-extrabold tracking-tight">Design at <span class="text-indigo-600">Lightning</span> Speed</h1>
-                    <p class="mt-6 text-lg text-slate-600 max-w-2xl mx-auto">The first AI-powered web builder that actually makes sense. Drag, drop, and deploy to your own domain instantly.</p>
-                    <div class="mt-10 space-x-4">
-                        <a href="#/contact" class="bg-indigo-600 text-white px-8 py-4 rounded-full font-bold shadow-lg inline-block">Get Started</a>
-                    </div>
-                </section>`;
-            } else if(type === 'pricing') {
-                html = `<section class="py-20 px-10 bg-white">
-                    <div class="grid grid-cols-3 gap-6">
-                        <div class="border p-8 rounded-2xl text-center">
-                            <h3 class="font-bold text-slate-400">Basic</h3>
-                            <div class="text-4xl font-bold my-4">$0</div>
-                            <a href="#/index" class="block w-full py-2 bg-slate-100 rounded-lg text-sm font-bold">Choose Plan</a>
-                        </div>
-                        <div class="border-2 border-indigo-600 p-8 rounded-2xl text-center shadow-xl relative">
-                            <span class="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-indigo-600 text-white text-[10px] px-3 py-1 rounded-full uppercase font-bold">Popular</span>
-                            <h3 class="font-bold">Pro</h3>
-                            <div class="text-4xl font-bold my-4">$19</div>
-                            <a href="#/index" class="block w-full py-2 bg-indigo-600 text-white rounded-lg text-sm font-bold">Choose Plan</a>
-                        </div>
-                        <div class="border p-8 rounded-2xl text-center">
-                            <h3 class="font-bold text-slate-400">Enterprise</h3>
-                            <div class="text-4xl font-bold my-4">Custom</div>
-                            <a href="#/index" class="block w-full py-2 bg-slate-100 rounded-lg text-sm font-bold">Contact Sales</a>
-                        </div>
-                    </div>
-                </section>`;
-            } else if(type === 'features') {
-                html = `<section class="grid grid-cols-2 gap-10 p-20 bg-white">
-                    <div><h4 class="font-bold text-xl mb-2">🚀 Instant Deploy</h4><p class="text-slate-500">Your site is live the moment you hit save.</p></div>
-                    <div><h4 class="font-bold text-xl mb-2">📱 Fully Responsive</h4><p class="text-slate-500">Looks great on mobile, tablet, and desktop.</p></div>
-                </section>`;
-            } else if(type === 'testimonials') {
-                html = `<section class="py-20 px-10 bg-indigo-900 text-white text-center">
-                    <p class="text-2xl italic font-serif">"WebNix is the fastest way to build prototypes that look like the real thing."</p>
-                    <p class="mt-6 font-bold">— Alex Rivers, Product Designer</p>
-                </section>`;
-            } else if(type === 'footer') {
-                html = `<footer class="p-12 bg-slate-900 text-white flex justify-between items-center">
-                    <div class="text-sm">© 2026 WebNix Studio</div>
-                    <div class="space-x-6 text-xs text-slate-400">
-                        <a href="#/privacy" class="hover:text-white">Privacy</a>
-                        <a href="#/terms" class="hover:text-white">Terms</a>
-                    </div>
-                </footer>`;
-            }
-            
-            div.innerHTML = `
-                <div class="element-controls space-x-2">
-                    <button onclick="moveUp(this)"><i class="fas fa-arrow-up"></i></button>
-                    <button onclick="moveDown(this)"><i class="fas fa-arrow-down"></i></button>
-                    <button onclick="this.closest('.dropped-element').remove()"><i class="fas fa-trash"></i></button>
-                </div>
-                <div class="content">${html}</div>
-            `;
-            return div;
+            const name = prompt("Page route (e.g. about, contact):");
+            if(name && !projectPages[name]) { projectPages[name] = ""; switchPage(name); }
         }
 
         function onDragStart(e, type) { e.dataTransfer.setData('type', type); }
         function onDragOver(e) { e.preventDefault(); }
         function onDrop(e) {
             e.preventDefault();
-            if (isPreviewMode) return;
             const type = e.dataTransfer.getData('type');
             const el = createComponent(type);
             document.getElementById('canvas').appendChild(el);
-            attachElementListeners(el);
+            attachListeners(el);
         }
 
-        function attachElementListeners(el) {
-            el.addEventListener('click', (e) => {
-                if (isPreviewMode) return;
+        function createComponent(type) {
+            const div = document.createElement('div');
+            div.className = "dropped-element p-10 bg-white";
+            div.dataset.type = type;
+            let inner = '';
+            
+            if(type === 'navbar') inner = `<nav class="flex justify-between items-center"><div class="text-xl font-bold">LOGO</div><div class="space-x-6 text-sm"><a href="#/index">Home</a><a href="#/about">About</a></div></nav>`;
+            if(type === 'hero') inner = `<div class="text-center"><h1 class="text-5xl font-black">Welcome Home</h1><p class="mt-4 text-slate-500">Edit this text in the inspector</p></div>`;
+            if(type === 'image') inner = `<img src="https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&w=800" class="w-full rounded-xl shadow-lg">`;
+            if(type === 'video') inner = `<div class="aspect-video bg-black rounded-xl overflow-hidden"><iframe class="w-full h-full" src="https://www.youtube.com/embed/dQw4w9WgXcQ" frameborder="0"></iframe></div>`;
+            if(type === 'button') inner = `<div class="text-center"><a href="#/index" class="bg-indigo-600 text-white px-8 py-3 rounded-full font-bold inline-block">Click Me</a></div>`;
+            if(type === 'features') inner = `<div class="grid grid-cols-2 gap-8"><div><h3 class="font-bold">Fast</h3><p>Optimized speed.</p></div><div><h3 class="font-bold">Safe</h3><p>Cloud security.</p></div></div>`;
+
+            div.innerHTML = `<div class="element-controls"><button onclick="move(this,-1)"><i class="fas fa-chevron-up"></i></button><button onclick="move(this,1)"><i class="fas fa-chevron-down"></i></button><button onclick="this.closest('.dropped-element').remove()"><i class="fas fa-trash"></i></button></div><div class="content-box animate__animated">${inner}</div>`;
+            return div;
+        }
+
+        function attachListeners(el) {
+            el.onclick = (e) => {
                 e.stopPropagation();
-                if(activeElement) activeElement.classList.remove('ring-2', 'ring-indigo-500');
+                if(activeElement) activeElement.style.outline = 'none';
                 activeElement = el;
-                el.classList.add('ring-2', 'ring-indigo-500');
+                el.style.outline = '2px solid #6366f1';
                 renderInspector();
-            });
+            };
         }
 
         function renderInspector() {
+            const box = activeElement.querySelector('.content-box');
+            const type = activeElement.dataset.type;
             const ins = document.getElementById('inspector-content');
-            const pageOptions = Object.keys(projectPages).map(p => `<option value="#/${p}">Page: /${p}</option>`).join('');
             
-            ins.innerHTML = `
+            let html = `
                 <div class="space-y-4">
-                    <div>
-                        <label class="block mb-1 text-slate-500">Configure All Links</label>
-                        <p class="mb-2 text-[10px] leading-tight">Change where buttons or menu items in this section point to:</p>
-                        <select onchange="setSectionLink(this.value)" class="w-full bg-slate-800 p-2 rounded border border-slate-700 text-white">
-                            <option value="">Select Destination...</option>
-                            ${pageOptions}
-                            <option value="https://google.com">External: Google</option>
+                    <div><label class="text-[10px] uppercase text-slate-500 block mb-2">Typography</label>
+                        <button onclick="editText()" class="w-full bg-slate-800 p-2 rounded text-xs">Edit Text Content</button>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div><label class="text-[10px] uppercase text-slate-500 block mb-2">Text Color</label><input type="color" onchange="updateStyle('color', this.value)"></div>
+                        <div><label class="text-[10px] uppercase text-slate-500 block mb-2">BG Color</label><input type="color" onchange="updateStyle('backgroundColor', this.value)"></div>
+                    </div>
+                    <div><label class="text-[10px] uppercase text-slate-500 block mb-2">Spacing (Padding)</label><input type="range" min="0" max="100" class="w-full" oninput="updateStyle('padding', this.value + 'px')"></div>
+                    <div><label class="text-[10px] uppercase text-slate-500 block mb-2">Animations</label>
+                        <select onchange="updateAnim(this.value)" class="w-full bg-slate-800 p-2 rounded text-xs border-none">
+                            <option value="">None</option>
+                            <option value="animate__fadeIn">Fade In</option>
+                            <option value="animate__slideInUp">Slide Up</option>
+                            <option value="animate__zoomIn">Zoom In</option>
                         </select>
                     </div>
-                    <button onclick="editRawHtml()" class="w-full bg-indigo-600/20 text-indigo-400 border border-indigo-400/30 py-2 rounded font-medium hover:bg-indigo-600/30">Edit Text & HTML</button>
-                </div>
-            `;
+                </div>`;
+
+            if(type === 'image') html += `<div class="mt-6"><label class="text-[10px] uppercase text-slate-500 block mb-2">Image URL</label><input type="text" onchange="updateMedia('img', 'src', this.value)" class="w-full bg-slate-800 p-2 rounded text-xs" placeholder="https://..."></div>`;
+            if(type === 'video') html += `<div class="mt-6"><label class="text-[10px] uppercase text-slate-500 block mb-2">Video Embed Link</label><input type="text" onchange="updateMedia('iframe', 'src', this.value)" class="w-full bg-slate-800 p-2 rounded text-xs" placeholder="Youtube URL..."></div>`;
+            if(type === 'button' || type === 'navbar') html += `<div class="mt-6"><label class="text-[10px] uppercase text-slate-500 block mb-2">Link To Page</label><select onchange="updateLink(this.value)" class="w-full bg-slate-800 p-2 rounded text-xs border-none"><option value="#/index">Home</option>${Object.keys(projectPages).map(p => `<option value="#/${p}">/${p}</option>`).join('')}</select></div>`;
+
+            ins.innerHTML = html;
         }
 
-        function setSectionLink(url) {
-            if (!url || !activeElement) return;
-            activeElement.querySelectorAll('a').forEach(link => {
-                link.setAttribute('href', url);
-            });
-            showToast("Links Updated!");
+        function updateStyle(prop, val) { if(activeElement) activeElement.style[prop] = val; }
+        function updateAnim(val) { 
+            const box = activeElement.querySelector('.content-box');
+            box.className = "content-box animate__animated " + val; 
+        }
+        function editText() { 
+            const box = activeElement.querySelector('.content-box');
+            const newText = prompt("Edit content (HTML supported):", box.innerHTML);
+            if(newText !== null) box.innerHTML = newText;
+        }
+        function updateMedia(tag, attr, val) { 
+            const m = activeElement.querySelector(tag);
+            if(m) m[attr] = val; 
+        }
+        function updateLink(val) {
+            activeElement.querySelectorAll('a').forEach(a => a.href = val);
         }
 
-        function editRawHtml() {
-            const content = activeElement.querySelector('.content');
-            const newHtml = prompt("Edit the Raw HTML/Text of this section:", content.innerHTML);
-            if(newHtml !== null) content.innerHTML = newHtml;
-        }
-
-        function moveUp(btn) {
+        function move(btn, dir) {
             const el = btn.closest('.dropped-element');
-            if (el.previousElementSibling) el.parentNode.insertBefore(el, el.previousElementSibling);
+            if(dir === -1 && el.previousElementSibling) el.parentNode.insertBefore(el, el.previousElementSibling);
+            if(dir === 1 && el.nextElementSibling) el.parentNode.insertBefore(el.nextElementSibling, el);
         }
 
-        function moveDown(btn) {
-            const el = btn.closest('.dropped-element');
-            if (el.nextElementSibling) el.parentNode.insertBefore(el.nextElementSibling, el);
+        function togglePreview() {
+            isPreview = !isPreview;
+            const canvas = document.getElementById('canvas');
+            const btn = document.getElementById('preview-btn');
+            if(isPreview) {
+                projectPages[activePage] = canvas.innerHTML;
+                canvas.classList.add('preview-mode');
+                btn.innerHTML = '<i class="fas fa-pencil-alt mr-2"></i> Edit';
+                // Internal navigation
+                canvas.querySelectorAll('a').forEach(a => {
+                    const h = a.getAttribute('href');
+                    if(h && h.startsWith('#/')) a.onclick = (e) => { e.preventDefault(); switchPage(h.replace('#/', '')); };
+                });
+            } else {
+                canvas.classList.remove('preview-mode');
+                btn.innerHTML = '<i class="fas fa-eye mr-2"></i> Preview';
+                switchPage(activePage);
+            }
         }
 
-        function showToast(msg) {
+        function extractHtml() {
+            const clone = document.getElementById('canvas').cloneNode(true);
+            clone.querySelectorAll('.element-controls').forEach(e => e.remove());
+            const styles = `<style>body{font-family:sans-serif;margin:0}.dropped-element{transition:all .3s}.animate__animated{animation-duration:1s}</style>`;
+            const head = `<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css"/><script src="https://cdn.tailwindcss.com"><\/script>`;
+            const fullCode = `<!DOCTYPE html><html><head>${head}${styles}</head><body>${clone.innerHTML}</body></html>`;
+            navigator.clipboard.writeText(fullCode);
+            showToast("Full HTML Code Copied!");
+        }
+
+        async function saveProject() {
+            if(isPreview) togglePreview();
+            projectPages[activePage] = document.getElementById('canvas').innerHTML;
+            await client.from('websites').update({ html_content: JSON.stringify(projectPages), updated_at: new Date() }).eq('id', currentProject.id);
+            showToast("Saved Successfully");
+        }
+
+        function shareProject() {
+            const url = window.location.origin + window.location.pathname + "?id=" + currentProject.id;
+            navigator.clipboard.writeText(url);
+            showToast("Shareable Link Copied!");
+        }
+
+        async function createNewProject() {
+            const { data } = await client.from('websites').insert([{ user_id: currentUser.id, title: "Modern Design", html_content: '{"index":""}' }]).select();
+            if(data) openEditor(data[0].id);
+        }
+
+        function showToast(m) {
             const t = document.getElementById('toast');
-            document.getElementById('toast-msg').innerText = msg;
+            document.getElementById('toast-msg').innerText = m;
             t.classList.add('show');
             setTimeout(() => t.classList.remove('show'), 3000);
         }
-
-        function closeEditor() { window.location.reload(); }
-        function handleLogout() { client.auth.signOut(); window.location.reload(); }
 
         initApp();
     </script>
