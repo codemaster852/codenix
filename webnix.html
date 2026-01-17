@@ -18,6 +18,11 @@
             min-height: 100vh;
             width: 100%;
             transition: all 0.2s ease;
+            position: relative;
+        }
+        .canvas-placeholder {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            text-align: center; opacity: 0.3; font-style: italic; pointer-events: none;
         }
         .draggable-item { cursor: grab; transition: all 0.2s; padding: 0.75rem; border-radius: 0.5rem; background: #1e293b; border: 1px solid #334155; font-size: 0.875rem; display: flex; align-items: center; margin-bottom: 0.5rem; }
         .draggable-item:hover { background: #334155; transform: translateX(5px); }
@@ -34,12 +39,11 @@
         #toast.show { transform: translateY(0); }
         .page-item.active { background: #334155; border-color: var(--primary); }
         
-        /* Preview Mode Override */
         .preview-mode .element-controls { display: none !important; }
         .preview-mode .dropped-element { outline: none !important; }
         .preview-mode .canvas-area { background-image: none; background-color: #f8fafc; }
+        .preview-mode .canvas-placeholder { display: none !important; }
         
-        /* Custom Inputs */
         .property-group { border-bottom: 1px solid #334155; padding-bottom: 1rem; margin-bottom: 1rem; }
         input[type="color"] { appearance: none; border: none; width: 24px; height: 24px; border-radius: 4px; cursor: pointer; background: none; }
         input[type="range"] { accent-color: var(--primary); width: 100%; height: 4px; border-radius: 2px; }
@@ -80,7 +84,6 @@
         </header>
 
         <main class="flex-1 flex overflow-hidden">
-            <!-- Dashboard -->
             <div id="view-dashboard" class="flex-1 p-8 overflow-y-auto">
                 <div class="max-w-6xl mx-auto">
                     <h2 class="text-2xl font-bold mb-6">Your Projects</h2>
@@ -88,9 +91,7 @@
                 </div>
             </div>
 
-            <!-- Editor UI -->
             <div id="view-editor" class="flex-1 flex hidden">
-                <!-- Left Sidebar: Toolbox -->
                 <aside class="sidebar border-r border-slate-800 p-4">
                     <div class="mb-8">
                         <h3 class="text-[10px] font-bold text-slate-500 uppercase mb-4 tracking-widest">Site Structure</h3>
@@ -115,12 +116,11 @@
                     </div>
                 </aside>
 
-                <!-- Canvas -->
-                <div class="flex-1 overflow-auto bg-slate-900 flex justify-center p-8">
+                <div class="flex-1 overflow-auto bg-slate-900 flex justify-center p-8 relative">
                     <div id="canvas" ondragover="onDragOver(event)" ondrop="onDrop(event)" class="canvas-area max-w-5xl bg-white shadow-2xl rounded-sm text-slate-900"></div>
+                    <div id="canvas-placeholder" class="canvas-placeholder">/index is currently empty. Drop elements here.</div>
                 </div>
 
-                <!-- Right Sidebar: No-Code Inspector -->
                 <aside class="sidebar border-l border-slate-800 p-5">
                     <h3 class="text-[10px] font-bold text-slate-500 uppercase mb-6 tracking-widest">Visual Inspector</h3>
                     <div id="inspector-content" class="space-y-2">
@@ -131,7 +131,6 @@
         </main>
     </div>
 
-    <!-- Live Site -->
     <div id="live-viewer" class="hidden min-h-screen bg-white text-slate-900"></div>
 
     <script>
@@ -170,7 +169,6 @@
                 viewer.querySelectorAll('.element-controls').forEach(e => e.remove());
                 viewer.querySelectorAll('.dropped-element').forEach(e => {
                     e.style.outline = 'none';
-                    // Re-trigger animations
                     const content = e.querySelector('.animate__animated');
                     if(content) {
                         const anim = content.dataset.anim || '';
@@ -212,9 +210,21 @@
             if(!isPreview) projectPages[activePage] = document.getElementById('canvas').innerHTML;
             activePage = p;
             const canvas = document.getElementById('canvas');
-            canvas.innerHTML = projectPages[p] || `<div class="p-20 text-center opacity-30 italic">/${p} is currently empty. Drop elements here.</div>`;
+            canvas.innerHTML = projectPages[p] || "";
+            updatePlaceholderVisibility();
             if(!isPreview) canvas.querySelectorAll('.dropped-element').forEach(attachListeners);
             renderPagesList();
+        }
+
+        function updatePlaceholderVisibility() {
+            const placeholder = document.getElementById('canvas-placeholder');
+            const canvas = document.getElementById('canvas');
+            if (canvas.children.length > 0) {
+                placeholder.style.display = 'none';
+            } else {
+                placeholder.style.display = 'block';
+                placeholder.innerText = `/${activePage} is currently empty. Drop elements here.`;
+            }
         }
 
         function renderPagesList() {
@@ -227,7 +237,7 @@
         }
 
         function addNewPage() {
-            const name = prompt("Enter page name (e.g. contact):").toLowerCase().replace(/\s+/g, '-');
+            const name = prompt("Enter page name:").toLowerCase().replace(/\s+/g, '-');
             if(name && !projectPages[name]) { projectPages[name] = ""; switchPage(name); }
         }
 
@@ -238,6 +248,7 @@
             const type = e.dataTransfer.getData('type');
             const el = createComponent(type);
             document.getElementById('canvas').appendChild(el);
+            updatePlaceholderVisibility();
             attachListeners(el);
         }
 
@@ -247,17 +258,23 @@
             div.dataset.type = type;
             let inner = '';
             
-            if(type === 'navbar') inner = `<nav class="flex justify-between items-center"><div class="text-xl font-bold text-indigo-600">WEBNIX</div><div class="space-x-8 text-sm font-semibold"><a href="#/index">Home</a><a href="#/about">About</a><a href="#/contact">Contact</a></div></nav>`;
-            if(type === 'hero') inner = `<div class="text-center py-10"><h1 class="text-6xl font-black tracking-tighter">Your Next Big Thing</h1><p class="mt-6 text-xl text-slate-500 max-w-xl mx-auto">Build, iterate, and launch faster than ever before with WebNix Studio.</p><div class="mt-10"><a href="#/contact" class="bg-indigo-600 text-white px-10 py-4 rounded-full font-bold shadow-xl">Get Started Free</a></div></div>`;
-            if(type === 'split') inner = `<div class="flex items-center gap-12 flex-wrap md:flex-nowrap"><div><img src="https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=800" class="rounded-2xl shadow-2xl"></div><div class="space-y-4"><h2>Analytics that Matter</h2><p class="text-slate-500 text-lg">See every detail of your business growth in one dashboard.</p></div></div>`;
+            if(type === 'navbar') inner = `<nav class="flex justify-between items-center"><div class="text-xl font-bold text-indigo-600">WEBNIX</div><div class="space-x-8 text-sm font-semibold"><a href="#/index">Home</a><a href="#/about">About</a></div></nav>`;
+            if(type === 'hero') inner = `<div class="text-center py-10"><h1 class="text-6xl font-black tracking-tighter">Your Next Big Thing</h1><p class="mt-6 text-xl text-slate-500 max-w-xl mx-auto">Build faster than ever before.</p></div>`;
+            if(type === 'split') inner = `<div class="flex items-center gap-12 flex-wrap md:flex-nowrap"><div><img src="https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=800" class="rounded-2xl shadow-2xl"></div><div class="space-y-4"><h2>Analytics that Matter</h2><p class="text-slate-500">Business growth dashboard.</p></div></div>`;
             if(type === 'image') inner = `<img src="https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&w=800" class="w-full rounded-xl shadow-lg">`;
             if(type === 'video') inner = `<div class="aspect-video bg-black rounded-xl overflow-hidden shadow-2xl"><iframe class="w-full h-full" src="https://www.youtube.com/embed/dQw4w9WgXcQ" frameborder="0"></iframe></div>`;
-            if(type === 'button') inner = `<div class="text-center"><a href="#/index" class="bg-slate-900 text-white px-8 py-3 rounded-md font-bold inline-block hover:scale-105 transition">Call To Action</a></div>`;
-            if(type === 'features') inner = `<div class="grid grid-cols-1 md:grid-cols-3 gap-8 text-center"><div><div class="text-indigo-600 text-2xl mb-2"><i class="fas fa-bolt"></i></div><h3 class="font-bold">Fast</h3><p class="text-sm">Blazing speeds.</p></div><div><div class="text-indigo-600 text-2xl mb-2"><i class="fas fa-shield-alt"></i></div><h3 class="font-bold">Secure</h3><p class="text-sm">Safe and encrypted.</p></div><div><div class="text-indigo-600 text-2xl mb-2"><i class="fas fa-cloud"></i></div><h3 class="font-bold">Cloud</h3><p class="text-sm">Scales with you.</p></div></div>`;
-            if(type === 'contact') inner = `<div class="max-w-md mx-auto p-8 border rounded-2xl"><h3 class="font-bold mb-4">Contact Us</h3><input placeholder="Email" class="w-full border p-2 mb-2 rounded"><textarea placeholder="Message" class="w-full border p-2 mb-2 rounded"></textarea><button class="w-full bg-indigo-600 text-white py-2 rounded font-bold">Send</button></div>`;
+            if(type === 'button') inner = `<div class="text-center"><a href="#/index" class="bg-slate-900 text-white px-8 py-3 rounded-md font-bold inline-block">Call To Action</a></div>`;
+            if(type === 'features') inner = `<div class="grid grid-cols-1 md:grid-cols-3 gap-8 text-center"><div><i class="fas fa-bolt text-indigo-600 text-2xl mb-2"></i><h3 class="font-bold">Fast</h3></div><div><i class="fas fa-shield-alt text-indigo-600 text-2xl mb-2"></i><h3 class="font-bold">Secure</h3></div><div><i class="fas fa-cloud text-indigo-600 text-2xl mb-2"></i><h3 class="font-bold">Cloud</h3></div></div>`;
+            if(type === 'contact') inner = `<div class="max-w-md mx-auto p-8 border rounded-2xl"><h3 class="font-bold mb-4">Contact Us</h3><input placeholder="Email" class="w-full border p-2 mb-2 rounded"><button class="w-full bg-indigo-600 text-white py-2 rounded font-bold">Send</button></div>`;
 
-            div.innerHTML = `<div class="element-controls"><button onclick="move(this,-1)"><i class="fas fa-chevron-up"></i></button><button onclick="move(this,1)"><i class="fas fa-chevron-down"></i></button><button onclick="this.closest('.dropped-element').remove()"><i class="fas fa-trash"></i></button></div><div class="content-box animate__animated" data-anim="">${inner}</div>`;
+            div.innerHTML = `<div class="element-controls"><button onclick="move(this,-1)"><i class="fas fa-chevron-up"></i></button><button onclick="move(this,1)"><i class="fas fa-chevron-down"></i></button><button onclick="deleteEl(this)"><i class="fas fa-trash"></i></button></div><div class="content-box animate__animated" data-anim="">${inner}</div>`;
             return div;
+        }
+
+        function deleteEl(btn) {
+            btn.closest('.dropped-element').remove();
+            updatePlaceholderVisibility();
+            document.getElementById('inspector-content').innerHTML = `<div class="text-slate-500 text-sm italic py-20 text-center">Select an element to edit properties</div>`;
         }
 
         function attachListeners(el) {
@@ -284,7 +301,6 @@
                         <option value="animate__fadeIn" ${box.dataset.anim === 'animate__fadeIn' ? 'selected' : ''}>Fade In</option>
                         <option value="animate__slideInUp" ${box.dataset.anim === 'animate__slideInUp' ? 'selected' : ''}>Slide Up</option>
                         <option value="animate__zoomIn" ${box.dataset.anim === 'animate__zoomIn' ? 'selected' : ''}>Zoom In</option>
-                        <option value="animate__bounceIn" ${box.dataset.anim === 'animate__bounceIn' ? 'selected' : ''}>Bounce In</option>
                     </select>
                 </div>
 
@@ -297,46 +313,48 @@
                         </div>
                         <div class="flex items-center space-x-2">
                             <input type="color" onchange="updateStyle('backgroundColor', this.value)">
-                            <span class="text-[10px] text-slate-400">Background</span>
+                            <span class="text-[10px] text-slate-400">BG</span>
                         </div>
                     </div>
                 </div>
 
                 <div class="property-group">
-                    <label class="text-[10px] uppercase text-slate-500 block mb-3 font-bold">Dimensions & Shape</label>
+                    <label class="text-[10px] uppercase text-slate-500 block mb-3 font-bold">Dimensions</label>
                     <div class="space-y-4">
                         <div>
                             <div class="flex justify-between text-[9px] text-slate-400 mb-1"><span>Width</span><span>${activeElement.style.width || '100%'}</span></div>
                             <input type="range" min="10" max="100" value="${parseInt(activeElement.style.width) || 100}" oninput="updateStyle('width', this.value + '%')">
                         </div>
                         <div>
-                            <div class="flex justify-between text-[9px] text-slate-400 mb-1"><span>Rounded Corners</span></div>
+                            <div class="flex justify-between text-[9px] text-slate-400 mb-1"><span>Corners</span></div>
                             <input type="range" min="0" max="100" value="${parseInt(activeElement.style.borderRadius) || 0}" oninput="updateStyle('borderRadius', this.value + 'px')">
-                        </div>
-                        <div>
-                            <div class="flex justify-between text-[9px] text-slate-400 mb-1"><span>Vertical Padding</span></div>
-                            <input type="range" min="0" max="200" value="${parseInt(activeElement.style.paddingTop) || 40}" oninput="updateStyle('paddingTop', this.value + 'px'); updateStyle('paddingBottom', this.value + 'px')">
                         </div>
                     </div>
                 </div>
 
                 ${type === 'image' || type === 'split' ? `<div class="property-group"><label class="text-[10px] uppercase text-slate-500 block mb-2">Image URL</label><input type="text" onchange="updateMedia('img', 'src', this.value)" class="w-full" placeholder="https://..."></div>` : ''}
                 ${type === 'video' ? `<div class="property-group"><label class="text-[10px] uppercase text-slate-500 block mb-2">Embed Link</label><input type="text" onchange="updateMedia('iframe', 'src', this.value)" class="w-full" placeholder="Youtube URL..."></div>` : ''}
-                ${type === 'button' || type === 'navbar' ? `<div class="property-group"><label class="text-[10px] uppercase text-slate-500 block mb-2">Link Target</label><select onchange="updateLink(this.value)" class="w-full"><option value="#/index">Home</option>${Object.keys(projectPages).map(p => `<option value="#/${p}">/${p}</option>`).join('')}</select></div>` : ''}
+                
+                <button onclick="resetEl()" class="w-full border border-slate-700 text-slate-500 py-2 rounded text-[10px] font-bold uppercase hover:bg-slate-800 transition">Reset Styles</button>
             `;
+        }
+
+        function resetEl() {
+            if(!activeElement) return;
+            activeElement.removeAttribute('style');
+            activeElement.style.outline = '2px solid #6366f1';
+            renderInspector();
         }
 
         function updateStyle(prop, val) { 
             if(activeElement) {
                 activeElement.style[prop] = val;
-                // Update text indicators if any
                 renderInspector(); 
             }
         }
 
         function updateAnim(val) { 
             const box = activeElement.querySelector('.content-box');
-            // Reset animation
             box.className = "content-box";
             void box.offsetWidth;
             box.dataset.anim = val;
@@ -345,17 +363,13 @@
 
         function editText() { 
             const box = activeElement.querySelector('.content-box');
-            const newText = prompt("Update Content (HTML tags supported):", box.innerHTML);
+            const newText = prompt("Update Content:", box.innerHTML);
             if(newText !== null) box.innerHTML = newText;
         }
 
         function updateMedia(tag, attr, val) { 
             const m = activeElement.querySelector(tag);
             if(m) m[attr] = val; 
-        }
-
-        function updateLink(val) {
-            activeElement.querySelectorAll('a').forEach(a => a.href = val);
         }
 
         function move(btn, dir) {
@@ -373,11 +387,6 @@
                 canvas.classList.add('preview-mode');
                 btn.innerHTML = '<i class="fas fa-edit mr-2"></i> Edit Mode';
                 btn.classList.replace('bg-slate-800', 'bg-indigo-600');
-                // Navigation
-                canvas.querySelectorAll('a').forEach(a => {
-                    const h = a.getAttribute('href');
-                    if(h && h.startsWith('#/')) a.onclick = (e) => { e.preventDefault(); switchPage(h.replace('#/', '')); };
-                });
             } else {
                 canvas.classList.remove('preview-mode');
                 btn.innerHTML = '<i class="fas fa-play mr-2"></i> Preview Mode';
@@ -389,11 +398,9 @@
         function extractHtml() {
             const clone = document.getElementById('canvas').cloneNode(true);
             clone.querySelectorAll('.element-controls').forEach(e => e.remove());
-            const styles = `<style>body{font-family:sans-serif;margin:0;overflow-x:hidden}.dropped-element{transition:all .3s}.animate__animated{animation-duration:1s}</style>`;
-            const head = `<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css"/><script src="https://cdn.tailwindcss.com"><\/script>`;
-            const fullCode = `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">${head}${styles}</head><body>${clone.innerHTML}</body></html>`;
+            const fullCode = `<!DOCTYPE html><html><head><meta charset="UTF-8"><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css"/><script src="https://cdn.tailwindcss.com"><\/script><style>body{margin:0;font-family:sans-serif}.dropped-element{transition:all .3s}</style></head><body>${clone.innerHTML}</body></html>`;
             navigator.clipboard.writeText(fullCode);
-            showToast("Project HTML Copied to Clipboard!");
+            showToast("HTML Exported to Clipboard!");
         }
 
         async function saveProject() {
@@ -404,7 +411,7 @@
         }
 
         async function createNewProject() {
-            const { data } = await client.from('websites').insert([{ user_id: currentUser.id, title: "Interactive Site", html_content: '{"index":""}' }]).select();
+            const { data } = await client.from('websites').insert([{ user_id: currentUser.id, title: "New Design", html_content: '{"index":""}' }]).select();
             if(data) openEditor(data[0].id);
         }
 
