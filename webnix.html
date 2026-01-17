@@ -1,369 +1,367 @@
 <!DOCTYPE html>
-<html lang="en" class="light">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WebNix - AI Website Builder</title>
-    
+    <title>WebNix AI Studio | Professional Builder</title>
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-            darkMode: 'class',
-            theme: {
-                extend: {
-                    colors: {
-                        slate: { 850: '#1f2937', 950: '#020617' }
-                    }
-                }
-            }
-        }
-    </script>
-    
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Supabase JS -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
-        body { font-family: 'Inter', sans-serif; }
-        .draggable-item { cursor: grab; }
-        #editor-canvas { background-image: radial-gradient(#cbd5e1 1px, transparent 1px); background-size: 20px 20px; }
-        .dark #editor-canvas { background-image: radial-gradient(#475569 1px, transparent 1px); }
-        .selected-element { outline: 2px solid #9333ea; position: relative; }
-        .selected-element::after {
-            content: 'Selected'; position: absolute; top: -22px; left: 0; background: #9333ea;
-            color: white; font-size: 10px; padding: 2px 6px; border-radius: 4px 4px 0 0; z-index: 50;
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+        
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            transition: background-color 0.3s ease;
+        }
+
+        .scrollbar-hide::-webkit-scrollbar {
+            display: none;
+        }
+
+        /* Custom Theme Transitions */
+        .theme-transition {
+            transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
+        }
+
+        /* Purple Glow Effect */
+        .purple-glow {
+            box-shadow: 0 0 20px rgba(168, 85, 247, 0.15);
+        }
+
+        /* Phone frame silhouette */
+        .phone-frame {
+            border: 12px solid #18181b;
+            border-radius: 40px;
+            width: 375px;
+            margin: 0 auto;
         }
     </style>
 </head>
-<body class="bg-white dark:bg-slate-950 text-slate-800 dark:text-slate-100 h-screen flex flex-col overflow-hidden transition-colors duration-300">
-
-    <!-- Loading Screen -->
-    <div id="loading-screen" class="fixed inset-0 z-[100] bg-white dark:bg-slate-950 flex flex-col items-center justify-center transition-opacity duration-500">
-        <div class="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-purple-600 mb-4"></div>
-        <h2 class="text-xl font-semibold animate-pulse">WebNix Studio</h2>
-    </div>
-
-    <!-- Navbar -->
-    <nav class="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 h-16 flex items-center justify-between px-6 shrink-0 z-20">
-        <div class="flex items-center gap-3">
-            <div class="w-8 h-8 bg-purple-600 rounded-lg flex items-center justify-center text-white font-bold">W</div>
-            <h1 class="font-bold text-xl tracking-tight">WebNix</h1>
+<body class="bg-slate-50 text-slate-900" id="app-body">
+    <div id="app-root" class="h-screen flex flex-col overflow-hidden">
+        <!-- Loader -->
+        <div id="loader" class="fixed inset-0 z-[100] bg-black flex flex-col items-center justify-center">
+            <div class="w-12 h-12 border-4 border-purple-600 border-t-transparent rounded-full animate-spin mb-4"></div>
+            <p class="text-purple-500 font-bold tracking-widest text-xs uppercase">Initializing WebNix AI...</p>
         </div>
 
-        <div id="editor-controls" class="hidden flex items-center gap-4">
-            <!-- Page Selector -->
-            <div class="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 p-1 rounded-lg">
-                <select id="page-selector" onchange="switchPage(this.value)" class="bg-transparent text-sm font-medium px-2 py-1 outline-none">
-                    <!-- Pages Injected Here -->
-                </select>
-                <button onclick="addNewPage()" class="p-1 hover:text-purple-600" title="Add Page"><i class="fa-solid fa-plus-circle"></i></button>
-            </div>
-
-            <div class="h-6 w-px bg-slate-200 dark:bg-slate-700"></div>
-            
-            <button onclick="saveWebsite()" class="text-sm font-medium hover:text-purple-600"><i class="fa-solid fa-cloud-arrow-up mr-1"></i> Save</button>
-            <button onclick="exportCode()" class="text-sm font-medium hover:text-purple-600"><i class="fa-solid fa-code mr-1"></i> Export</button>
-            <button onclick="publishWebsite()" class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-md text-sm font-medium transition">Publish</button>
-            
-            <button onclick="backToDashboard()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-lg"></i></button>
-        </div>
-
-        <div id="dashboard-controls" class="flex items-center gap-4">
-            <button onclick="toggleTheme()" class="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
-                <i class="fa-solid fa-sun dark:hidden"></i><i class="fa-solid fa-moon hidden dark:block"></i>
-            </button>
-            <div id="user-info" class="text-sm font-medium">Loading...</div>
-            <button onclick="signOut()" class="text-red-500 text-sm font-medium">Sign Out</button>
-        </div>
-    </nav>
-
-    <div class="flex-1 flex overflow-hidden relative">
-        
-        <!-- DASHBOARD -->
-        <div id="dashboard-view" class="absolute inset-0 z-10 bg-slate-50 dark:bg-black p-8 overflow-y-auto w-full">
-            <div class="max-w-6xl mx-auto">
-                <div class="flex justify-between items-end mb-8">
-                    <h2 class="text-3xl font-bold">Your Projects</h2>
-                    <button onclick="createNewProject()" class="bg-purple-600 text-white px-5 py-2.5 rounded-lg font-medium">New Project</button>
+        <!-- Dashboard View -->
+        <div id="view-dashboard" class="hidden flex-1 overflow-y-auto theme-transition">
+            <header class="border-b px-8 py-4 flex justify-between items-center sticky top-0 z-10 backdrop-blur-md theme-transition" id="dash-header">
+                <div class="flex items-center gap-2">
+                    <div class="w-10 h-10 bg-purple-600 rounded-lg flex items-center justify-center text-white font-bold shadow-lg shadow-purple-500/20">W</div>
+                    <h1 class="text-xl font-bold tracking-tight">WebNix <span class="text-purple-500">AI Studio</span></h1>
                 </div>
-                <div id="projects-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
-            </div>
-        </div>
-
-        <!-- EDITOR -->
-        <div id="editor-view" class="hidden flex-1 flex w-full">
-            <aside class="w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col shrink-0">
-                <div class="p-4 border-b border-slate-100 dark:border-slate-800"><h3 class="text-xs font-bold text-slate-400 uppercase">Elements</h3></div>
-                <div class="p-4 grid grid-cols-2 gap-3 overflow-y-auto">
-                    <div draggable="true" ondragstart="drag(event)" data-type="heading" class="draggable-item bg-slate-50 dark:bg-slate-800 p-3 rounded-lg flex flex-col items-center gap-2 border border-slate-200 dark:border-slate-700">
-                        <i class="fa-solid fa-heading text-xl"></i><span class="text-xs">Header</span>
+                <div class="flex items-center gap-4">
+                    <button onclick="toggleTheme()" class="p-2 rounded-full border border-slate-200 text-slate-400 hover:bg-slate-100 theme-transition" id="theme-toggle-btn">
+                        <i data-lucide="moon" class="w-5 h-5"></i>
+                    </button>
+                    <div class="flex items-center gap-3 pl-3 pr-1 py-1 rounded-full border border-slate-200 bg-slate-100 theme-transition" id="user-pill">
+                        <span id="user-email" class="text-xs font-bold opacity-70">user@example.com</span>
+                        <button onclick="handleLogout()" class="bg-white/10 p-1.5 rounded-full text-red-400 hover:text-red-500 transition-colors">
+                            <i data-lucide="log-out" class="w-4 h-4"></i>
+                        </button>
                     </div>
-                    <div draggable="true" ondragstart="drag(event)" data-type="text" class="draggable-item bg-slate-50 dark:bg-slate-800 p-3 rounded-lg flex flex-col items-center gap-2 border border-slate-200 dark:border-slate-700">
-                        <i class="fa-solid fa-paragraph text-xl"></i><span class="text-xs">Text</span>
-                    </div>
-                    <div draggable="true" ondragstart="drag(event)" data-type="button" class="draggable-item bg-slate-50 dark:bg-slate-800 p-3 rounded-lg flex flex-col items-center gap-2 border border-slate-200 dark:border-slate-700">
-                        <i class="fa-solid fa-link text-xl"></i><span class="text-xs">Button</span>
-                    </div>
-                    <div draggable="true" ondragstart="drag(event)" data-type="image" class="draggable-item bg-slate-50 dark:bg-slate-800 p-3 rounded-lg flex flex-col items-center gap-2 border border-slate-200 dark:border-slate-700">
-                        <i class="fa-solid fa-image text-xl"></i><span class="text-xs">Image</span>
-                    </div>
-                    <div draggable="true" ondragstart="drag(event)" data-type="container" class="draggable-item bg-slate-50 dark:bg-slate-800 p-3 rounded-lg flex flex-col items-center gap-2 border border-slate-200 dark:border-slate-700">
-                        <i class="fa-solid fa-box text-xl"></i><span class="text-xs">Box</span>
-                    </div>
-                    <div draggable="true" ondragstart="drag(event)" data-type="spacer" class="draggable-item bg-slate-50 dark:bg-slate-800 p-3 rounded-lg flex flex-col items-center gap-2 border border-slate-200 dark:border-slate-700">
-                        <i class="fa-solid fa-arrows-up-down text-xl"></i><span class="text-xs">Spacer</span>
-                    </div>
+                    <button onclick="createNewProject()" class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-all shadow-xl shadow-purple-500/20 font-bold text-sm">
+                        <i data-lucide="plus" class="w-4 h-4"></i> New Project
+                    </button>
                 </div>
-            </aside>
+            </header>
 
-            <main class="flex-1 bg-slate-100 dark:bg-slate-950 flex justify-center overflow-auto p-8" onclick="deselectAll(event)">
-                <div id="editor-canvas" class="bg-white dark:bg-slate-900 w-full max-w-4xl min-h-[800px] shadow-lg p-8" ondrop="drop(event)" ondragover="allowDrop(event)"></div>
+            <main class="max-w-6xl mx-auto p-8">
+                <h2 class="text-3xl font-black mb-8 tracking-tight">Your Workspace</h2>
+                <div id="projects-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                    <!-- Projects will be injected here -->
+                </div>
             </main>
+        </div>
 
-            <!-- Properties -->
-            <aside id="properties-panel" class="w-72 bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800 flex flex-col shrink-0 transform translate-x-full transition-transform duration-300 absolute right-0 h-full z-20 shadow-xl">
-                <div class="p-4 border-b border-slate-100 dark:border-slate-800 flex justify-between">
-                    <h3 class="text-xs font-bold uppercase">Properties</h3>
-                    <button onclick="closeProperties()"><i class="fa-solid fa-xmark"></i></button>
+        <!-- Editor View -->
+        <div id="view-editor" class="hidden flex-1 flex overflow-hidden theme-transition">
+            <!-- Left Sidebar -->
+            <aside class="w-80 border-r flex flex-col z-30 shadow-2xl theme-transition" id="editor-sidebar">
+                <div class="p-5 border-b flex items-center justify-between border-purple-900/10">
+                    <button onclick="setView('dashboard')" class="p-2 rounded-xl border border-slate-100 hover:bg-slate-50 transition-all theme-transition">
+                        <i data-lucide="chevron-left" class="w-5 h-5"></i>
+                    </button>
+                    <span class="font-black text-sm">WebNix <span class="text-purple-500">Studio</span></span>
+                    <button onclick="toggleTheme()" class="p-2 opacity-50"><i data-lucide="sun" class="w-4 h-4"></i></button>
                 </div>
-                <div class="p-4 space-y-4 overflow-y-auto">
-                    <div id="prop-text-group" class="hidden">
-                        <label class="block text-xs font-medium mb-1">Content</label>
-                        <textarea id="prop-text" oninput="updateElementText(this.value)" class="w-full bg-slate-50 dark:bg-slate-800 border rounded p-2 text-sm" rows="3"></textarea>
+                <div class="p-4 overflow-y-auto space-y-4">
+                    <div class="text-[10px] font-black uppercase tracking-widest opacity-30">Components</div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <button onclick="addComponent('navbar')" class="p-4 rounded-2xl border border-slate-200 bg-slate-50 hover:border-purple-500 transition-all text-center group theme-transition">
+                            <i data-lucide="layers" class="w-5 h-5 mx-auto mb-2 text-purple-500"></i>
+                            <span class="text-[10px] font-bold">Navbar</span>
+                        </button>
+                        <button onclick="addComponent('hero')" class="p-4 rounded-2xl border border-slate-200 bg-slate-50 hover:border-purple-500 transition-all text-center group theme-transition">
+                            <i data-lucide="square" class="w-5 h-5 mx-auto mb-2 text-purple-500"></i>
+                            <span class="text-[10px] font-bold">Hero</span>
+                        </button>
                     </div>
-                    <div id="prop-link-group" class="hidden">
-                        <label class="block text-xs font-medium mb-1">Link Target</label>
-                        <select id="prop-link-select" onchange="updateElementLink(this.value)" class="w-full bg-slate-50 dark:bg-slate-800 border rounded p-2 text-sm mb-2">
-                            <option value="">External URL</option>
-                        </select>
-                        <input type="text" id="prop-link-raw" oninput="updateElementLink(this.value)" class="w-full bg-slate-50 dark:bg-slate-800 border rounded p-2 text-sm" placeholder="https://...">
-                    </div>
-                    <div id="prop-size-group">
-                        <label class="block text-xs font-medium mb-1">Width (%)</label>
-                        <input type="range" min="10" max="100" oninput="updateSize('width', this.value + '%')" class="w-full accent-purple-600">
-                        <label class="block text-xs font-medium mt-2 mb-1">Height (px - auto for 0)</label>
-                        <input type="range" min="0" max="800" oninput="updateSize('height', this.value == 0 ? 'auto' : this.value + 'px')" class="w-full accent-purple-600">
-                    </div>
-                    <button onclick="deleteSelected()" class="w-full bg-red-50 dark:bg-red-900/20 text-red-600 py-2 rounded text-sm mt-4">Delete Element</button>
                 </div>
             </aside>
-        </div>
-    </div>
 
-    <!-- Export Modal -->
-    <div id="export-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-        <div class="bg-white dark:bg-slate-900 rounded-lg max-w-2xl w-full p-6 flex flex-col h-[80vh]">
-            <h3 class="text-xl font-bold mb-4">Export Code</h3>
-            <textarea id="export-textarea" readonly class="flex-1 bg-slate-900 text-green-400 p-4 font-mono text-xs rounded mb-4 overflow-auto"></textarea>
-            <div class="flex gap-2">
-                <button onclick="copyExport()" class="flex-1 bg-purple-600 text-white py-2 rounded">Copy Code</button>
-                <button onclick="document.getElementById('export-modal').classList.add('hidden')" class="flex-1 bg-slate-200 dark:bg-slate-800 py-2 rounded">Close</button>
+            <!-- Canvas Area -->
+            <div class="flex-1 flex flex-col relative">
+                <header class="h-20 border-b flex justify-between items-center px-8 z-20 theme-transition" id="editor-header">
+                    <div class="flex items-center gap-6">
+                        <input type="text" id="project-title-input" class="font-black text-lg bg-transparent border-none focus:ring-0 w-48" onchange="updateProjectTitle(this.value)">
+                        <div class="flex items-center gap-1 p-1.5 rounded-xl border border-slate-100 bg-slate-100 theme-transition" id="viewport-switcher">
+                            <button onclick="setViewport('desktop')" id="btn-vp-desktop" class="p-2 rounded-lg bg-purple-600 text-white shadow-lg shadow-purple-500/30 transition-all">
+                                <i data-lucide="monitor" class="w-4 h-4"></i>
+                            </button>
+                            <button onclick="setViewport('mobile')" id="btn-vp-mobile" class="p-2 rounded-lg opacity-40 transition-all">
+                                <i data-lucide="smartphone" class="w-4 h-4"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <button onclick="saveProject()" class="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2.5 text-xs font-black rounded-xl shadow-xl shadow-purple-500/20 transition-all">Save Design</button>
+                </header>
+
+                <div class="flex-1 overflow-y-auto p-12 flex justify-center theme-transition" id="canvas-container">
+                    <div id="canvas-frame" class="bg-white text-slate-900 shadow-2xl transition-all duration-500 min-h-full overflow-hidden w-full max-w-5xl rounded-lg">
+                        <div id="canvas-elements" class="flex flex-col">
+                            <!-- Dragged elements appear here -->
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 
     <script>
-        const supaUrl = 'https://rnlwrngfgvznndlekmrz.supabase.co';
-        const supaKey = 'sb_publishable_mtI0_ZBvU_n5oRuqV58QHg_qJt3Gfyt'; 
-        let sbClient, currentUser, currentProjectId;
-        let selectedElement = null;
-        let pages = { 'index': { title: 'Home', content: '' } };
-        let activePage = 'index';
+        // --- CONFIG ---
+        const SUPABASE_URL = 'https://rnlwrngfgvznndlekmrz.supabase.co';
+        const SUPABASE_ANON_KEY = 'sb_publishable_mtI0_ZBvU_n5oRuqV58QHg_qJt3Gfyt';
+        let supabaseClient;
+        
+        // --- STATE ---
+        let user = null;
+        let theme = 'dark'; // Default to dark as requested
+        let view = 'dashboard';
+        let viewport = 'desktop';
+        let projects = [];
+        let currentProject = null;
+        let currentPageId = 'index';
 
+        // --- INIT ---
         window.onload = async () => {
-            sbClient = supabase.createClient(supaUrl, supaKey);
-            initTheme();
-            const { data: { session } } = await sbClient.auth.getSession();
-            document.getElementById('loading-screen').style.display = 'none';
-            if (!session) { window.location.href = 'auth.html'; return; }
-            currentUser = session.user;
-            document.getElementById('user-info').textContent = currentUser.email;
-            loadProjects();
+            supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+            lucide.createIcons();
+            await checkAuth();
+            applyTheme();
         };
 
-        function initTheme() {
-            if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-                document.documentElement.classList.add('dark');
+        async function checkAuth() {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session) {
+                window.location.href = 'auth.html';
+                return;
             }
+            user = session.user;
+            document.getElementById('user-email').textContent = user.email;
+            
+            supabaseClient.auth.onAuthStateChanged((_event, session) => {
+                if (!session) window.location.href = 'auth.html';
+            });
+
+            await fetchProjects();
+            document.getElementById('loader').classList.add('hidden');
+            setView('dashboard');
+        }
+
+        async function fetchProjects() {
+            const { data, error } = await supabaseClient
+                .from('websites')
+                .select('*')
+                .eq('user_id', user.id)
+                .order('updated_at', { ascending: false });
+            
+            if (data) {
+                projects = data;
+                renderProjects();
+            }
+        }
+
+        function setView(v) {
+            view = v;
+            document.getElementById('view-dashboard').classList.toggle('hidden', v !== 'dashboard');
+            document.getElementById('view-editor').classList.toggle('hidden', v !== 'editor');
         }
 
         function toggleTheme() {
-            document.documentElement.classList.toggle('dark');
-            localStorage.theme = document.documentElement.classList.contains('dark') ? 'dark' : 'light';
+            theme = theme === 'light' ? 'dark' : 'light';
+            applyTheme();
         }
 
-        async function loadProjects() {
-            const { data } = await sbClient.from('websites').select('*').order('updated_at', { ascending: false });
+        function applyTheme() {
+            const body = document.getElementById('app-body');
+            const dashHeader = document.getElementById('dash-header');
+            const editorSidebar = document.getElementById('editor-sidebar');
+            const editorHeader = document.getElementById('editor-header');
+            const canvasContainer = document.getElementById('canvas-container');
+            const dashHeaderClasses = document.getElementById('dash-header');
+            const userPill = document.getElementById('user-pill');
+            const vpSwitcher = document.getElementById('viewport-switcher');
+
+            if (theme === 'dark') {
+                body.className = 'bg-zinc-950 text-white theme-transition';
+                dashHeader.className = 'border-b px-8 py-4 flex justify-between items-center sticky top-0 z-10 backdrop-blur-md bg-black/80 border-purple-900/30 theme-transition';
+                editorSidebar.className = 'w-80 border-r flex flex-col z-30 shadow-2xl bg-black border-purple-900/30 theme-transition';
+                editorHeader.className = 'h-20 border-b flex justify-between items-center px-8 z-20 bg-black border-purple-900/30 theme-transition';
+                canvasContainer.className = 'flex-1 overflow-y-auto p-12 flex justify-center bg-zinc-950 theme-transition';
+                userPill.className = 'flex items-center gap-3 pl-3 pr-1 py-1 rounded-full border bg-zinc-900 border-purple-900/30 theme-transition';
+                vpSwitcher.className = 'flex items-center gap-1 p-1.5 rounded-xl border bg-zinc-900 border-purple-900/30 theme-transition';
+                document.getElementById('canvas-frame').classList.add('bg-black', 'text-white', 'shadow-purple-900/20');
+                document.getElementById('canvas-frame').classList.remove('bg-white', 'text-slate-900', 'shadow-slate-200');
+            } else {
+                body.className = 'bg-slate-50 text-slate-900 theme-transition';
+                dashHeader.className = 'border-b px-8 py-4 flex justify-between items-center sticky top-0 z-10 backdrop-blur-md bg-white/80 border-slate-200 theme-transition';
+                editorSidebar.className = 'w-80 border-r flex flex-col z-30 shadow-2xl bg-white border-slate-200 theme-transition';
+                editorHeader.className = 'h-20 border-b flex justify-between items-center px-8 z-20 bg-white border-slate-100 theme-transition';
+                canvasContainer.className = 'flex-1 overflow-y-auto p-12 flex justify-center bg-slate-50 theme-transition';
+                userPill.className = 'flex items-center gap-3 pl-3 pr-1 py-1 rounded-full border bg-slate-100 border-slate-200 theme-transition';
+                vpSwitcher.className = 'flex items-center gap-1 p-1.5 rounded-xl border bg-slate-100 border-slate-200 theme-transition';
+                document.getElementById('canvas-frame').classList.add('bg-white', 'text-slate-900', 'shadow-slate-200');
+                document.getElementById('canvas-frame').classList.remove('bg-black', 'text-white', 'shadow-purple-900/20');
+            }
+            renderCanvas();
+            lucide.createIcons();
+        }
+
+        function renderProjects() {
             const grid = document.getElementById('projects-grid');
-            grid.innerHTML = data && data.length ? '' : '<p class="text-center py-20 text-slate-400">No projects yet.</p>';
-            if (data) {
-                data.forEach(p => {
-                    const card = document.createElement('div');
-                    card.className = 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 cursor-pointer hover:shadow-lg';
-                    card.innerHTML = `<h3 class="font-bold mb-1">${p.title}</h3><p class="text-xs text-slate-500">Edited: ${new Date(p.updated_at).toLocaleDateString()}</p>`;
-                    card.onclick = () => openProject(p.id);
-                    grid.appendChild(card);
-                });
-            }
+            grid.innerHTML = projects.map(proj => `
+                <div class="rounded-2xl border overflow-hidden hover:shadow-2xl hover:shadow-purple-500/10 transition-all group flex flex-col ${theme === 'dark' ? 'bg-black border-purple-900/30' : 'bg-white border-slate-200'}">
+                    <div class="h-40 flex items-center justify-center border-b ${theme === 'dark' ? 'bg-zinc-900 border-purple-900/20' : 'bg-slate-50 border-slate-100'}">
+                        <i data-lucide="layout" class="w-12 h-12 ${theme === 'dark' ? 'text-purple-900' : 'text-slate-200'} group-hover:scale-110 transition-transform"></i>
+                    </div>
+                    <div class="p-6">
+                        <h3 class="font-bold text-lg mb-4 truncate">${proj.title}</h3>
+                        <button onclick="openEditor('${proj.id}')" class="w-full bg-purple-600 hover:bg-purple-700 text-white py-2.5 rounded-xl text-sm font-black shadow-lg shadow-purple-500/10">Edit Design</button>
+                    </div>
+                </div>
+            `).join('');
+            lucide.createIcons();
         }
 
-        async function openProject(id) {
-            currentProjectId = id;
-            const { data } = await sbClient.from('websites').select('*').eq('id', id).single();
-            if (data) {
-                try {
-                    pages = data.pages_data ? JSON.parse(data.pages_data) : { 'index': { title: 'Home', content: data.html_content || '' } };
-                } catch(e) {
-                    pages = { 'index': { title: 'Home', content: data.html_content || '' } };
-                }
-                switchPage('index');
-                updatePageUI();
-                document.getElementById('dashboard-view').classList.add('hidden');
-                document.getElementById('editor-view').classList.remove('hidden');
-                document.getElementById('editor-controls').classList.remove('hidden');
-                document.getElementById('dashboard-controls').classList.add('hidden');
-            }
-        }
-
-        function switchPage(pageKey) {
-            if (activePage && pages[activePage]) {
-                pages[activePage].content = document.getElementById('editor-canvas').innerHTML;
-            }
-            activePage = pageKey;
-            document.getElementById('editor-canvas').innerHTML = pages[pageKey].content || '';
-            attachHandlers();
-            updateLinkSelect();
-        }
-
-        function updatePageUI() {
-            const selector = document.getElementById('page-selector');
-            selector.innerHTML = '';
-            Object.keys(pages).forEach(key => {
-                const opt = document.createElement('option');
-                opt.value = key; opt.textContent = pages[key].title;
-                if(key === activePage) opt.selected = true;
-                selector.appendChild(opt);
-            });
-        }
-
-        function addNewPage() {
-            const name = prompt("Page Name:");
-            if(!name) return;
-            const key = name.toLowerCase().replace(/ /g, '-');
-            pages[key] = { title: name, content: '' };
-            updatePageUI();
-            switchPage(key);
-        }
-
-        function updateLinkSelect() {
-            const select = document.getElementById('prop-link-select');
-            select.innerHTML = '<option value="">External URL</option>';
-            Object.keys(pages).forEach(key => {
-                const opt = document.createElement('option');
-                opt.value = key + '.html';
-                opt.textContent = 'Page: ' + pages[key].title;
-                select.appendChild(opt);
-            });
-        }
-
-        function drag(ev) { ev.dataTransfer.setData("type", ev.target.dataset.type); }
-        function allowDrop(ev) { ev.preventDefault(); }
-        function drop(ev) {
-            ev.preventDefault();
-            const type = ev.dataTransfer.getData("type");
-            const el = createElement(type);
-            document.getElementById('editor-canvas').appendChild(el);
-            selectElement(el, new Event('click'));
-        }
-
-        function createElement(type) {
-            let el;
-            const base = "relative hover:outline hover:outline-2 hover:outline-purple-400 cursor-pointer transition-all mb-4 block";
-            switch(type) {
-                case 'heading': el = document.createElement('h2'); el.className = base + " text-3xl font-bold"; el.innerText = "New Heading"; break;
-                case 'text': el = document.createElement('p'); el.className = base + " text-slate-600"; el.innerText = "Paragraph text goes here."; break;
-                case 'button': el = document.createElement('a'); el.className = base + " inline-block bg-purple-600 text-white px-6 py-2 rounded text-center"; el.innerText = "Button"; el.href = "#"; break;
-                case 'image': el = document.createElement('img'); el.className = base + " rounded-lg max-w-full"; el.src = "https://via.placeholder.com/400x200"; break;
-                case 'container': el = document.createElement('div'); el.className = base + " p-6 border-2 border-dashed border-slate-200 min-h-[100px] rounded-lg"; break;
-                case 'spacer': el = document.createElement('div'); el.className = base + " h-8 w-full bg-transparent"; break;
-            }
-            el.onclick = (e) => selectElement(el, e);
-            return el;
-        }
-
-        function selectElement(el, e) {
-            e.stopPropagation();
-            if (selectedElement) selectedElement.classList.remove('selected-element');
-            selectedElement = el;
-            selectedElement.classList.add('selected-element');
-            
-            document.getElementById('properties-panel').classList.remove('translate-x-full');
-            document.getElementById('prop-text-group').classList.toggle('hidden', !['H2', 'P', 'A'].includes(el.tagName));
-            document.getElementById('prop-link-group').classList.toggle('hidden', el.tagName !== 'A');
-            
-            if(['H2','P','A'].includes(el.tagName)) document.getElementById('prop-text').value = el.innerText;
-            if(el.tagName === 'A') document.getElementById('prop-link-raw').value = el.getAttribute('href');
-        }
-
-        function updateElementText(v) { if(selectedElement) selectedElement.innerText = v; }
-        function updateElementLink(v) { if(selectedElement) selectedElement.href = v; }
-        function updateSize(prop, val) { if(selectedElement) selectedElement.style[prop] = val; }
-        function deleteSelected() { if(selectedElement) { selectedElement.remove(); closeProperties(); } }
-        function closeProperties() { document.getElementById('properties-panel').classList.add('translate-x-full'); }
-
-        async function saveWebsite() {
-            if (!currentProjectId) return;
-            pages[activePage].content = document.getElementById('editor-canvas').innerHTML;
-            const { error } = await sbClient.from('websites').update({ 
-                pages_data: JSON.stringify(pages),
-                updated_at: new Date()
-            }).eq('id', currentProjectId);
-            alert(error ? "Error saving" : "Project Saved!");
-        }
-
-        function exportCode() {
-            const html = `<!DOCTYPE html>\n<html>\n<head>\n<script src="https://cdn.tailwindcss.com"></script>\n</head>\n<body>\n${document.getElementById('editor-canvas').innerHTML}\n</body>\n</html>`;
-            document.getElementById('export-textarea').value = html;
-            document.getElementById('export-modal').classList.remove('hidden');
-        }
-
-        function copyExport() {
-            const area = document.getElementById('export-textarea');
-            area.select();
-            document.execCommand('copy');
-            alert("Code copied to clipboard!");
-        }
-
-        function attachHandlers() {
-            document.querySelectorAll('#editor-canvas *').forEach(el => {
-                el.onclick = (e) => selectElement(el, e);
-            });
-        }
-
-        function backToDashboard() {
-            document.getElementById('editor-view').classList.add('hidden');
-            document.getElementById('editor-controls').classList.add('hidden');
-            document.getElementById('dashboard-view').classList.remove('hidden');
-            document.getElementById('dashboard-controls').classList.remove('hidden');
-            loadProjects();
-        }
-
-        function deselectAll(e) { if(e.target.tagName === 'MAIN') { if(selectedElement) selectedElement.classList.remove('selected-element'); closeProperties(); } }
-        
-        async function signOut() {
-            await sbClient.auth.signOut();
-            window.location.href = 'auth.html';
-        }
-        
         async function createNewProject() {
-            const title = prompt("Project Title:", "My New Website");
-            if (!title) return;
-            const { data, error } = await sbClient.from('websites').insert([{
-                title: title,
-                user_id: currentUser.id,
-                pages_data: JSON.stringify({ 'index': { title: 'Home', content: '' } })
-            }]).select();
-            if (data) loadProjects();
+            const initialContent = { pages: { 'index': { title: 'Home', elements: [] } } };
+            const newProject = {
+                title: 'New WebNix Project',
+                html_content: JSON.stringify(initialContent),
+                styles_content: { theme: 'dark', primaryColor: '#a855f7' },
+                is_published: false,
+                user_id: user.id
+            };
+
+            const { data, error } = await supabaseClient.from('websites').insert([newProject]).select();
+            if (data) {
+                projects.unshift(data[0]);
+                openEditor(data[0].id);
+            }
+        }
+
+        function openEditor(id) {
+            const project = projects.find(p => p.id == id);
+            currentProject = { ...project, html_content: typeof project.html_content === 'string' ? JSON.parse(project.html_content) : project.html_content };
+            document.getElementById('project-title-input').value = currentProject.title;
+            setView('editor');
+            renderCanvas();
+        }
+
+        function addComponent(type) {
+            const templates = {
+                navbar: { type: 'navbar', content: { brand: 'WebNix', links: ['Home', 'Features'] } },
+                hero: { type: 'hero', content: { title: 'AI Powered Future', subtitle: 'Built with Codenix AI Studio engine.' } }
+            };
+            const newEl = { ...templates[type], id: Math.random().toString(36).substr(2, 9) };
+            currentProject.html_content.pages[currentPageId].elements.push(newEl);
+            renderCanvas();
+        }
+
+        function removeComponent(id) {
+            currentProject.html_content.pages[currentPageId].elements = currentProject.html_content.pages[currentPageId].elements.filter(el => el.id !== id);
+            renderCanvas();
+        }
+
+        function renderCanvas() {
+            if (!currentProject) return;
+            const container = document.getElementById('canvas-elements');
+            const elements = currentProject.html_content.pages[currentPageId].elements;
+            
+            container.innerHTML = elements.map((el, idx) => {
+                let html = `<div class="group relative border-b border-transparent hover:border-purple-500/30 transition-all">
+                    <div class="absolute -left-12 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button onclick="removeComponent('${el.id}')" class="p-2 bg-red-500 text-white rounded-lg shadow-lg"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                    </div>`;
+
+                if (el.type === 'navbar') {
+                    html += `<nav class="p-6 flex justify-between font-bold border-b border-purple-900/10">
+                        <div class="text-xl tracking-tighter">${el.content.brand}</div>
+                        <div class="flex gap-4 opacity-50 text-xs uppercase tracking-widest">${el.content.links.join(' ')}</div>
+                    </nav>`;
+                } else if (el.type === 'hero') {
+                    html += `<section class="py-24 px-12 text-center">
+                        <h1 class="text-4xl md:text-6xl font-black mb-4 tracking-tight">${el.content.title}</h1>
+                        <p class="opacity-60 max-w-xl mx-auto">${el.content.subtitle}</p>
+                        <button class="mt-8 bg-purple-600 text-white px-8 py-3 rounded-full font-bold text-sm">Get Started</button>
+                    </section>`;
+                }
+                
+                html += `</div>`;
+                return html;
+            }).join('');
+            lucide.createIcons();
+        }
+
+        function setViewport(vp) {
+            viewport = vp;
+            const frame = document.getElementById('canvas-frame');
+            const btnD = document.getElementById('btn-vp-desktop');
+            const btnM = document.getElementById('btn-vp-mobile');
+
+            if (vp === 'mobile') {
+                frame.className = `transition-all duration-500 min-h-full overflow-hidden phone-frame shadow-2xl ${theme === 'dark' ? 'bg-black text-white shadow-purple-900/20' : 'bg-white text-slate-900 shadow-slate-200'}`;
+                btnM.classList.add('bg-purple-600', 'text-white', 'shadow-lg');
+                btnM.classList.remove('opacity-40');
+                btnD.classList.add('opacity-40');
+                btnD.classList.remove('bg-purple-600', 'text-white', 'shadow-lg');
+            } else {
+                frame.className = `transition-all duration-500 min-h-full overflow-hidden w-full max-w-5xl rounded-lg shadow-2xl ${theme === 'dark' ? 'bg-black text-white shadow-purple-900/20' : 'bg-white text-slate-900 shadow-slate-200'}`;
+                btnD.classList.add('bg-purple-600', 'text-white', 'shadow-lg');
+                btnD.classList.remove('opacity-40');
+                btnM.classList.add('opacity-40');
+                btnM.classList.remove('bg-purple-600', 'text-white', 'shadow-lg');
+            }
+        }
+
+        async function saveProject() {
+            const { error } = await supabaseClient
+                .from('websites')
+                .update({
+                    title: currentProject.title,
+                    html_content: JSON.stringify(currentProject.html_content),
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', currentProject.id);
+            
+            if (!error) alert("Design saved successfully to cloud!");
+            else alert("Error saving: " + error.message);
+        }
+
+        function updateProjectTitle(val) {
+            currentProject.title = val;
+        }
+
+        async function handleLogout() {
+            await supabaseClient.auth.signOut();
+            window.location.href = 'auth.html';
         }
     </script>
 </body>
