@@ -82,20 +82,28 @@
         <div class="menu-item danger" onclick="deleteActive()"><i class="fas fa-trash"></i> Remove</div>
     </div>
 
+    <!-- Enhanced Publish Modal -->
     <div id="publish-modal">
         <div class="bg-slate-800 p-8 rounded-2xl max-w-md w-full border border-slate-700 text-center animate__animated animate__zoomIn">
             <div class="w-16 h-16 bg-emerald-500/20 text-emerald-500 rounded-full flex items-center justify-center mx-auto mb-4">
-                <i class="fas fa-check-circle text-3xl"></i>
+                <i class="fas fa-share-alt text-3xl"></i>
             </div>
-            <h2 class="text-xl font-bold mb-2">Website Published!</h2>
-            <p class="text-slate-400 text-sm mb-6">Your site is live. Share this link with anyone.</p>
+            <h2 class="text-xl font-bold mb-2">Share Your Website</h2>
+            <p class="text-slate-400 text-sm mb-6">Your site is public! Copy the link or share it directly with friends.</p>
+            
             <div class="bg-slate-900 p-3 rounded-lg border border-slate-700 flex items-center gap-3 mb-6">
                 <input id="publish-url" readonly type="text" class="bg-transparent border-none text-xs flex-1 text-indigo-400 outline-none">
-                <button onclick="copyPublishUrl()" class="text-slate-400 hover:text-white"><i class="fas fa-copy"></i></button>
+                <button onclick="copyPublishUrl()" class="text-slate-400 hover:text-white" title="Copy Link"><i class="fas fa-copy"></i></button>
             </div>
-            <div class="flex gap-3">
-                <button id="visit-btn" class="flex-1 bg-indigo-600 py-2 rounded-lg font-bold text-sm">Visit Site</button>
-                <button onclick="document.getElementById('publish-modal').style.display='none'" class="flex-1 bg-slate-700 py-2 rounded-lg font-bold text-sm">Close</button>
+
+            <div class="flex flex-col gap-3">
+                <button id="visit-btn" class="w-full bg-indigo-600 py-3 rounded-lg font-bold text-sm hover:bg-indigo-500 transition">
+                    <i class="fas fa-external-link-alt mr-2"></i> Open Live Site
+                </button>
+                <button id="share-native-btn" class="w-full bg-slate-700 py-3 rounded-lg font-bold text-sm hover:bg-slate-600 transition">
+                    <i class="fas fa-paper-plane mr-2"></i> Send to Friends
+                </button>
+                <button onclick="document.getElementById('publish-modal').style.display='none'" class="mt-2 text-slate-500 text-xs hover:text-white">Back to Editor</button>
             </div>
         </div>
     </div>
@@ -121,7 +129,7 @@
                 <div class="h-6 w-[1px] bg-slate-700 mx-1"></div>
                 <button onclick="saveProject()" class="text-xs bg-slate-800 px-4 py-2 rounded-md font-medium text-slate-300">Save Progress</button>
                 <button onclick="publishProject()" class="text-xs bg-indigo-600 px-4 py-2 rounded-md font-bold shadow-lg shadow-indigo-500/20 flex items-center">
-                    <i class="fas fa-globe mr-2"></i> Publish Site
+                    <i class="fas fa-globe mr-2"></i> Publish & Share
                 </button>
                 <button onclick="location.reload()" class="text-slate-400 px-2 ml-2"><i class="fas fa-times"></i></button>
             </div>
@@ -190,34 +198,62 @@
             const urlParams = new URLSearchParams(window.location.search);
             const siteId = urlParams.get('id');
             const viewMode = urlParams.get('view');
-            // Check for both URL query param and hash-based routing
-            if (siteId && viewMode === 'live') renderLiveSite(siteId); else checkAuth();
+            
+            // PUBLIC SHAREABLE VIEW DETECTION
+            // If there's an ID and view is live, don't check auth, just render.
+            if (siteId && viewMode === 'live') {
+                renderLiveSite(siteId);
+            } else {
+                checkAuth();
+            }
         }
 
         async function checkAuth() {
             const { data: { user } } = await client.auth.getUser();
-            if (!user) { window.location.href = "auth.html"; return; }
+            if (!user) { 
+                // Redirect if not viewing a live site and not logged in
+                window.location.href = "auth.html"; 
+                return; 
+            }
             currentUser = user;
             loadProjects();
         }
 
         async function renderLiveSite(id) {
+            // Fetch site data without requiring auth (assuming table permissions allow public select by ID)
             const { data } = await client.from('websites').select('*').eq('id', id).single();
-            if (!data) return document.body.innerHTML = "Site not found.";
+            
+            if (!data) {
+                document.body.innerHTML = `
+                    <div class="h-screen flex items-center justify-center flex-col gap-4 text-center">
+                        <h1 class="text-3xl font-bold">404 - Site Not Found</h1>
+                        <p class="text-slate-400">The link you followed might be broken or the site was deleted.</p>
+                        <a href="/" class="text-indigo-400 hover:underline">Back to WebNix Home</a>
+                    </div>`;
+                return;
+            }
+
             document.getElementById('app-shell').classList.add('hidden');
             const viewer = document.getElementById('live-viewer');
             viewer.classList.remove('hidden');
+            
             const pages = JSON.parse(data.html_content);
+            
             const render = () => {
                 const h = window.location.hash.replace('#/', '') || 'index';
                 viewer.innerHTML = pages[h] || pages['index'];
+                
+                // Cleanup editor-specific UI
                 viewer.querySelectorAll('.element-controls').forEach(e => e.remove());
                 viewer.querySelectorAll('.dropped-element').forEach(e => {
-                    e.style.outline = 'none'; e.style.cursor = 'default';
+                    e.style.outline = 'none'; 
+                    e.style.cursor = 'default';
                 });
             };
+
             window.onhashchange = render;
             render();
+            document.title = data.title + " | Live Site";
         }
 
         async function loadProjects() {
@@ -228,7 +264,7 @@
                     <p class="text-[10px] text-slate-500 mb-4">Modified ${new Date(s.updated_at).toLocaleDateString()}</p>
                     <div class="flex space-x-2">
                         <button onclick="openEditor('${s.id}')" class="flex-1 bg-indigo-600 hover:bg-indigo-500 py-2 rounded-lg text-sm font-bold transition">Edit Site</button>
-                        <button onclick="window.open('?id=${s.id}&view=live', '_blank')" class="bg-slate-700 px-3 rounded-lg"><i class="fas fa-external-link-alt text-xs"></i></button>
+                        <button onclick="window.open('?id=${s.id}&view=live', '_blank')" class="bg-slate-700 px-3 rounded-lg" title="View Live"><i class="fas fa-external-link-alt text-xs"></i></button>
                     </div>
                 </div>
             `).join('');
@@ -467,15 +503,39 @@
 
         async function publishProject() {
             await saveProject();
-            // Using the requested link format: ?id={ID}&view=live
             const baseUrl = window.location.href.split('?')[0];
             const url = `${baseUrl}?id=${currentProject.id}&view=live`;
             document.getElementById('publish-url').value = url;
+            
             document.getElementById('visit-btn').onclick = () => window.open(url, '_blank');
+            
+            // Native Share Logic
+            document.getElementById('share-native-btn').onclick = async () => {
+                if (navigator.share) {
+                    try {
+                        await navigator.share({
+                            title: currentProject.title,
+                            text: 'Check out the website I built with WebNix Studio!',
+                            url: url,
+                        });
+                    } catch (err) {
+                        copyPublishUrl(); // Fallback to copy if they cancel share
+                    }
+                } else {
+                    copyPublishUrl();
+                    showToast("Share API not supported, link copied!");
+                }
+            };
+
             document.getElementById('publish-modal').style.display = 'flex';
         }
 
-        function copyPublishUrl() { const u = document.getElementById('publish-url'); u.select(); document.execCommand('copy'); showToast("Link copied to clipboard!"); }
+        function copyPublishUrl() { 
+            const u = document.getElementById('publish-url'); 
+            u.select(); 
+            document.execCommand('copy'); 
+            showToast("Link copied! Share it anywhere."); 
+        }
 
         async function createNewProject() {
             const { data } = await client.from('websites').insert([{ user_id: currentUser.id, title: "My New Website", html_content: '{"index":""}' }]).select();
