@@ -22,12 +22,26 @@
         }
         .canvas-placeholder {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            text-align: center; opacity: 0.3; font-style: italic; pointer-events: none;
+            text-align: center; opacity: 0.3; font-style: italic; pointer-events: none; z-index: 10;
         }
         .draggable-item { cursor: grab; transition: all 0.2s; padding: 0.75rem; border-radius: 0.5rem; background: #1e293b; border: 1px solid #334155; font-size: 0.875rem; display: flex; align-items: center; margin-bottom: 0.5rem; }
         .draggable-item:hover { background: #334155; transform: translateX(5px); }
         .dropped-element { position: relative; outline: 1px solid transparent; transition: outline 0.1s; margin: 0 auto; width: 100%; }
         .dropped-element:hover { outline: 2px solid var(--primary); }
+        
+        /* Context Menu Styles */
+        #context-menu {
+            position: fixed; display: none; z-index: 10000; background: #1e293b; 
+            border: 1px solid #334155; border-radius: 8px; box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+            min-width: 160px; padding: 5px;
+        }
+        .menu-item {
+            padding: 8px 12px; font-size: 12px; cursor: pointer; border-radius: 4px;
+            display: flex; align-items: center; gap: 10px; transition: background 0.2s;
+        }
+        .menu-item:hover { background: var(--primary); color: white; }
+        .menu-item.danger:hover { background: #ef4444; }
+
         .element-controls {
             display: none; position: absolute; top: -35px; right: 0;
             background: var(--primary); padding: 4px 10px; border-radius: 6px; z-index: 50; gap: 10px;
@@ -50,7 +64,15 @@
         select, input[type="text"] { background: #0f172a; border: 1px solid #334155; color: white; padding: 6px; border-radius: 4px; font-size: 11px; }
     </style>
 </head>
-<body>
+<body oncontextmenu="return false;">
+
+    <div id="context-menu">
+        <div class="menu-item" onclick="renderInspector()"><i class="fas fa-sliders-h"></i> Edit Properties</div>
+        <div class="menu-item" onclick="moveActive(-1)"><i class="fas fa-arrow-up"></i> Move Up</div>
+        <div class="menu-item" onclick="moveActive(1)"><i class="fas fa-arrow-down"></i> Move Down</div>
+        <div class="border-t border-slate-700 my-1"></div>
+        <div class="menu-item danger" onclick="deleteActive()"><i class="fas fa-trash"></i> Delete Element</div>
+    </div>
 
     <div id="toast" class="bg-indigo-600 text-white px-6 py-3 rounded-lg shadow-xl">
         <span id="toast-msg"></span>
@@ -103,20 +125,22 @@
                     <div class="space-y-1">
                         <div draggable="true" ondragstart="onDragStart(event, 'navbar')" class="draggable-item"><i class="fas fa-bars w-6 text-indigo-400"></i> Navigation</div>
                         <div draggable="true" ondragstart="onDragStart(event, 'hero')" class="draggable-item"><i class="fas fa-rocket w-6 text-orange-400"></i> Hero Section</div>
+                        <div draggable="true" ondragstart="onDragStart(event, 'pricing')" class="draggable-item"><i class="fas fa-tags w-6 text-blue-400"></i> Pricing Table</div>
                         <div draggable="true" ondragstart="onDragStart(event, 'split')" class="draggable-item"><i class="fas fa-columns w-6 text-pink-400"></i> Image & Text</div>
                         <div draggable="true" ondragstart="onDragStart(event, 'features')" class="draggable-item"><i class="fas fa-th w-6 text-emerald-400"></i> Feature Grid</div>
                     </div>
                     
                     <h3 class="text-[10px] font-bold text-slate-500 uppercase my-6 tracking-widest">Single Elements</h3>
                     <div class="space-y-1">
+                        <div draggable="true" ondragstart="onDragStart(event, 'testimonial')" class="draggable-item"><i class="fas fa-quote-left w-6 text-amber-400"></i> Testimonial</div>
+                        <div draggable="true" ondragstart="onDragStart(event, 'banner')" class="draggable-item"><i class="fas fa-flag w-6 text-rose-400"></i> Full Banner</div>
                         <div draggable="true" ondragstart="onDragStart(event, 'image')" class="draggable-item"><i class="fas fa-image w-6 text-blue-400"></i> Responsive Image</div>
-                        <div draggable="true" ondragstart="onDragStart(event, 'video')" class="draggable-item"><i class="fas fa-video w-6 text-red-400"></i> Video Embed</div>
                         <div draggable="true" ondragstart="onDragStart(event, 'button')" class="draggable-item"><i class="fas fa-mouse-pointer w-6 text-purple-400"></i> Custom Button</div>
                         <div draggable="true" ondragstart="onDragStart(event, 'contact')" class="draggable-item"><i class="fas fa-paper-plane w-6 text-yellow-400"></i> Contact Form</div>
                     </div>
                 </aside>
 
-                <div class="flex-1 overflow-auto bg-slate-900 flex justify-center p-8 relative">
+                <div class="flex-1 overflow-auto bg-slate-900 flex justify-center p-8 relative" onclick="closeContextMenu()">
                     <div id="canvas" ondragover="onDragOver(event)" ondrop="onDrop(event)" class="canvas-area max-w-5xl bg-white shadow-2xl rounded-sm text-slate-900"></div>
                     <div id="canvas-placeholder" class="canvas-placeholder">/index is currently empty. Drop elements here.</div>
                 </div>
@@ -219,9 +243,9 @@
         function updatePlaceholderVisibility() {
             const placeholder = document.getElementById('canvas-placeholder');
             const canvas = document.getElementById('canvas');
-            if (canvas.children.length > 0) {
+            if (canvas && canvas.children.length > 0) {
                 placeholder.style.display = 'none';
-            } else {
+            } else if (placeholder) {
                 placeholder.style.display = 'block';
                 placeholder.innerText = `/${activePage} is currently empty. Drop elements here.`;
             }
@@ -261,8 +285,10 @@
             if(type === 'navbar') inner = `<nav class="flex justify-between items-center"><div class="text-xl font-bold text-indigo-600">WEBNIX</div><div class="space-x-8 text-sm font-semibold"><a href="#/index">Home</a><a href="#/about">About</a></div></nav>`;
             if(type === 'hero') inner = `<div class="text-center py-10"><h1 class="text-6xl font-black tracking-tighter">Your Next Big Thing</h1><p class="mt-6 text-xl text-slate-500 max-w-xl mx-auto">Build faster than ever before.</p></div>`;
             if(type === 'split') inner = `<div class="flex items-center gap-12 flex-wrap md:flex-nowrap"><div><img src="https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=800" class="rounded-2xl shadow-2xl"></div><div class="space-y-4"><h2>Analytics that Matter</h2><p class="text-slate-500">Business growth dashboard.</p></div></div>`;
+            if(type === 'pricing') inner = `<div class="grid grid-cols-1 md:grid-cols-3 gap-6"><div class="p-8 border rounded-xl text-center"><div class="text-xs font-bold text-slate-400 uppercase">Starter</div><div class="text-3xl font-bold my-2">$0</div><button class="w-full bg-slate-100 py-2 rounded text-xs font-bold">Select</button></div><div class="p-8 border-2 border-indigo-600 rounded-xl text-center bg-indigo-50"><div class="text-xs font-bold text-indigo-600 uppercase">Pro</div><div class="text-3xl font-bold my-2">$29</div><button class="w-full bg-indigo-600 text-white py-2 rounded text-xs font-bold">Select</button></div><div class="p-8 border rounded-xl text-center"><div class="text-xs font-bold text-slate-400 uppercase">Enterprise</div><div class="text-3xl font-bold my-2">$99</div><button class="w-full bg-slate-100 py-2 rounded text-xs font-bold">Select</button></div></div>`;
+            if(type === 'testimonial') inner = `<div class="max-w-2xl mx-auto text-center"><i class="fas fa-quote-left text-indigo-200 text-4xl mb-4"></i><p class="text-xl italic text-slate-700">"This studio changed the way we build landing pages. It's incredibly fast and intuitive."</p><div class="mt-6 font-bold">Alex Rivera</div><div class="text-sm text-slate-500">CEO, TechFlow</div></div>`;
+            if(type === 'banner') inner = `<div class="bg-indigo-600 text-white p-6 text-center rounded-lg shadow-lg"><h2 class="text-2xl font-bold">Limited Time Offer!</h2><p class="text-indigo-100">Get 50% off all annual plans this week.</p></div>`;
             if(type === 'image') inner = `<img src="https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&w=800" class="w-full rounded-xl shadow-lg">`;
-            if(type === 'video') inner = `<div class="aspect-video bg-black rounded-xl overflow-hidden shadow-2xl"><iframe class="w-full h-full" src="https://www.youtube.com/embed/dQw4w9WgXcQ" frameborder="0"></iframe></div>`;
             if(type === 'button') inner = `<div class="text-center"><a href="#/index" class="bg-slate-900 text-white px-8 py-3 rounded-md font-bold inline-block">Call To Action</a></div>`;
             if(type === 'features') inner = `<div class="grid grid-cols-1 md:grid-cols-3 gap-8 text-center"><div><i class="fas fa-bolt text-indigo-600 text-2xl mb-2"></i><h3 class="font-bold">Fast</h3></div><div><i class="fas fa-shield-alt text-indigo-600 text-2xl mb-2"></i><h3 class="font-bold">Secure</h3></div><div><i class="fas fa-cloud text-indigo-600 text-2xl mb-2"></i><h3 class="font-bold">Cloud</h3></div></div>`;
             if(type === 'contact') inner = `<div class="max-w-md mx-auto p-8 border rounded-2xl"><h3 class="font-bold mb-4">Contact Us</h3><input placeholder="Email" class="w-full border p-2 mb-2 rounded"><button class="w-full bg-indigo-600 text-white py-2 rounded font-bold">Send</button></div>`;
@@ -280,14 +306,54 @@
         function attachListeners(el) {
             el.onclick = (e) => {
                 e.stopPropagation();
-                if(activeElement) activeElement.style.outline = 'none';
-                activeElement = el;
-                el.style.outline = '2px solid #6366f1';
-                renderInspector();
+                setActive(el);
+            };
+            el.oncontextmenu = (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setActive(el);
+                showContextMenu(e.clientX, e.clientY);
             };
         }
 
+        function setActive(el) {
+            if(activeElement) activeElement.style.outline = 'none';
+            activeElement = el;
+            el.style.outline = '2px solid #6366f1';
+            renderInspector();
+        }
+
+        function showContextMenu(x, y) {
+            const menu = document.getElementById('context-menu');
+            menu.style.display = 'block';
+            menu.style.left = x + 'px';
+            menu.style.top = y + 'px';
+        }
+
+        function closeContextMenu() {
+            document.getElementById('context-menu').style.display = 'none';
+        }
+
+        function deleteActive() {
+            if(activeElement) {
+                activeElement.remove();
+                activeElement = null;
+                updatePlaceholderVisibility();
+                document.getElementById('inspector-content').innerHTML = `<div class="text-slate-500 text-sm italic py-20 text-center">Select an element to edit properties</div>`;
+            }
+            closeContextMenu();
+        }
+
+        function moveActive(dir) {
+            if(activeElement) {
+                if(dir === -1 && activeElement.previousElementSibling) activeElement.parentNode.insertBefore(activeElement, activeElement.previousElementSibling);
+                if(dir === 1 && activeElement.nextElementSibling) activeElement.parentNode.insertBefore(activeElement.nextElementSibling, activeElement);
+            }
+            closeContextMenu();
+        }
+
         function renderInspector() {
+            if(!activeElement) return;
             const box = activeElement.querySelector('.content-box');
             const type = activeElement.dataset.type;
             const ins = document.getElementById('inspector-content');
@@ -333,10 +399,10 @@
                 </div>
 
                 ${type === 'image' || type === 'split' ? `<div class="property-group"><label class="text-[10px] uppercase text-slate-500 block mb-2">Image URL</label><input type="text" onchange="updateMedia('img', 'src', this.value)" class="w-full" placeholder="https://..."></div>` : ''}
-                ${type === 'video' ? `<div class="property-group"><label class="text-[10px] uppercase text-slate-500 block mb-2">Embed Link</label><input type="text" onchange="updateMedia('iframe', 'src', this.value)" class="w-full" placeholder="Youtube URL..."></div>` : ''}
                 
                 <button onclick="resetEl()" class="w-full border border-slate-700 text-slate-500 py-2 rounded text-[10px] font-bold uppercase hover:bg-slate-800 transition">Reset Styles</button>
             `;
+            closeContextMenu();
         }
 
         function resetEl() {
