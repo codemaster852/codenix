@@ -67,9 +67,6 @@
             background: rgba(0,0,0,0.8); z-index: 3000; display: none;
             align-items: center; justify-content: center;
         }
-
-        /* Prevent link clicking in editor */
-        #canvas a { pointer-events: auto; text-decoration: none; }
     </style>
 </head>
 <body oncontextmenu="return false;">
@@ -88,13 +85,13 @@
                 <i class="fas fa-check-circle text-3xl"></i>
             </div>
             <h2 class="text-xl font-bold mb-2">Successfully Published!</h2>
-            <p class="text-slate-400 text-sm mb-6">Your website is now live at the URL below.</p>
+            <p class="text-slate-400 text-sm mb-6">Your website is now live at the unique URL below.</p>
             <div class="bg-slate-900 p-3 rounded-lg border border-slate-700 flex items-center gap-3 mb-6">
                 <input id="publish-url" readonly type="text" class="bg-transparent border-none text-xs flex-1 text-indigo-400 outline-none">
                 <button onclick="copyPublishUrl()" class="text-slate-400 hover:text-white"><i class="fas fa-copy"></i></button>
             </div>
             <div class="flex gap-3">
-                <button onclick="window.open(document.getElementById('publish-url').value, '_blank')" class="flex-1 bg-indigo-600 py-2 rounded-lg font-bold text-sm">Visit Site</button>
+                <button id="visit-btn" class="flex-1 bg-indigo-600 py-2 rounded-lg font-bold text-sm">Visit Site</button>
                 <button onclick="document.getElementById('publish-modal').style.display='none'" class="flex-1 bg-slate-700 py-2 rounded-lg font-bold text-sm">Close</button>
             </div>
         </div>
@@ -145,31 +142,31 @@
             <div id="view-editor" class="flex-1 flex hidden">
                 <aside class="sidebar border-r border-slate-800 p-4">
                     <div class="mb-8">
-                        <h3 class="text-[10px] font-bold text-slate-500 uppercase mb-4 tracking-widest">Site Structure</h3>
+                        <h3 class="text-[10px] font-bold text-slate-500 uppercase mb-4 tracking-widest">Navigation</h3>
                         <div id="pages-list" class="space-y-1 mb-3"></div>
-                        <button onclick="addNewPage()" class="w-full text-xs bg-slate-800 py-2 rounded border border-slate-700 hover:border-slate-500">+ Add Page</button>
+                        <button onclick="addNewPage()" class="w-full text-xs bg-slate-800 py-2 rounded border border-slate-700 hover:border-slate-500">+ New Page</button>
                     </div>
 
-                    <h3 class="text-[10px] font-bold text-slate-500 uppercase mb-4 tracking-widest">Library</h3>
+                    <h3 class="text-[10px] font-bold text-slate-500 uppercase mb-4 tracking-widest">Components</h3>
                     <div class="space-y-1">
-                        <div draggable="true" ondragstart="onDragStart(event, 'navbar')" class="draggable-item"><i class="fas fa-bars w-6 text-indigo-400"></i> Navigation</div>
-                        <div draggable="true" ondragstart="onDragStart(event, 'hero')" class="draggable-item"><i class="fas fa-rocket w-6 text-orange-400"></i> Hero Section</div>
+                        <div draggable="true" ondragstart="onDragStart(event, 'navbar')" class="draggable-item"><i class="fas fa-bars w-6 text-indigo-400"></i> Navbar</div>
+                        <div draggable="true" ondragstart="onDragStart(event, 'hero')" class="draggable-item"><i class="fas fa-rocket w-6 text-orange-400"></i> Hero</div>
+                        <div draggable="true" ondragstart="onDragStart(event, 'features')" class="draggable-item"><i class="fas fa-th w-6 text-emerald-400"></i> Features</div>
+                        <div draggable="true" ondragstart="onDragStart(event, 'split')" class="draggable-item"><i class="fas fa-columns w-6 text-pink-400"></i> Image/Text</div>
                         <div draggable="true" ondragstart="onDragStart(event, 'pricing')" class="draggable-item"><i class="fas fa-tags w-6 text-blue-400"></i> Pricing</div>
-                        <div draggable="true" ondragstart="onDragStart(event, 'split')" class="draggable-item"><i class="fas fa-columns w-6 text-pink-400"></i> Split Section</div>
-                        <div draggable="true" ondragstart="onDragStart(event, 'testimonial')" class="draggable-item"><i class="fas fa-quote-left w-6 text-amber-400"></i> Testimonial</div>
-                        <div draggable="true" ondragstart="onDragStart(event, 'banner')" class="draggable-item"><i class="fas fa-flag w-6 text-rose-400"></i> Callout Banner</div>
+                        <div draggable="true" ondragstart="onDragStart(event, 'banner')" class="draggable-item"><i class="fas fa-flag w-6 text-rose-400"></i> CTA</div>
                     </div>
                 </aside>
 
                 <div class="flex-1 overflow-auto bg-slate-900 flex justify-center p-8 relative" onclick="closeContextMenu()">
                     <div id="canvas" ondragover="onDragOver(event)" ondrop="onDrop(event)" class="canvas-area max-w-5xl bg-white shadow-2xl rounded-sm text-slate-900"></div>
-                    <div id="canvas-placeholder" class="canvas-placeholder">/index is empty. Drag elements here.</div>
+                    <div id="canvas-placeholder" class="canvas-placeholder">Canvas is empty. Drag a component here.</div>
                 </div>
 
                 <aside class="sidebar border-l border-slate-800 p-5">
                     <h3 class="text-[10px] font-bold text-slate-500 uppercase mb-6 tracking-widest">Inspector</h3>
                     <div id="inspector-content" class="space-y-2">
-                        <div class="text-slate-500 text-sm italic py-20 text-center">Select an element to edit</div>
+                        <div class="text-slate-500 text-sm italic py-20 text-center">Double-click text or select an element to edit</div>
                     </div>
                 </aside>
             </div>
@@ -189,8 +186,13 @@
         async function initApp() {
             const urlParams = new URLSearchParams(window.location.search);
             const siteId = urlParams.get('id');
-            if (siteId) renderLiveSite(siteId);
-            else checkAuth();
+            const viewMode = urlParams.get('view');
+            
+            if (siteId && viewMode === 'live') {
+                renderLiveSite(siteId);
+            } else {
+                checkAuth();
+            }
         }
 
         async function checkAuth() {
@@ -203,26 +205,27 @@
         async function renderLiveSite(id) {
             const { data } = await client.from('websites').select('*').eq('id', id).single();
             if (!data) return document.body.innerHTML = "Site not found.";
+            
             document.getElementById('app-shell').classList.add('hidden');
             const viewer = document.getElementById('live-viewer');
             viewer.classList.remove('hidden');
-            const pages = JSON.parse(data.html_content);
             
+            const pages = JSON.parse(data.html_content);
             const render = () => {
                 const h = window.location.hash.replace('#/', '') || 'index';
-                viewer.innerHTML = pages[h] || pages['index'];
+                const content = pages[h] || pages['index'];
+                
+                // Set page content
+                viewer.innerHTML = content;
+                
+                // Cleanup editor artifacts
                 viewer.querySelectorAll('.element-controls').forEach(e => e.remove());
                 viewer.querySelectorAll('.dropped-element').forEach(e => {
                     e.style.outline = 'none';
-                    const content = e.querySelector('.animate__animated');
-                    if(content) {
-                        const anim = content.dataset.anim || '';
-                        content.classList.remove('animate__animated');
-                        void content.offsetWidth;
-                        content.classList.add('animate__animated', anim);
-                    }
+                    e.style.cursor = 'default';
                 });
             };
+            
             window.onhashchange = render;
             render();
         }
@@ -235,7 +238,7 @@
                     <p class="text-[10px] text-slate-500 mb-4 uppercase">Modified ${new Date(s.updated_at).toLocaleDateString()}</p>
                     <div class="flex space-x-2">
                         <button onclick="openEditor('${s.id}')" class="flex-1 bg-indigo-600 hover:bg-indigo-500 py-2 rounded-lg text-sm font-bold transition">Open Studio</button>
-                        <button onclick="window.open('?id=${s.id}', '_blank')" class="bg-slate-700 px-3 rounded-lg"><i class="fas fa-external-link-alt text-xs"></i></button>
+                        <button onclick="window.open('?id=${s.id}&view=live', '_blank')" class="bg-slate-700 px-3 rounded-lg"><i class="fas fa-external-link-alt text-xs"></i></button>
                     </div>
                 </div>
             `).join('');
@@ -264,22 +267,22 @@
             renderPagesList();
         }
 
-        // Prevent links from navigating out of platform; make them switch builder pages instead
         function hijackLinks() {
+            // Prevent actual navigation inside the editor; redirect hash links to switchPage
             document.querySelectorAll('#canvas a').forEach(link => {
-                link.addEventListener('click', (e) => {
-                    if (isPreview) return; // In preview mode, allow standard hash behavior
+                link.onclick = (e) => {
+                    if (isPreview) return; // Allow natural hash routing in preview mode
                     e.preventDefault();
                     const href = link.getAttribute('href');
                     if (href && href.startsWith('#/')) {
-                        const targetPage = href.replace('#/', '');
-                        if (projectPages[targetPage] !== undefined) {
-                            switchPage(targetPage);
+                        const target = href.replace('#/', '');
+                        if (projectPages[target] !== undefined) {
+                            switchPage(target);
                         } else {
-                            showToast(`Page "/${targetPage}" does not exist yet.`);
+                            showToast(`Page "/${target}" doesn't exist yet.`);
                         }
                     }
-                });
+                };
             });
         }
 
@@ -290,20 +293,29 @@
                 placeholder.style.display = 'none';
             } else if (placeholder) {
                 placeholder.style.display = 'block';
+                placeholder.innerText = `/${activePage} is empty. Drag elements here.`;
             }
         }
 
         function renderPagesList() {
             document.getElementById('pages-list').innerHTML = Object.keys(projectPages).map(p => `
-                <div onclick="switchPage('${p}')" class="page-item ${p === activePage ? 'active' : ''} cursor-pointer text-xs p-2 rounded flex justify-between items-center">
+                <div onclick="switchPage('${p}')" class="page-item ${p === activePage ? 'active' : ''} cursor-pointer text-xs p-2 rounded flex justify-between items-center group">
                     <span><i class="fas fa-file-code mr-2 opacity-50"></i>/${p}</span>
-                    ${p !== 'index' ? `<i onclick="deletePage('${p}')" class="fas fa-trash text-[9px] opacity-40 hover:text-red-400"></i>` : ''}
+                    ${p !== 'index' ? `<i onclick="event.stopPropagation(); deletePage('${p}')" class="fas fa-trash text-[9px] opacity-0 group-hover:opacity-40 hover:text-red-400"></i>` : ''}
                 </div>
             `).join('');
         }
 
+        function deletePage(p) {
+            if(confirm(`Delete page /${p}?`)) {
+                delete projectPages[p];
+                if(activePage === p) switchPage('index');
+                else renderPagesList();
+            }
+        }
+
         function addNewPage() {
-            const name = prompt("Enter page name:").toLowerCase().replace(/\s+/g, '-');
+            const name = prompt("Page Name (e.g. about, contact):")?.toLowerCase().trim().replace(/\s+/g, '-');
             if(name && !projectPages[name]) { projectPages[name] = ""; switchPage(name); }
         }
 
@@ -325,12 +337,12 @@
             div.dataset.type = type;
             let inner = '';
             
-            if(type === 'navbar') inner = `<nav class="flex justify-between items-center"><div class="text-xl font-bold text-indigo-600">WEBNIX</div><div class="space-x-8 text-sm font-semibold"><a href="#/index">Home</a><a href="#/about">About</a></div></nav>`;
-            if(type === 'hero') inner = `<div class="text-center py-10"><h1 class="text-6xl font-black tracking-tighter">Your Next Big Thing</h1><p class="mt-6 text-xl text-slate-500 max-w-xl mx-auto">Build faster than ever before.</p></div>`;
-            if(type === 'pricing') inner = `<div class="grid grid-cols-1 md:grid-cols-3 gap-6"><div class="p-8 border rounded-xl text-center"><div class="text-xs font-bold text-slate-400 uppercase">Starter</div><div class="text-3xl font-bold my-2">$0</div><button class="w-full bg-slate-100 py-2 rounded text-xs font-bold">Select</button></div><div class="p-8 border-2 border-indigo-600 rounded-xl text-center bg-indigo-50"><div class="text-xs font-bold text-indigo-600 uppercase">Pro</div><div class="text-3xl font-bold my-2">$29</div><button class="w-full bg-indigo-600 text-white py-2 rounded text-xs font-bold">Select</button></div><div class="p-8 border rounded-xl text-center"><div class="text-xs font-bold text-slate-400 uppercase">Enterprise</div><div class="text-3xl font-bold my-2">$99</div><button class="w-full bg-slate-100 py-2 rounded text-xs font-bold">Select</button></div></div>`;
-            if(type === 'split') inner = `<div class="flex items-center gap-12 flex-wrap md:flex-nowrap"><div><img src="https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=800" class="rounded-2xl shadow-2xl"></div><div class="space-y-4"><h2>Analytics that Matter</h2><p class="text-slate-500">Business growth dashboard.</p></div></div>`;
-            if(type === 'testimonial') inner = `<div class="max-w-2xl mx-auto text-center"><i class="fas fa-quote-left text-indigo-200 text-4xl mb-4"></i><p class="text-xl italic text-slate-700">"This studio changed the way we build landing pages."</p><div class="mt-6 font-bold">Alex Rivera</div></div>`;
-            if(type === 'banner') inner = `<div class="bg-indigo-600 text-white p-6 text-center rounded-lg shadow-lg"><h2 class="text-2xl font-bold">Limited Time Offer!</h2></div>`;
+            if(type === 'navbar') inner = `<nav class="flex justify-between items-center"><div class="text-xl font-bold text-indigo-600">WEBNIX</div><div class="space-x-8 text-sm font-semibold"><a href="#/index">Home</a><a href="#/services">Services</a></div></nav>`;
+            if(type === 'hero') inner = `<div class="text-center py-10"><h1 class="text-6xl font-black tracking-tighter">Design Your Future</h1><p class="mt-6 text-xl text-slate-500 max-w-xl mx-auto">No-code high performance web studio.</p></div>`;
+            if(type === 'pricing') inner = `<div class="grid grid-cols-1 md:grid-cols-2 gap-6"><div class="p-8 border rounded-xl"><h4 class="font-bold">Basic</h4><p class="text-3xl font-black my-2">$0</p><button class="w-full bg-slate-900 text-white py-2 rounded">Start Free</button></div><div class="p-8 border-2 border-indigo-600 rounded-xl bg-indigo-50"><h4 class="font-bold">Enterprise</h4><p class="text-3xl font-black my-2">$99</p><button class="w-full bg-indigo-600 text-white py-2 rounded">Contact Us</button></div></div>`;
+            if(type === 'features') inner = `<div class="grid grid-cols-3 gap-8 text-center"><div><i class="fas fa-layer-group text-indigo-600 text-2xl mb-2"></i><h3 class="font-bold">Modern</h3></div><div><i class="fas fa-mobile-alt text-indigo-600 text-2xl mb-2"></i><h3 class="font-bold">Responsive</h3></div><div><i class="fas fa-search text-indigo-600 text-2xl mb-2"></i><h3 class="font-bold">SEO Ready</h3></div></div>`;
+            if(type === 'split') inner = `<div class="flex items-center gap-12 flex-wrap md:flex-nowrap"><div><img src="https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=600" class="rounded-xl shadow-xl"></div><div><h2 class="text-3xl font-bold">Data Insights</h2><p class="text-slate-500 mt-4">Understand your users like never before.</p></div></div>`;
+            if(type === 'banner') inner = `<div class="bg-indigo-600 text-white p-10 rounded-2xl text-center"><h2 class="text-2xl font-bold">Ready to launch?</h2><button class="mt-4 bg-white text-indigo-600 px-6 py-2 rounded-full font-bold">Get Started</button></div>`;
 
             div.innerHTML = `<div class="element-controls"><button onclick="move(this,-1)"><i class="fas fa-chevron-up"></i></button><button onclick="move(this,1)"><i class="fas fa-chevron-down"></i></button><button onclick="deleteEl(this)"><i class="fas fa-trash"></i></button></div><div class="content-box animate__animated" data-anim="">${inner}</div>`;
             return div;
@@ -342,22 +354,17 @@
         }
 
         function attachListeners(el) {
-            el.onclick = (e) => {
-                e.stopPropagation();
-                setActive(el);
-            };
+            el.onclick = (e) => { e.stopPropagation(); setActive(el); };
             el.oncontextmenu = (e) => {
-                e.preventDefault();
-                e.stopPropagation();
+                e.preventDefault(); e.stopPropagation();
                 setActive(el);
                 showContextMenu(e.clientX, e.clientY);
             };
-            // Double click to edit text content directly
             el.ondblclick = (e) => {
                 e.stopPropagation();
                 setActive(el);
                 editText();
-            }
+            };
         }
 
         function setActive(el) {
@@ -374,16 +381,14 @@
             menu.style.top = y + 'px';
         }
 
-        function closeContextMenu() {
-            document.getElementById('context-menu').style.display = 'none';
-        }
+        function closeContextMenu() { document.getElementById('context-menu').style.display = 'none'; }
 
         function deleteActive() {
             if(activeElement) {
                 activeElement.remove();
                 activeElement = null;
                 updatePlaceholderVisibility();
-                document.getElementById('inspector-content').innerHTML = `<div class="text-slate-500 text-sm italic py-20 text-center">Select an element to edit</div>`;
+                document.getElementById('inspector-content').innerHTML = `<div class="text-slate-500 text-sm italic py-20 text-center">Double-click text or select an element to edit</div>`;
             }
             closeContextMenu();
         }
@@ -404,10 +409,11 @@
             
             ins.innerHTML = `
                 <div class="property-group">
-                    <label class="text-[10px] uppercase text-slate-500 block mb-3 font-bold">Content & Animation</label>
-                    <button onclick="editText()" class="w-full bg-indigo-600/10 text-indigo-400 py-2 rounded text-[10px] font-bold uppercase mb-2">Edit Text Content</button>
+                    <label class="text-[10px] uppercase text-slate-500 block mb-3 font-bold">Content</label>
+                    <button onclick="editText()" class="w-full bg-indigo-600/10 text-indigo-400 py-2 rounded text-[10px] font-bold uppercase mb-2">Edit Text (HTML)</button>
+                    <label class="text-[10px] uppercase text-slate-500 block mb-2 mt-4 font-bold">Animation</label>
                     <select onchange="updateAnim(this.value)" class="w-full">
-                        <option value="">No Animation</option>
+                        <option value="">None</option>
                         <option value="animate__fadeIn" ${box.dataset.anim === 'animate__fadeIn' ? 'selected' : ''}>Fade In</option>
                         <option value="animate__slideInUp" ${box.dataset.anim === 'animate__slideInUp' ? 'selected' : ''}>Slide Up</option>
                         <option value="animate__zoomIn" ${box.dataset.anim === 'animate__zoomIn' ? 'selected' : ''}>Zoom In</option>
@@ -415,7 +421,7 @@
                 </div>
 
                 <div class="property-group">
-                    <label class="text-[10px] uppercase text-slate-500 block mb-3 font-bold">Appearance</label>
+                    <label class="text-[10px] uppercase text-slate-500 block mb-3 font-bold">Styles</label>
                     <div class="grid grid-cols-2 gap-4 mb-4">
                         <div class="flex items-center space-x-2">
                             <input type="color" onchange="updateStyle('color', this.value)">
@@ -426,15 +432,11 @@
                             <span class="text-[10px] text-slate-400">BG</span>
                         </div>
                     </div>
-                    <div>
-                        <div class="flex justify-between text-[9px] text-slate-400 mb-1"><span>Width</span><span>${activeElement.style.width || '100%'}</span></div>
-                        <input type="range" min="10" max="100" value="${parseInt(activeElement.style.width) || 100}" oninput="updateStyle('width', this.value + '%')">
-                    </div>
                 </div>
 
                 ${type === 'split' ? `<div class="property-group"><label class="text-[10px] uppercase text-slate-500 block mb-2">Image URL</label><input type="text" onchange="updateMedia('img', 'src', this.value)" class="w-full" placeholder="https://..."></div>` : ''}
                 
-                <button onclick="resetEl()" class="w-full border border-slate-700 text-slate-500 py-2 rounded text-[10px] font-bold uppercase hover:bg-slate-800 transition">Reset Styles</button>
+                <button onclick="resetEl()" class="w-full border border-slate-700 text-slate-500 py-2 rounded text-[10px] font-bold uppercase hover:bg-slate-800">Reset Styles</button>
             `;
             closeContextMenu();
         }
@@ -447,10 +449,7 @@
         }
 
         function updateStyle(prop, val) { 
-            if(activeElement) {
-                activeElement.style[prop] = val;
-                renderInspector(); 
-            }
+            if(activeElement) { activeElement.style[prop] = val; renderInspector(); }
         }
 
         function updateAnim(val) { 
@@ -465,10 +464,7 @@
             if (!activeElement) return;
             const box = activeElement.querySelector('.content-box');
             const newText = prompt("Update Content (HTML supported):", box.innerHTML);
-            if(newText !== null) {
-                box.innerHTML = newText;
-                hijackLinks(); // Re-hijack any new links added via manual HTML
-            }
+            if(newText !== null) { box.innerHTML = newText; hijackLinks(); }
         }
 
         function updateMedia(tag, attr, val) { 
@@ -504,20 +500,27 @@
             clone.querySelectorAll('.element-controls').forEach(e => e.remove());
             const fullCode = `<!DOCTYPE html><html><head><meta charset="UTF-8"><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css"/><script src="https://cdn.tailwindcss.com"><\/script></head><body>${clone.innerHTML}</body></html>`;
             navigator.clipboard.writeText(fullCode);
-            showToast("HTML Code Copied!");
+            showToast("HTML Copied!");
         }
 
         async function saveProject() {
             if(isPreview) togglePreview();
             projectPages[activePage] = document.getElementById('canvas').innerHTML;
-            const { error } = await client.from('websites').update({ html_content: JSON.stringify(projectPages), updated_at: new Date() }).eq('id', currentProject.id);
-            if(!error) showToast("Saved!");
+            const { error } = await client.from('websites').update({ 
+                html_content: JSON.stringify(projectPages), 
+                updated_at: new Date() 
+            }).eq('id', currentProject.id);
+            if(!error) showToast("Saved");
         }
 
         async function publishProject() {
             await saveProject();
-            const url = window.location.href.split('?')[0] + '?id=' + currentProject.id;
-            document.getElementById('publish-url').value = url;
+            // Generate link to the LIVE view mode, not the editor
+            const baseUrl = window.location.href.split('?')[0];
+            const liveUrl = `${baseUrl}?id=${currentProject.id}&view=live`;
+            
+            document.getElementById('publish-url').value = liveUrl;
+            document.getElementById('visit-btn').onclick = () => window.open(liveUrl, '_blank');
             document.getElementById('publish-modal').style.display = 'flex';
         }
 
@@ -525,11 +528,11 @@
             const url = document.getElementById('publish-url');
             url.select();
             document.execCommand('copy');
-            showToast("Link Copied!");
+            showToast("Copied!");
         }
 
         async function createNewProject() {
-            const { data } = await client.from('websites').insert([{ user_id: currentUser.id, title: "Untitled Site", html_content: '{"index":""}' }]).select();
+            const { data } = await client.from('websites').insert([{ user_id: currentUser.id, title: "My New Website", html_content: '{"index":""}' }]).select();
             if(data) openEditor(data[0].id);
         }
 
@@ -537,7 +540,7 @@
             const t = document.getElementById('toast');
             document.getElementById('toast-msg').innerText = m;
             t.classList.add('show');
-            setTimeout(() => t.classList.remove('show'), 3000);
+            setTimeout(() => t.classList.remove('show'), 2500);
         }
 
         initApp();
