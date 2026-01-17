@@ -17,30 +17,19 @@
             background-color: var(--bg-dark);
             color: white;
             font-family: 'Inter', sans-serif;
-            overflow: hidden;
+            margin: 0;
+            overflow-x: hidden;
         }
+        .editor-layout { overflow: hidden; height: 100vh; display: flex; flex-direction: column; }
         .canvas-area {
             background-image: radial-gradient(#334155 1px, transparent 1px);
             background-size: 20px 20px;
-            min-height: 2000px;
+            min-height: 100vh;
             width: 100%;
-            transition: all 0.3s ease;
         }
-        .draggable-item {
-            cursor: grab;
-            transition: transform 0.2s;
-        }
-        .draggable-item:active {
-            cursor: grabbing;
-        }
-        .dropped-element {
-            position: relative;
-            outline: 1px solid transparent;
-            min-height: 20px;
-        }
-        .dropped-element:hover {
-            outline: 2px solid var(--primary);
-        }
+        .draggable-item { cursor: grab; transition: all 0.2s; }
+        .dropped-element { position: relative; outline: 1px solid transparent; }
+        .dropped-element:hover { outline: 2px solid var(--primary); }
         .element-controls {
             display: none;
             position: absolute;
@@ -51,18 +40,8 @@
             border-radius: 4px;
             z-index: 50;
         }
-        .dropped-element:hover > .element-controls {
-            display: flex;
-        }
-        .sidebar {
-            width: 300px;
-            background: var(--panel-bg);
-            height: calc(100vh - 64px);
-            overflow-y: auto;
-        }
-        ::-webkit-scrollbar { width: 4px; }
-        ::-webkit-scrollbar-thumb { background: #475569; border-radius: 10px; }
-        
+        .dropped-element:hover > .element-controls { display: flex; }
+        .sidebar { width: 300px; background: var(--panel-bg); overflow-y: auto; }
         #toast {
             position: fixed;
             bottom: 20px;
@@ -73,154 +52,98 @@
         }
         #toast.show { transform: translateY(0); }
         .page-item.active { background: #334155; border-color: var(--primary); }
+        
+        /* Live Mode Styles */
+        .live-mode .element-controls, .live-mode .sidebar, .live-mode header { display: none !important; }
+        .live-mode .canvas-area { background: white; padding: 0 !important; max-width: 100% !important; }
     </style>
 </head>
 <body>
 
-    <div id="toast" class="bg-indigo-600 text-white px-6 py-3 rounded-lg shadow-xl flex items-center space-x-2">
+    <div id="toast" class="bg-indigo-600 text-white px-6 py-3 rounded-lg shadow-xl z-[1001]">
         <span id="toast-msg"></span>
     </div>
 
-    <div id="auth-check" class="fixed inset-0 bg-slate-950 z-[9999] flex flex-col items-center justify-center hidden">
-        <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-500 mb-4"></div>
-        <p class="text-slate-400">Syncing with Codenix AI Studio...</p>
-    </div>
-
-    <div id="app-shell" class="h-screen flex flex-col">
-        <header class="h-16 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-6 shrink-0">
+    <!-- MAIN APP CONTAINER -->
+    <div id="app-shell" class="editor-layout">
+        
+        <!-- Header -->
+        <header id="main-header" class="h-16 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-6 shrink-0">
             <div class="flex items-center space-x-4">
-                <div class="bg-indigo-600 p-2 rounded-lg">
-                    <i class="fas fa-cubes text-xl"></i>
-                </div>
+                <div class="bg-indigo-600 p-2 rounded-lg"><i class="fas fa-cubes text-xl"></i></div>
                 <div>
                     <h1 class="font-bold text-lg leading-none">WebNix Pro</h1>
-                    <span class="text-xs text-slate-500 uppercase tracking-widest">Codenix AI Studio</span>
+                    <span class="text-xs text-slate-500 uppercase">Codenix AI Studio</span>
                 </div>
             </div>
 
             <div id="editor-nav" class="hidden flex items-center space-x-4">
-                <div class="flex flex-col">
-                    <input id="site-title" type="text" value="My Project" class="bg-transparent border-none p-0 text-sm font-bold focus:outline-none w-32">
-                    <span id="current-vercel-domain" class="text-[10px] text-slate-500 italic">yourdomain.vercel.app</span>
-                </div>
-                <div class="h-6 w-[1px] bg-slate-700"></div>
-                <button onclick="saveProject()" class="text-sm bg-slate-800 hover:bg-slate-700 px-4 py-2 rounded-md transition flex items-center">
-                    <i class="fas fa-save mr-2"></i> Save
-                </button>
-                <button onclick="deployToVercel()" class="text-sm bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded-md transition flex items-center">
-                    <i class="fas fa-triangle text-[10px] mr-2"></i> Deploy to Vercel
-                </button>
-                <button onclick="closeEditor()" class="text-sm text-slate-400 hover:text-white px-2">
-                    <i class="fas fa-times"></i>
-                </button>
+                <input id="site-title" type="text" class="bg-transparent border-none text-sm font-bold focus:outline-none w-48 text-indigo-400">
+                <button onclick="saveProject()" class="text-sm bg-slate-800 hover:bg-slate-700 px-4 py-2 rounded-md"><i class="fas fa-save mr-2"></i> Save</button>
+                <button onclick="shareProject()" class="text-sm bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded-md"><i class="fas fa-share-alt mr-2"></i> Share Link</button>
+                <button onclick="closeEditor()" class="text-sm text-slate-400 hover:text-white px-2"><i class="fas fa-times"></i></button>
             </div>
 
             <div id="dashboard-nav" class="flex items-center space-x-4">
-                <button onclick="createNewProject()" class="bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded-md text-sm font-medium transition">
-                    + New Project
-                </button>
-                <button onclick="handleLogout()" class="text-slate-400 hover:text-white text-sm">Logout</button>
+                <button onclick="createNewProject()" class="bg-indigo-600 px-4 py-2 rounded-md text-sm font-medium">+ New Project</button>
+                <button onclick="handleLogout()" class="text-slate-400 text-sm">Logout</button>
             </div>
         </header>
 
         <main class="flex-1 flex overflow-hidden">
+            <!-- Dashboard -->
             <div id="view-dashboard" class="flex-1 p-8 overflow-y-auto">
                 <div class="max-w-6xl mx-auto">
-                    <h2 class="text-3xl font-bold mb-8">Projects</h2>
-                    <div id="projects-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        <div class="animate-pulse bg-slate-800 h-48 rounded-xl"></div>
-                    </div>
+                    <h2 class="text-3xl font-bold mb-8">My Websites</h2>
+                    <div id="projects-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
                 </div>
             </div>
 
+            <!-- Editor -->
             <div id="view-editor" class="flex-1 flex hidden">
-                <!-- Left Sidebar: Assets & Pages -->
-                <aside class="sidebar border-r border-slate-800 p-4">
-                    <h3 class="text-xs font-semibold text-slate-500 uppercase mb-4 tracking-wider">Pages</h3>
-                    <div id="pages-list" class="space-y-1 mb-8">
-                        <!-- Pages injected here -->
-                    </div>
-                    <button onclick="addNewPage()" class="w-full text-xs bg-slate-800 hover:bg-slate-700 py-2 rounded border border-slate-700 mb-8">+ Add Page</button>
+                <aside class="sidebar border-r border-slate-800 p-4 shrink-0">
+                    <h3 class="text-[10px] font-bold text-slate-500 uppercase mb-4 tracking-widest">Site Pages</h3>
+                    <div id="pages-list" class="space-y-1 mb-6"></div>
+                    <button onclick="addNewPage()" class="w-full text-xs bg-slate-800 py-2 rounded border border-slate-700 mb-8">+ New Page</button>
 
-                    <h3 class="text-xs font-semibold text-slate-500 uppercase mb-4 tracking-wider">Components</h3>
-                    <div class="space-y-3">
-                        <div draggable="true" ondragstart="onDragStart(event, 'navbar')" class="draggable-item bg-slate-800/50 p-3 rounded-lg border border-slate-700 hover:border-indigo-500 flex items-center">
-                            <i class="fas fa-window-maximize w-8 text-indigo-400"></i>
-                            <span class="text-sm text-slate-300">Navigation</span>
+                    <h3 class="text-[10px] font-bold text-slate-500 uppercase mb-4 tracking-widest">Components</h3>
+                    <div class="space-y-2">
+                        <div draggable="true" ondragstart="onDragStart(event, 'navbar')" class="draggable-item bg-slate-800 p-3 rounded-lg border border-slate-700 text-sm flex items-center">
+                            <i class="fas fa-window-maximize w-6 text-indigo-400"></i> Navbar
                         </div>
-                        <div draggable="true" ondragstart="onDragStart(event, 'hero')" class="draggable-item bg-slate-800/50 p-3 rounded-lg border border-slate-700 hover:border-indigo-500 flex items-center">
-                            <i class="fas fa-star w-8 text-yellow-400"></i>
-                            <span class="text-sm text-slate-300">Hero Section</span>
+                        <div draggable="true" ondragstart="onDragStart(event, 'hero')" class="draggable-item bg-slate-800 p-3 rounded-lg border border-slate-700 text-sm flex items-center">
+                            <i class="fas fa-star w-6 text-yellow-400"></i> Hero
                         </div>
-                        <div draggable="true" ondragstart="onDragStart(event, 'pricing')" class="draggable-item bg-slate-800/50 p-3 rounded-lg border border-slate-700 hover:border-indigo-500 flex items-center">
-                            <i class="fas fa-tags w-8 text-emerald-400"></i>
-                            <span class="text-sm text-slate-300">Pricing Table</span>
+                        <div draggable="true" ondragstart="onDragStart(event, 'features')" class="draggable-item bg-slate-800 p-3 rounded-lg border border-slate-700 text-sm flex items-center">
+                            <i class="fas fa-th-large w-6 text-emerald-400"></i> Features
                         </div>
-                        <div draggable="true" ondragstart="onDragStart(event, 'features')" class="draggable-item bg-slate-800/50 p-3 rounded-lg border border-slate-700 hover:border-indigo-500 flex items-center">
-                            <i class="fas fa-th-large w-8 text-blue-400"></i>
-                            <span class="text-sm text-slate-300">Features</span>
-                        </div>
-                        <div draggable="true" ondragstart="onDragStart(event, 'testimonials')" class="draggable-item bg-slate-800/50 p-3 rounded-lg border border-slate-700 hover:border-indigo-500 flex items-center">
-                            <i class="fas fa-comment w-8 text-purple-400"></i>
-                            <span class="text-sm text-slate-300">Testimonials</span>
-                        </div>
-                        <div draggable="true" ondragstart="onDragStart(event, 'footer')" class="draggable-item bg-slate-800/50 p-3 rounded-lg border border-slate-700 hover:border-indigo-500 flex items-center">
-                            <i class="fas fa-window-minimize w-8 text-pink-400"></i>
-                            <span class="text-sm text-slate-300">Footer</span>
+                        <div draggable="true" ondragstart="onDragStart(event, 'footer')" class="draggable-item bg-slate-800 p-3 rounded-lg border border-slate-700 text-sm flex items-center">
+                            <i class="fas fa-shoe-prints w-6 text-pink-400"></i> Footer
                         </div>
                     </div>
                 </aside>
 
-                <div class="flex-1 overflow-auto bg-slate-900 relative flex justify-center p-8">
-                    <div id="canvas" 
-                         ondragover="onDragOver(event)" 
-                         ondrop="onDrop(event)"
-                         class="canvas-area max-w-5xl bg-white shadow-2xl rounded-sm min-h-screen text-slate-900 overflow-hidden">
-                        <div class="p-12 text-center text-slate-300 border-2 border-dashed border-slate-700 m-4 rounded-lg pointer-events-none">
-                            Drop components to build your Vercel site
-                        </div>
+                <div class="flex-1 overflow-auto bg-slate-900 flex justify-center p-8">
+                    <div id="canvas" ondragover="onDragOver(event)" ondrop="onDrop(event)" class="canvas-area max-w-5xl bg-white shadow-2xl rounded-sm text-slate-900">
+                        <!-- Canvas Content -->
                     </div>
                 </div>
 
-                <!-- Right Sidebar: Inspector -->
-                <aside class="sidebar border-l border-slate-800 p-4">
-                    <h3 class="text-xs font-semibold text-slate-500 uppercase mb-4 tracking-wider">Properties</h3>
-                    <div id="inspector-content" class="text-slate-400 text-sm">
-                        Select an element to edit sizing & links
-                    </div>
+                <aside class="sidebar border-l border-slate-800 p-4 shrink-0">
+                    <h3 class="text-[10px] font-bold text-slate-500 uppercase mb-4 tracking-widest">Properties</h3>
+                    <div id="inspector-content" class="text-slate-400 text-xs italic">Select an element</div>
                 </aside>
             </div>
         </main>
     </div>
 
-    <!-- Deployment Modal -->
-    <div id="deploy-modal" class="fixed inset-0 bg-black/80 z-[100] hidden items-center justify-center p-4">
-        <div class="bg-slate-900 border border-slate-800 w-full max-w-lg rounded-xl p-8 shadow-2xl text-center">
-            <div id="deploy-status-icon" class="mb-6 text-6xl text-indigo-500">
-                <i class="fas fa-triangle animate-pulse"></i>
-            </div>
-            <h3 id="deploy-title" class="text-2xl font-bold mb-2">Deploying to Vercel...</h3>
-            <p id="deploy-msg" class="text-slate-400 mb-8">We're packaging your assets and pushing to your production domain.</p>
-            
-            <div id="deploy-progress" class="w-full bg-slate-800 rounded-full h-2 mb-8">
-                <div id="deploy-bar" class="bg-indigo-500 h-2 rounded-full transition-all duration-700" style="width: 10%"></div>
-            </div>
-
-            <div id="deploy-actions" class="hidden flex justify-center space-x-4">
-                <button onclick="closeModal('deploy-modal')" class="bg-slate-800 px-6 py-2 rounded-lg font-medium">Close</button>
-                <a id="visit-site-btn" target="_blank" class="bg-indigo-600 px-6 py-2 rounded-lg font-medium">Visit Live Site</a>
-            </div>
-        </div>
-    </div>
+    <!-- LIVE VIEWER CONTAINER -->
+    <div id="live-viewer" class="hidden min-h-screen bg-white text-slate-900"></div>
 
     <script>
         const SUPABASE_URL = "https://rnlwrngfgvznndlekmrz.supabase.co";
         const SUPABASE_KEY = "sb_publishable_mtI0_ZBvU_n5oRuqV58QHg_qJt3Gfyt";
-        
-        if (!window.supabaseClient) {
-            window.supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-        }
-        const client = window.supabaseClient;
+        const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
         let currentUser = null;
         let currentProject = null;
@@ -228,351 +151,173 @@
         let projectPages = { "index": "" };
         let activePage = "index";
 
+        async function initApp() {
+            // Check for ID in URL: ?id=123 or webnix.html?id=123
+            const urlParams = new URLSearchParams(window.location.search);
+            const siteId = urlParams.get('id');
+
+            if (siteId) {
+                renderLiveSite(siteId);
+            } else {
+                checkAuth();
+            }
+        }
+
         async function checkAuth() {
-            const overlay = document.getElementById('auth-check');
-            overlay.classList.remove('hidden');
-            try {
-                const { data: { user } } = await client.auth.getUser();
-                if (!user) { window.location.href = "auth.html"; return; }
-                currentUser = user;
-                overlay.classList.add('hidden');
-                loadProjects();
-            } catch (err) { window.location.href = "auth.html"; }
+            const { data: { user } } = await client.auth.getUser();
+            if (!user) { window.location.href = "auth.html"; return; }
+            currentUser = user;
+            loadProjects();
+        }
+
+        async function renderLiveSite(id) {
+            const { data, error } = await client.from('websites').select('*').eq('id', id).single();
+            if (error || !data) {
+                document.body.innerHTML = `<div class='h-screen flex items-center justify-center bg-slate-950 text-white'>Site not found or private.</div>`;
+                return;
+            }
+
+            document.getElementById('app-shell').classList.add('hidden');
+            const viewer = document.getElementById('live-viewer');
+            viewer.classList.remove('hidden');
+
+            const pages = JSON.parse(data.html_content || '{"index":""}');
+            
+            // Handle internal navigation via Hash
+            const renderPage = () => {
+                const hash = window.location.hash.replace('#/', '') || 'index';
+                viewer.innerHTML = pages[hash] || pages['index'] || 'Page not found';
+                // Remove editor-only UI from the viewer
+                viewer.querySelectorAll('.element-controls').forEach(el => el.remove());
+                viewer.querySelectorAll('.dropped-element').forEach(el => el.style.outline = 'none');
+            };
+
+            window.addEventListener('hashchange', renderPage);
+            renderPage();
         }
 
         async function loadProjects() {
             const grid = document.getElementById('projects-grid');
             const { data } = await client.from('websites').select('*').eq('user_id', currentUser.id).order('updated_at', { ascending: false });
-
-            if (!data || data.length === 0) {
-                grid.innerHTML = `<div class="col-span-full text-center py-20 border-2 border-dashed border-slate-800 rounded-2xl">
-                    <p class="text-slate-500 mb-4">No projects yet.</p>
-                    <button onclick="createNewProject()" class="text-indigo-400 hover:underline">Create New Project</button>
-                </div>`;
-                return;
-            }
-
-            grid.innerHTML = data.map(site => `
-                <div class="bg-slate-800/50 border border-slate-700 rounded-xl p-6 hover:bg-slate-800 transition">
-                    <h3 class="font-bold text-lg mb-4">${site.title}</h3>
-                    <p class="text-slate-500 text-sm mb-6">${site.public_link ? site.public_link + '.vercel.app' : 'Not deployed'}</p>
+            
+            grid.innerHTML = (data || []).map(site => `
+                <div class="bg-slate-800 p-6 rounded-xl border border-slate-700">
+                    <h3 class="font-bold mb-1">${site.title}</h3>
+                    <p class="text-xs text-slate-500 mb-6">ID: ${site.id}</p>
                     <div class="flex space-x-2">
-                        <button onclick="openEditorById('${site.id}')" class="flex-1 bg-indigo-600 hover:bg-indigo-500 py-2 rounded-lg text-sm">Edit</button>
-                        <button onclick="deleteProject('${site.id}')" class="bg-slate-700 hover:bg-red-600 px-3 rounded-lg transition"><i class="fas fa-trash"></i></button>
+                        <button onclick="openEditorById('${site.id}')" class="flex-1 bg-indigo-600 py-2 rounded-lg text-sm">Edit</button>
+                        <button onclick="window.open('?id=${site.id}', '_blank')" class="bg-slate-700 px-3 rounded-lg"><i class="fas fa-external-link-alt"></i></button>
                     </div>
                 </div>
             `).join('');
         }
 
-        async function createNewProject() {
-            const domain = "webnix-" + Math.floor(Math.random() * 10000);
-            const { data } = await client.from('websites').insert([{ 
-                user_id: currentUser.id, 
-                title: "My New WebNix", 
-                html_content: JSON.stringify({ index: "" }), 
-                public_link: domain,
-                is_published: false
-            }]).select();
-            if (data) openEditor(data[0]);
-        }
-
-        function openEditor(site) {
-            currentProject = site;
+        async function openEditorById(id) {
+            const { data } = await client.from('websites').select('*').eq('id', id).single();
+            currentProject = data;
             document.getElementById('view-dashboard').classList.add('hidden');
             document.getElementById('view-editor').classList.remove('hidden');
             document.getElementById('dashboard-nav').classList.add('hidden');
             document.getElementById('editor-nav').classList.remove('hidden');
+            document.getElementById('site-title').value = data.title;
             
-            document.getElementById('site-title').value = site.title;
-            document.getElementById('current-vercel-domain').innerText = site.public_link + ".vercel.app";
-            
-            try {
-                projectPages = JSON.parse(site.html_content || '{"index": ""}');
-            } catch(e) {
-                projectPages = { "index": site.html_content || "" };
-            }
-            
+            projectPages = JSON.parse(data.html_content || '{"index":""}');
             switchPage('index');
+        }
+
+        function switchPage(page) {
+            projectPages[activePage] = document.getElementById('canvas').innerHTML;
+            activePage = page;
+            const canvas = document.getElementById('canvas');
+            canvas.innerHTML = projectPages[page] || `<div class="p-20 text-center text-slate-300 border-2 border-dashed m-4">Empty /${page}</div>`;
+            Array.from(canvas.querySelectorAll('.dropped-element')).forEach(attachElementListeners);
             renderPagesList();
-            showToast("Project Loaded");
         }
 
         function renderPagesList() {
             const list = document.getElementById('pages-list');
             list.innerHTML = Object.keys(projectPages).map(p => `
-                <div onclick="switchPage('${p}')" class="page-item ${p === activePage ? 'active' : ''} flex justify-between items-center group cursor-pointer text-sm p-2 rounded border border-transparent hover:border-slate-700">
-                    <span class="text-slate-300">/${p === 'index' ? '' : p}</span>
-                    ${p !== 'index' ? `<button onclick="deletePage(event, '${p}')" class="opacity-0 group-hover:opacity-100 text-slate-500 hover:text-red-400"><i class="fas fa-times"></i></button>` : ''}
+                <div onclick="switchPage('${p}')" class="page-item ${p === activePage ? 'active' : ''} cursor-pointer text-xs p-2 rounded border border-transparent hover:border-slate-700 flex justify-between">
+                    <span>/${p === 'index' ? 'home' : p}</span>
                 </div>
             `).join('');
         }
 
-        function switchPage(page) {
-            // Save current page state
+        async function createNewProject() {
+            const { data } = await client.from('websites').insert([{ 
+                user_id: currentUser.id, title: "Untitled Site", html_content: '{"index":""}' 
+            }]).select();
+            if (data) openEditorById(data[0].id);
+        }
+
+        async function saveProject() {
             projectPages[activePage] = document.getElementById('canvas').innerHTML;
-            
-            activePage = page;
-            const canvas = document.getElementById('canvas');
-            const content = projectPages[page];
-            
-            if (content && content.trim() !== "") {
-                canvas.innerHTML = content;
-                Array.from(canvas.querySelectorAll('.dropped-element')).forEach(attachElementListeners);
-            } else {
-                canvas.innerHTML = `<div class="p-12 text-center text-slate-300 border-2 border-dashed border-slate-700 m-4 rounded-lg pointer-events-none">Start building /${page === 'index' ? '' : page}</div>`;
-            }
-            renderPagesList();
+            await client.from('websites').update({ 
+                title: document.getElementById('site-title').value,
+                html_content: JSON.stringify(projectPages),
+                updated_at: new Date()
+            }).eq('id', currentProject.id);
+            showToast("Saved to Cloud");
         }
 
-        function addNewPage() {
-            const name = prompt("Enter page name (lowercase, no spaces):");
-            if (!name || projectPages[name]) return;
-            projectPages[name] = "";
-            switchPage(name);
+        function shareProject() {
+            const shareUrl = window.location.origin + window.location.pathname + "?id=" + currentProject.id;
+            navigator.clipboard.writeText(shareUrl);
+            showToast("Link Copied: " + shareUrl);
         }
 
-        function deletePage(e, name) {
-            e.stopPropagation();
-            if (confirm(`Delete /${name}?`)) {
-                delete projectPages[name];
-                switchPage('index');
-            }
-        }
-
-        // --- Component Creation ---
-        function createComponent(type) {
-            const div = document.createElement('div');
-            div.className = "dropped-element transition-all";
-            div.dataset.type = type;
-            
-            let content = '';
-            switch(type) {
-                case 'navbar':
-                    content = `<nav class="flex justify-between items-center py-6 px-12 border-b">
-                        <div class="text-2xl font-black tracking-tighter">WEBNIX</div>
-                        <ul class="flex space-x-8 text-sm font-semibold uppercase tracking-wider">
-                            <li><a href="#" class="hover:text-indigo-600">Home</a></li>
-                            <li><a href="#" class="hover:text-indigo-600">Work</a></li>
-                            <li><button class="bg-black text-white px-5 py-2 rounded-full">Contact</button></li>
-                        </ul>
-                    </nav>`;
-                    break;
-                case 'hero':
-                    content = `<section class="py-24 px-12 text-center">
-                        <h1 class="text-7xl font-black tracking-tight mb-6">Create at the speed of <span class="text-indigo-600">thought</span>.</h1>
-                        <p class="text-xl text-slate-500 mb-10 max-w-3xl mx-auto leading-relaxed">The only website builder designed for high-performance teams. Deploy instantly to Vercel with a single click.</p>
-                        <div class="flex justify-center space-x-4">
-                            <button class="bg-indigo-600 text-white px-10 py-4 rounded-xl font-bold shadow-lg shadow-indigo-200">Start Free</button>
-                            <button class="border border-slate-200 px-10 py-4 rounded-xl font-bold hover:bg-slate-50 transition">Watch Demo</button>
-                        </div>
-                    </section>`;
-                    break;
-                case 'pricing':
-                    content = `<section class="py-20 px-12 bg-slate-50">
-                        <div class="grid grid-cols-3 gap-8">
-                            <div class="bg-white p-8 rounded-2xl border shadow-sm">
-                                <h4 class="font-bold text-slate-400 mb-2">Starter</h4>
-                                <div class="text-4xl font-bold mb-6">$0<span class="text-sm font-normal">/mo</span></div>
-                                <ul class="space-y-3 text-sm text-slate-600 mb-8"><li>1 Project</li><li>Vercel Domain</li><li>Community Support</li></ul>
-                                <button class="w-full py-3 rounded-lg border font-bold">Get Started</button>
-                            </div>
-                            <div class="bg-indigo-600 p-8 rounded-2xl shadow-xl text-white transform scale-105">
-                                <h4 class="font-bold opacity-80 mb-2">Pro</h4>
-                                <div class="text-4xl font-bold mb-6">$29<span class="text-sm font-normal">/mo</span></div>
-                                <ul class="space-y-3 text-sm opacity-90 mb-8"><li>Unlimited Projects</li><li>Custom Domains</li><li>Priority Support</li></ul>
-                                <button class="w-full py-3 rounded-lg bg-white text-indigo-600 font-bold">Go Pro</button>
-                            </div>
-                            <div class="bg-white p-8 rounded-2xl border shadow-sm">
-                                <h4 class="font-bold text-slate-400 mb-2">Enterprise</h4>
-                                <div class="text-4xl font-bold mb-6">Custom</div>
-                                <ul class="space-y-3 text-sm text-slate-600 mb-8"><li>SLA Guarantee</li><li>Team Controls</li><li>Dedicated Manager</li></ul>
-                                <button class="w-full py-3 rounded-lg border font-bold">Contact Sales</button>
-                            </div>
-                        </div>
-                    </section>`;
-                    break;
-                case 'testimonials':
-                    content = `<section class="py-20 px-12 text-center bg-white">
-                        <div class="text-indigo-600 font-bold mb-4 uppercase tracking-widest text-xs">Trusted globally</div>
-                        <h2 class="text-4xl font-bold mb-12">Users love WebNix</h2>
-                        <div class="grid grid-cols-2 gap-8 text-left">
-                            <div class="p-8 border rounded-2xl italic text-lg text-slate-700">"WebNix changed how we build prototypes. The Vercel integration is seamless." <br><span class="not-italic font-bold text-sm block mt-4">— Sarah J., Lead Designer</span></div>
-                            <div class="p-8 border rounded-2xl italic text-lg text-slate-700">"The fastest way to get a landing page live. Period." <br><span class="not-italic font-bold text-sm block mt-4">— Mike D., Founder</span></div>
-                        </div>
-                    </section>`;
-                    break;
-                case 'footer':
-                    content = `<footer class="bg-black text-white py-20 px-12">
-                        <div class="grid grid-cols-4 gap-12 border-b border-white/10 pb-16 mb-16">
-                            <div class="col-span-1">
-                                <div class="text-2xl font-black mb-4 tracking-tighter">WEBNIX</div>
-                                <p class="text-slate-400 text-sm">Building the future of the web, one component at a time.</p>
-                            </div>
-                            <div><h5 class="font-bold mb-4">Product</h5><ul class="text-sm text-slate-400 space-y-2"><li>Builder</li><li>Themes</li><li>Hosting</li></ul></div>
-                            <div><h5 class="font-bold mb-4">Company</h5><ul class="text-sm text-slate-400 space-y-2"><li>About</li><li>Blog</li><li>Careers</li></ul></div>
-                            <div><h5 class="font-bold mb-4">Support</h5><ul class="text-sm text-slate-400 space-y-2"><li>Help Center</li><li>Community</li><li>Status</li></ul></div>
-                        </div>
-                        <div class="flex justify-between text-xs text-slate-500">
-                            <div>© 2026 Codenix AI Studio. All rights reserved.</div>
-                            <div class="flex space-x-6"><span>Privacy</span><span>Terms</span></div>
-                        </div>
-                    </footer>`;
-                    break;
-            }
-
-            div.innerHTML = `
-                <div class="element-controls flex space-x-2">
-                    <button onclick="moveUp(this)" class="hover:text-white"><i class="fas fa-arrow-up text-[10px]"></i></button>
-                    <button onclick="moveDown(this)" class="hover:text-white"><i class="fas fa-arrow-down text-[10px]"></i></button>
-                    <button onclick="removeElement(this)" class="hover:text-red-300"><i class="fas fa-trash text-[10px]"></i></button>
-                </div>
-                <div class="element-content">${content}</div>
-            `;
-            return div;
-        }
-
-        function onDragStart(e, type) { e.dataTransfer.setData('component-type', type); }
+        // --- Drag/Drop & Components ---
+        function onDragStart(e, type) { e.dataTransfer.setData('type', type); }
         function onDragOver(e) { e.preventDefault(); }
         function onDrop(e) {
             e.preventDefault();
-            const type = e.dataTransfer.getData('component-type');
-            if (!type) return;
-            const element = createComponent(type);
-            const canvas = document.getElementById('canvas');
-            if (canvas.querySelector('.pointer-events-none')) canvas.innerHTML = '';
-            canvas.appendChild(element);
-            attachElementListeners(element);
+            const type = e.dataTransfer.getData('type');
+            const el = createComponent(type);
+            document.getElementById('canvas').appendChild(el);
+            attachElementListeners(el);
+        }
+
+        function createComponent(type) {
+            const div = document.createElement('div');
+            div.className = "dropped-element";
+            div.dataset.type = type;
+            let html = '';
+            if(type === 'navbar') html = `<nav class="p-6 flex justify-between border-b"><b>WEBNIX</b><div class="space-x-4"><a href="#/index">Home</a><a href="#/about">About</a></div></nav>`;
+            if(type === 'hero') html = `<section class="py-20 text-center"><h1 class="text-5xl font-bold">New Era</h1><p class="mt-4 text-slate-500">Built with Codenix AI</p></section>`;
+            if(type === 'features') html = `<section class="grid grid-cols-2 gap-4 p-10"><div class="p-6 border">Feature A</div><div class="p-6 border">Feature B</div></section>`;
+            if(type === 'footer') html = `<footer class="p-10 bg-slate-50 text-center text-sm">© 2026 WebNix</footer>`;
+            
+            div.innerHTML = `<div class="element-controls space-x-2"><button onclick="this.closest('.dropped-element').remove()">X</button></div><div class="content">${html}</div>`;
+            return div;
         }
 
         function attachElementListeners(el) {
             el.addEventListener('click', (e) => {
                 e.stopPropagation();
-                selectElement(el);
+                if(activeElement) activeElement.style.outline = "none";
+                activeElement = el;
+                el.style.outline = "2px solid #6366f1";
+                document.getElementById('inspector-content').innerHTML = `<button onclick="editHtml()" class="w-full bg-slate-700 p-2 rounded">Edit HTML</button>`;
             });
         }
 
-        function selectElement(el) {
-            if (activeElement) activeElement.classList.remove('ring-2', 'ring-indigo-500');
-            activeElement = el;
-            activeElement.classList.add('ring-2', 'ring-indigo-500');
-            
-            const inspector = document.getElementById('inspector-content');
-            inspector.innerHTML = `
-                <div class="space-y-6">
-                    <div>
-                        <label class="block text-[10px] text-slate-500 uppercase mb-2">Dimensions</label>
-                        <div class="grid grid-cols-2 gap-2">
-                            <div>
-                                <label class="text-[10px]">Padding Y</label>
-                                <input type="number" value="${parseInt(el.style.paddingTop) || 0}" oninput="updateStyle('paddingTop', this.value+'px'); updateStyle('paddingBottom', this.value+'px')" class="w-full bg-slate-800 rounded px-2 py-1 text-white border border-slate-700">
-                            </div>
-                            <div>
-                                <label class="text-[10px]">Max Width</label>
-                                <select onchange="updateStyle('maxWidth', this.value)" class="w-full bg-slate-800 rounded px-2 py-1 text-white border border-slate-700">
-                                    <option value="none">None</option>
-                                    <option value="1200px">Large</option>
-                                    <option value="800px">Small</option>
-                                </select>
-                            </div>
-                        </div>
-                    </div>
-                    <div>
-                        <label class="block text-[10px] text-slate-500 uppercase mb-2">Visuals</label>
-                        <div class="space-y-2">
-                            <label class="text-[10px] block">Background Color</label>
-                            <input type="color" onchange="updateStyle('backgroundColor', this.value)" class="w-full h-8 bg-slate-800 rounded border border-slate-700">
-                        </div>
-                    </div>
-                    <div class="pt-4 border-t border-slate-800">
-                        <button onclick="editHtmlContent()" class="w-full bg-slate-700 hover:bg-slate-600 py-2 rounded text-xs text-white">Edit Content Link/Text</button>
-                    </div>
-                </div>
-            `;
-        }
-
-        function updateStyle(prop, val) { if (activeElement) activeElement.style[prop] = val; }
-        
-        function editHtmlContent() {
-            const contentDiv = activeElement.querySelector('.element-content');
-            const newHtml = prompt("Edit component HTML (e.g. change href='#' to href='/page'):", contentDiv.innerHTML);
-            if (newHtml !== null) contentDiv.innerHTML = newHtml;
-        }
-
-        function removeElement(btn) {
-            btn.closest('.dropped-element').remove();
-            activeElement = null;
-            document.getElementById('inspector-content').innerHTML = 'Select an element';
-        }
-
-        function moveUp(btn) {
-            const el = btn.closest('.dropped-element');
-            if (el.previousElementSibling) el.parentNode.insertBefore(el, el.previousElementSibling);
-        }
-
-        function moveDown(btn) {
-            const el = btn.closest('.dropped-element');
-            if (el.nextElementSibling) el.parentNode.insertBefore(el.nextElementSibling, el);
-        }
-
-        async function saveProject() {
-            if (!currentProject) return;
-            projectPages[activePage] = document.getElementById('canvas').innerHTML;
-            const { error } = await client.from('websites').update({ 
-                title: document.getElementById('site-title').value,
-                html_content: JSON.stringify(projectPages),
-                updated_at: new Date() 
-            }).eq('id', currentProject.id);
-            if (!error) showToast("Cloud Progress Saved");
-        }
-
-        async function deployToVercel() {
-            if (!currentProject) return;
-            await saveProject();
-            
-            const modal = document.getElementById('deploy-modal');
-            const bar = document.getElementById('deploy-bar');
-            const title = document.getElementById('deploy-title');
-            const actions = document.getElementById('deploy-actions');
-            
-            modal.classList.remove('hidden');
-            modal.classList.add('flex');
-            actions.classList.add('hidden');
-            title.innerText = "Deploying to Vercel...";
-            bar.style.width = "10%";
-
-            // Simulate build process
-            setTimeout(() => bar.style.width = "40%", 1000);
-            setTimeout(() => bar.style.width = "75%", 2500);
-            setTimeout(() => {
-                bar.style.width = "100%";
-                title.innerText = "Deployment Successful!";
-                document.getElementById('deploy-status-icon').innerHTML = '<i class="fas fa-check-circle text-emerald-500"></i>';
-                actions.classList.remove('hidden');
-                document.getElementById('visit-site-btn').href = "https://" + currentProject.public_link + ".vercel.app";
-            }, 4000);
-        }
-
-        function closeModal(id) {
-            document.getElementById(id).classList.add('hidden');
-            document.getElementById(id).classList.remove('flex');
+        function editHtml() {
+            const content = activeElement.querySelector('.content');
+            const newHtml = prompt("HTML Content:", content.innerHTML);
+            if(newHtml) content.innerHTML = newHtml;
         }
 
         function showToast(msg) {
-            const toast = document.getElementById('toast');
+            const t = document.getElementById('toast');
             document.getElementById('toast-msg').innerText = msg;
-            toast.classList.add('show');
-            setTimeout(() => toast.classList.remove('show'), 3000);
+            t.classList.add('show');
+            setTimeout(() => t.classList.remove('show'), 3000);
         }
 
-        function closeEditor() {
-            document.getElementById('view-dashboard').classList.remove('hidden');
-            document.getElementById('view-editor').classList.add('hidden');
-            document.getElementById('dashboard-nav').classList.remove('hidden');
-            document.getElementById('editor-nav').classList.add('hidden');
-            loadProjects();
-        }
+        function closeEditor() { window.location.reload(); }
+        function handleLogout() { client.auth.signOut(); window.location.reload(); }
 
-        window.onload = checkAuth;
+        initApp();
     </script>
 </body>
 </html>
