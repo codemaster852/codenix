@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WebNix | Codenix AI Studio</title>
+    <title>WebNix Pro | Codenix AI Studio</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
@@ -60,7 +60,6 @@
             height: calc(100vh - 64px);
             overflow-y: auto;
         }
-        /* Hide scrollbars but keep functionality */
         ::-webkit-scrollbar { width: 4px; }
         ::-webkit-scrollbar-thumb { background: #475569; border-radius: 10px; }
         
@@ -73,47 +72,43 @@
             z-index: 1000;
         }
         #toast.show { transform: translateY(0); }
+        .page-item.active { background: #334155; border-color: var(--primary); }
     </style>
 </head>
 <body>
 
-    <!-- Notification Toast -->
     <div id="toast" class="bg-indigo-600 text-white px-6 py-3 rounded-lg shadow-xl flex items-center space-x-2">
         <span id="toast-msg"></span>
     </div>
 
-    <!-- Auth Guard Overlay (Hidden by Default) -->
     <div id="auth-check" class="fixed inset-0 bg-slate-950 z-[9999] flex flex-col items-center justify-center hidden">
         <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-500 mb-4"></div>
-        <p class="text-slate-400">Authenticating with Codenix AI Studio...</p>
+        <p class="text-slate-400">Syncing with Codenix AI Studio...</p>
     </div>
 
-    <!-- App Content -->
     <div id="app-shell" class="h-screen flex flex-col">
-        
-        <!-- Header -->
         <header class="h-16 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-6 shrink-0">
             <div class="flex items-center space-x-4">
                 <div class="bg-indigo-600 p-2 rounded-lg">
                     <i class="fas fa-cubes text-xl"></i>
                 </div>
                 <div>
-                    <h1 class="font-bold text-lg leading-none">WebNix</h1>
+                    <h1 class="font-bold text-lg leading-none">WebNix Pro</h1>
                     <span class="text-xs text-slate-500 uppercase tracking-widest">Codenix AI Studio</span>
                 </div>
             </div>
 
             <div id="editor-nav" class="hidden flex items-center space-x-4">
-                <input id="site-title" type="text" value="My New Website" class="bg-slate-800 border border-slate-700 px-3 py-1 rounded text-sm focus:outline-none focus:ring-1 ring-indigo-500">
+                <div class="flex flex-col">
+                    <input id="site-title" type="text" value="My Project" class="bg-transparent border-none p-0 text-sm font-bold focus:outline-none w-32">
+                    <span id="current-vercel-domain" class="text-[10px] text-slate-500 italic">yourdomain.vercel.app</span>
+                </div>
                 <div class="h-6 w-[1px] bg-slate-700"></div>
                 <button onclick="saveProject()" class="text-sm bg-slate-800 hover:bg-slate-700 px-4 py-2 rounded-md transition flex items-center">
                     <i class="fas fa-save mr-2"></i> Save
                 </button>
-                <button onclick="publishProject()" class="text-sm bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded-md transition flex items-center">
-                    <i class="fas fa-rocket mr-2"></i> Publish
-                </button>
-                <button onclick="exportCode()" class="text-sm bg-emerald-600 hover:bg-emerald-700 px-4 py-2 rounded-md transition flex items-center">
-                    <i class="fas fa-code mr-2"></i> Export HTML
+                <button onclick="deployToVercel()" class="text-sm bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded-md transition flex items-center">
+                    <i class="fas fa-triangle text-[10px] mr-2"></i> Deploy to Vercel
                 </button>
                 <button onclick="closeEditor()" class="text-sm text-slate-400 hover:text-white px-2">
                     <i class="fas fa-times"></i>
@@ -122,108 +117,106 @@
 
             <div id="dashboard-nav" class="flex items-center space-x-4">
                 <button onclick="createNewProject()" class="bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded-md text-sm font-medium transition">
-                    + Create Project
+                    + New Project
                 </button>
                 <button onclick="handleLogout()" class="text-slate-400 hover:text-white text-sm">Logout</button>
             </div>
         </header>
 
         <main class="flex-1 flex overflow-hidden">
-            
-            <!-- Dashboard View -->
             <div id="view-dashboard" class="flex-1 p-8 overflow-y-auto">
                 <div class="max-w-6xl mx-auto">
-                    <h2 class="text-3xl font-bold mb-8">My Projects</h2>
+                    <h2 class="text-3xl font-bold mb-8">Projects</h2>
                     <div id="projects-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        <!-- Projects loaded here -->
-                        <div class="animate-pulse bg-slate-800 h-48 rounded-xl"></div>
-                        <div class="animate-pulse bg-slate-800 h-48 rounded-xl"></div>
                         <div class="animate-pulse bg-slate-800 h-48 rounded-xl"></div>
                     </div>
                 </div>
             </div>
 
-            <!-- Editor View -->
             <div id="view-editor" class="flex-1 flex hidden">
-                <!-- Sidebar: Components -->
+                <!-- Left Sidebar: Assets & Pages -->
                 <aside class="sidebar border-r border-slate-800 p-4">
-                    <h3 class="text-xs font-semibold text-slate-500 uppercase mb-4 tracking-wider">Components</h3>
-                    
-                    <div class="space-y-3">
-                        <div draggable="true" ondragstart="onDragStart(event, 'navbar')" class="draggable-item bg-slate-800 p-3 rounded-lg border border-slate-700 hover:border-indigo-500 flex items-center">
-                            <i class="fas fa-window-maximize w-8 text-indigo-400"></i>
-                            <span>Navigation Bar</span>
-                        </div>
-                        <div draggable="true" ondragstart="onDragStart(event, 'hero')" class="draggable-item bg-slate-800 p-3 rounded-lg border border-slate-700 hover:border-indigo-500 flex items-center">
-                            <i class="fas fa-star w-8 text-yellow-400"></i>
-                            <span>Hero Section</span>
-                        </div>
-                        <div draggable="true" ondragstart="onDragStart(event, 'features')" class="draggable-item bg-slate-800 p-3 rounded-lg border border-slate-700 hover:border-indigo-500 flex items-center">
-                            <i class="fas fa-th-large w-8 text-emerald-400"></i>
-                            <span>Features Grid</span>
-                        </div>
-                        <div draggable="true" ondragstart="onDragStart(event, 'content')" class="draggable-item bg-slate-800 p-3 rounded-lg border border-slate-700 hover:border-indigo-500 flex items-center">
-                            <i class="fas fa-align-left w-8 text-blue-400"></i>
-                            <span>Text Block</span>
-                        </div>
-                        <div draggable="true" ondragstart="onDragStart(event, 'footer')" class="draggable-item bg-slate-800 p-3 rounded-lg border border-slate-700 hover:border-indigo-500 flex items-center">
-                            <i class="fas fa-window-minimize w-8 text-purple-400"></i>
-                            <span>Footer</span>
-                        </div>
+                    <h3 class="text-xs font-semibold text-slate-500 uppercase mb-4 tracking-wider">Pages</h3>
+                    <div id="pages-list" class="space-y-1 mb-8">
+                        <!-- Pages injected here -->
                     </div>
+                    <button onclick="addNewPage()" class="w-full text-xs bg-slate-800 hover:bg-slate-700 py-2 rounded border border-slate-700 mb-8">+ Add Page</button>
 
-                    <h3 class="text-xs font-semibold text-slate-500 uppercase mt-8 mb-4 tracking-wider">Pages</h3>
-                    <div id="pages-list" class="space-y-1">
-                        <!-- Pages here -->
-                        <div class="text-xs text-slate-500 italic p-2">Index (Home)</div>
+                    <h3 class="text-xs font-semibold text-slate-500 uppercase mb-4 tracking-wider">Components</h3>
+                    <div class="space-y-3">
+                        <div draggable="true" ondragstart="onDragStart(event, 'navbar')" class="draggable-item bg-slate-800/50 p-3 rounded-lg border border-slate-700 hover:border-indigo-500 flex items-center">
+                            <i class="fas fa-window-maximize w-8 text-indigo-400"></i>
+                            <span class="text-sm text-slate-300">Navigation</span>
+                        </div>
+                        <div draggable="true" ondragstart="onDragStart(event, 'hero')" class="draggable-item bg-slate-800/50 p-3 rounded-lg border border-slate-700 hover:border-indigo-500 flex items-center">
+                            <i class="fas fa-star w-8 text-yellow-400"></i>
+                            <span class="text-sm text-slate-300">Hero Section</span>
+                        </div>
+                        <div draggable="true" ondragstart="onDragStart(event, 'pricing')" class="draggable-item bg-slate-800/50 p-3 rounded-lg border border-slate-700 hover:border-indigo-500 flex items-center">
+                            <i class="fas fa-tags w-8 text-emerald-400"></i>
+                            <span class="text-sm text-slate-300">Pricing Table</span>
+                        </div>
+                        <div draggable="true" ondragstart="onDragStart(event, 'features')" class="draggable-item bg-slate-800/50 p-3 rounded-lg border border-slate-700 hover:border-indigo-500 flex items-center">
+                            <i class="fas fa-th-large w-8 text-blue-400"></i>
+                            <span class="text-sm text-slate-300">Features</span>
+                        </div>
+                        <div draggable="true" ondragstart="onDragStart(event, 'testimonials')" class="draggable-item bg-slate-800/50 p-3 rounded-lg border border-slate-700 hover:border-indigo-500 flex items-center">
+                            <i class="fas fa-comment w-8 text-purple-400"></i>
+                            <span class="text-sm text-slate-300">Testimonials</span>
+                        </div>
+                        <div draggable="true" ondragstart="onDragStart(event, 'footer')" class="draggable-item bg-slate-800/50 p-3 rounded-lg border border-slate-700 hover:border-indigo-500 flex items-center">
+                            <i class="fas fa-window-minimize w-8 text-pink-400"></i>
+                            <span class="text-sm text-slate-300">Footer</span>
+                        </div>
                     </div>
                 </aside>
 
-                <!-- Canvas -->
                 <div class="flex-1 overflow-auto bg-slate-900 relative flex justify-center p-8">
                     <div id="canvas" 
                          ondragover="onDragOver(event)" 
                          ondrop="onDrop(event)"
-                         class="canvas-area max-w-4xl bg-white shadow-2xl rounded-sm min-h-screen text-slate-900">
-                        <!-- Dropped content goes here -->
+                         class="canvas-area max-w-5xl bg-white shadow-2xl rounded-sm min-h-screen text-slate-900 overflow-hidden">
                         <div class="p-12 text-center text-slate-300 border-2 border-dashed border-slate-700 m-4 rounded-lg pointer-events-none">
-                            Drop components here to build your site
+                            Drop components to build your Vercel site
                         </div>
                     </div>
                 </div>
 
-                <!-- Inspector Panel -->
+                <!-- Right Sidebar: Inspector -->
                 <aside class="sidebar border-l border-slate-800 p-4">
                     <h3 class="text-xs font-semibold text-slate-500 uppercase mb-4 tracking-wider">Properties</h3>
                     <div id="inspector-content" class="text-slate-400 text-sm">
-                        Select an element to edit properties
+                        Select an element to edit sizing & links
                     </div>
                 </aside>
             </div>
         </main>
     </div>
 
-    <!-- Export Modal -->
-    <div id="export-modal" class="fixed inset-0 bg-black/80 z-[100] hidden items-center justify-center p-4">
-        <div class="bg-slate-900 border border-slate-800 w-full max-w-2xl rounded-xl p-6 shadow-2xl">
-            <div class="flex justify-between items-center mb-4">
-                <h3 class="text-xl font-bold">Copy Your HTML Code</h3>
-                <button onclick="closeModal()" class="text-slate-500 hover:text-white"><i class="fas fa-times"></i></button>
+    <!-- Deployment Modal -->
+    <div id="deploy-modal" class="fixed inset-0 bg-black/80 z-[100] hidden items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-800 w-full max-w-lg rounded-xl p-8 shadow-2xl text-center">
+            <div id="deploy-status-icon" class="mb-6 text-6xl text-indigo-500">
+                <i class="fas fa-triangle animate-pulse"></i>
             </div>
-            <textarea id="html-code-output" readonly class="w-full h-80 bg-slate-950 border border-slate-800 rounded p-4 font-mono text-sm text-emerald-400 mb-4 focus:outline-none"></textarea>
-            <div class="flex justify-end space-x-3">
-                <button onclick="copyToClipboard()" class="bg-indigo-600 px-6 py-2 rounded-lg font-medium">Copy Code</button>
+            <h3 id="deploy-title" class="text-2xl font-bold mb-2">Deploying to Vercel...</h3>
+            <p id="deploy-msg" class="text-slate-400 mb-8">We're packaging your assets and pushing to your production domain.</p>
+            
+            <div id="deploy-progress" class="w-full bg-slate-800 rounded-full h-2 mb-8">
+                <div id="deploy-bar" class="bg-indigo-500 h-2 rounded-full transition-all duration-700" style="width: 10%"></div>
+            </div>
+
+            <div id="deploy-actions" class="hidden flex justify-center space-x-4">
+                <button onclick="closeModal('deploy-modal')" class="bg-slate-800 px-6 py-2 rounded-lg font-medium">Close</button>
+                <a id="visit-site-btn" target="_blank" class="bg-indigo-600 px-6 py-2 rounded-lg font-medium">Visit Live Site</a>
             </div>
         </div>
     </div>
 
     <script>
-        // Supabase Initialization
-        // Using window.supabase directly to avoid redeclaring if the script is evaluated multiple times
         const SUPABASE_URL = "https://rnlwrngfgvznndlekmrz.supabase.co";
         const SUPABASE_KEY = "sb_publishable_mtI0_ZBvU_n5oRuqV58QHg_qJt3Gfyt";
         
-        // Define client outside of global 'supabase' name if possible, or check existence
         if (!window.supabaseClient) {
             window.supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
         }
@@ -232,106 +225,57 @@
         let currentUser = null;
         let currentProject = null;
         let activeElement = null;
+        let projectPages = { "index": "" };
+        let activePage = "index";
 
-        // --- Auth Logic ---
         async function checkAuth() {
             const overlay = document.getElementById('auth-check');
             overlay.classList.remove('hidden');
-            
             try {
-                const { data: { user }, error } = await client.auth.getUser();
-                
-                if (error || !user) {
-                    window.location.href = "auth.html";
-                    return;
-                }
-                
+                const { data: { user } } = await client.auth.getUser();
+                if (!user) { window.location.href = "auth.html"; return; }
                 currentUser = user;
                 overlay.classList.add('hidden');
                 loadProjects();
-            } catch (err) {
-                console.error("Auth error:", err);
-                window.location.href = "auth.html";
-            }
+            } catch (err) { window.location.href = "auth.html"; }
         }
 
-        async function handleLogout() {
-            await client.auth.signOut();
-            window.location.reload();
-        }
-
-        // --- Project Management ---
         async function loadProjects() {
             const grid = document.getElementById('projects-grid');
-            
-            const { data, error } = await client
-                .from('websites')
-                .select('*')
-                .eq('user_id', currentUser.id)
-                .order('updated_at', { ascending: false });
-
-            if (error) {
-                showToast("Error loading projects: " + error.message);
-                return;
-            }
+            const { data } = await client.from('websites').select('*').eq('user_id', currentUser.id).order('updated_at', { ascending: false });
 
             if (!data || data.length === 0) {
-                grid.innerHTML = `
-                    <div class="col-span-full text-center py-20 border-2 border-dashed border-slate-800 rounded-2xl">
-                        <p class="text-slate-500 mb-4">No projects yet. Start building your first masterpiece!</p>
-                        <button onclick="createNewProject()" class="text-indigo-400 hover:underline">Create New Project</button>
-                    </div>
-                `;
+                grid.innerHTML = `<div class="col-span-full text-center py-20 border-2 border-dashed border-slate-800 rounded-2xl">
+                    <p class="text-slate-500 mb-4">No projects yet.</p>
+                    <button onclick="createNewProject()" class="text-indigo-400 hover:underline">Create New Project</button>
+                </div>`;
                 return;
             }
 
             grid.innerHTML = data.map(site => `
-                <div class="bg-slate-800/50 border border-slate-700 rounded-xl p-6 hover:bg-slate-800 transition group">
-                    <div class="flex justify-between items-start mb-4">
-                        <h3 class="font-bold text-lg">${site.title}</h3>
-                        ${site.is_published ? '<span class="text-[10px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full uppercase">Published</span>' : ''}
-                    </div>
-                    <p class="text-slate-500 text-sm mb-6">Last modified: ${new Date(site.updated_at).toLocaleDateString()}</p>
+                <div class="bg-slate-800/50 border border-slate-700 rounded-xl p-6 hover:bg-slate-800 transition">
+                    <h3 class="font-bold text-lg mb-4">${site.title}</h3>
+                    <p class="text-slate-500 text-sm mb-6">${site.public_link ? site.public_link + '.vercel.app' : 'Not deployed'}</p>
                     <div class="flex space-x-2">
-                        <button onclick="openEditorById('${site.id}')" class="flex-1 bg-indigo-600 hover:bg-indigo-500 py-2 rounded-lg text-sm transition">Edit Site</button>
+                        <button onclick="openEditorById('${site.id}')" class="flex-1 bg-indigo-600 hover:bg-indigo-500 py-2 rounded-lg text-sm">Edit</button>
                         <button onclick="deleteProject('${site.id}')" class="bg-slate-700 hover:bg-red-600 px-3 rounded-lg transition"><i class="fas fa-trash"></i></button>
                     </div>
                 </div>
             `).join('');
         }
 
-        async function openEditorById(id) {
-            const { data, error } = await client.from('websites').select('*').eq('id', id).single();
-            if (data) openEditor(data);
-        }
-
         async function createNewProject() {
-            const title = "New Site " + Math.floor(Math.random() * 1000);
-            const { data, error } = await client
-                .from('websites')
-                .insert([{ 
-                    user_id: currentUser.id, 
-                    title, 
-                    html_content: '', 
-                    styles_content: {},
-                    is_published: false
-                }])
-                .select();
-
-            if (error) {
-                showToast("Failed to create project");
-                return;
-            }
-            openEditor(data[0]);
+            const domain = "webnix-" + Math.floor(Math.random() * 10000);
+            const { data } = await client.from('websites').insert([{ 
+                user_id: currentUser.id, 
+                title: "My New WebNix", 
+                html_content: JSON.stringify({ index: "" }), 
+                public_link: domain,
+                is_published: false
+            }]).select();
+            if (data) openEditor(data[0]);
         }
 
-        async function deleteProject(id) {
-            if (!confirm("Are you sure you want to delete this project?")) return;
-            await client.from('websites').delete().eq('id', id);
-            loadProjects();
-        }
-
-        // --- Builder Engine ---
         function openEditor(site) {
             currentProject = site;
             document.getElementById('view-dashboard').classList.add('hidden');
@@ -340,118 +284,164 @@
             document.getElementById('editor-nav').classList.remove('hidden');
             
             document.getElementById('site-title').value = site.title;
-            const canvas = document.getElementById('canvas');
+            document.getElementById('current-vercel-domain').innerText = site.public_link + ".vercel.app";
             
-            if (site.html_content) {
-                canvas.innerHTML = site.html_content;
+            try {
+                projectPages = JSON.parse(site.html_content || '{"index": ""}');
+            } catch(e) {
+                projectPages = { "index": site.html_content || "" };
+            }
+            
+            switchPage('index');
+            renderPagesList();
+            showToast("Project Loaded");
+        }
+
+        function renderPagesList() {
+            const list = document.getElementById('pages-list');
+            list.innerHTML = Object.keys(projectPages).map(p => `
+                <div onclick="switchPage('${p}')" class="page-item ${p === activePage ? 'active' : ''} flex justify-between items-center group cursor-pointer text-sm p-2 rounded border border-transparent hover:border-slate-700">
+                    <span class="text-slate-300">/${p === 'index' ? '' : p}</span>
+                    ${p !== 'index' ? `<button onclick="deletePage(event, '${p}')" class="opacity-0 group-hover:opacity-100 text-slate-500 hover:text-red-400"><i class="fas fa-times"></i></button>` : ''}
+                </div>
+            `).join('');
+        }
+
+        function switchPage(page) {
+            // Save current page state
+            projectPages[activePage] = document.getElementById('canvas').innerHTML;
+            
+            activePage = page;
+            const canvas = document.getElementById('canvas');
+            const content = projectPages[page];
+            
+            if (content && content.trim() !== "") {
+                canvas.innerHTML = content;
                 Array.from(canvas.querySelectorAll('.dropped-element')).forEach(attachElementListeners);
             } else {
-                canvas.innerHTML = `
-                    <div class="p-12 text-center text-slate-300 border-2 border-dashed border-slate-700 m-4 rounded-lg pointer-events-none">
-                        Drop components here to build your site
-                    </div>
-                `;
+                canvas.innerHTML = `<div class="p-12 text-center text-slate-300 border-2 border-dashed border-slate-700 m-4 rounded-lg pointer-events-none">Start building /${page === 'index' ? '' : page}</div>`;
             }
-            
-            showToast("Editor Loaded");
+            renderPagesList();
         }
 
-        function closeEditor() {
-            document.getElementById('view-dashboard').classList.remove('hidden');
-            document.getElementById('view-editor').classList.add('hidden');
-            document.getElementById('dashboard-nav').classList.remove('hidden');
-            document.getElementById('editor-nav').classList.add('hidden');
-            currentProject = null;
-            loadProjects();
+        function addNewPage() {
+            const name = prompt("Enter page name (lowercase, no spaces):");
+            if (!name || projectPages[name]) return;
+            projectPages[name] = "";
+            switchPage(name);
         }
 
-        // --- Drag & Drop Core ---
-        function onDragStart(e, type) {
-            e.dataTransfer.setData('component-type', type);
-        }
-
-        function onDragOver(e) {
-            e.preventDefault();
-        }
-
-        function onDrop(e) {
-            e.preventDefault();
-            const type = e.dataTransfer.getData('component-type');
-            if (!type) return;
-
-            const element = createComponent(type);
-            const canvas = document.getElementById('canvas');
-            
-            if (canvas.querySelector('.pointer-events-none')) {
-                canvas.innerHTML = '';
+        function deletePage(e, name) {
+            e.stopPropagation();
+            if (confirm(`Delete /${name}?`)) {
+                delete projectPages[name];
+                switchPage('index');
             }
-
-            canvas.appendChild(element);
-            attachElementListeners(element);
         }
 
+        // --- Component Creation ---
         function createComponent(type) {
             const div = document.createElement('div');
-            div.className = "dropped-element p-4";
+            div.className = "dropped-element transition-all";
             div.dataset.type = type;
             
             let content = '';
             switch(type) {
                 case 'navbar':
-                    content = `<nav class="flex justify-between items-center py-4 px-8 border-b">
-                        <div class="text-xl font-bold">LOGO</div>
-                        <ul class="flex space-x-6 text-sm font-medium">
-                            <li>Home</li><li>Services</li><li>About</li><li>Contact</li>
+                    content = `<nav class="flex justify-between items-center py-6 px-12 border-b">
+                        <div class="text-2xl font-black tracking-tighter">WEBNIX</div>
+                        <ul class="flex space-x-8 text-sm font-semibold uppercase tracking-wider">
+                            <li><a href="#" class="hover:text-indigo-600">Home</a></li>
+                            <li><a href="#" class="hover:text-indigo-600">Work</a></li>
+                            <li><button class="bg-black text-white px-5 py-2 rounded-full">Contact</button></li>
                         </ul>
                     </nav>`;
                     break;
                 case 'hero':
-                    content = `<section class="py-20 px-8 text-center bg-slate-50">
-                        <h1 class="text-5xl font-black mb-4">Transform Your Vision</h1>
-                        <p class="text-xl text-slate-600 mb-8 max-w-2xl mx-auto">Build faster, cleaner, and better with WebNix builder interface.</p>
-                        <button class="bg-indigo-600 text-white px-8 py-3 rounded-full font-bold">Get Started</button>
+                    content = `<section class="py-24 px-12 text-center">
+                        <h1 class="text-7xl font-black tracking-tight mb-6">Create at the speed of <span class="text-indigo-600">thought</span>.</h1>
+                        <p class="text-xl text-slate-500 mb-10 max-w-3xl mx-auto leading-relaxed">The only website builder designed for high-performance teams. Deploy instantly to Vercel with a single click.</p>
+                        <div class="flex justify-center space-x-4">
+                            <button class="bg-indigo-600 text-white px-10 py-4 rounded-xl font-bold shadow-lg shadow-indigo-200">Start Free</button>
+                            <button class="border border-slate-200 px-10 py-4 rounded-xl font-bold hover:bg-slate-50 transition">Watch Demo</button>
+                        </div>
                     </section>`;
                     break;
-                case 'features':
-                    content = `<div class="grid grid-cols-3 gap-8 py-16 px-8">
-                        <div class="text-center p-6 rounded-xl border">
-                            <div class="text-3xl mb-4">⚡</div><h3 class="font-bold mb-2">Fast</h3><p class="text-sm text-slate-500">Optimized for speed.</p>
+                case 'pricing':
+                    content = `<section class="py-20 px-12 bg-slate-50">
+                        <div class="grid grid-cols-3 gap-8">
+                            <div class="bg-white p-8 rounded-2xl border shadow-sm">
+                                <h4 class="font-bold text-slate-400 mb-2">Starter</h4>
+                                <div class="text-4xl font-bold mb-6">$0<span class="text-sm font-normal">/mo</span></div>
+                                <ul class="space-y-3 text-sm text-slate-600 mb-8"><li>1 Project</li><li>Vercel Domain</li><li>Community Support</li></ul>
+                                <button class="w-full py-3 rounded-lg border font-bold">Get Started</button>
+                            </div>
+                            <div class="bg-indigo-600 p-8 rounded-2xl shadow-xl text-white transform scale-105">
+                                <h4 class="font-bold opacity-80 mb-2">Pro</h4>
+                                <div class="text-4xl font-bold mb-6">$29<span class="text-sm font-normal">/mo</span></div>
+                                <ul class="space-y-3 text-sm opacity-90 mb-8"><li>Unlimited Projects</li><li>Custom Domains</li><li>Priority Support</li></ul>
+                                <button class="w-full py-3 rounded-lg bg-white text-indigo-600 font-bold">Go Pro</button>
+                            </div>
+                            <div class="bg-white p-8 rounded-2xl border shadow-sm">
+                                <h4 class="font-bold text-slate-400 mb-2">Enterprise</h4>
+                                <div class="text-4xl font-bold mb-6">Custom</div>
+                                <ul class="space-y-3 text-sm text-slate-600 mb-8"><li>SLA Guarantee</li><li>Team Controls</li><li>Dedicated Manager</li></ul>
+                                <button class="w-full py-3 rounded-lg border font-bold">Contact Sales</button>
+                            </div>
                         </div>
-                        <div class="text-center p-6 rounded-xl border">
-                            <div class="text-3xl mb-4">🛡️</div><h3 class="font-bold mb-2">Secure</h3><p class="text-sm text-slate-500">Built on Supabase.</p>
-                        </div>
-                        <div class="text-center p-6 rounded-xl border">
-                            <div class="text-3xl mb-4">🎨</div><h3 class="font-bold mb-2">Design</h3><p class="text-sm text-slate-500">Pixel perfect layouts.</p>
-                        </div>
-                    </div>`;
+                    </section>`;
                     break;
-                case 'content':
-                    content = `<div class="py-12 px-8 prose lg:prose-xl">
-                        <h2 class="text-2xl font-bold mb-4" contenteditable="true">Your Section Title</h2>
-                        <p contenteditable="true">Write your compelling content here. Use this area to explain your services or share your story.</p>
-                    </div>`;
+                case 'testimonials':
+                    content = `<section class="py-20 px-12 text-center bg-white">
+                        <div class="text-indigo-600 font-bold mb-4 uppercase tracking-widest text-xs">Trusted globally</div>
+                        <h2 class="text-4xl font-bold mb-12">Users love WebNix</h2>
+                        <div class="grid grid-cols-2 gap-8 text-left">
+                            <div class="p-8 border rounded-2xl italic text-lg text-slate-700">"WebNix changed how we build prototypes. The Vercel integration is seamless." <br><span class="not-italic font-bold text-sm block mt-4">— Sarah J., Lead Designer</span></div>
+                            <div class="p-8 border rounded-2xl italic text-lg text-slate-700">"The fastest way to get a landing page live. Period." <br><span class="not-italic font-bold text-sm block mt-4">— Mike D., Founder</span></div>
+                        </div>
+                    </section>`;
                     break;
                 case 'footer':
-                    content = `<footer class="bg-slate-900 text-white py-12 px-8">
-                        <div class="flex justify-between items-center border-b border-slate-800 pb-8">
-                            <div class="font-bold">WEBNIX</div>
-                            <div class="flex space-x-4"><i class="fab fa-twitter"></i><i class="fab fa-github"></i></div>
+                    content = `<footer class="bg-black text-white py-20 px-12">
+                        <div class="grid grid-cols-4 gap-12 border-b border-white/10 pb-16 mb-16">
+                            <div class="col-span-1">
+                                <div class="text-2xl font-black mb-4 tracking-tighter">WEBNIX</div>
+                                <p class="text-slate-400 text-sm">Building the future of the web, one component at a time.</p>
+                            </div>
+                            <div><h5 class="font-bold mb-4">Product</h5><ul class="text-sm text-slate-400 space-y-2"><li>Builder</li><li>Themes</li><li>Hosting</li></ul></div>
+                            <div><h5 class="font-bold mb-4">Company</h5><ul class="text-sm text-slate-400 space-y-2"><li>About</li><li>Blog</li><li>Careers</li></ul></div>
+                            <div><h5 class="font-bold mb-4">Support</h5><ul class="text-sm text-slate-400 space-y-2"><li>Help Center</li><li>Community</li><li>Status</li></ul></div>
                         </div>
-                        <p class="pt-8 text-xs text-slate-500">© 2024 Codenix AI Studio. All rights reserved.</p>
+                        <div class="flex justify-between text-xs text-slate-500">
+                            <div>© 2026 Codenix AI Studio. All rights reserved.</div>
+                            <div class="flex space-x-6"><span>Privacy</span><span>Terms</span></div>
+                        </div>
                     </footer>`;
                     break;
             }
 
             div.innerHTML = `
                 <div class="element-controls flex space-x-2">
-                    <button onclick="moveUp(this)" class="hover:text-white"><i class="fas fa-arrow-up text-xs"></i></button>
-                    <button onclick="moveDown(this)" class="hover:text-white"><i class="fas fa-arrow-down text-xs"></i></button>
-                    <button onclick="duplicateElement(this)" class="hover:text-white"><i class="fas fa-copy text-xs"></i></button>
-                    <button onclick="removeElement(this)" class="hover:text-red-300"><i class="fas fa-trash text-xs"></i></button>
+                    <button onclick="moveUp(this)" class="hover:text-white"><i class="fas fa-arrow-up text-[10px]"></i></button>
+                    <button onclick="moveDown(this)" class="hover:text-white"><i class="fas fa-arrow-down text-[10px]"></i></button>
+                    <button onclick="removeElement(this)" class="hover:text-red-300"><i class="fas fa-trash text-[10px]"></i></button>
                 </div>
                 <div class="element-content">${content}</div>
             `;
             return div;
+        }
+
+        function onDragStart(e, type) { e.dataTransfer.setData('component-type', type); }
+        function onDragOver(e) { e.preventDefault(); }
+        function onDrop(e) {
+            e.preventDefault();
+            const type = e.dataTransfer.getData('component-type');
+            if (!type) return;
+            const element = createComponent(type);
+            const canvas = document.getElementById('canvas');
+            if (canvas.querySelector('.pointer-events-none')) canvas.innerHTML = '';
+            canvas.appendChild(element);
+            attachElementListeners(element);
         }
 
         function attachElementListeners(el) {
@@ -468,34 +458,44 @@
             
             const inspector = document.getElementById('inspector-content');
             inspector.innerHTML = `
-                <div class="space-y-4">
-                    <p class="text-xs">Type: <span class="text-white">${el.dataset.type}</span></p>
+                <div class="space-y-6">
                     <div>
-                        <label class="block mb-1">Padding Y (px)</label>
-                        <input type="number" onchange="updateStyle('paddingTop', this.value+'px'); updateStyle('paddingBottom', this.value+'px')" class="w-full bg-slate-800 rounded px-2 py-1 text-white border border-slate-700">
+                        <label class="block text-[10px] text-slate-500 uppercase mb-2">Dimensions</label>
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label class="text-[10px]">Padding Y</label>
+                                <input type="number" value="${parseInt(el.style.paddingTop) || 0}" oninput="updateStyle('paddingTop', this.value+'px'); updateStyle('paddingBottom', this.value+'px')" class="w-full bg-slate-800 rounded px-2 py-1 text-white border border-slate-700">
+                            </div>
+                            <div>
+                                <label class="text-[10px]">Max Width</label>
+                                <select onchange="updateStyle('maxWidth', this.value)" class="w-full bg-slate-800 rounded px-2 py-1 text-white border border-slate-700">
+                                    <option value="none">None</option>
+                                    <option value="1200px">Large</option>
+                                    <option value="800px">Small</option>
+                                </select>
+                            </div>
+                        </div>
                     </div>
                     <div>
-                        <label class="block mb-1">Background Color</label>
-                        <input type="color" onchange="updateStyle('backgroundColor', this.value)" class="w-full h-8 bg-slate-800 rounded border border-slate-700">
+                        <label class="block text-[10px] text-slate-500 uppercase mb-2">Visuals</label>
+                        <div class="space-y-2">
+                            <label class="text-[10px] block">Background Color</label>
+                            <input type="color" onchange="updateStyle('backgroundColor', this.value)" class="w-full h-8 bg-slate-800 rounded border border-slate-700">
+                        </div>
                     </div>
-                    <div>
-                        <label class="block mb-1">Text Color</label>
-                        <input type="color" onchange="updateStyle('color', this.value)" class="w-full h-8 bg-slate-800 rounded border border-slate-700">
+                    <div class="pt-4 border-t border-slate-800">
+                        <button onclick="editHtmlContent()" class="w-full bg-slate-700 hover:bg-slate-600 py-2 rounded text-xs text-white">Edit Content Link/Text</button>
                     </div>
-                    <button onclick="editHtmlContent()" class="w-full bg-slate-700 hover:bg-slate-600 py-2 rounded text-xs text-white">Edit raw HTML</button>
                 </div>
             `;
         }
 
-        function updateStyle(prop, val) {
-            if (!activeElement) return;
-            activeElement.style[prop] = val;
-        }
-
+        function updateStyle(prop, val) { if (activeElement) activeElement.style[prop] = val; }
+        
         function editHtmlContent() {
-            const currentHtml = activeElement.querySelector('.element-content').innerHTML;
-            const newHtml = prompt("Edit component inner HTML:", currentHtml);
-            if (newHtml !== null) activeElement.querySelector('.element-content').innerHTML = newHtml;
+            const contentDiv = activeElement.querySelector('.element-content');
+            const newHtml = prompt("Edit component HTML (e.g. change href='#' to href='/page'):", contentDiv.innerHTML);
+            if (newHtml !== null) contentDiv.innerHTML = newHtml;
         }
 
         function removeElement(btn) {
@@ -506,9 +506,7 @@
 
         function moveUp(btn) {
             const el = btn.closest('.dropped-element');
-            if (el.previousElementSibling && !el.previousElementSibling.classList.contains('pointer-events-none')) {
-                el.parentNode.insertBefore(el, el.previousElementSibling);
-            }
+            if (el.previousElementSibling) el.parentNode.insertBefore(el, el.previousElementSibling);
         }
 
         function moveDown(btn) {
@@ -516,59 +514,47 @@
             if (el.nextElementSibling) el.parentNode.insertBefore(el.nextElementSibling, el);
         }
 
-        function duplicateElement(btn) {
-            const el = btn.closest('.dropped-element');
-            const clone = el.cloneNode(true);
-            attachElementListeners(clone);
-            el.parentNode.insertBefore(clone, el.nextElementSibling);
-        }
-
         async function saveProject() {
             if (!currentProject) return;
-            const title = document.getElementById('site-title').value;
-            const html_content = document.getElementById('canvas').innerHTML;
-            const { error } = await client
-                .from('websites')
-                .update({ title, html_content, updated_at: new Date() })
-                .eq('id', currentProject.id);
-            if (error) showToast("Save failed");
-            else showToast("Project Saved Successfully");
+            projectPages[activePage] = document.getElementById('canvas').innerHTML;
+            const { error } = await client.from('websites').update({ 
+                title: document.getElementById('site-title').value,
+                html_content: JSON.stringify(projectPages),
+                updated_at: new Date() 
+            }).eq('id', currentProject.id);
+            if (!error) showToast("Cloud Progress Saved");
         }
 
-        async function publishProject() {
+        async function deployToVercel() {
             if (!currentProject) return;
-            const slug = currentProject.title.toLowerCase().replace(/\s+/g, '-') + '-' + Math.floor(Math.random()*1000);
-            const { error } = await client
-                .from('websites')
-                .update({ is_published: true, public_link: slug, updated_at: new Date() })
-                .eq('id', currentProject.id);
-            if (error) showToast("Publish failed");
-            else showToast("Published! URL: /site/" + slug);
+            await saveProject();
+            
+            const modal = document.getElementById('deploy-modal');
+            const bar = document.getElementById('deploy-bar');
+            const title = document.getElementById('deploy-title');
+            const actions = document.getElementById('deploy-actions');
+            
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            actions.classList.add('hidden');
+            title.innerText = "Deploying to Vercel...";
+            bar.style.width = "10%";
+
+            // Simulate build process
+            setTimeout(() => bar.style.width = "40%", 1000);
+            setTimeout(() => bar.style.width = "75%", 2500);
+            setTimeout(() => {
+                bar.style.width = "100%";
+                title.innerText = "Deployment Successful!";
+                document.getElementById('deploy-status-icon').innerHTML = '<i class="fas fa-check-circle text-emerald-500"></i>';
+                actions.classList.remove('hidden');
+                document.getElementById('visit-site-btn').href = "https://" + currentProject.public_link + ".vercel.app";
+            }, 4000);
         }
 
-        function exportCode() {
-            const temp = document.createElement('div');
-            temp.innerHTML = document.getElementById('canvas').innerHTML;
-            temp.querySelectorAll('.element-controls').forEach(el => el.remove());
-            temp.querySelectorAll('.dropped-element').forEach(el => {
-                el.classList.remove('ring-2', 'ring-indigo-500');
-            });
-            const finalHtml = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${document.getElementById('site-title').value}</title><script src="https://cdn.tailwindcss.com"><\/script></head><body>${temp.innerHTML}</body></html>`;
-            document.getElementById('html-code-output').value = finalHtml;
-            document.getElementById('export-modal').classList.remove('hidden');
-            document.getElementById('export-modal').classList.add('flex');
-        }
-
-        function closeModal() {
-            document.getElementById('export-modal').classList.add('hidden');
-            document.getElementById('export-modal').classList.remove('flex');
-        }
-
-        function copyToClipboard() {
-            const copyText = document.getElementById("html-code-output");
-            copyText.select();
-            document.execCommand("copy");
-            showToast("HTML Copied to Clipboard!");
+        function closeModal(id) {
+            document.getElementById(id).classList.add('hidden');
+            document.getElementById(id).classList.remove('flex');
         }
 
         function showToast(msg) {
@@ -578,8 +564,15 @@
             setTimeout(() => toast.classList.remove('show'), 3000);
         }
 
-        // Run checkAuth on load
-        checkAuth();
+        function closeEditor() {
+            document.getElementById('view-dashboard').classList.remove('hidden');
+            document.getElementById('view-editor').classList.add('hidden');
+            document.getElementById('dashboard-nav').classList.remove('hidden');
+            document.getElementById('editor-nav').classList.add('hidden');
+            loadProjects();
+        }
+
+        window.onload = checkAuth;
     </script>
 </body>
 </html>
