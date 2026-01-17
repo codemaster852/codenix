@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="light"> <!-- Default to light, class toggled by JS -->
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,6 +7,21 @@
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        slate: {
+                            850: '#1f2937', // Custom dark shade for panels
+                            950: '#020617', // Deep black for background
+                        }
+                    }
+                }
+            }
+        }
+    </script>
     
     <!-- FontAwesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -23,62 +38,91 @@
         .draggable-item { cursor: grab; }
         .draggable-item:active { cursor: grabbing; }
         
+        /* Canvas Grid Pattern */
         #editor-canvas {
             background-image: radial-gradient(#cbd5e1 1px, transparent 1px);
             background-size: 20px 20px;
         }
+        
+        /* Dark Mode Grid Pattern */
+        .dark #editor-canvas {
+            background-image: radial-gradient(#475569 1px, transparent 1px);
+        }
 
         .drop-zone-active {
-            border: 2px dashed #3b82f6;
-            background-color: rgba(59, 130, 246, 0.1);
+            border: 2px dashed #9333ea;
+            background-color: rgba(147, 51, 234, 0.1);
         }
 
         /* Element Selection */
         .selected-element {
-            outline: 2px solid #3b82f6;
+            outline: 2px solid #9333ea;
             position: relative;
         }
         
         .selected-element::after {
             content: 'Selected';
             position: absolute;
-            top: -20px;
+            top: -22px;
             left: 0;
-            background: #3b82f6;
+            background: #9333ea;
             color: white;
             font-size: 10px;
-            padding: 2px 5px;
+            padding: 2px 6px;
             border-radius: 4px 4px 0 0;
             z-index: 50;
+            font-weight: 600;
         }
 
         /* Scrollbars */
         ::-webkit-scrollbar { width: 8px; }
-        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
         ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        
+        /* Dark Scrollbars */
+        .dark ::-webkit-scrollbar-thumb { background: #475569; }
+        .dark ::-webkit-scrollbar-thumb:hover { background: #64748b; }
     </style>
 </head>
-<body class="bg-slate-50 text-slate-800 h-screen flex flex-col overflow-hidden">
+<body class="bg-white dark:bg-slate-950 text-slate-800 dark:text-slate-100 h-screen flex flex-col overflow-hidden transition-colors duration-300">
+
+    <!-- Loading Screen -->
+    <div id="loading-screen" class="fixed inset-0 z-[100] bg-white dark:bg-slate-950 flex flex-col items-center justify-center transition-opacity duration-500">
+        <div class="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-purple-600 mb-4"></div>
+        <h2 class="text-xl font-semibold text-slate-700 dark:text-slate-200 animate-pulse">WebNix Studio</h2>
+    </div>
 
     <!-- Navbar -->
-    <nav class="bg-white border-b border-slate-200 h-16 flex items-center justify-between px-6 shrink-0 z-20">
+    <nav class="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 h-16 flex items-center justify-between px-6 shrink-0 z-20 transition-colors duration-300">
         <div class="flex items-center gap-3">
-            <div class="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold">W</div>
-            <h1 class="font-bold text-xl tracking-tight">WebNix <span class="text-xs font-normal text-slate-500 bg-slate-100 px-2 py-0.5 rounded ml-1">Beta</span></h1>
+            <div class="w-8 h-8 bg-purple-600 rounded-lg flex items-center justify-center text-white font-bold shadow-md shadow-purple-500/30">W</div>
+            <h1 class="font-bold text-xl tracking-tight text-slate-900 dark:text-white">WebNix <span class="text-xs font-normal text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded ml-1 border border-slate-200 dark:border-slate-700">Beta</span></h1>
         </div>
 
         <div id="editor-controls" class="hidden flex items-center gap-4">
-            <input type="text" id="project-title" class="bg-transparent border-b border-transparent hover:border-slate-300 focus:border-blue-500 focus:outline-none px-2 py-1 text-sm font-medium transition" placeholder="Project Name">
-            <button onclick="saveWebsite()" class="text-slate-600 hover:text-blue-600 text-sm font-medium transition"><i class="fa-solid fa-cloud-arrow-up mr-1"></i> Save</button>
-            <button onclick="togglePreview()" class="text-slate-600 hover:text-blue-600 text-sm font-medium transition"><i class="fa-solid fa-eye mr-1"></i> Preview</button>
-            <button onclick="publishWebsite()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium transition shadow-sm hover:shadow">Publish</button>
-            <button onclick="backToDashboard()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-lg"></i></button>
+            <input type="text" id="project-title" class="bg-transparent border-b border-transparent hover:border-slate-300 dark:hover:border-slate-600 focus:border-purple-500 focus:outline-none px-2 py-1 text-sm font-medium transition text-slate-700 dark:text-slate-200" placeholder="Project Name">
+            
+            <div class="h-6 w-px bg-slate-200 dark:bg-slate-700 mx-1"></div>
+
+            <button onclick="saveWebsite()" class="text-slate-600 dark:text-slate-400 hover:text-purple-600 dark:hover:text-purple-400 text-sm font-medium transition"><i class="fa-solid fa-cloud-arrow-up mr-1"></i> Save</button>
+            <button onclick="togglePreview()" class="text-slate-600 dark:text-slate-400 hover:text-purple-600 dark:hover:text-purple-400 text-sm font-medium transition"><i class="fa-solid fa-eye mr-1"></i> Preview</button>
+            <button onclick="publishWebsite()" class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-md text-sm font-medium transition shadow-md shadow-purple-600/20">Publish</button>
+            
+            <div class="h-6 w-px bg-slate-200 dark:bg-slate-700 mx-1"></div>
+            
+            <button onclick="backToDashboard()" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200" title="Back to Dashboard"><i class="fa-solid fa-xmark text-lg"></i></button>
         </div>
 
         <div id="dashboard-controls" class="flex items-center gap-4">
-            <div id="user-info" class="text-sm font-medium text-slate-600">Loading...</div>
-            <button onclick="signOut()" class="text-red-500 hover:text-red-700 text-sm font-medium">Sign Out</button>
+            <!-- Theme Toggle -->
+            <button onclick="toggleTheme()" class="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition flex items-center justify-center">
+                <i class="fa-solid fa-sun dark:hidden"></i>
+                <i class="fa-solid fa-moon hidden dark:block"></i>
+            </button>
+            
+            <div id="user-info" class="text-sm font-medium text-slate-600 dark:text-slate-300">Loading...</div>
+            <button onclick="signOut()" class="text-red-500 hover:text-red-700 dark:hover:text-red-400 text-sm font-medium ml-2">Sign Out</button>
         </div>
     </nav>
 
@@ -86,14 +130,14 @@
     <div class="flex-1 flex overflow-hidden relative">
         
         <!-- DASHBOARD VIEW -->
-        <div id="dashboard-view" class="absolute inset-0 z-10 bg-slate-50 p-8 overflow-y-auto w-full">
+        <div id="dashboard-view" class="absolute inset-0 z-10 bg-slate-50 dark:bg-black p-8 overflow-y-auto w-full transition-colors duration-300">
             <div class="max-w-6xl mx-auto">
                 <div class="flex justify-between items-end mb-8">
                     <div>
-                        <h2 class="text-3xl font-bold text-slate-900">Your Projects</h2>
-                        <p class="text-slate-500 mt-2">Manage and edit your websites.</p>
+                        <h2 class="text-3xl font-bold text-slate-900 dark:text-white">Your Projects</h2>
+                        <p class="text-slate-500 dark:text-slate-400 mt-2">Manage and edit your websites.</p>
                     </div>
-                    <button onclick="createNewProject()" class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg font-medium shadow-sm transition flex items-center gap-2">
+                    <button onclick="createNewProject()" class="bg-purple-600 hover:bg-purple-700 text-white px-5 py-2.5 rounded-lg font-medium shadow-lg shadow-purple-600/20 transition flex items-center gap-2">
                         <i class="fa-solid fa-plus"></i> New Project
                     </button>
                 </div>
@@ -101,8 +145,8 @@
                 <div id="projects-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     <!-- Projects injected here -->
                     <div class="animate-pulse flex flex-col gap-4">
-                        <div class="h-48 bg-slate-200 rounded-xl"></div>
-                        <div class="h-4 bg-slate-200 rounded w-1/2"></div>
+                        <div class="h-48 bg-slate-200 dark:bg-slate-800 rounded-xl"></div>
+                        <div class="h-4 bg-slate-200 dark:bg-slate-800 rounded w-1/2"></div>
                     </div>
                 </div>
             </div>
@@ -112,53 +156,53 @@
         <div id="editor-view" class="hidden flex-1 flex w-full">
             
             <!-- Sidebar: Components -->
-            <aside class="w-64 bg-white border-r border-slate-200 flex flex-col shrink-0 z-10">
-                <div class="p-4 border-b border-slate-100">
-                    <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider">Elements</h3>
+            <aside class="w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col shrink-0 z-10 transition-colors duration-300">
+                <div class="p-4 border-b border-slate-100 dark:border-slate-800">
+                    <h3 class="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Elements</h3>
                 </div>
                 <div class="p-4 grid grid-cols-2 gap-3 overflow-y-auto">
                     
-                    <div draggable="true" ondragstart="drag(event)" data-type="heading" class="draggable-item bg-slate-50 hover:bg-white hover:shadow-md border border-slate-200 rounded-lg p-3 flex flex-col items-center gap-2 transition group">
-                        <i class="fa-solid fa-heading text-slate-400 group-hover:text-blue-500 text-xl"></i>
-                        <span class="text-xs font-medium text-slate-600">Header</span>
+                    <div draggable="true" ondragstart="drag(event)" data-type="heading" class="draggable-item bg-slate-50 dark:bg-slate-800 hover:bg-white dark:hover:bg-slate-700 hover:shadow-md border border-slate-200 dark:border-slate-700 rounded-lg p-3 flex flex-col items-center gap-2 transition group">
+                        <i class="fa-solid fa-heading text-slate-400 dark:text-slate-500 group-hover:text-purple-500 text-xl"></i>
+                        <span class="text-xs font-medium text-slate-600 dark:text-slate-300">Header</span>
                     </div>
 
-                    <div draggable="true" ondragstart="drag(event)" data-type="text" class="draggable-item bg-slate-50 hover:bg-white hover:shadow-md border border-slate-200 rounded-lg p-3 flex flex-col items-center gap-2 transition group">
-                        <i class="fa-solid fa-paragraph text-slate-400 group-hover:text-blue-500 text-xl"></i>
-                        <span class="text-xs font-medium text-slate-600">Text</span>
+                    <div draggable="true" ondragstart="drag(event)" data-type="text" class="draggable-item bg-slate-50 dark:bg-slate-800 hover:bg-white dark:hover:bg-slate-700 hover:shadow-md border border-slate-200 dark:border-slate-700 rounded-lg p-3 flex flex-col items-center gap-2 transition group">
+                        <i class="fa-solid fa-paragraph text-slate-400 dark:text-slate-500 group-hover:text-purple-500 text-xl"></i>
+                        <span class="text-xs font-medium text-slate-600 dark:text-slate-300">Text</span>
                     </div>
 
-                    <div draggable="true" ondragstart="drag(event)" data-type="button" class="draggable-item bg-slate-50 hover:bg-white hover:shadow-md border border-slate-200 rounded-lg p-3 flex flex-col items-center gap-2 transition group">
-                        <i class="fa-regular fa-square-check text-slate-400 group-hover:text-blue-500 text-xl"></i>
-                        <span class="text-xs font-medium text-slate-600">Button</span>
+                    <div draggable="true" ondragstart="drag(event)" data-type="button" class="draggable-item bg-slate-50 dark:bg-slate-800 hover:bg-white dark:hover:bg-slate-700 hover:shadow-md border border-slate-200 dark:border-slate-700 rounded-lg p-3 flex flex-col items-center gap-2 transition group">
+                        <i class="fa-regular fa-square-check text-slate-400 dark:text-slate-500 group-hover:text-purple-500 text-xl"></i>
+                        <span class="text-xs font-medium text-slate-600 dark:text-slate-300">Button</span>
                     </div>
 
-                    <div draggable="true" ondragstart="drag(event)" data-type="image" class="draggable-item bg-slate-50 hover:bg-white hover:shadow-md border border-slate-200 rounded-lg p-3 flex flex-col items-center gap-2 transition group">
-                        <i class="fa-regular fa-image text-slate-400 group-hover:text-blue-500 text-xl"></i>
-                        <span class="text-xs font-medium text-slate-600">Image</span>
+                    <div draggable="true" ondragstart="drag(event)" data-type="image" class="draggable-item bg-slate-50 dark:bg-slate-800 hover:bg-white dark:hover:bg-slate-700 hover:shadow-md border border-slate-200 dark:border-slate-700 rounded-lg p-3 flex flex-col items-center gap-2 transition group">
+                        <i class="fa-regular fa-image text-slate-400 dark:text-slate-500 group-hover:text-purple-500 text-xl"></i>
+                        <span class="text-xs font-medium text-slate-600 dark:text-slate-300">Image</span>
                     </div>
 
-                    <div draggable="true" ondragstart="drag(event)" data-type="container" class="draggable-item bg-slate-50 hover:bg-white hover:shadow-md border border-slate-200 rounded-lg p-3 flex flex-col items-center gap-2 transition group">
-                        <i class="fa-solid fa-box-open text-slate-400 group-hover:text-blue-500 text-xl"></i>
-                        <span class="text-xs font-medium text-slate-600">Box</span>
+                    <div draggable="true" ondragstart="drag(event)" data-type="container" class="draggable-item bg-slate-50 dark:bg-slate-800 hover:bg-white dark:hover:bg-slate-700 hover:shadow-md border border-slate-200 dark:border-slate-700 rounded-lg p-3 flex flex-col items-center gap-2 transition group">
+                        <i class="fa-solid fa-box-open text-slate-400 dark:text-slate-500 group-hover:text-purple-500 text-xl"></i>
+                        <span class="text-xs font-medium text-slate-600 dark:text-slate-300">Box</span>
                     </div>
 
-                    <div draggable="true" ondragstart="drag(event)" data-type="nav" class="draggable-item bg-slate-50 hover:bg-white hover:shadow-md border border-slate-200 rounded-lg p-3 flex flex-col items-center gap-2 transition group">
-                        <i class="fa-solid fa-bars text-slate-400 group-hover:text-blue-500 text-xl"></i>
-                        <span class="text-xs font-medium text-slate-600">Navbar</span>
+                    <div draggable="true" ondragstart="drag(event)" data-type="nav" class="draggable-item bg-slate-50 dark:bg-slate-800 hover:bg-white dark:hover:bg-slate-700 hover:shadow-md border border-slate-200 dark:border-slate-700 rounded-lg p-3 flex flex-col items-center gap-2 transition group">
+                        <i class="fa-solid fa-bars text-slate-400 dark:text-slate-500 group-hover:text-purple-500 text-xl"></i>
+                        <span class="text-xs font-medium text-slate-600 dark:text-slate-300">Navbar</span>
                     </div>
 
                 </div>
             </aside>
 
             <!-- Canvas Area -->
-            <main class="flex-1 bg-slate-100 flex justify-center overflow-auto p-8 relative" onclick="deselectAll(event)">
+            <main class="flex-1 bg-slate-100 dark:bg-slate-950 flex justify-center overflow-auto p-8 relative transition-colors duration-300" onclick="deselectAll(event)">
                 <div id="editor-canvas" 
-                     class="bg-white w-full max-w-4xl min-h-[800px] shadow-lg rounded-sm p-8 transition-all"
+                     class="bg-white dark:bg-slate-900 w-full max-w-4xl min-h-[800px] shadow-lg rounded-sm p-8 transition-all"
                      ondrop="drop(event)" 
                      ondragover="allowDrop(event)">
                      <!-- Dropped Items Go Here -->
-                     <div class="pointer-events-none text-slate-300 text-center mt-32 border-2 border-dashed border-slate-200 p-10 rounded-xl" id="empty-state">
+                     <div class="pointer-events-none text-slate-300 dark:text-slate-600 text-center mt-32 border-2 border-dashed border-slate-200 dark:border-slate-700 p-10 rounded-xl" id="empty-state">
                         <i class="fa-solid fa-arrow-pointer text-4xl mb-4"></i>
                         <p>Drag elements here to build your website</p>
                      </div>
@@ -166,60 +210,61 @@
             </main>
 
             <!-- Properties Panel -->
-            <aside id="properties-panel" class="w-72 bg-white border-l border-slate-200 flex flex-col shrink-0 transform translate-x-full transition-transform duration-300 absolute right-0 h-full z-20 shadow-xl">
-                <div class="p-4 border-b border-slate-100 flex justify-between items-center">
-                    <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider">Properties</h3>
-                    <button onclick="closeProperties()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark"></i></button>
+            <aside id="properties-panel" class="w-72 bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800 flex flex-col shrink-0 transform translate-x-full transition-transform duration-300 absolute right-0 h-full z-20 shadow-xl">
+                <div class="p-4 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
+                    <h3 class="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Properties</h3>
+                    <button onclick="closeProperties()" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"><i class="fa-solid fa-xmark"></i></button>
                 </div>
                 
                 <div class="p-4 space-y-4 overflow-y-auto flex-1">
                     <div id="prop-text-group" class="hidden">
-                        <label class="block text-xs font-medium text-slate-500 mb-1">Text Content</label>
-                        <textarea id="prop-text" oninput="updateElementText(this.value)" class="w-full border border-slate-300 rounded p-2 text-sm focus:border-blue-500 focus:outline-none" rows="3"></textarea>
+                        <label class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Text Content</label>
+                        <textarea id="prop-text" oninput="updateElementText(this.value)" class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded p-2 text-sm text-slate-700 dark:text-slate-200 focus:border-purple-500 focus:outline-none" rows="3"></textarea>
                     </div>
 
                     <div id="prop-link-group" class="hidden">
-                        <label class="block text-xs font-medium text-slate-500 mb-1">Link URL (Href)</label>
-                        <input type="text" id="prop-link" oninput="updateElementLink(this.value)" class="w-full border border-slate-300 rounded p-2 text-sm focus:border-blue-500 focus:outline-none" placeholder="https://...">
+                        <label class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Link URL (Href)</label>
+                        <input type="text" id="prop-link" oninput="updateElementLink(this.value)" class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded p-2 text-sm text-slate-700 dark:text-slate-200 focus:border-purple-500 focus:outline-none" placeholder="https://...">
                     </div>
 
                     <div id="prop-src-group" class="hidden">
-                        <label class="block text-xs font-medium text-slate-500 mb-1">Image URL</label>
-                        <input type="text" id="prop-src" oninput="updateElementSrc(this.value)" class="w-full border border-slate-300 rounded p-2 text-sm focus:border-blue-500 focus:outline-none" placeholder="https://...">
+                        <label class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Image URL</label>
+                        <input type="text" id="prop-src" oninput="updateElementSrc(this.value)" class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded p-2 text-sm text-slate-700 dark:text-slate-200 focus:border-purple-500 focus:outline-none" placeholder="https://...">
                     </div>
 
                     <div>
-                        <label class="block text-xs font-medium text-slate-500 mb-1">Background Color</label>
-                        <div class="flex gap-2 flex-wrap">
+                        <label class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Background Color</label>
+                        <div class="flex gap-2 flex-wrap bg-slate-100 dark:bg-slate-800 p-2 rounded-lg">
                             <button onclick="updateBg('bg-transparent')" class="w-6 h-6 rounded border border-slate-300 bg-white" title="Transparent"></button>
                             <button onclick="updateBg('bg-white')" class="w-6 h-6 rounded border border-slate-300 bg-white" title="White"></button>
-                            <button onclick="updateBg('bg-slate-100')" class="w-6 h-6 rounded bg-slate-100" title="Slate 100"></button>
+                            <button onclick="updateBg('bg-slate-100')" class="w-6 h-6 rounded bg-slate-100" title="Light Grey"></button>
+                            <button onclick="updateBg('bg-slate-900')" class="w-6 h-6 rounded bg-slate-900" title="Dark"></button>
+                            <button onclick="updateBg('bg-purple-600')" class="w-6 h-6 rounded bg-purple-600" title="Purple"></button>
                             <button onclick="updateBg('bg-blue-500')" class="w-6 h-6 rounded bg-blue-500" title="Blue"></button>
                             <button onclick="updateBg('bg-green-500')" class="w-6 h-6 rounded bg-green-500" title="Green"></button>
                             <button onclick="updateBg('bg-red-500')" class="w-6 h-6 rounded bg-red-500" title="Red"></button>
-                            <button onclick="updateBg('bg-slate-900')" class="w-6 h-6 rounded bg-slate-900" title="Dark"></button>
                         </div>
                     </div>
 
                     <div>
-                        <label class="block text-xs font-medium text-slate-500 mb-1">Text Color</label>
-                        <div class="flex gap-2 flex-wrap">
+                        <label class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Text Color</label>
+                        <div class="flex gap-2 flex-wrap bg-slate-100 dark:bg-slate-800 p-2 rounded-lg">
                             <button onclick="updateColor('text-slate-900')" class="w-6 h-6 rounded bg-slate-900" title="Dark"></button>
                             <button onclick="updateColor('text-slate-600')" class="w-6 h-6 rounded bg-slate-600" title="Grey"></button>
                             <button onclick="updateColor('text-white')" class="w-6 h-6 rounded border border-slate-300 bg-white" title="White"></button>
-                            <button onclick="updateColor('text-blue-600')" class="w-6 h-6 rounded bg-blue-600" title="Blue"></button>
+                            <button onclick="updateColor('text-purple-600')" class="w-6 h-6 rounded bg-purple-600" title="Purple"></button>
                             <button onclick="updateColor('text-red-600')" class="w-6 h-6 rounded bg-red-600" title="Red"></button>
                         </div>
                     </div>
 
                     <div>
-                        <label class="block text-xs font-medium text-slate-500 mb-1">Padding</label>
-                        <input type="range" min="0" max="8" step="1" oninput="updatePadding(this.value)" class="w-full accent-blue-600">
+                        <label class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Padding</label>
+                        <input type="range" min="0" max="8" step="1" oninput="updatePadding(this.value)" class="w-full accent-purple-600">
                     </div>
                     
                     <div>
-                        <label class="block text-xs font-medium text-slate-500 mb-1">Actions</label>
-                        <button onclick="deleteSelected()" class="w-full bg-red-50 text-red-600 border border-red-200 py-1 rounded text-sm hover:bg-red-100">Delete Element</button>
+                        <label class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Actions</label>
+                        <button onclick="deleteSelected()" class="w-full bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-900/50 py-2 rounded text-sm hover:bg-red-100 dark:hover:bg-red-900/40 transition">Delete Element</button>
                     </div>
                 </div>
             </aside>
@@ -227,24 +272,24 @@
     </div>
 
     <!-- Notification Toast -->
-    <div id="toast" class="fixed bottom-4 right-4 bg-slate-900 text-white px-4 py-3 rounded shadow-lg transform translate-y-20 opacity-0 transition-all duration-300 z-50 text-sm flex items-center gap-2">
-        <i class="fa-solid fa-circle-info text-blue-400"></i>
+    <div id="toast" class="fixed bottom-4 right-4 bg-slate-900 dark:bg-white text-white dark:text-slate-900 px-4 py-3 rounded shadow-lg transform translate-y-20 opacity-0 transition-all duration-300 z-50 text-sm flex items-center gap-2">
+        <i class="fa-solid fa-circle-info text-purple-400 dark:text-purple-600"></i>
         <span id="toast-msg">Notification</span>
     </div>
 
     <!-- Modals (Publish) -->
-    <div id="publish-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-        <div class="bg-white rounded-lg shadow-xl max-w-md w-full p-6 text-center">
-            <div class="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl">
+    <div id="publish-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+        <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg shadow-xl max-w-md w-full p-6 text-center">
+            <div class="w-16 h-16 bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl">
                 <i class="fa-solid fa-check"></i>
             </div>
-            <h3 class="text-xl font-bold text-slate-900 mb-2">Website Published!</h3>
-            <p class="text-slate-600 mb-4 text-sm">Your website is live on the internet.</p>
-            <div class="bg-slate-100 p-3 rounded flex items-center gap-2 mb-6 border border-slate-200">
-                <input id="publish-url" readonly class="bg-transparent w-full text-xs text-slate-600 outline-none" value="https://webnix.app/site/xyz-123">
-                <button onclick="copyUrl()" class="text-blue-600 hover:text-blue-800"><i class="fa-regular fa-copy"></i></button>
+            <h3 class="text-xl font-bold text-slate-900 dark:text-white mb-2">Website Published!</h3>
+            <p class="text-slate-600 dark:text-slate-400 mb-4 text-sm">Your website is live on the internet.</p>
+            <div class="bg-slate-100 dark:bg-slate-800 p-3 rounded flex items-center gap-2 mb-6 border border-slate-200 dark:border-slate-700">
+                <input id="publish-url" readonly class="bg-transparent w-full text-xs text-slate-600 dark:text-slate-300 outline-none" value="https://webnix.app/site/xyz-123">
+                <button onclick="copyUrl()" class="text-purple-600 hover:text-purple-500"><i class="fa-regular fa-copy"></i></button>
             </div>
-            <button onclick="closeModal()" class="w-full bg-slate-900 text-white py-2 rounded hover:bg-slate-800">Close</button>
+            <button onclick="closeModal()" class="w-full bg-slate-900 dark:bg-slate-700 text-white py-2 rounded hover:bg-slate-800 dark:hover:bg-slate-600">Close</button>
         </div>
     </div>
 
@@ -253,7 +298,8 @@
         const supaUrl = 'https://rnlwrngfgvznndlekmrz.supabase.co';
         const supaKey = 'sb_publishable_mtI0_ZBvU_n5oRuqV58QHg_qJt3Gfyt'; 
         
-        let supabase;
+        // RENAMED VARIABLE TO FIX SYNTAX ERROR
+        let sbClient; 
         let currentUser = null;
         let currentProjectId = null;
         let selectedElement = null;
@@ -265,10 +311,19 @@
                 return;
             }
 
-            supabase = supabase.createClient(supaUrl, supaKey);
+            // Use the renamed variable
+            sbClient = supabase.createClient(supaUrl, supaKey);
+
+            // Initialize Theme
+            initTheme();
 
             // Check Session
-            const { data: { session } } = await supabase.auth.getSession();
+            const { data: { session } } = await sbClient.auth.getSession();
+
+            // Hide Loading Screen with a fade
+            const loader = document.getElementById('loading-screen');
+            loader.classList.add('opacity-0', 'pointer-events-none');
+            setTimeout(() => { loader.style.display = 'none'; }, 500);
 
             if (!session) {
                 // Redirect if not signed in
@@ -285,14 +340,33 @@
             loadProjects();
         };
 
+        // --- THEME LOGIC ---
+        function initTheme() {
+            if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                document.documentElement.classList.add('dark');
+            } else {
+                document.documentElement.classList.remove('dark');
+            }
+        }
+
+        function toggleTheme() {
+            if (document.documentElement.classList.contains('dark')) {
+                document.documentElement.classList.remove('dark');
+                localStorage.theme = 'light';
+            } else {
+                document.documentElement.classList.add('dark');
+                localStorage.theme = 'dark';
+            }
+        }
+
         async function signOut() {
-            await supabase.auth.signOut();
+            await sbClient.auth.signOut();
             window.location.href = 'auth.html';
         }
 
         // --- DASHBOARD LOGIC ---
         async function loadProjects() {
-            const { data, error } = await supabase
+            const { data, error } = await sbClient
                 .from('websites')
                 .select('*')
                 .order('updated_at', { ascending: false });
@@ -307,7 +381,7 @@
             }
 
             if (data.length === 0) {
-                grid.innerHTML = `<div class="col-span-full text-center py-20 text-slate-400">
+                grid.innerHTML = `<div class="col-span-full text-center py-20 text-slate-400 dark:text-slate-600">
                     <i class="fa-solid fa-layer-group text-4xl mb-4 opacity-50"></i>
                     <p>No projects yet. Create one to get started!</p>
                 </div>`;
@@ -316,17 +390,17 @@
 
             data.forEach(project => {
                 const card = document.createElement('div');
-                card.className = 'bg-white border border-slate-200 rounded-xl overflow-hidden hover:shadow-lg transition group relative';
+                card.className = 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden hover:shadow-lg dark:hover:shadow-purple-900/10 transition group relative';
                 card.innerHTML = `
-                    <div class="h-40 bg-slate-100 flex items-center justify-center border-b border-slate-100">
-                        <i class="fa-solid fa-window-maximize text-4xl text-slate-300"></i>
+                    <div class="h-40 bg-slate-50 dark:bg-slate-800 flex items-center justify-center border-b border-slate-100 dark:border-slate-800">
+                        <i class="fa-solid fa-window-maximize text-4xl text-slate-300 dark:text-slate-600"></i>
                     </div>
                     <div class="p-4">
-                        <h3 class="font-bold text-slate-800 truncate">${project.title}</h3>
-                        <p class="text-xs text-slate-500 mt-1">Edited: ${new Date(project.updated_at).toLocaleDateString()}</p>
+                        <h3 class="font-bold text-slate-800 dark:text-slate-100 truncate">${project.title}</h3>
+                        <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">Edited: ${new Date(project.updated_at).toLocaleDateString()}</p>
                     </div>
                     <div class="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition">
-                        <button onclick="deleteProject('${project.id}')" class="bg-white text-red-500 p-2 rounded shadow hover:bg-red-50"><i class="fa-solid fa-trash"></i></button>
+                        <button onclick="deleteProject('${project.id}')" class="bg-white dark:bg-slate-800 text-red-500 p-2 rounded shadow hover:bg-red-50 dark:hover:bg-red-900/20"><i class="fa-solid fa-trash"></i></button>
                     </div>
                     <button onclick="openProject('${project.id}')" class="absolute inset-0 z-0"></button>
                 `;
@@ -338,7 +412,7 @@
             const title = prompt("Enter website name:", "My Amazing Site");
             if (!title) return;
 
-            const { data, error } = await supabase
+            const { data, error } = await sbClient
                 .from('websites')
                 .insert([{ 
                     user_id: currentUser.id, 
@@ -360,7 +434,7 @@
         async function deleteProject(id) {
             if(!confirm("Are you sure? This cannot be undone.")) return;
             
-            const { error } = await supabase.from('websites').delete().eq('id', id);
+            const { error } = await sbClient.from('websites').delete().eq('id', id);
             if(!error) {
                 loadProjects();
                 showToast("Project deleted");
@@ -377,7 +451,7 @@
             document.getElementById('editor-controls').classList.remove('hidden');
 
             // Fetch Data
-            const { data, error } = await supabase
+            const { data, error } = await sbClient
                 .from('websites')
                 .select('*')
                 .eq('id', id)
@@ -390,12 +464,12 @@
                     canvas.innerHTML = data.html_content;
                 } else {
                     // Reset to empty state if new
-                    canvas.innerHTML = `<div class="pointer-events-none text-slate-300 text-center mt-32 border-2 border-dashed border-slate-200 p-10 rounded-xl" id="empty-state">
+                    canvas.innerHTML = `<div class="pointer-events-none text-slate-300 dark:text-slate-600 text-center mt-32 border-2 border-dashed border-slate-200 dark:border-slate-700 p-10 rounded-xl" id="empty-state">
                         <i class="fa-solid fa-arrow-pointer text-4xl mb-4"></i>
                         <p>Drag elements here to build your website</p>
                      </div>`;
                 }
-                attachClickHandlersToCanvas(); // Reattach listeners to loaded HTML
+                attachClickHandlersToCanvas(); 
             }
         }
 
@@ -418,7 +492,6 @@
 
         function allowDrop(ev) {
             ev.preventDefault();
-            // Optional: highlight drop target
         }
 
         function drop(ev) {
@@ -427,15 +500,12 @@
             const emptyState = document.getElementById('empty-state');
             if(emptyState) emptyState.remove();
 
-            // Find Drop Target (handle nesting)
             let target = ev.target;
-            // If dropping on text, go to parent
             if(target.nodeName === '#text') target = target.parentNode;
-            // Prevent dropping inside self or weird nesting if needed, mostly allow nesting in divs
+            
             if(target.id === 'editor-canvas' || target.classList.contains('drop-container')) {
                 // valid
             } else {
-                // If dropped on a specific element, append after it or inside if it's a container
                 if(!target.classList.contains('drop-container')) {
                     target = target.closest('.drop-container') || document.getElementById('editor-canvas');
                 }
@@ -444,13 +514,12 @@
             const el = createElement(type);
             target.appendChild(el);
             
-            // Select immediately
             selectElement(el, new Event('click'));
         }
 
         function createElement(type) {
             let el;
-            const baseClass = "relative hover:outline hover:outline-2 hover:outline-blue-200 cursor-pointer transition-all";
+            const baseClass = "relative hover:outline hover:outline-2 hover:outline-purple-200 cursor-pointer transition-all";
 
             switch(type) {
                 case 'heading':
@@ -464,10 +533,10 @@
                     el.className = `${baseClass} mb-4 text-slate-600 leading-relaxed`;
                     break;
                 case 'button':
-                    el = document.createElement('a'); // use A tag for links
+                    el = document.createElement('a'); 
                     el.innerText = 'Click Me';
                     el.href = "#";
-                    el.className = `${baseClass} inline-block bg-blue-600 text-white px-6 py-2 rounded font-medium hover:bg-blue-700 mb-4`;
+                    el.className = `${baseClass} inline-block bg-purple-600 text-white px-6 py-2 rounded font-medium hover:bg-purple-700 mb-4`;
                     break;
                 case 'image':
                     el = document.createElement('img');
@@ -481,23 +550,20 @@
                 case 'nav':
                     el = document.createElement('nav');
                     el.className = `${baseClass} drop-container flex justify-between items-center p-4 bg-slate-800 text-white mb-4 rounded`;
-                    el.innerHTML = `<span class="font-bold text-lg">Logo</span><div class="flex gap-4"><a href="#" class="hover:text-blue-300">Home</a><a href="#" class="hover:text-blue-300">About</a></div>`;
+                    el.innerHTML = `<span class="font-bold text-lg">Logo</span><div class="flex gap-4"><a href="#" class="hover:text-purple-300">Home</a><a href="#" class="hover:text-purple-300">About</a></div>`;
                     break;
             }
 
-            // Attach click handler for properties
             el.onclick = (e) => selectElement(el, e);
             return el;
         }
 
         function attachClickHandlersToCanvas() {
-            // Helper to re-bind clicks after loading HTML string
             const canvas = document.getElementById('editor-canvas');
             const allElements = canvas.querySelectorAll('*');
             allElements.forEach(el => {
                 if(el.id !== 'empty-state') {
                     el.onclick = (e) => selectElement(el, e);
-                    // Ensure containers keep drop class logic if needed
                     if(el.tagName === 'DIV' || el.tagName === 'NAV') el.classList.add('drop-container');
                 }
             });
@@ -506,7 +572,6 @@
         // --- SELECTION & PROPERTIES ---
 
         function deselectAll(e) {
-            // Only deselect if clicking the main gray background, not the canvas
             if(e.target.tagName === 'MAIN') {
                 if (selectedElement) {
                     selectedElement.classList.remove('selected-element');
@@ -517,7 +582,7 @@
         }
 
         function selectElement(el, e) {
-            e.stopPropagation(); // Stop bubbling to parent containers
+            e.stopPropagation(); 
             
             if (selectedElement) selectedElement.classList.remove('selected-element');
             selectedElement = el;
@@ -530,12 +595,10 @@
             const panel = document.getElementById('properties-panel');
             panel.classList.remove('translate-x-full');
 
-            // Reset inputs
             document.getElementById('prop-text-group').classList.add('hidden');
             document.getElementById('prop-link-group').classList.add('hidden');
             document.getElementById('prop-src-group').classList.add('hidden');
 
-            // Show relevant inputs based on tag
             const tag = selectedElement.tagName.toLowerCase();
 
             if(['h1','h2','h3','p','a','span','button'].includes(tag)) {
@@ -577,21 +640,18 @@
 
         function updateBg(colorClass) {
             if(!selectedElement) return;
-            // Remove existing bg classes
             const classes = selectedElement.className.split(' ').filter(c => !c.startsWith('bg-'));
             selectedElement.className = classes.join(' ') + ' ' + colorClass;
         }
 
         function updateColor(colorClass) {
             if(!selectedElement) return;
-            // Remove existing text classes
             const classes = selectedElement.className.split(' ').filter(c => !c.startsWith('text-'));
             selectedElement.className = classes.join(' ') + ' ' + colorClass;
         }
 
         function updatePadding(val) {
             if(!selectedElement) return;
-            // Remove existing padding classes
             const classes = selectedElement.className.split(' ').filter(c => !c.startsWith('p-'));
             selectedElement.className = classes.join(' ') + ' p-' + val;
         }
@@ -609,7 +669,6 @@
         async function saveWebsite() {
             if(!currentProjectId) return;
 
-            // Clean up visual helpers before saving
             if(selectedElement) {
                 selectedElement.classList.remove('selected-element');
                 selectedElement = null;
@@ -619,11 +678,10 @@
             const canvas = document.getElementById('editor-canvas');
             const title = document.getElementById('project-title').value;
 
-            // Prepare Content (remove empty state if present)
             let contentToSave = canvas.innerHTML;
             if(contentToSave.includes('id="empty-state"')) contentToSave = '';
 
-            const { error } = await supabase
+            const { error } = await sbClient
                 .from('websites')
                 .update({ 
                     title: title,
@@ -641,13 +699,12 @@
         }
 
         async function publishWebsite() {
-            await saveWebsite(); // Save first
+            await saveWebsite(); 
 
-            // Generate a fake link for demo (in real app, you'd route this)
-            const slug = currentProjectId.split('-')[0]; // simple short slug
+            const slug = currentProjectId.split('-')[0];
             const publicUrl = `https://webnix.app/site/${slug}`;
 
-            const { error } = await supabase
+            const { error } = await sbClient
                 .from('websites')
                 .update({ 
                     is_published: true,
@@ -668,16 +725,14 @@
         function copyUrl() {
             const copyText = document.getElementById("publish-url");
             copyText.select();
-            document.execCommand('copy'); // Fallback for iframe safety
+            document.execCommand('copy');
             showToast("Link copied!");
         }
-
-        // --- UI UTILS ---
 
         function togglePreview() {
             const canvas = document.getElementById('editor-canvas');
             canvas.classList.toggle('w-full');
-            canvas.classList.toggle('w-[375px]'); // Mobile width
+            canvas.classList.toggle('w-[375px]');
             showToast("Toggled Mobile View");
         }
 
