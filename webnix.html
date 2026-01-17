@@ -3,374 +3,583 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WebNix AI Studio | Professional Builder</title>
-    <!-- Tailwind CSS -->
+    <title>WebNix | Codenix AI Studio</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Lucide Icons -->
-    <script src="https://unpkg.com/lucide@latest"></script>
-    <!-- Supabase JS -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
-        
+        :root {
+            --primary: #6366f1;
+            --bg-dark: #0f172a;
+            --panel-bg: #1e293b;
+        }
         body {
-            font-family: 'Plus Jakarta Sans', sans-serif;
-            transition: background-color 0.3s ease;
+            background-color: var(--bg-dark);
+            color: white;
+            font-family: 'Inter', sans-serif;
+            overflow: hidden;
         }
-
-        .scrollbar-hide::-webkit-scrollbar {
+        .canvas-area {
+            background-image: radial-gradient(#334155 1px, transparent 1px);
+            background-size: 20px 20px;
+            min-height: 2000px;
+            width: 100%;
+            transition: all 0.3s ease;
+        }
+        .draggable-item {
+            cursor: grab;
+            transition: transform 0.2s;
+        }
+        .draggable-item:active {
+            cursor: grabbing;
+        }
+        .dropped-element {
+            position: relative;
+            outline: 1px solid transparent;
+            min-height: 20px;
+        }
+        .dropped-element:hover {
+            outline: 2px solid var(--primary);
+        }
+        .element-controls {
             display: none;
+            position: absolute;
+            top: -30px;
+            right: 0;
+            background: var(--primary);
+            padding: 2px 8px;
+            border-radius: 4px;
+            z-index: 50;
         }
-
-        /* Custom Theme Transitions */
-        .theme-transition {
-            transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
+        .dropped-element:hover > .element-controls {
+            display: flex;
         }
-
-        /* Purple Glow Effect */
-        .purple-glow {
-            box-shadow: 0 0 20px rgba(168, 85, 247, 0.15);
+        .sidebar {
+            width: 300px;
+            background: var(--panel-bg);
+            height: calc(100vh - 64px);
+            overflow-y: auto;
         }
-
-        /* Phone frame silhouette */
-        .phone-frame {
-            border: 12px solid #18181b;
-            border-radius: 40px;
-            width: 375px;
-            margin: 0 auto;
+        /* Hide scrollbars but keep functionality */
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-thumb { background: #475569; border-radius: 10px; }
+        
+        #toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            transform: translateY(100px);
+            transition: transform 0.3s ease;
+            z-index: 1000;
         }
+        #toast.show { transform: translateY(0); }
     </style>
 </head>
-<body class="bg-slate-50 text-slate-900" id="app-body">
-    <div id="app-root" class="h-screen flex flex-col overflow-hidden">
-        <!-- Loader -->
-        <div id="loader" class="fixed inset-0 z-[100] bg-black flex flex-col items-center justify-center">
-            <div class="w-12 h-12 border-4 border-purple-600 border-t-transparent rounded-full animate-spin mb-4"></div>
-            <p class="text-purple-500 font-bold tracking-widest text-xs uppercase">Initializing WebNix AI...</p>
-        </div>
+<body>
 
-        <!-- Dashboard View -->
-        <div id="view-dashboard" class="hidden flex-1 overflow-y-auto theme-transition">
-            <header class="border-b px-8 py-4 flex justify-between items-center sticky top-0 z-10 backdrop-blur-md theme-transition" id="dash-header">
-                <div class="flex items-center gap-2">
-                    <div class="w-10 h-10 bg-purple-600 rounded-lg flex items-center justify-center text-white font-bold shadow-lg shadow-purple-500/20">W</div>
-                    <h1 class="text-xl font-bold tracking-tight">WebNix <span class="text-purple-500">AI Studio</span></h1>
+    <!-- Notification Toast -->
+    <div id="toast" class="bg-indigo-600 text-white px-6 py-3 rounded-lg shadow-xl flex items-center space-x-2">
+        <span id="toast-msg"></span>
+    </div>
+
+    <!-- Auth Guard Overlay (Hidden by Default) -->
+    <div id="auth-check" class="fixed inset-0 bg-slate-950 z-[9999] flex flex-col items-center justify-center hidden">
+        <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-500 mb-4"></div>
+        <p class="text-slate-400">Authenticating with Codenix AI Studio...</p>
+    </div>
+
+    <!-- App Content -->
+    <div id="app-shell" class="h-screen flex flex-col">
+        
+        <!-- Header -->
+        <header class="h-16 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-6 shrink-0">
+            <div class="flex items-center space-x-4">
+                <div class="bg-indigo-600 p-2 rounded-lg">
+                    <i class="fas fa-cubes text-xl"></i>
                 </div>
-                <div class="flex items-center gap-4">
-                    <button onclick="toggleTheme()" class="p-2 rounded-full border border-slate-200 text-slate-400 hover:bg-slate-100 theme-transition" id="theme-toggle-btn">
-                        <i data-lucide="moon" class="w-5 h-5"></i>
-                    </button>
-                    <div class="flex items-center gap-3 pl-3 pr-1 py-1 rounded-full border border-slate-200 bg-slate-100 theme-transition" id="user-pill">
-                        <span id="user-email" class="text-xs font-bold opacity-70">user@example.com</span>
-                        <button onclick="handleLogout()" class="bg-white/10 p-1.5 rounded-full text-red-400 hover:text-red-500 transition-colors">
-                            <i data-lucide="log-out" class="w-4 h-4"></i>
-                        </button>
+                <div>
+                    <h1 class="font-bold text-lg leading-none">WebNix</h1>
+                    <span class="text-xs text-slate-500 uppercase tracking-widest">Codenix AI Studio</span>
+                </div>
+            </div>
+
+            <div id="editor-nav" class="hidden flex items-center space-x-4">
+                <input id="site-title" type="text" value="My New Website" class="bg-slate-800 border border-slate-700 px-3 py-1 rounded text-sm focus:outline-none focus:ring-1 ring-indigo-500">
+                <div class="h-6 w-[1px] bg-slate-700"></div>
+                <button onclick="saveProject()" class="text-sm bg-slate-800 hover:bg-slate-700 px-4 py-2 rounded-md transition flex items-center">
+                    <i class="fas fa-save mr-2"></i> Save
+                </button>
+                <button onclick="publishProject()" class="text-sm bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded-md transition flex items-center">
+                    <i class="fas fa-rocket mr-2"></i> Publish
+                </button>
+                <button onclick="exportCode()" class="text-sm bg-emerald-600 hover:bg-emerald-700 px-4 py-2 rounded-md transition flex items-center">
+                    <i class="fas fa-code mr-2"></i> Export HTML
+                </button>
+                <button onclick="closeEditor()" class="text-sm text-slate-400 hover:text-white px-2">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+
+            <div id="dashboard-nav" class="flex items-center space-x-4">
+                <button onclick="createNewProject()" class="bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded-md text-sm font-medium transition">
+                    + Create Project
+                </button>
+                <button onclick="handleLogout()" class="text-slate-400 hover:text-white text-sm">Logout</button>
+            </div>
+        </header>
+
+        <main class="flex-1 flex overflow-hidden">
+            
+            <!-- Dashboard View -->
+            <div id="view-dashboard" class="flex-1 p-8 overflow-y-auto">
+                <div class="max-w-6xl mx-auto">
+                    <h2 class="text-3xl font-bold mb-8">My Projects</h2>
+                    <div id="projects-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        <!-- Projects loaded here -->
+                        <div class="animate-pulse bg-slate-800 h-48 rounded-xl"></div>
+                        <div class="animate-pulse bg-slate-800 h-48 rounded-xl"></div>
+                        <div class="animate-pulse bg-slate-800 h-48 rounded-xl"></div>
                     </div>
-                    <button onclick="createNewProject()" class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-all shadow-xl shadow-purple-500/20 font-bold text-sm">
-                        <i data-lucide="plus" class="w-4 h-4"></i> New Project
-                    </button>
                 </div>
-            </header>
+            </div>
 
-            <main class="max-w-6xl mx-auto p-8">
-                <h2 class="text-3xl font-black mb-8 tracking-tight">Your Workspace</h2>
-                <div id="projects-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                    <!-- Projects will be injected here -->
-                </div>
-            </main>
-        </div>
-
-        <!-- Editor View -->
-        <div id="view-editor" class="hidden flex-1 flex overflow-hidden theme-transition">
-            <!-- Left Sidebar -->
-            <aside class="w-80 border-r flex flex-col z-30 shadow-2xl theme-transition" id="editor-sidebar">
-                <div class="p-5 border-b flex items-center justify-between border-purple-900/10">
-                    <button onclick="setView('dashboard')" class="p-2 rounded-xl border border-slate-100 hover:bg-slate-50 transition-all theme-transition">
-                        <i data-lucide="chevron-left" class="w-5 h-5"></i>
-                    </button>
-                    <span class="font-black text-sm">WebNix <span class="text-purple-500">Studio</span></span>
-                    <button onclick="toggleTheme()" class="p-2 opacity-50"><i data-lucide="sun" class="w-4 h-4"></i></button>
-                </div>
-                <div class="p-4 overflow-y-auto space-y-4">
-                    <div class="text-[10px] font-black uppercase tracking-widest opacity-30">Components</div>
-                    <div class="grid grid-cols-2 gap-2">
-                        <button onclick="addComponent('navbar')" class="p-4 rounded-2xl border border-slate-200 bg-slate-50 hover:border-purple-500 transition-all text-center group theme-transition">
-                            <i data-lucide="layers" class="w-5 h-5 mx-auto mb-2 text-purple-500"></i>
-                            <span class="text-[10px] font-bold">Navbar</span>
-                        </button>
-                        <button onclick="addComponent('hero')" class="p-4 rounded-2xl border border-slate-200 bg-slate-50 hover:border-purple-500 transition-all text-center group theme-transition">
-                            <i data-lucide="square" class="w-5 h-5 mx-auto mb-2 text-purple-500"></i>
-                            <span class="text-[10px] font-bold">Hero</span>
-                        </button>
-                    </div>
-                </div>
-            </aside>
-
-            <!-- Canvas Area -->
-            <div class="flex-1 flex flex-col relative">
-                <header class="h-20 border-b flex justify-between items-center px-8 z-20 theme-transition" id="editor-header">
-                    <div class="flex items-center gap-6">
-                        <input type="text" id="project-title-input" class="font-black text-lg bg-transparent border-none focus:ring-0 w-48" onchange="updateProjectTitle(this.value)">
-                        <div class="flex items-center gap-1 p-1.5 rounded-xl border border-slate-100 bg-slate-100 theme-transition" id="viewport-switcher">
-                            <button onclick="setViewport('desktop')" id="btn-vp-desktop" class="p-2 rounded-lg bg-purple-600 text-white shadow-lg shadow-purple-500/30 transition-all">
-                                <i data-lucide="monitor" class="w-4 h-4"></i>
-                            </button>
-                            <button onclick="setViewport('mobile')" id="btn-vp-mobile" class="p-2 rounded-lg opacity-40 transition-all">
-                                <i data-lucide="smartphone" class="w-4 h-4"></i>
-                            </button>
+            <!-- Editor View -->
+            <div id="view-editor" class="flex-1 flex hidden">
+                <!-- Sidebar: Components -->
+                <aside class="sidebar border-r border-slate-800 p-4">
+                    <h3 class="text-xs font-semibold text-slate-500 uppercase mb-4 tracking-wider">Components</h3>
+                    
+                    <div class="space-y-3">
+                        <div draggable="true" ondragstart="onDragStart(event, 'navbar')" class="draggable-item bg-slate-800 p-3 rounded-lg border border-slate-700 hover:border-indigo-500 flex items-center">
+                            <i class="fas fa-window-maximize w-8 text-indigo-400"></i>
+                            <span>Navigation Bar</span>
+                        </div>
+                        <div draggable="true" ondragstart="onDragStart(event, 'hero')" class="draggable-item bg-slate-800 p-3 rounded-lg border border-slate-700 hover:border-indigo-500 flex items-center">
+                            <i class="fas fa-star w-8 text-yellow-400"></i>
+                            <span>Hero Section</span>
+                        </div>
+                        <div draggable="true" ondragstart="onDragStart(event, 'features')" class="draggable-item bg-slate-800 p-3 rounded-lg border border-slate-700 hover:border-indigo-500 flex items-center">
+                            <i class="fas fa-th-large w-8 text-emerald-400"></i>
+                            <span>Features Grid</span>
+                        </div>
+                        <div draggable="true" ondragstart="onDragStart(event, 'content')" class="draggable-item bg-slate-800 p-3 rounded-lg border border-slate-700 hover:border-indigo-500 flex items-center">
+                            <i class="fas fa-align-left w-8 text-blue-400"></i>
+                            <span>Text Block</span>
+                        </div>
+                        <div draggable="true" ondragstart="onDragStart(event, 'footer')" class="draggable-item bg-slate-800 p-3 rounded-lg border border-slate-700 hover:border-indigo-500 flex items-center">
+                            <i class="fas fa-window-minimize w-8 text-purple-400"></i>
+                            <span>Footer</span>
                         </div>
                     </div>
-                    <button onclick="saveProject()" class="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2.5 text-xs font-black rounded-xl shadow-xl shadow-purple-500/20 transition-all">Save Design</button>
-                </header>
 
-                <div class="flex-1 overflow-y-auto p-12 flex justify-center theme-transition" id="canvas-container">
-                    <div id="canvas-frame" class="bg-white text-slate-900 shadow-2xl transition-all duration-500 min-h-full overflow-hidden w-full max-w-5xl rounded-lg">
-                        <div id="canvas-elements" class="flex flex-col">
-                            <!-- Dragged elements appear here -->
+                    <h3 class="text-xs font-semibold text-slate-500 uppercase mt-8 mb-4 tracking-wider">Pages</h3>
+                    <div id="pages-list" class="space-y-1">
+                        <!-- Pages here -->
+                        <div class="text-xs text-slate-500 italic p-2">Index (Home)</div>
+                    </div>
+                </aside>
+
+                <!-- Canvas -->
+                <div class="flex-1 overflow-auto bg-slate-900 relative flex justify-center p-8">
+                    <div id="canvas" 
+                         ondragover="onDragOver(event)" 
+                         ondrop="onDrop(event)"
+                         class="canvas-area max-w-4xl bg-white shadow-2xl rounded-sm min-h-screen text-slate-900">
+                        <!-- Dropped content goes here -->
+                        <div class="p-12 text-center text-slate-300 border-2 border-dashed border-slate-700 m-4 rounded-lg pointer-events-none">
+                            Drop components here to build your site
                         </div>
                     </div>
                 </div>
+
+                <!-- Inspector Panel -->
+                <aside class="sidebar border-l border-slate-800 p-4">
+                    <h3 class="text-xs font-semibold text-slate-500 uppercase mb-4 tracking-wider">Properties</h3>
+                    <div id="inspector-content" class="text-slate-400 text-sm">
+                        Select an element to edit properties
+                    </div>
+                </aside>
+            </div>
+        </main>
+    </div>
+
+    <!-- Export Modal -->
+    <div id="export-modal" class="fixed inset-0 bg-black/80 z-[100] hidden items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-800 w-full max-w-2xl rounded-xl p-6 shadow-2xl">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-bold">Copy Your HTML Code</h3>
+                <button onclick="closeModal()" class="text-slate-500 hover:text-white"><i class="fas fa-times"></i></button>
+            </div>
+            <textarea id="html-code-output" readonly class="w-full h-80 bg-slate-950 border border-slate-800 rounded p-4 font-mono text-sm text-emerald-400 mb-4 focus:outline-none"></textarea>
+            <div class="flex justify-end space-x-3">
+                <button onclick="copyToClipboard()" class="bg-indigo-600 px-6 py-2 rounded-lg font-medium">Copy Code</button>
             </div>
         </div>
     </div>
 
     <script>
-        // --- CONFIG ---
-        const SUPABASE_URL = 'https://rnlwrngfgvznndlekmrz.supabase.co';
-        const SUPABASE_ANON_KEY = 'sb_publishable_mtI0_ZBvU_n5oRuqV58QHg_qJt3Gfyt';
-        let supabaseClient;
+        // Supabase Initialization
+        // Using window.supabase directly to avoid redeclaring if the script is evaluated multiple times
+        const SUPABASE_URL = "https://rnlwrngfgvznndlekmrz.supabase.co";
+        const SUPABASE_KEY = "sb_publishable_mtI0_ZBvU_n5oRuqV58QHg_qJt3Gfyt";
         
-        // --- STATE ---
-        let user = null;
-        let theme = 'dark'; // Default to dark as requested
-        let view = 'dashboard';
-        let viewport = 'desktop';
-        let projects = [];
+        // Define client outside of global 'supabase' name if possible, or check existence
+        if (!window.supabaseClient) {
+            window.supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        }
+        const client = window.supabaseClient;
+
+        let currentUser = null;
         let currentProject = null;
-        let currentPageId = 'index';
+        let activeElement = null;
 
-        // --- INIT ---
-        window.onload = async () => {
-            supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-            lucide.createIcons();
-            await checkAuth();
-            applyTheme();
-        };
-
+        // --- Auth Logic ---
         async function checkAuth() {
-            // Get initial session
-            const { data: { session } } = await supabaseClient.auth.getSession();
+            const overlay = document.getElementById('auth-check');
+            overlay.classList.remove('hidden');
             
-            if (!session) {
-                window.location.href = 'auth.html';
-                return;
-            }
-
-            user = session.user;
-            document.getElementById('user-email').textContent = user.email;
-            
-            // Fixed the onAuthStateChanged logic for Supabase v2
-            const { data: { subscription } } = supabaseClient.auth.onAuthStateChanged((_event, session) => {
-                if (!session) {
-                    window.location.href = 'auth.html';
-                } else {
-                    user = session.user;
-                    document.getElementById('user-email').textContent = user.email;
-                }
-            });
-
-            await fetchProjects();
-            document.getElementById('loader').classList.add('hidden');
-            setView('dashboard');
-        }
-
-        async function fetchProjects() {
-            const { data, error } = await supabaseClient
-                .from('websites')
-                .select('*')
-                .eq('user_id', user.id)
-                .order('updated_at', { ascending: false });
-            
-            if (data) {
-                projects = data;
-                renderProjects();
-            }
-        }
-
-        function setView(v) {
-            view = v;
-            document.getElementById('view-dashboard').classList.toggle('hidden', v !== 'dashboard');
-            document.getElementById('view-editor').classList.toggle('hidden', v !== 'editor');
-        }
-
-        function toggleTheme() {
-            theme = theme === 'light' ? 'dark' : 'light';
-            applyTheme();
-        }
-
-        function applyTheme() {
-            const body = document.getElementById('app-body');
-            const dashHeader = document.getElementById('dash-header');
-            const editorSidebar = document.getElementById('editor-sidebar');
-            const editorHeader = document.getElementById('editor-header');
-            const canvasContainer = document.getElementById('canvas-container');
-            const userPill = document.getElementById('user-pill');
-            const vpSwitcher = document.getElementById('viewport-switcher');
-
-            if (theme === 'dark') {
-                body.className = 'bg-zinc-950 text-white theme-transition';
-                dashHeader.className = 'border-b px-8 py-4 flex justify-between items-center sticky top-0 z-10 backdrop-blur-md bg-black/80 border-purple-900/30 theme-transition';
-                editorSidebar.className = 'w-80 border-r flex flex-col z-30 shadow-2xl bg-black border-purple-900/30 theme-transition';
-                editorHeader.className = 'h-20 border-b flex justify-between items-center px-8 z-20 bg-black border-purple-900/30 theme-transition';
-                canvasContainer.className = 'flex-1 overflow-y-auto p-12 flex justify-center bg-zinc-950 theme-transition';
-                userPill.className = 'flex items-center gap-3 pl-3 pr-1 py-1 rounded-full border bg-zinc-900 border-purple-900/30 theme-transition';
-                vpSwitcher.className = 'flex items-center gap-1 p-1.5 rounded-xl border bg-zinc-900 border-purple-900/30 theme-transition';
-                document.getElementById('canvas-frame').classList.add('bg-black', 'text-white', 'shadow-purple-900/20');
-                document.getElementById('canvas-frame').classList.remove('bg-white', 'text-slate-900', 'shadow-slate-200');
-            } else {
-                body.className = 'bg-slate-50 text-slate-900 theme-transition';
-                dashHeader.className = 'border-b px-8 py-4 flex justify-between items-center sticky top-0 z-10 backdrop-blur-md bg-white/80 border-slate-200 theme-transition';
-                editorSidebar.className = 'w-80 border-r flex flex-col z-30 shadow-2xl bg-white border-slate-200 theme-transition';
-                editorHeader.className = 'h-20 border-b flex justify-between items-center px-8 z-20 bg-white border-slate-100 theme-transition';
-                canvasContainer.className = 'flex-1 overflow-y-auto p-12 flex justify-center bg-slate-50 theme-transition';
-                userPill.className = 'flex items-center gap-3 pl-3 pr-1 py-1 rounded-full border bg-slate-100 border-slate-200 theme-transition';
-                vpSwitcher.className = 'flex items-center gap-1 p-1.5 rounded-xl border bg-slate-100 border-slate-200 theme-transition';
-                document.getElementById('canvas-frame').classList.add('bg-white', 'text-slate-900', 'shadow-slate-200');
-                document.getElementById('canvas-frame').classList.remove('bg-black', 'text-white', 'shadow-purple-900/20');
-            }
-            renderCanvas();
-            lucide.createIcons();
-        }
-
-        function renderProjects() {
-            const grid = document.getElementById('projects-grid');
-            grid.innerHTML = projects.map(proj => `
-                <div class="rounded-2xl border overflow-hidden hover:shadow-2xl hover:shadow-purple-500/10 transition-all group flex flex-col ${theme === 'dark' ? 'bg-black border-purple-900/30' : 'bg-white border-slate-200'}">
-                    <div class="h-40 flex items-center justify-center border-b ${theme === 'dark' ? 'bg-zinc-900 border-purple-900/20' : 'bg-slate-50 border-slate-100'}">
-                        <i data-lucide="layout" class="w-12 h-12 ${theme === 'dark' ? 'text-purple-900' : 'text-slate-200'} group-hover:scale-110 transition-transform"></i>
-                    </div>
-                    <div class="p-6">
-                        <h3 class="font-bold text-lg mb-4 truncate">${proj.title}</h3>
-                        <button onclick="openEditor('${proj.id}')" class="w-full bg-purple-600 hover:bg-purple-700 text-white py-2.5 rounded-xl text-sm font-black shadow-lg shadow-purple-500/10">Edit Design</button>
-                    </div>
-                </div>
-            `).join('');
-            lucide.createIcons();
-        }
-
-        async function createNewProject() {
-            const initialContent = { pages: { 'index': { title: 'Home', elements: [] } } };
-            const newProject = {
-                title: 'New WebNix Project',
-                html_content: JSON.stringify(initialContent),
-                styles_content: { theme: 'dark', primaryColor: '#a855f7' },
-                is_published: false,
-                user_id: user.id
-            };
-
-            const { data, error } = await supabaseClient.from('websites').insert([newProject]).select();
-            if (data) {
-                projects.unshift(data[0]);
-                openEditor(data[0].id);
-            }
-        }
-
-        function openEditor(id) {
-            const project = projects.find(p => p.id == id);
-            currentProject = { ...project, html_content: typeof project.html_content === 'string' ? JSON.parse(project.html_content) : project.html_content };
-            document.getElementById('project-title-input').value = currentProject.title;
-            setView('editor');
-            renderCanvas();
-        }
-
-        function addComponent(type) {
-            const templates = {
-                navbar: { type: 'navbar', content: { brand: 'WebNix', links: ['Home', 'Features'] } },
-                hero: { type: 'hero', content: { title: 'AI Powered Future', subtitle: 'Built with Codenix AI Studio engine.' } }
-            };
-            const newEl = { ...templates[type], id: Math.random().toString(36).substr(2, 9) };
-            currentProject.html_content.pages[currentPageId].elements.push(newEl);
-            renderCanvas();
-        }
-
-        function removeComponent(id) {
-            currentProject.html_content.pages[currentPageId].elements = currentProject.html_content.pages[currentPageId].elements.filter(el => el.id !== id);
-            renderCanvas();
-        }
-
-        function renderCanvas() {
-            if (!currentProject) return;
-            const container = document.getElementById('canvas-elements');
-            const elements = currentProject.html_content.pages[currentPageId].elements;
-            
-            container.innerHTML = elements.map((el, idx) => {
-                let html = `<div class="group relative border-b border-transparent hover:border-purple-500/30 transition-all">
-                    <div class="absolute -left-12 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button onclick="removeComponent('${el.id}')" class="p-2 bg-red-500 text-white rounded-lg shadow-lg"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
-                    </div>`;
-
-                if (el.type === 'navbar') {
-                    html += `<nav class="p-6 flex justify-between font-bold border-b border-purple-900/10">
-                        <div class="text-xl tracking-tighter">${el.content.brand}</div>
-                        <div class="flex gap-4 opacity-50 text-xs uppercase tracking-widest">${el.content.links.join(' ')}</div>
-                    </nav>`;
-                } else if (el.type === 'hero') {
-                    html += `<section class="py-24 px-12 text-center">
-                        <h1 class="text-4xl md:text-6xl font-black mb-4 tracking-tight">${el.content.title}</h1>
-                        <p class="opacity-60 max-w-xl mx-auto">${el.content.subtitle}</p>
-                        <button class="mt-8 bg-purple-600 text-white px-8 py-3 rounded-full font-bold text-sm">Get Started</button>
-                    </section>`;
+            try {
+                const { data: { user }, error } = await client.auth.getUser();
+                
+                if (error || !user) {
+                    window.location.href = "auth.html";
+                    return;
                 }
                 
-                html += `</div>`;
-                return html;
-            }).join('');
-            lucide.createIcons();
-        }
-
-        function setViewport(vp) {
-            viewport = vp;
-            const frame = document.getElementById('canvas-frame');
-            const btnD = document.getElementById('btn-vp-desktop');
-            const btnM = document.getElementById('btn-vp-mobile');
-
-            if (vp === 'mobile') {
-                frame.className = `transition-all duration-500 min-h-full overflow-hidden phone-frame shadow-2xl ${theme === 'dark' ? 'bg-black text-white shadow-purple-900/20' : 'bg-white text-slate-900 shadow-slate-200'}`;
-                btnM.classList.add('bg-purple-600', 'text-white', 'shadow-lg');
-                btnM.classList.remove('opacity-40');
-                btnD.classList.add('opacity-40');
-                btnD.classList.remove('bg-purple-600', 'text-white', 'shadow-lg');
-            } else {
-                frame.className = `transition-all duration-500 min-h-full overflow-hidden w-full max-w-5xl rounded-lg shadow-2xl ${theme === 'dark' ? 'bg-black text-white shadow-purple-900/20' : 'bg-white text-slate-900 shadow-slate-200'}`;
-                btnD.classList.add('bg-purple-600', 'text-white', 'shadow-lg');
-                btnD.classList.remove('opacity-40');
-                btnM.classList.add('opacity-40');
-                btnM.classList.remove('bg-purple-600', 'text-white', 'shadow-lg');
+                currentUser = user;
+                overlay.classList.add('hidden');
+                loadProjects();
+            } catch (err) {
+                console.error("Auth error:", err);
+                window.location.href = "auth.html";
             }
-        }
-
-        async function saveProject() {
-            const { error } = await supabaseClient
-                .from('websites')
-                .update({
-                    title: currentProject.title,
-                    html_content: JSON.stringify(currentProject.html_content),
-                    updated_at: new Date().toISOString()
-                })
-                .eq('id', currentProject.id);
-            
-            if (!error) alert("Design saved successfully to cloud!");
-            else alert("Error saving: " + error.message);
-        }
-
-        function updateProjectTitle(val) {
-            currentProject.title = val;
         }
 
         async function handleLogout() {
-            await supabaseClient.auth.signOut();
-            window.location.href = 'auth.html';
+            await client.auth.signOut();
+            window.location.reload();
         }
+
+        // --- Project Management ---
+        async function loadProjects() {
+            const grid = document.getElementById('projects-grid');
+            
+            const { data, error } = await client
+                .from('websites')
+                .select('*')
+                .eq('user_id', currentUser.id)
+                .order('updated_at', { ascending: false });
+
+            if (error) {
+                showToast("Error loading projects: " + error.message);
+                return;
+            }
+
+            if (!data || data.length === 0) {
+                grid.innerHTML = `
+                    <div class="col-span-full text-center py-20 border-2 border-dashed border-slate-800 rounded-2xl">
+                        <p class="text-slate-500 mb-4">No projects yet. Start building your first masterpiece!</p>
+                        <button onclick="createNewProject()" class="text-indigo-400 hover:underline">Create New Project</button>
+                    </div>
+                `;
+                return;
+            }
+
+            grid.innerHTML = data.map(site => `
+                <div class="bg-slate-800/50 border border-slate-700 rounded-xl p-6 hover:bg-slate-800 transition group">
+                    <div class="flex justify-between items-start mb-4">
+                        <h3 class="font-bold text-lg">${site.title}</h3>
+                        ${site.is_published ? '<span class="text-[10px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full uppercase">Published</span>' : ''}
+                    </div>
+                    <p class="text-slate-500 text-sm mb-6">Last modified: ${new Date(site.updated_at).toLocaleDateString()}</p>
+                    <div class="flex space-x-2">
+                        <button onclick="openEditorById('${site.id}')" class="flex-1 bg-indigo-600 hover:bg-indigo-500 py-2 rounded-lg text-sm transition">Edit Site</button>
+                        <button onclick="deleteProject('${site.id}')" class="bg-slate-700 hover:bg-red-600 px-3 rounded-lg transition"><i class="fas fa-trash"></i></button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        async function openEditorById(id) {
+            const { data, error } = await client.from('websites').select('*').eq('id', id).single();
+            if (data) openEditor(data);
+        }
+
+        async function createNewProject() {
+            const title = "New Site " + Math.floor(Math.random() * 1000);
+            const { data, error } = await client
+                .from('websites')
+                .insert([{ 
+                    user_id: currentUser.id, 
+                    title, 
+                    html_content: '', 
+                    styles_content: {},
+                    is_published: false
+                }])
+                .select();
+
+            if (error) {
+                showToast("Failed to create project");
+                return;
+            }
+            openEditor(data[0]);
+        }
+
+        async function deleteProject(id) {
+            if (!confirm("Are you sure you want to delete this project?")) return;
+            await client.from('websites').delete().eq('id', id);
+            loadProjects();
+        }
+
+        // --- Builder Engine ---
+        function openEditor(site) {
+            currentProject = site;
+            document.getElementById('view-dashboard').classList.add('hidden');
+            document.getElementById('view-editor').classList.remove('hidden');
+            document.getElementById('dashboard-nav').classList.add('hidden');
+            document.getElementById('editor-nav').classList.remove('hidden');
+            
+            document.getElementById('site-title').value = site.title;
+            const canvas = document.getElementById('canvas');
+            
+            if (site.html_content) {
+                canvas.innerHTML = site.html_content;
+                Array.from(canvas.querySelectorAll('.dropped-element')).forEach(attachElementListeners);
+            } else {
+                canvas.innerHTML = `
+                    <div class="p-12 text-center text-slate-300 border-2 border-dashed border-slate-700 m-4 rounded-lg pointer-events-none">
+                        Drop components here to build your site
+                    </div>
+                `;
+            }
+            
+            showToast("Editor Loaded");
+        }
+
+        function closeEditor() {
+            document.getElementById('view-dashboard').classList.remove('hidden');
+            document.getElementById('view-editor').classList.add('hidden');
+            document.getElementById('dashboard-nav').classList.remove('hidden');
+            document.getElementById('editor-nav').classList.add('hidden');
+            currentProject = null;
+            loadProjects();
+        }
+
+        // --- Drag & Drop Core ---
+        function onDragStart(e, type) {
+            e.dataTransfer.setData('component-type', type);
+        }
+
+        function onDragOver(e) {
+            e.preventDefault();
+        }
+
+        function onDrop(e) {
+            e.preventDefault();
+            const type = e.dataTransfer.getData('component-type');
+            if (!type) return;
+
+            const element = createComponent(type);
+            const canvas = document.getElementById('canvas');
+            
+            if (canvas.querySelector('.pointer-events-none')) {
+                canvas.innerHTML = '';
+            }
+
+            canvas.appendChild(element);
+            attachElementListeners(element);
+        }
+
+        function createComponent(type) {
+            const div = document.createElement('div');
+            div.className = "dropped-element p-4";
+            div.dataset.type = type;
+            
+            let content = '';
+            switch(type) {
+                case 'navbar':
+                    content = `<nav class="flex justify-between items-center py-4 px-8 border-b">
+                        <div class="text-xl font-bold">LOGO</div>
+                        <ul class="flex space-x-6 text-sm font-medium">
+                            <li>Home</li><li>Services</li><li>About</li><li>Contact</li>
+                        </ul>
+                    </nav>`;
+                    break;
+                case 'hero':
+                    content = `<section class="py-20 px-8 text-center bg-slate-50">
+                        <h1 class="text-5xl font-black mb-4">Transform Your Vision</h1>
+                        <p class="text-xl text-slate-600 mb-8 max-w-2xl mx-auto">Build faster, cleaner, and better with WebNix builder interface.</p>
+                        <button class="bg-indigo-600 text-white px-8 py-3 rounded-full font-bold">Get Started</button>
+                    </section>`;
+                    break;
+                case 'features':
+                    content = `<div class="grid grid-cols-3 gap-8 py-16 px-8">
+                        <div class="text-center p-6 rounded-xl border">
+                            <div class="text-3xl mb-4">⚡</div><h3 class="font-bold mb-2">Fast</h3><p class="text-sm text-slate-500">Optimized for speed.</p>
+                        </div>
+                        <div class="text-center p-6 rounded-xl border">
+                            <div class="text-3xl mb-4">🛡️</div><h3 class="font-bold mb-2">Secure</h3><p class="text-sm text-slate-500">Built on Supabase.</p>
+                        </div>
+                        <div class="text-center p-6 rounded-xl border">
+                            <div class="text-3xl mb-4">🎨</div><h3 class="font-bold mb-2">Design</h3><p class="text-sm text-slate-500">Pixel perfect layouts.</p>
+                        </div>
+                    </div>`;
+                    break;
+                case 'content':
+                    content = `<div class="py-12 px-8 prose lg:prose-xl">
+                        <h2 class="text-2xl font-bold mb-4" contenteditable="true">Your Section Title</h2>
+                        <p contenteditable="true">Write your compelling content here. Use this area to explain your services or share your story.</p>
+                    </div>`;
+                    break;
+                case 'footer':
+                    content = `<footer class="bg-slate-900 text-white py-12 px-8">
+                        <div class="flex justify-between items-center border-b border-slate-800 pb-8">
+                            <div class="font-bold">WEBNIX</div>
+                            <div class="flex space-x-4"><i class="fab fa-twitter"></i><i class="fab fa-github"></i></div>
+                        </div>
+                        <p class="pt-8 text-xs text-slate-500">© 2024 Codenix AI Studio. All rights reserved.</p>
+                    </footer>`;
+                    break;
+            }
+
+            div.innerHTML = `
+                <div class="element-controls flex space-x-2">
+                    <button onclick="moveUp(this)" class="hover:text-white"><i class="fas fa-arrow-up text-xs"></i></button>
+                    <button onclick="moveDown(this)" class="hover:text-white"><i class="fas fa-arrow-down text-xs"></i></button>
+                    <button onclick="duplicateElement(this)" class="hover:text-white"><i class="fas fa-copy text-xs"></i></button>
+                    <button onclick="removeElement(this)" class="hover:text-red-300"><i class="fas fa-trash text-xs"></i></button>
+                </div>
+                <div class="element-content">${content}</div>
+            `;
+            return div;
+        }
+
+        function attachElementListeners(el) {
+            el.addEventListener('click', (e) => {
+                e.stopPropagation();
+                selectElement(el);
+            });
+        }
+
+        function selectElement(el) {
+            if (activeElement) activeElement.classList.remove('ring-2', 'ring-indigo-500');
+            activeElement = el;
+            activeElement.classList.add('ring-2', 'ring-indigo-500');
+            
+            const inspector = document.getElementById('inspector-content');
+            inspector.innerHTML = `
+                <div class="space-y-4">
+                    <p class="text-xs">Type: <span class="text-white">${el.dataset.type}</span></p>
+                    <div>
+                        <label class="block mb-1">Padding Y (px)</label>
+                        <input type="number" onchange="updateStyle('paddingTop', this.value+'px'); updateStyle('paddingBottom', this.value+'px')" class="w-full bg-slate-800 rounded px-2 py-1 text-white border border-slate-700">
+                    </div>
+                    <div>
+                        <label class="block mb-1">Background Color</label>
+                        <input type="color" onchange="updateStyle('backgroundColor', this.value)" class="w-full h-8 bg-slate-800 rounded border border-slate-700">
+                    </div>
+                    <div>
+                        <label class="block mb-1">Text Color</label>
+                        <input type="color" onchange="updateStyle('color', this.value)" class="w-full h-8 bg-slate-800 rounded border border-slate-700">
+                    </div>
+                    <button onclick="editHtmlContent()" class="w-full bg-slate-700 hover:bg-slate-600 py-2 rounded text-xs text-white">Edit raw HTML</button>
+                </div>
+            `;
+        }
+
+        function updateStyle(prop, val) {
+            if (!activeElement) return;
+            activeElement.style[prop] = val;
+        }
+
+        function editHtmlContent() {
+            const currentHtml = activeElement.querySelector('.element-content').innerHTML;
+            const newHtml = prompt("Edit component inner HTML:", currentHtml);
+            if (newHtml !== null) activeElement.querySelector('.element-content').innerHTML = newHtml;
+        }
+
+        function removeElement(btn) {
+            btn.closest('.dropped-element').remove();
+            activeElement = null;
+            document.getElementById('inspector-content').innerHTML = 'Select an element';
+        }
+
+        function moveUp(btn) {
+            const el = btn.closest('.dropped-element');
+            if (el.previousElementSibling && !el.previousElementSibling.classList.contains('pointer-events-none')) {
+                el.parentNode.insertBefore(el, el.previousElementSibling);
+            }
+        }
+
+        function moveDown(btn) {
+            const el = btn.closest('.dropped-element');
+            if (el.nextElementSibling) el.parentNode.insertBefore(el.nextElementSibling, el);
+        }
+
+        function duplicateElement(btn) {
+            const el = btn.closest('.dropped-element');
+            const clone = el.cloneNode(true);
+            attachElementListeners(clone);
+            el.parentNode.insertBefore(clone, el.nextElementSibling);
+        }
+
+        async function saveProject() {
+            if (!currentProject) return;
+            const title = document.getElementById('site-title').value;
+            const html_content = document.getElementById('canvas').innerHTML;
+            const { error } = await client
+                .from('websites')
+                .update({ title, html_content, updated_at: new Date() })
+                .eq('id', currentProject.id);
+            if (error) showToast("Save failed");
+            else showToast("Project Saved Successfully");
+        }
+
+        async function publishProject() {
+            if (!currentProject) return;
+            const slug = currentProject.title.toLowerCase().replace(/\s+/g, '-') + '-' + Math.floor(Math.random()*1000);
+            const { error } = await client
+                .from('websites')
+                .update({ is_published: true, public_link: slug, updated_at: new Date() })
+                .eq('id', currentProject.id);
+            if (error) showToast("Publish failed");
+            else showToast("Published! URL: /site/" + slug);
+        }
+
+        function exportCode() {
+            const temp = document.createElement('div');
+            temp.innerHTML = document.getElementById('canvas').innerHTML;
+            temp.querySelectorAll('.element-controls').forEach(el => el.remove());
+            temp.querySelectorAll('.dropped-element').forEach(el => {
+                el.classList.remove('ring-2', 'ring-indigo-500');
+            });
+            const finalHtml = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${document.getElementById('site-title').value}</title><script src="https://cdn.tailwindcss.com"><\/script></head><body>${temp.innerHTML}</body></html>`;
+            document.getElementById('html-code-output').value = finalHtml;
+            document.getElementById('export-modal').classList.remove('hidden');
+            document.getElementById('export-modal').classList.add('flex');
+        }
+
+        function closeModal() {
+            document.getElementById('export-modal').classList.add('hidden');
+            document.getElementById('export-modal').classList.remove('flex');
+        }
+
+        function copyToClipboard() {
+            const copyText = document.getElementById("html-code-output");
+            copyText.select();
+            document.execCommand("copy");
+            showToast("HTML Copied to Clipboard!");
+        }
+
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            document.getElementById('toast-msg').innerText = msg;
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 3000);
+        }
+
+        // Run checkAuth on load
+        checkAuth();
     </script>
 </body>
 </html>
