@@ -131,7 +131,7 @@
                 <button onclick="publishProject()" class="text-xs bg-indigo-600 px-4 py-2 rounded-md font-bold shadow-lg shadow-indigo-500/20 flex items-center">
                     <i class="fas fa-globe mr-2"></i> Publish & Share
                 </button>
-                <button onclick="location.reload()" class="text-slate-400 px-2 ml-2"><i class="fas fa-times"></i></button>
+                <button onclick="exitToDashboard()" class="text-slate-400 px-2 ml-2 hover:text-white"><i class="fas fa-times"></i></button>
             </div>
 
             <div id="dashboard-nav" class="flex items-center space-x-4">
@@ -143,7 +143,9 @@
             <div id="view-dashboard" class="flex-1 p-8 overflow-y-auto">
                 <div class="max-w-6xl mx-auto">
                     <h2 class="text-2xl font-bold mb-6">My Projects</h2>
-                    <div id="projects-grid" class="grid grid-cols-1 md:grid-cols-3 gap-6"></div>
+                    <div id="projects-grid" class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <!-- Projects load here -->
+                    </div>
                 </div>
             </div>
 
@@ -199,8 +201,6 @@
             const siteId = urlParams.get('id');
             const viewMode = urlParams.get('view');
             
-            // PUBLIC SHAREABLE VIEW DETECTION
-            // If there's an ID and view is live, don't check auth, just render.
             if (siteId && viewMode === 'live') {
                 renderLiveSite(siteId);
             } else {
@@ -211,7 +211,6 @@
         async function checkAuth() {
             const { data: { user } } = await client.auth.getUser();
             if (!user) { 
-                // Redirect if not viewing a live site and not logged in
                 window.location.href = "auth.html"; 
                 return; 
             }
@@ -220,15 +219,15 @@
         }
 
         async function renderLiveSite(id) {
-            // Fetch site data without requiring auth (assuming table permissions allow public select by ID)
-            const { data } = await client.from('websites').select('*').eq('id', id).single();
+            // Fetch site data from Supabase
+            const { data, error } = await client.from('websites').select('*').eq('id', id).single();
             
-            if (!data) {
+            if (error || !data) {
                 document.body.innerHTML = `
-                    <div class="h-screen flex items-center justify-center flex-col gap-4 text-center">
+                    <div class="h-screen flex items-center justify-center flex-col gap-4 text-center bg-slate-900 text-white">
                         <h1 class="text-3xl font-bold">404 - Site Not Found</h1>
                         <p class="text-slate-400">The link you followed might be broken or the site was deleted.</p>
-                        <a href="/" class="text-indigo-400 hover:underline">Back to WebNix Home</a>
+                        <a href="/" class="text-indigo-400 hover:underline">Create your own site with WebNix</a>
                     </div>`;
                 return;
             }
@@ -237,13 +236,13 @@
             const viewer = document.getElementById('live-viewer');
             viewer.classList.remove('hidden');
             
-            const pages = JSON.parse(data.html_content);
+            const pages = JSON.parse(data.html_content || '{"index":""}');
             
             const render = () => {
                 const h = window.location.hash.replace('#/', '') || 'index';
-                viewer.innerHTML = pages[h] || pages['index'];
+                viewer.innerHTML = pages[h] || pages['index'] || '<div class="p-20 text-center">Empty Page</div>';
                 
-                // Cleanup editor-specific UI
+                // Final clean up of editor UI artifacts just in case
                 viewer.querySelectorAll('.element-controls').forEach(e => e.remove());
                 viewer.querySelectorAll('.dropped-element').forEach(e => {
                     e.style.outline = 'none'; 
@@ -253,30 +252,40 @@
 
             window.onhashchange = render;
             render();
-            document.title = data.title + " | Live Site";
+            document.title = data.title;
         }
 
         async function loadProjects() {
             const { data } = await client.from('websites').select('*').eq('user_id', currentUser.id).order('updated_at', { ascending: false });
-            document.getElementById('projects-grid').innerHTML = (data || []).map(s => `
+            const grid = document.getElementById('projects-grid');
+            if(!data || data.length === 0) {
+                grid.innerHTML = `<div class="col-span-full py-20 text-center text-slate-500 border-2 border-dashed border-slate-800 rounded-2xl">No projects yet. Click "Start New Project" to begin.</div>`;
+                return;
+            }
+            grid.innerHTML = data.map(s => `
                 <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 hover:border-indigo-500 transition group">
-                    <h3 class="font-bold mb-1">${s.title}</h3>
+                    <h3 class="font-bold mb-1">${s.title || 'Untitled Site'}</h3>
                     <p class="text-[10px] text-slate-500 mb-4">Modified ${new Date(s.updated_at).toLocaleDateString()}</p>
                     <div class="flex space-x-2">
                         <button onclick="openEditor('${s.id}')" class="flex-1 bg-indigo-600 hover:bg-indigo-500 py-2 rounded-lg text-sm font-bold transition">Edit Site</button>
-                        <button onclick="window.open('?id=${s.id}&view=live', '_blank')" class="bg-slate-700 px-3 rounded-lg" title="View Live"><i class="fas fa-external-link-alt text-xs"></i></button>
+                        <button onclick="window.open('?id=${s.id}&view=live', '_blank')" class="bg-slate-700 px-3 rounded-lg hover:bg-slate-600" title="View Live"><i class="fas fa-external-link-alt text-xs"></i></button>
                     </div>
                 </div>
             `).join('');
         }
 
         async function openEditor(id) {
-            const { data } = await client.from('websites').select('*').eq('id', id).single();
+            const { data, error } = await client.from('websites').select('*').eq('id', id).single();
+            if(error) return showToast("Error loading project.");
+            
             currentProject = data;
             projectPages = JSON.parse(data.html_content || '{"index":""}');
+            
             document.getElementById('view-dashboard').classList.add('hidden');
+            document.getElementById('dashboard-nav').classList.add('hidden');
             document.getElementById('view-editor').classList.remove('hidden');
             document.getElementById('editor-nav').classList.remove('hidden');
+            
             switchPage('index');
         }
 
@@ -324,11 +333,20 @@
             if(name && !projectPages[name]) { projectPages[name] = ""; switchPage(name); }
         }
 
+        function deletePage(p) {
+            if(confirm(`Delete page /${p}?`)) {
+                delete projectPages[p];
+                if(activePage === p) switchPage('index');
+                else renderPagesList();
+            }
+        }
+
         function onDragStart(e, type) { e.dataTransfer.setData('type', type); }
         function onDragOver(e) { e.preventDefault(); }
         function onDrop(e) {
             e.preventDefault();
             const type = e.dataTransfer.getData('type');
+            if(!type) return;
             const el = createComponent(type);
             document.getElementById('canvas').appendChild(el);
             updatePlaceholderVisibility();
@@ -342,6 +360,7 @@
             div.dataset.type = type;
             let inner = '';
             
+            // Standard components (Navbar, Hero, Features, etc.)
             if(type === 'navbar') inner = `<nav class="flex justify-between items-center"><div class="text-xl font-black text-indigo-600">STUDIO</div><div class="space-x-8 text-sm font-semibold"><a href="#/index">Home</a><a href="#/services">Services</a><a href="#/contact">Contact</a></div></nav>`;
             if(type === 'hero') inner = `<div class="text-center py-10"><h1 class="text-6xl font-black tracking-tighter leading-tight">Create Something Amazing Today</h1><p class="mt-6 text-xl text-slate-500 max-w-xl mx-auto">The simplest way to build a professional website without writing a single line of code.</p><button class="mt-8 bg-indigo-600 text-white px-8 py-3 rounded-full font-bold">Get Started Now</button></div>`;
             if(type === 'features') inner = `<div class="grid grid-cols-1 md:grid-cols-3 gap-12 text-center"><div><div class="w-16 h-16 bg-indigo-100 text-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-6"><i class="fas fa-rocket text-2xl"></i></div><h3 class="text-xl font-bold mb-3">Fast Setup</h3><p class="text-slate-500 text-sm">Launch your site in minutes with our ready-made visual blocks.</p></div><div><div class="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto mb-6"><i class="fas fa-mobile-alt text-2xl"></i></div><h3 class="text-xl font-bold mb-3">Responsive</h3><p class="text-slate-500 text-sm">Every element automatically looks perfect on phones and tablets.</p></div><div><div class="w-16 h-16 bg-orange-100 text-orange-600 rounded-2xl flex items-center justify-center mx-auto mb-6"><i class="fas fa-search text-2xl"></i></div><h3 class="text-xl font-bold mb-3">SEO Optimized</h3><p class="text-slate-500 text-sm">Built-in best practices to help you get discovered on Google.</p></div></div>`;
@@ -486,6 +505,7 @@
                 canvas.classList.add('preview-mode');
                 btn.innerHTML = '<i class="fas fa-edit mr-2"></i> Exit Preview';
                 btn.classList.replace('bg-slate-800', 'bg-indigo-600');
+                closeContextMenu();
             } else {
                 canvas.classList.remove('preview-mode');
                 btn.innerHTML = '<i class="fas fa-play mr-2"></i> Preview Mode';
@@ -495,21 +515,31 @@
         }
 
         async function saveProject() {
+            if(!currentProject) return;
             if(isPreview) togglePreview();
             projectPages[activePage] = document.getElementById('canvas').innerHTML;
-            const { error } = await client.from('websites').update({ html_content: JSON.stringify(projectPages), updated_at: new Date() }).eq('id', currentProject.id);
-            if(!error) showToast("All changes saved!");
+            
+            const { error } = await client.from('websites').update({ 
+                html_content: JSON.stringify(projectPages), 
+                updated_at: new Date() 
+            }).eq('id', currentProject.id);
+            
+            if(error) {
+                console.error(error);
+                showToast("Error saving to database.");
+            } else {
+                showToast("All changes saved!");
+            }
         }
 
         async function publishProject() {
             await saveProject();
-            const baseUrl = window.location.href.split('?')[0];
+            const baseUrl = window.location.origin + window.location.pathname;
             const url = `${baseUrl}?id=${currentProject.id}&view=live`;
             document.getElementById('publish-url').value = url;
             
             document.getElementById('visit-btn').onclick = () => window.open(url, '_blank');
             
-            // Native Share Logic
             document.getElementById('share-native-btn').onclick = async () => {
                 if (navigator.share) {
                     try {
@@ -518,12 +548,10 @@
                             text: 'Check out the website I built with WebNix Studio!',
                             url: url,
                         });
-                    } catch (err) {
-                        copyPublishUrl(); // Fallback to copy if they cancel share
-                    }
+                    } catch (err) { copyPublishUrl(); }
                 } else {
                     copyPublishUrl();
-                    showToast("Share API not supported, link copied!");
+                    showToast("Link copied!");
                 }
             };
 
@@ -534,12 +562,32 @@
             const u = document.getElementById('publish-url'); 
             u.select(); 
             document.execCommand('copy'); 
-            showToast("Link copied! Share it anywhere."); 
+            showToast("Link copied to clipboard!"); 
         }
 
         async function createNewProject() {
-            const { data } = await client.from('websites').insert([{ user_id: currentUser.id, title: "My New Website", html_content: '{"index":""}' }]).select();
+            const title = prompt("Enter a name for your website:", "My New Website") || "Untitled Site";
+            const { data, error } = await client.from('websites').insert([
+                { user_id: currentUser.id, title: title, html_content: '{"index":""}' }
+            ]).select();
+            
+            if(error) {
+                showToast("Error creating project.");
+                console.error(error);
+                return;
+            }
             if(data) openEditor(data[0].id);
+        }
+
+        function exitToDashboard() {
+            if(confirm("Exit to dashboard? Make sure to save your progress.")) {
+                document.getElementById('view-editor').classList.add('hidden');
+                document.getElementById('editor-nav').classList.add('hidden');
+                document.getElementById('view-dashboard').classList.remove('hidden');
+                document.getElementById('dashboard-nav').classList.remove('hidden');
+                currentProject = null;
+                loadProjects();
+            }
         }
 
         function showToast(m) {
