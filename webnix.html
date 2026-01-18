@@ -74,6 +74,9 @@
             background: var(--bg-dark); z-index: 9999; display: flex;
             align-items: center; justify-content: center;
         }
+
+        /* Inline Text Editing */
+        .editable-text:focus { outline: 2px dashed var(--primary); background: rgba(99, 102, 241, 0.05); }
     </style>
 </head>
 <body oncontextmenu="return false;">
@@ -112,6 +115,27 @@
         </div>
     </div>
 
+    <div id="settings-modal" class="modal-overlay">
+        <div class="bg-slate-800 p-8 rounded-2xl max-w-md w-full border border-slate-700 animate__animated animate__fadeInDown">
+            <h2 class="text-xl font-bold mb-6 flex items-center gap-2"><i class="fas fa-cog text-slate-400"></i> Website Settings</h2>
+            <div class="space-y-4">
+                <div>
+                    <label class="property-label">Site Title</label>
+                    <input type="text" id="setting-title" placeholder="My Awesome Website">
+                </div>
+                <div>
+                    <label class="property-label">Site Slug (URL handle)</label>
+                    <input type="text" id="setting-slug" placeholder="my-awesome-site">
+                    <p class="text-[10px] text-slate-500 mt-1">This defines your public URL.</p>
+                </div>
+            </div>
+            <div class="mt-8 flex gap-3">
+                <button onclick="updateProjectSettings()" class="flex-1 bg-indigo-600 py-3 rounded-lg font-bold text-sm hover:bg-indigo-500 transition">Save Changes</button>
+                <button onclick="document.getElementById('settings-modal').style.display='none'" class="px-6 bg-slate-700 rounded-lg text-sm">Cancel</button>
+            </div>
+        </div>
+    </div>
+
     <div id="export-modal" class="modal-overlay">
         <div class="bg-slate-800 p-8 rounded-2xl max-w-2xl w-full border border-slate-700 animate__animated animate__fadeInUp">
             <h2 class="text-xl font-bold mb-4 flex items-center gap-2"><i class="fas fa-code text-indigo-400"></i> Export HTML Code</h2>
@@ -133,12 +157,15 @@
             <div class="flex items-center space-x-4">
                 <div class="bg-indigo-600 p-2 rounded-lg"><i class="fas fa-cube text-xl"></i></div>
                 <div>
-                    <h1 class="font-bold text-lg leading-none">WebNix Pro</h1>
-                    <span class="text-[10px] text-slate-500 uppercase tracking-widest">Version 2.1</span>
+                    <h1 id="header-project-title" class="font-bold text-lg leading-none">WebNix Pro</h1>
+                    <span class="text-[10px] text-slate-500 uppercase tracking-widest">Website Editor</span>
                 </div>
             </div>
 
             <div id="editor-nav" class="hidden flex items-center space-x-3">
+                <button onclick="openSettingsModal()" class="text-xs bg-slate-800 px-3 py-2 rounded-md hover:bg-slate-700 transition">
+                    <i class="fas fa-cog mr-2"></i> Settings
+                </button>
                 <button onclick="togglePreview()" id="preview-btn" class="text-xs bg-slate-800 px-3 py-2 rounded-md hover:bg-slate-700 transition">
                     <i class="fas fa-play mr-2"></i> Preview
                 </button>
@@ -202,7 +229,7 @@
                 </div>
 
                 <aside class="sidebar border-l border-slate-800 p-5">
-                    <h3 class="property-label">Element Properties</h3>
+                    <h3 class="property-label">Inspector</h3>
                     <div id="inspector-content" class="space-y-4">
                         <div class="text-slate-500 text-sm italic py-20 text-center">Select an item on the canvas to edit.</div>
                     </div>
@@ -291,6 +318,7 @@
             currentProject = data;
             projectPages = JSON.parse(data.html_content || '{"index":""}');
             
+            document.getElementById('header-project-title').innerText = data.title;
             document.getElementById('view-dashboard').classList.add('hidden');
             document.getElementById('dashboard-nav').classList.add('hidden');
             document.getElementById('view-editor').classList.remove('hidden');
@@ -298,6 +326,24 @@
             
             document.getElementById('canvas').innerHTML = "";
             switchPage('index');
+        }
+
+        function openSettingsModal() {
+            document.getElementById('setting-title').value = currentProject.title;
+            document.getElementById('setting-slug').value = slugify(currentProject.title);
+            document.getElementById('settings-modal').style.display = 'flex';
+        }
+
+        async function updateProjectSettings() {
+            const newTitle = document.getElementById('setting-title').value;
+            const { error } = await client.from('websites').update({ title: newTitle }).eq('id', currentProject.id);
+            if(error) showToast("Error updating settings.");
+            else {
+                currentProject.title = newTitle;
+                document.getElementById('header-project-title').innerText = newTitle;
+                document.getElementById('settings-modal').style.display = 'none';
+                showToast("Settings updated!");
+            }
         }
 
         function captureCurrentPageContent() {
@@ -320,8 +366,20 @@
             updatePlaceholderVisibility();
             if(!isPreview) { 
                 canvas.querySelectorAll('.dropped-element').forEach(attachListeners); 
+                makeElementsEditable();
             }
             renderPagesList();
+        }
+
+        function makeElementsEditable() {
+            const canvas = document.getElementById('canvas');
+            const editableTags = ['h1', 'h2', 'h3', 'h4', 'h5', 'p', 'span', 'a', 'button'];
+            editableTags.forEach(tag => {
+                canvas.querySelectorAll(tag).forEach(el => {
+                    el.classList.add('editable-text');
+                    el.contentEditable = isPreview ? "false" : "true";
+                });
+            });
         }
 
         function renderPagesList() {
@@ -356,6 +414,7 @@
             document.getElementById('canvas').appendChild(el);
             updatePlaceholderVisibility();
             attachListeners(el);
+            makeElementsEditable();
             setActive(el);
         }
 
@@ -367,7 +426,7 @@
             
             if(type === 'image') inner = `<img src="https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&w=1200&q=80" class="w-full rounded-2xl shadow-lg border border-slate-100" alt="New Image">`;
             if(type === 'video') inner = `<div class="aspect-video w-full bg-slate-900 rounded-2xl flex items-center justify-center overflow-hidden"><iframe class="w-full h-full" src="https://www.youtube.com/embed/dQw4w9WgXcQ" frameborder="0" allowfullscreen></iframe></div>`;
-            if(type === 'navbar') inner = `<nav class="flex justify-between items-center"><div class="text-xl font-black text-indigo-600">LOGO</div><div class="hidden md:flex space-x-8 text-sm font-semibold"><a>Home</a><a>About</a><a>Work</a><a>Contact</a></div><button class="bg-indigo-600 text-white px-5 py-2 rounded-lg text-xs">Join Us</button></nav>`;
+            if(type === 'navbar') inner = `<nav class="flex justify-between items-center"><div><span class="text-xl font-black text-indigo-600">LOGO</span></div><div class="hidden md:flex space-x-8 text-sm font-semibold"><a>Home</a><a>About</a><a>Work</a><a>Contact</a></div><button class="bg-indigo-600 text-white px-5 py-2 rounded-lg text-xs">Join Us</button></nav>`;
             if(type === 'hero') inner = `<div class="text-center py-10"><h1 class="text-5xl font-black mb-6">Create Without Limits</h1><p class="text-slate-500 max-w-lg mx-auto leading-relaxed">The easiest way to build professional websites in minutes with no code.</p><div class="mt-8 flex justify-center gap-4"><button class="bg-indigo-600 text-white px-8 py-3 rounded-full font-bold">Get Started</button><button class="border border-slate-200 px-8 py-3 rounded-full font-bold">Learn More</button></div></div>`;
             if(type === 'features') inner = `<div class="grid grid-cols-3 gap-10 py-4"><div class="text-center"><div class="w-12 h-12 bg-indigo-100 text-indigo-600 rounded-xl flex items-center justify-center mx-auto mb-4 text-xl"><i class="fas fa-layer-group"></i></div><h4 class="font-bold mb-2">Modular</h4><p class="text-xs text-slate-500">Components designed to work together.</p></div><div class="text-center"><div class="w-12 h-12 bg-indigo-100 text-indigo-600 rounded-xl flex items-center justify-center mx-auto mb-4 text-xl"><i class="fas fa-tachometer-alt"></i></div><h4 class="font-bold mb-2">Fast</h4><p class="text-xs text-slate-500">Optimized for speed and performance.</p></div><div class="text-center"><div class="w-12 h-12 bg-indigo-100 text-indigo-600 rounded-xl flex items-center justify-center mx-auto mb-4 text-xl"><i class="fas fa-heart"></i></div><h4 class="font-bold mb-2">Loved</h4><p class="text-xs text-slate-500">Built with care for users.</p></div></div>`;
             if(type === 'split') inner = `<div class="flex items-center gap-12"><div class="flex-1"><h2 class="text-3xl font-black mb-4">Focus on Content</h2><p class="text-slate-500">We handle the tech while you handle the vision.</p></div><div class="flex-1 h-64 bg-slate-100 rounded-2xl flex items-center justify-center text-slate-300"><i class="fas fa-image text-4xl"></i></div></div>`;
@@ -422,31 +481,43 @@
                     <div class="property-group">
                         <label class="property-label">Image Source URL</label>
                         <input type="text" value="${img.src}" onchange="activeElement.querySelector('img').src = this.value">
+                    </div>
+                    <div class="property-group">
+                        <label class="property-label">Round Corners</label>
+                        <input type="range" min="0" max="100" value="${parseInt(img.style.borderRadius) || 16}" oninput="activeElement.querySelector('img').style.borderRadius = this.value + 'px'">
                     </div>`;
             } else if(type === 'video') {
                 const iframe = activeElement.querySelector('iframe');
                 mediaSection = `
                     <div class="property-group">
-                        <label class="property-label">Video Embed URL (YouTube/Vimeo)</label>
+                        <label class="property-label">Video Embed URL</label>
                         <input type="text" value="${iframe.src}" onchange="activeElement.querySelector('iframe').src = this.value">
                     </div>`;
             }
 
             ins.innerHTML = `
+                <div class="bg-indigo-500/10 p-3 rounded-lg border border-indigo-500/20 mb-4">
+                    <p class="text-[10px] text-indigo-400 font-bold uppercase mb-1">Editing Tip</p>
+                    <p class="text-[11px] text-slate-300">Click any text on the canvas to edit it directly!</p>
+                </div>
                 ${mediaSection}
                 <div class="property-group">
-                    <label class="property-label">Section Background</label>
+                    <label class="property-label">Background Color</label>
                     <input type="color" onchange="activeElement.style.backgroundColor = this.value" value="${rgbToHex(activeElement.style.backgroundColor) || '#ffffff'}">
                 </div>
                 <div class="property-group">
-                    <label class="property-label">Text Color</label>
+                    <label class="property-label">Global Text Color</label>
                     <input type="color" onchange="activeElement.style.color = this.value" value="${rgbToHex(activeElement.style.color) || '#000000'}">
                 </div>
                 <div class="property-group">
-                    <label class="property-label">Vertical Padding</label>
+                    <label class="property-label">Font Size (Base)</label>
+                    <input type="range" min="8" max="48" value="${parseInt(activeElement.style.fontSize) || 16}" oninput="activeElement.style.fontSize = this.value + 'px'">
+                </div>
+                <div class="property-group">
+                    <label class="property-label">Block Padding</label>
                     <input type="range" min="0" max="200" value="${parseInt(activeElement.style.paddingTop) || 48}" oninput="activeElement.style.paddingTop = activeElement.style.paddingBottom = this.value + 'px'">
                 </div>
-                <button onclick="deleteActive()" class="w-full bg-red-500/10 text-red-500 py-3 rounded-xl text-xs font-bold uppercase tracking-widest">Remove Block</button>
+                <button onclick="deleteActive()" class="w-full bg-red-500/10 text-red-500 py-3 rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-red-500 hover:text-white transition">Delete Block</button>
             `;
         }
 
@@ -460,6 +531,7 @@
                 e.classList.remove('dropped-element');
                 e.removeAttribute('oncontextmenu');
                 e.removeAttribute('onclick');
+                e.querySelectorAll('[contenteditable]').forEach(c => c.removeAttribute('contenteditable'));
             });
             
             const cleanHtml = `<!DOCTYPE html>
@@ -467,7 +539,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Exported Website</title>
+    <title>${currentProject.title}</title>
     <script src="https://cdn.tailwindcss.com"><\/script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
 </head>
@@ -544,6 +616,12 @@
             isPreview = !isPreview;
             const canvas = document.getElementById('canvas');
             const btn = document.getElementById('preview-btn');
+            
+            // Toggle Content Editable state
+            canvas.querySelectorAll('[contenteditable]').forEach(el => {
+                el.contentEditable = isPreview ? "false" : "true";
+            });
+
             if(isPreview) {
                 canvas.classList.add('preview-mode');
                 btn.innerHTML = '<i class="fas fa-edit mr-2"></i> Edit Mode';
@@ -586,6 +664,7 @@
             viewer.querySelectorAll('.dropped-element').forEach(e => {
                 e.style.outline = 'none';
                 e.classList.remove('dropped-element');
+                e.querySelectorAll('[contenteditable]').forEach(c => c.removeAttribute('contenteditable'));
             });
             document.title = target.title;
         }
@@ -594,7 +673,7 @@
             document.body.innerHTML = `<div class="h-screen flex flex-col items-center justify-center bg-slate-900 text-white">
                 <h1 class="text-6xl font-black mb-4">404</h1>
                 <p class="text-slate-400">Site doesn't exist or isn't published yet.</p>
-                <a href="index.html" class="mt-8 text-indigo-400 hover:text-indigo-300">Return to Studio</a>
+                <a href="webnix.html" class="mt-8 text-indigo-400 hover:text-indigo-300">Return to Studio</a>
             </div>`;
         }
 
