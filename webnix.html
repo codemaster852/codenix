@@ -63,7 +63,7 @@
         input[type="range"] { accent-color: var(--primary); width: 100%; height: 4px; border-radius: 2px; }
         select, input[type="text"], textarea { background: #0f172a; border: 1px solid #334155; color: white; padding: 8px; border-radius: 6px; font-size: 12px; width: 100%; }
 
-        #publish-modal {
+        .modal-overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
             background: rgba(0,0,0,0.8); z-index: 3000; display: none;
             align-items: center; justify-content: center;
@@ -85,6 +85,7 @@
         </div>
     </div>
 
+    <!-- Modals -->
     <div id="context-menu">
         <div class="menu-item" onclick="renderInspector()"><i class="fas fa-sliders-h"></i> Settings</div>
         <div class="menu-item" onclick="moveActive(-1)"><i class="fas fa-arrow-up"></i> Move Up</div>
@@ -93,7 +94,7 @@
         <div class="menu-item danger" onclick="deleteActive()"><i class="fas fa-trash"></i> Remove</div>
     </div>
 
-    <div id="publish-modal">
+    <div id="publish-modal" class="modal-overlay">
         <div class="bg-slate-800 p-8 rounded-2xl max-w-md w-full border border-slate-700 text-center animate__animated animate__zoomIn">
             <div class="w-16 h-16 bg-emerald-500/20 text-emerald-500 rounded-full flex items-center justify-center mx-auto mb-4">
                 <i class="fas fa-check-circle text-3xl"></i>
@@ -111,6 +112,18 @@
         </div>
     </div>
 
+    <div id="export-modal" class="modal-overlay">
+        <div class="bg-slate-800 p-8 rounded-2xl max-w-2xl w-full border border-slate-700 animate__animated animate__fadeInUp">
+            <h2 class="text-xl font-bold mb-4 flex items-center gap-2"><i class="fas fa-code text-indigo-400"></i> Export HTML Code</h2>
+            <p class="text-slate-400 text-xs mb-4">This is the clean HTML for the current page including styles. Note: Images and videos rely on external URLs provided.</p>
+            <textarea id="export-area" readonly class="w-full h-80 bg-slate-900 text-emerald-400 font-mono text-[10px] p-4 rounded-xl border border-slate-700 outline-none"></textarea>
+            <div class="mt-6 flex gap-3">
+                <button onclick="copyExportCode()" class="flex-1 bg-indigo-600 py-3 rounded-lg font-bold text-sm hover:bg-indigo-500 transition">Copy to Clipboard</button>
+                <button onclick="document.getElementById('export-modal').style.display='none'" class="px-6 bg-slate-700 rounded-lg text-sm">Close</button>
+            </div>
+        </div>
+    </div>
+
     <div id="toast" class="bg-indigo-600 text-white px-6 py-3 rounded-lg shadow-xl">
         <span id="toast-msg"></span>
     </div>
@@ -121,13 +134,16 @@
                 <div class="bg-indigo-600 p-2 rounded-lg"><i class="fas fa-cube text-xl"></i></div>
                 <div>
                     <h1 class="font-bold text-lg leading-none">WebNix Pro</h1>
-                    <span class="text-[10px] text-slate-500 uppercase tracking-widest">Version 2.0</span>
+                    <span class="text-[10px] text-slate-500 uppercase tracking-widest">Version 2.1</span>
                 </div>
             </div>
 
             <div id="editor-nav" class="hidden flex items-center space-x-3">
                 <button onclick="togglePreview()" id="preview-btn" class="text-xs bg-slate-800 px-3 py-2 rounded-md hover:bg-slate-700 transition">
                     <i class="fas fa-play mr-2"></i> Preview
+                </button>
+                <button onclick="openExportModal()" class="text-xs bg-slate-800 px-3 py-2 rounded-md hover:bg-slate-700 transition">
+                    <i class="fas fa-code mr-2"></i> Get Code
                 </button>
                 <div class="h-6 w-[1px] bg-slate-700 mx-1"></div>
                 <button onclick="saveProject()" class="text-xs bg-slate-800 px-4 py-2 rounded-md font-medium text-slate-300">Save Progress</button>
@@ -159,7 +175,13 @@
                         <button onclick="addNewPage()" class="w-full text-xs bg-indigo-500/10 text-indigo-400 py-2 rounded border border-indigo-500/30 hover:bg-indigo-500/20">+ Add Page</button>
                     </div>
 
-                    <label class="property-label">Add Elements</label>
+                    <label class="property-label">Media & Content</label>
+                    <div class="space-y-1 mb-6">
+                        <div draggable="true" ondragstart="onDragStart(event, 'image')" class="draggable-item"><i class="fas fa-image w-6 text-purple-400"></i> Image (URL)</div>
+                        <div draggable="true" ondragstart="onDragStart(event, 'video')" class="draggable-item"><i class="fas fa-video w-6 text-red-400"></i> Video (Embed)</div>
+                    </div>
+
+                    <label class="property-label">Page Elements</label>
                     <div class="space-y-1 overflow-y-auto pr-1">
                         <div draggable="true" ondragstart="onDragStart(event, 'navbar')" class="draggable-item"><i class="fas fa-bars w-6 text-indigo-400"></i> Navbar</div>
                         <div draggable="true" ondragstart="onDragStart(event, 'hero')" class="draggable-item"><i class="fas fa-rocket w-6 text-orange-400"></i> Hero Header</div>
@@ -274,17 +296,14 @@
             document.getElementById('view-editor').classList.remove('hidden');
             document.getElementById('editor-nav').classList.remove('hidden');
             
-            // Critical Fix: Clear canvas before loading
             document.getElementById('canvas').innerHTML = "";
             switchPage('index');
         }
 
-        // CRITICAL FIX: Update state before switching pages
         function captureCurrentPageContent() {
             if(!isPreview && activePage) {
                 const canvas = document.getElementById('canvas');
                 if(canvas) {
-                    // Clone to remove active styles before saving
                     const temp = canvas.cloneNode(true);
                     temp.querySelectorAll('.element-controls').forEach(e => e.remove());
                     temp.querySelectorAll('.dropped-element').forEach(e => e.style.outline = 'none');
@@ -346,6 +365,8 @@
             div.dataset.type = type;
             let inner = '';
             
+            if(type === 'image') inner = `<img src="https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&w=1200&q=80" class="w-full rounded-2xl shadow-lg border border-slate-100" alt="New Image">`;
+            if(type === 'video') inner = `<div class="aspect-video w-full bg-slate-900 rounded-2xl flex items-center justify-center overflow-hidden"><iframe class="w-full h-full" src="https://www.youtube.com/embed/dQw4w9WgXcQ" frameborder="0" allowfullscreen></iframe></div>`;
             if(type === 'navbar') inner = `<nav class="flex justify-between items-center"><div class="text-xl font-black text-indigo-600">LOGO</div><div class="hidden md:flex space-x-8 text-sm font-semibold"><a>Home</a><a>About</a><a>Work</a><a>Contact</a></div><button class="bg-indigo-600 text-white px-5 py-2 rounded-lg text-xs">Join Us</button></nav>`;
             if(type === 'hero') inner = `<div class="text-center py-10"><h1 class="text-5xl font-black mb-6">Create Without Limits</h1><p class="text-slate-500 max-w-lg mx-auto leading-relaxed">The easiest way to build professional websites in minutes with no code.</p><div class="mt-8 flex justify-center gap-4"><button class="bg-indigo-600 text-white px-8 py-3 rounded-full font-bold">Get Started</button><button class="border border-slate-200 px-8 py-3 rounded-full font-bold">Learn More</button></div></div>`;
             if(type === 'features') inner = `<div class="grid grid-cols-3 gap-10 py-4"><div class="text-center"><div class="w-12 h-12 bg-indigo-100 text-indigo-600 rounded-xl flex items-center justify-center mx-auto mb-4 text-xl"><i class="fas fa-layer-group"></i></div><h4 class="font-bold mb-2">Modular</h4><p class="text-xs text-slate-500">Components designed to work together.</p></div><div class="text-center"><div class="w-12 h-12 bg-indigo-100 text-indigo-600 rounded-xl flex items-center justify-center mx-auto mb-4 text-xl"><i class="fas fa-tachometer-alt"></i></div><h4 class="font-bold mb-2">Fast</h4><p class="text-xs text-slate-500">Optimized for speed and performance.</p></div><div class="text-center"><div class="w-12 h-12 bg-indigo-100 text-indigo-600 rounded-xl flex items-center justify-center mx-auto mb-4 text-xl"><i class="fas fa-heart"></i></div><h4 class="font-bold mb-2">Loved</h4><p class="text-xs text-slate-500">Built with care for users.</p></div></div>`;
@@ -391,7 +412,28 @@
                 ins.innerHTML = `<div class="text-slate-500 text-sm italic py-20 text-center">Select an item on the canvas to edit.</div>`;
                 return;
             }
+
+            const type = activeElement.dataset.type;
+            let mediaSection = '';
+
+            if(type === 'image') {
+                const img = activeElement.querySelector('img');
+                mediaSection = `
+                    <div class="property-group">
+                        <label class="property-label">Image Source URL</label>
+                        <input type="text" value="${img.src}" onchange="activeElement.querySelector('img').src = this.value">
+                    </div>`;
+            } else if(type === 'video') {
+                const iframe = activeElement.querySelector('iframe');
+                mediaSection = `
+                    <div class="property-group">
+                        <label class="property-label">Video Embed URL (YouTube/Vimeo)</label>
+                        <input type="text" value="${iframe.src}" onchange="activeElement.querySelector('iframe').src = this.value">
+                    </div>`;
+            }
+
             ins.innerHTML = `
+                ${mediaSection}
                 <div class="property-group">
                     <label class="property-label">Section Background</label>
                     <input type="color" onchange="activeElement.style.backgroundColor = this.value" value="${rgbToHex(activeElement.style.backgroundColor) || '#ffffff'}">
@@ -406,6 +448,42 @@
                 </div>
                 <button onclick="deleteActive()" class="w-full bg-red-500/10 text-red-500 py-3 rounded-xl text-xs font-bold uppercase tracking-widest">Remove Block</button>
             `;
+        }
+
+        function openExportModal() {
+            captureCurrentPageContent();
+            const canvas = document.getElementById('canvas');
+            const temp = canvas.cloneNode(true);
+            temp.querySelectorAll('.element-controls').forEach(e => e.remove());
+            temp.querySelectorAll('.dropped-element').forEach(e => {
+                e.style.outline = 'none';
+                e.classList.remove('dropped-element');
+                e.removeAttribute('oncontextmenu');
+                e.removeAttribute('onclick');
+            });
+            
+            const cleanHtml = `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Exported Website</title>
+    <script src="https://cdn.tailwindcss.com"><\/script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body class="bg-white">
+    ${temp.innerHTML}
+</body>
+</html>`;
+            document.getElementById('export-area').value = cleanHtml;
+            document.getElementById('export-modal').style.display = 'flex';
+        }
+
+        function copyExportCode() {
+            const area = document.getElementById('export-area');
+            area.select();
+            document.execCommand('copy');
+            showToast("HTML Code Copied!");
         }
 
         function rgbToHex(rgb) {
@@ -426,12 +504,10 @@
         async function saveProject() {
             if(!currentProject) return;
             captureCurrentPageContent();
-            
             const { error } = await client.from('websites').update({ 
                 html_content: JSON.stringify(projectPages), 
                 updated_at: new Date() 
             }).eq('id', currentProject.id);
-            
             if(error) showToast("Save failed.");
             else showToast("Progress Synchronized!");
         }
@@ -440,11 +516,9 @@
             if(!currentProject) return;
             await saveProject();
             await client.from('websites').update({ is_published: true }).eq('id', currentProject.id);
-
             const username = currentUser.email.split('@')[0];
             const projectSlug = slugify(currentProject.title);
             const fullUrl = `${window.location.protocol}//${window.location.host}${window.location.pathname}?u=${username}&p=${projectSlug}`;
-            
             document.getElementById('publish-url').value = fullUrl;
             document.getElementById('visit-btn').onclick = () => window.open(fullUrl, '_blank');
             document.getElementById('publish-modal').style.display = 'flex';
@@ -503,15 +577,11 @@
             if (error) return siteNotFound();
             const target = data.find(item => slugify(item.title) === slug);
             if (!target) return siteNotFound();
-
             document.getElementById('app-shell').classList.add('hidden');
             const viewer = document.getElementById('live-viewer');
             viewer.classList.remove('hidden');
-            
             const pages = JSON.parse(target.html_content || '{"index":""}');
             viewer.innerHTML = pages['index'];
-            
-            // Clean HTML for live view
             viewer.querySelectorAll('.element-controls').forEach(e => e.remove());
             viewer.querySelectorAll('.dropped-element').forEach(e => {
                 e.style.outline = 'none';
