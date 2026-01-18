@@ -261,16 +261,30 @@
             const canvas = document.getElementById('canvas');
             canvas.innerHTML = projectPages[p] || "";
             updatePlaceholderVisibility();
-            if(!isPreview) initCanvasLogic();
+            
+            // Critical for ensuring links/interactivity works after switch
+            if(!isPreview) {
+                initCanvasLogic();
+            } else {
+                applyPreviewInteractions();
+            }
+            
             renderPagesList();
         }
 
         function captureCurrentPageContent() {
             const canvas = document.getElementById('canvas');
             const temp = canvas.cloneNode(true);
+            
+            // Clean up UI elements before saving
             temp.querySelectorAll('.element-controls').forEach(e => e.remove());
-            temp.querySelectorAll('.dropped-element').forEach(e => e.style.outline = 'none');
+            temp.querySelectorAll('.dropped-element').forEach(e => {
+                e.style.outline = 'none';
+            });
             temp.querySelectorAll('.node-selected').forEach(e => e.classList.remove('node-selected'));
+            temp.querySelectorAll('[contenteditable]').forEach(e => e.removeAttribute('contenteditable'));
+            temp.querySelectorAll('.editable-text').forEach(e => e.classList.remove('editable-text'));
+            
             projectPages[activePage] = temp.innerHTML;
         }
 
@@ -283,10 +297,28 @@
                 el.classList.add('editable-text');
                 el.contentEditable = "true";
                 el.onclick = (e) => {
+                    if (isPreview) return;
                     e.stopPropagation();
                     selectNode(el);
                 };
             });
+        }
+
+        function applyPreviewInteractions() {
+            const canvas = document.getElementById('canvas');
+            canvas.querySelectorAll('[data-href]').forEach(link => {
+                link.style.cursor = 'pointer';
+                link.onclick = (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const target = link.getAttribute('data-href');
+                    if(target && projectPages[target] !== undefined) {
+                        switchPage(target);
+                    }
+                };
+            });
+            // Disable editing in preview
+            canvas.querySelectorAll('[contenteditable]').forEach(el => el.contentEditable = "false");
         }
 
         function selectNode(node) {
@@ -301,7 +333,6 @@
             selectedNode = null;
             if(activeElement) activeElement.style.outline = 'none';
             activeElement = null;
-            closeContextMenu();
             renderInspector();
         }
 
@@ -315,7 +346,11 @@
 
         function addNewPage() {
             const name = prompt("Page URL (e.g. about):")?.toLowerCase().trim().replace(/[^a-z0-9]/g, '-');
-            if(name && !projectPages[name]) { projectPages[name] = ""; switchPage(name); }
+            if(name && !projectPages[name]) { 
+                projectPages[name] = ""; 
+                switchPage(name); 
+                showToast(`Page "${name}" created`);
+            }
         }
 
         function onDragStart(e, type) { e.dataTransfer.setData('type', type); }
@@ -339,7 +374,7 @@
             
             if(type === 'button') inner = `<div class="flex justify-center"><button class="bg-indigo-600 text-white px-8 py-3 rounded-full font-bold">New Button</button></div>`;
             if(type === 'image') inner = `<img src="https://images.unsplash.com/photo-1498050108023-c5249f4df085?w=800" class="w-full rounded-2xl">`;
-            if(type === 'navbar') inner = `<nav class="flex justify-between items-center"><span class="text-xl font-bold">MY SITE</span><div class="flex space-x-4 text-sm font-semibold"><a>Home</a><a>About</a></div></nav>`;
+            if(type === 'navbar') inner = `<nav class="flex justify-between items-center"><span class="text-xl font-bold">MY SITE</span><div class="flex space-x-4 text-sm font-semibold"><a data-href="index">Home</a><a data-href="#">About</a></div></nav>`;
             if(type === 'hero') inner = `<div class="text-center py-10"><h1 class="text-5xl font-black mb-6">Dream Big</h1><p class="text-slate-500 mb-8">Build your vision today.</p><button class="bg-indigo-600 text-white px-8 py-3 rounded-full">Start Now</button></div>`;
             if(type === 'features') inner = `<div class="grid grid-cols-3 gap-6 py-4"><div class="text-center"><h4 class="font-bold">Fast</h4><p class="text-xs text-slate-500">Blazing performance.</p></div><div class="text-center"><h4 class="font-bold">Easy</h4><p class="text-xs text-slate-500">No code needed.</p></div><div class="text-center"><h4 class="font-bold">Free</h4><p class="text-xs text-slate-500">Get started today.</p></div></div>`;
             if(type === 'split') inner = `<div class="flex items-center gap-10"><div class="flex-1"><h2 class="text-2xl font-bold mb-4">Content Here</h2><p>Tell your story.</p></div><div class="flex-1 bg-slate-100 h-40 rounded-xl"></div></div>`;
@@ -350,7 +385,11 @@
         }
 
         function attachElementListeners(el) {
-            el.onclick = (e) => { e.stopPropagation(); setActiveElement(el); };
+            el.onclick = (e) => { 
+                if (isPreview) return;
+                e.stopPropagation(); 
+                setActiveElement(el); 
+            };
         }
 
         function setActiveElement(el) {
@@ -363,9 +402,9 @@
         function renderInspector() {
             const ins = document.getElementById('inspector-content');
             
-            // 1. If a specific node (link/button) is selected
             if(selectedNode) {
-                const isLinkable = selectedNode.tagName === 'A' || selectedNode.tagName === 'BUTTON';
+                // Link detection: check if element or parent is a link/button
+                const isLinkable = ['A', 'BUTTON'].includes(selectedNode.tagName);
                 const currentHref = selectedNode.getAttribute('data-href') || '#';
                 
                 let linkSettings = '';
@@ -377,18 +416,18 @@
                     linkSettings = `
                         <div class="property-group">
                             <label class="property-label">Navigation Link (Internal)</label>
-                            <select onchange="selectedNode.setAttribute('data-href', this.value); showToast('Link updated');">
+                            <select onchange="selectedNode.setAttribute('data-href', this.value); showToast('Link target set to: ' + this.value);">
                                 <option value="#">None</option>
                                 ${options}
                             </select>
-                            <p class="text-[10px] text-slate-500 mt-2 italic">Links only work in Preview/Published mode.</p>
+                            <p class="text-[10px] text-slate-500 mt-2 italic">Test links by clicking 'Preview' in the top bar.</p>
                         </div>
                     `;
                 }
 
                 ins.innerHTML = `
                     <div class="bg-indigo-600/10 p-3 rounded-lg border border-indigo-600/30 mb-4">
-                        <p class="text-[10px] text-indigo-400 font-bold uppercase">Element Style</p>
+                        <p class="text-[10px] text-indigo-400 font-bold uppercase">Element Editor</p>
                     </div>
                     ${linkSettings}
                     <div class="property-group">
@@ -404,7 +443,6 @@
                 return;
             }
 
-            // 2. If a section is selected
             if(activeElement) {
                 ins.innerHTML = `
                     <div class="property-group">
@@ -437,23 +475,14 @@
             if(isPreview) {
                 captureCurrentPageContent();
                 canvas.classList.add('preview-mode');
-                btn.innerHTML = '<i class="fas fa-edit mr-2"></i> Edit';
+                btn.innerHTML = '<i class="fas fa-edit mr-2"></i> Edit Mode';
+                btn.classList.replace('bg-slate-800', 'bg-orange-600');
                 deselectAll();
-                
-                // Make links work in preview
-                canvas.querySelectorAll('[data-href]').forEach(link => {
-                    link.style.cursor = 'pointer';
-                    link.onclick = (e) => {
-                        e.preventDefault();
-                        const target = link.getAttribute('data-href');
-                        if(target && projectPages[target] !== undefined) switchPage(target);
-                    };
-                });
-                
-                canvas.querySelectorAll('[contenteditable]').forEach(el => el.contentEditable = "false");
+                applyPreviewInteractions();
             } else {
                 canvas.classList.remove('preview-mode');
                 btn.innerHTML = '<i class="fas fa-play mr-2"></i> Preview';
+                btn.classList.replace('bg-orange-600', 'bg-slate-800');
                 initCanvasLogic();
             }
         }
@@ -484,6 +513,12 @@
             document.getElementById('toast-msg').innerText = m;
             t.classList.add('show');
             setTimeout(() => t.classList.remove('show'), 2000);
+        }
+
+        function exitToDashboard() {
+            if(confirm("Exit to dashboard? Make sure to save your progress.")) {
+                location.reload();
+            }
         }
 
         initApp();
