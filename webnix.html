@@ -70,9 +70,25 @@
             background: rgba(0,0,0,0.8); z-index: 3000; display: none;
             align-items: center; justify-content: center;
         }
+
+        /* Auth Overlay for simulation */
+        #auth-overlay {
+            position: fixed; inset: 0; background: var(--bg-dark); z-index: 9999;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            text-align: center;
+        }
     </style>
 </head>
 <body oncontextmenu="return false;">
+
+    <div id="auth-overlay" class="hidden">
+        <div class="bg-slate-800 p-10 rounded-3xl border border-slate-700 max-w-sm w-full">
+            <i class="fas fa-lock text-4xl text-indigo-500 mb-4"></i>
+            <h2 class="text-2xl font-bold mb-2">Login Required</h2>
+            <p class="text-slate-400 mb-6 text-sm">Please sign in to your account to manage your websites.</p>
+            <button onclick="simulateLogin()" class="w-full bg-indigo-600 py-3 rounded-xl font-bold hover:bg-indigo-500 transition">Go to Login Page</button>
+        </div>
+    </div>
 
     <div id="context-menu">
         <div class="menu-item" onclick="renderInspector()"><i class="fas fa-sliders-h"></i> Settings</div>
@@ -82,7 +98,6 @@
         <div class="menu-item danger" onclick="deleteActive()"><i class="fas fa-trash"></i> Remove</div>
     </div>
 
-    <!-- Enhanced Publish Modal -->
     <div id="publish-modal">
         <div class="bg-slate-800 p-8 rounded-2xl max-w-md w-full border border-slate-700 text-center animate__animated animate__zoomIn">
             <div class="w-16 h-16 bg-emerald-500/20 text-emerald-500 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -99,9 +114,6 @@
             <div class="flex flex-col gap-3">
                 <button id="visit-btn" class="w-full bg-indigo-600 py-3 rounded-lg font-bold text-sm hover:bg-indigo-500 transition">
                     <i class="fas fa-external-link-alt mr-2"></i> Open Live Site
-                </button>
-                <button id="share-native-btn" class="w-full bg-slate-700 py-3 rounded-lg font-bold text-sm hover:bg-slate-600 transition">
-                    <i class="fas fa-paper-plane mr-2"></i> Send to Friends
                 </button>
                 <button onclick="document.getElementById('publish-modal').style.display='none'" class="mt-2 text-slate-500 text-xs hover:text-white">Back to Editor</button>
             </div>
@@ -165,7 +177,6 @@
                         <div draggable="true" ondragstart="onDragStart(event, 'gallery')" class="draggable-item"><i class="fas fa-images w-6 text-purple-400"></i> Image Gallery</div>
                         <div draggable="true" ondragstart="onDragStart(event, 'split')" class="draggable-item"><i class="fas fa-columns w-6 text-pink-400"></i> Image & Text</div>
                         <div draggable="true" ondragstart="onDragStart(event, 'pricing')" class="draggable-item"><i class="fas fa-tags w-6 text-blue-400"></i> Pricing Plans</div>
-                        <div draggable="true" ondragstart="onDragStart(event, 'faq')" class="draggable-item"><i class="fas fa-question-circle w-6 text-amber-400"></i> FAQ Accordion</div>
                         <div draggable="true" ondragstart="onDragStart(event, 'contact')" class="draggable-item"><i class="fas fa-envelope w-6 text-rose-400"></i> Contact Form</div>
                         <div draggable="true" ondragstart="onDragStart(event, 'footer')" class="draggable-item"><i class="fas fa-shoe-prints w-6 text-slate-400"></i> Footer Area</div>
                     </div>
@@ -189,8 +200,9 @@
     <div id="live-viewer" class="hidden min-h-screen bg-white text-slate-900"></div>
 
     <script>
-        const SUPABASE_URL = "https://rnlwrngfgvznndlekmrz.supabase.co";
-        const SUPABASE_KEY = "sb_publishable_mtI0_ZBvU_n5oRuqV58QHg_qJt3Gfyt";
+        // REPLACE WITH YOUR ACTUAL SUPABASE URL AND KEY
+        const SUPABASE_URL = "https://your-project.supabase.co";
+        const SUPABASE_KEY = "your-anon-key";
         const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
         let currentUser = null, currentProject = null, activeElement = null;
@@ -211,24 +223,24 @@
         async function checkAuth() {
             const { data: { user } } = await client.auth.getUser();
             if (!user) { 
-                window.location.href = "auth.html"; 
+                // In production, redirect to auth page. For now, show overlay.
+                document.getElementById('auth-overlay').classList.remove('hidden');
                 return; 
             }
             currentUser = user;
             loadProjects();
         }
 
+        function simulateLogin() {
+            // Placeholder for login redirect
+            showToast("Redirecting to login...");
+        }
+
         async function renderLiveSite(id) {
-            // Fetch site data from Supabase
             const { data, error } = await client.from('websites').select('*').eq('id', id).single();
             
             if (error || !data) {
-                document.body.innerHTML = `
-                    <div class="h-screen flex items-center justify-center flex-col gap-4 text-center bg-slate-900 text-white">
-                        <h1 class="text-3xl font-bold">404 - Site Not Found</h1>
-                        <p class="text-slate-400">The link you followed might be broken or the site was deleted.</p>
-                        <a href="/" class="text-indigo-400 hover:underline">Create your own site with WebNix</a>
-                    </div>`;
+                document.body.innerHTML = `<div class="h-screen flex items-center justify-center bg-slate-900 text-white">404 - Site Not Found</div>`;
                 return;
             }
 
@@ -242,7 +254,7 @@
                 const h = window.location.hash.replace('#/', '') || 'index';
                 viewer.innerHTML = pages[h] || pages['index'] || '<div class="p-20 text-center">Empty Page</div>';
                 
-                // Final clean up of editor UI artifacts just in case
+                // Cleanup editor UI
                 viewer.querySelectorAll('.element-controls').forEach(e => e.remove());
                 viewer.querySelectorAll('.dropped-element').forEach(e => {
                     e.style.outline = 'none'; 
@@ -259,16 +271,16 @@
             const { data } = await client.from('websites').select('*').eq('user_id', currentUser.id).order('updated_at', { ascending: false });
             const grid = document.getElementById('projects-grid');
             if(!data || data.length === 0) {
-                grid.innerHTML = `<div class="col-span-full py-20 text-center text-slate-500 border-2 border-dashed border-slate-800 rounded-2xl">No projects yet. Click "Start New Project" to begin.</div>`;
+                grid.innerHTML = `<div class="col-span-full py-20 text-center text-slate-500 border-2 border-dashed border-slate-800 rounded-2xl">No projects found.</div>`;
                 return;
             }
             grid.innerHTML = data.map(s => `
                 <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 hover:border-indigo-500 transition group">
-                    <h3 class="font-bold mb-1">${s.title || 'Untitled Site'}</h3>
-                    <p class="text-[10px] text-slate-500 mb-4">Modified ${new Date(s.updated_at).toLocaleDateString()}</p>
+                    <h3 class="font-bold mb-1">${s.title}</h3>
+                    <p class="text-[10px] text-slate-500 mb-4">${s.is_published ? 'Published' : 'Draft'}</p>
                     <div class="flex space-x-2">
-                        <button onclick="openEditor('${s.id}')" class="flex-1 bg-indigo-600 hover:bg-indigo-500 py-2 rounded-lg text-sm font-bold transition">Edit Site</button>
-                        <button onclick="window.open('?id=${s.id}&view=live', '_blank')" class="bg-slate-700 px-3 rounded-lg hover:bg-slate-600" title="View Live"><i class="fas fa-external-link-alt text-xs"></i></button>
+                        <button onclick="openEditor('${s.id}')" class="flex-1 bg-indigo-600 hover:bg-indigo-500 py-2 rounded-lg text-sm font-bold transition">Edit</button>
+                        <button onclick="window.open('?id=${s.id}&view=live', '_blank')" class="bg-slate-700 px-3 rounded-lg hover:bg-slate-600"><i class="fas fa-external-link-alt text-xs"></i></button>
                     </div>
                 </div>
             `).join('');
@@ -290,46 +302,31 @@
         }
 
         function switchPage(p) {
-            if(!isPreview) projectPages[activePage] = document.getElementById('canvas').innerHTML;
+            if(!isPreview) {
+                const canvas = document.getElementById('canvas');
+                if(canvas) projectPages[activePage] = canvas.innerHTML;
+            }
             activePage = p;
             const canvas = document.getElementById('canvas');
             canvas.innerHTML = projectPages[p] || "";
             updatePlaceholderVisibility();
-            if(!isPreview) { canvas.querySelectorAll('.dropped-element').forEach(attachListeners); hijackLinks(); }
+            if(!isPreview) { 
+                canvas.querySelectorAll('.dropped-element').forEach(attachListeners); 
+            }
             renderPagesList();
-        }
-
-        function hijackLinks() {
-            document.querySelectorAll('#canvas a').forEach(link => {
-                link.onclick = (e) => {
-                    if (isPreview) return;
-                    e.preventDefault();
-                    const href = link.getAttribute('href');
-                    if (href && href.startsWith('#/')) {
-                        const target = href.replace('#/', '');
-                        if (projectPages[target] !== undefined) switchPage(target);
-                    }
-                };
-            });
-        }
-
-        function updatePlaceholderVisibility() {
-            const p = document.getElementById('canvas-placeholder');
-            const c = document.getElementById('canvas');
-            if(p) p.style.display = (c && c.children.length > 0) ? 'none' : 'block';
         }
 
         function renderPagesList() {
             document.getElementById('pages-list').innerHTML = Object.keys(projectPages).map(p => `
-                <div onclick="switchPage('${p}')" class="page-item ${p === activePage ? 'active' : ''} cursor-pointer text-xs p-2 rounded flex justify-between items-center group">
-                    <span><i class="fas fa-file mr-2 opacity-50"></i>/${p}</span>
-                    ${p !== 'index' ? `<i onclick="event.stopPropagation(); deletePage('${p}')" class="fas fa-trash text-[9px] opacity-0 group-hover:opacity-40 hover:text-red-400"></i>` : ''}
+                <div onclick="switchPage('${p}')" class="page-item ${p === activePage ? 'active' : ''} cursor-pointer text-xs p-2 rounded flex justify-between items-center">
+                    <span>/${p}</span>
+                    ${p !== 'index' ? `<i onclick="event.stopPropagation(); deletePage('${p}')" class="fas fa-trash text-[9px] hover:text-red-400"></i>` : ''}
                 </div>
             `).join('');
         }
 
         function addNewPage() {
-            const name = prompt("Page Name (e.g. about):")?.toLowerCase().trim().replace(/\s+/g, '-');
+            const name = prompt("Page Name:")?.toLowerCase().trim();
             if(name && !projectPages[name]) { projectPages[name] = ""; switchPage(name); }
         }
 
@@ -351,7 +348,6 @@
             document.getElementById('canvas').appendChild(el);
             updatePlaceholderVisibility();
             attachListeners(el);
-            hijackLinks();
         }
 
         function createComponent(type) {
@@ -360,27 +356,18 @@
             div.dataset.type = type;
             let inner = '';
             
-            // Standard components (Navbar, Hero, Features, etc.)
-            if(type === 'navbar') inner = `<nav class="flex justify-between items-center"><div class="text-xl font-black text-indigo-600">STUDIO</div><div class="space-x-8 text-sm font-semibold"><a href="#/index">Home</a><a href="#/services">Services</a><a href="#/contact">Contact</a></div></nav>`;
-            if(type === 'hero') inner = `<div class="text-center py-10"><h1 class="text-6xl font-black tracking-tighter leading-tight">Create Something Amazing Today</h1><p class="mt-6 text-xl text-slate-500 max-w-xl mx-auto">The simplest way to build a professional website without writing a single line of code.</p><button class="mt-8 bg-indigo-600 text-white px-8 py-3 rounded-full font-bold">Get Started Now</button></div>`;
-            if(type === 'features') inner = `<div class="grid grid-cols-1 md:grid-cols-3 gap-12 text-center"><div><div class="w-16 h-16 bg-indigo-100 text-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-6"><i class="fas fa-rocket text-2xl"></i></div><h3 class="text-xl font-bold mb-3">Fast Setup</h3><p class="text-slate-500 text-sm">Launch your site in minutes with our ready-made visual blocks.</p></div><div><div class="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto mb-6"><i class="fas fa-mobile-alt text-2xl"></i></div><h3 class="text-xl font-bold mb-3">Responsive</h3><p class="text-slate-500 text-sm">Every element automatically looks perfect on phones and tablets.</p></div><div><div class="w-16 h-16 bg-orange-100 text-orange-600 rounded-2xl flex items-center justify-center mx-auto mb-6"><i class="fas fa-search text-2xl"></i></div><h3 class="text-xl font-bold mb-3">SEO Optimized</h3><p class="text-slate-500 text-sm">Built-in best practices to help you get discovered on Google.</p></div></div>`;
-            if(type === 'gallery') inner = `<div class="grid grid-cols-2 md:grid-cols-4 gap-4"><img src="https://images.unsplash.com/photo-1497215728101-856f4ea42174?auto=format&fit=crop&w=300" class="rounded-lg shadow-md"><img src="https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?auto=format&fit=crop&w=300" class="rounded-lg shadow-md"><img src="https://images.unsplash.com/photo-1522202176988-66273c2fd55f?auto=format&fit=crop&w=300" class="rounded-lg shadow-md"><img src="https://images.unsplash.com/photo-1542744094-24638eff58bb?auto=format&fit=crop&w=300" class="rounded-lg shadow-md"></div>`;
-            if(type === 'split') inner = `<div class="flex items-center gap-16 flex-wrap md:flex-nowrap"><div class="w-full md:w-1/2"><img src="https://images.unsplash.com/photo-1551434678-e076c223a692?auto=format&fit=crop&w=600" class="rounded-3xl shadow-2xl"></div><div class="w-full md:w-1/2 space-y-6"> <h2 class="text-4xl font-bold">Collaborate in Real-Time</h2><p class="text-slate-500 text-lg leading-relaxed">Work together with your team and see changes instantly as you build your dream project.</p><button class="text-indigo-600 font-bold border-b-2 border-indigo-600 pb-1">Learn More</button></div></div>`;
-            if(type === 'pricing') inner = `<div class="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto"><div class="p-10 border rounded-2xl bg-white shadow-sm"><h4 class="text-slate-400 font-bold text-sm uppercase">Free</h4><p class="text-4xl font-black my-4">$0 <span class="text-sm font-normal text-slate-400">/mo</span></p><ul class="space-y-3 mb-8 text-slate-600"><li><i class="fas fa-check text-emerald-500 mr-2"></i> 3 Pages</li><li><i class="fas fa-check text-emerald-500 mr-2"></i> Basic Hosting</li></ul><button class="w-full py-3 border border-slate-200 rounded-xl font-bold">Sign Up Free</button></div><div class="p-10 border-2 border-indigo-600 rounded-2xl bg-white shadow-xl transform scale-105"><h4 class="text-indigo-600 font-bold text-sm uppercase">Pro</h4><p class="text-4xl font-black my-4">$29 <span class="text-sm font-normal text-slate-400">/mo</span></p><ul class="space-y-3 mb-8 text-slate-600"><li><i class="fas fa-check text-emerald-500 mr-2"></i> Unlimited Pages</li><li><i class="fas fa-check text-emerald-500 mr-2"></i> Custom Domain</li><li><i class="fas fa-check text-emerald-500 mr-2"></i> 24/7 Support</li></ul><button class="w-full py-3 bg-indigo-600 text-white rounded-xl font-bold">Try Pro Now</button></div></div>`;
-            if(type === 'faq') inner = `<div class="max-w-3xl mx-auto space-y-4"><div class="border rounded-xl p-6 bg-slate-50"><h4 class="font-bold cursor-pointer flex justify-between">How does it work? <i class="fas fa-plus text-xs"></i></h4><p class="mt-4 text-slate-600 text-sm">Simply drag and drop elements. No coding knowledge required!</p></div><div class="border rounded-xl p-6 bg-slate-50"><h4 class="font-bold cursor-pointer flex justify-between">Is there a free plan? <i class="fas fa-plus text-xs"></i></h4><p class="mt-4 text-slate-600 text-sm">Yes, we offer a generous free plan for beginners.</p></div></div>`;
-            if(type === 'contact') inner = `<div class="max-w-xl mx-auto bg-slate-50 p-10 rounded-3xl"><h2 class="text-3xl font-bold mb-8 text-center">Get in Touch</h2><div class="space-y-4"><input type="text" placeholder="Your Name" class="w-full bg-white border border-slate-200"><input type="text" placeholder="Email Address" class="w-full bg-white border border-slate-200"><textarea placeholder="Your Message" class="w-full bg-white border border-slate-200"></textarea><button class="w-full bg-indigo-600 text-white py-4 rounded-xl font-bold">Send Message</button></div></div>`;
-            if(type === 'footer') inner = `<div class="border-t pt-10 mt-10"><div class="flex justify-between flex-wrap gap-8"><div><h3 class="font-black text-indigo-600 mb-4">STUDIO</h3><p class="text-slate-400 text-xs">Building the web of tomorrow.</p></div><div class="flex gap-12 text-xs font-bold text-slate-500"><div><p class="mb-4 text-slate-900">COMPANY</p><p>About</p><p>Blog</p></div><div><p class="mb-4 text-slate-900">HELP</p><p>Docs</p><p>FAQ</p></div></div></div></div>`;
+            if(type === 'navbar') inner = `<nav class="flex justify-between items-center"><div class="text-xl font-black text-indigo-600">STUDIO</div><div class="space-x-8 text-sm font-semibold"><a>Home</a><a>Services</a><a>Contact</a></div></nav>`;
+            if(type === 'hero') inner = `<div class="text-center py-10"><h1 class="text-5xl font-black">Modern Design</h1><p class="mt-4 text-slate-500">Simple visual building for everyone.</p><button class="mt-6 bg-indigo-600 text-white px-8 py-3 rounded-full">Start Building</button></div>`;
+            if(type === 'features') inner = `<div class="grid grid-cols-3 gap-8 text-center"><div><i class="fas fa-bolt text-indigo-600 text-2xl mb-4"></i><h3 class="font-bold">Fast</h3></div><div><i class="fas fa-mobile-alt text-indigo-600 text-2xl mb-4"></i><h3 class="font-bold">Mobile</h3></div><div><i class="fas fa-shield-alt text-indigo-600 text-2xl mb-4"></i><h3 class="font-bold">Secure</h3></div></div>`;
+            if(type === 'footer') inner = `<footer class="border-t pt-8 text-center text-slate-400 text-xs">© 2024 Your Brand. All rights reserved.</footer>`;
+            // Add more component structures as needed
 
-            div.innerHTML = `<div class="element-controls"><button onclick="move(this,-1)"><i class="fas fa-chevron-up"></i></button><button onclick="move(this,1)"><i class="fas fa-chevron-down"></i></button><button onclick="deleteEl(this)"><i class="fas fa-trash"></i></button></div><div class="content-box animate__animated" data-anim="">${inner}</div>`;
+            div.innerHTML = `<div class="element-controls"><button onclick="move(this,-1)"><i class="fas fa-chevron-up"></i></button><button onclick="move(this,1)"><i class="fas fa-chevron-down"></i></button><button onclick="deleteEl(this)"><i class="fas fa-trash"></i></button></div><div class="content-box">${inner || 'Empty Block'}</div>`;
             return div;
         }
 
-        function deleteEl(btn) { btn.closest('.dropped-element').remove(); updatePlaceholderVisibility(); }
-
         function attachListeners(el) {
             el.onclick = (e) => { e.stopPropagation(); setActive(el); };
-            el.oncontextmenu = (e) => { e.preventDefault(); e.stopPropagation(); setActive(el); showContextMenu(e.clientX, e.clientY); };
-            el.ondblclick = (e) => { e.stopPropagation(); setActive(el); editText(); };
         }
 
         function setActive(el) {
@@ -390,133 +377,41 @@
             renderInspector();
         }
 
-        function showContextMenu(x, y) {
-            const m = document.getElementById('context-menu');
-            m.style.display = 'block'; m.style.left = x + 'px'; m.style.top = y + 'px';
-        }
-
-        function closeContextMenu() { document.getElementById('context-menu').style.display = 'none'; }
-
-        function deleteActive() {
-            if(activeElement) { activeElement.remove(); activeElement = null; updatePlaceholderVisibility(); document.getElementById('inspector-content').innerHTML = `<div class="text-slate-500 text-sm italic py-20 text-center">Click on any element to begin editing.</div>`; }
-            closeContextMenu();
-        }
-
-        function moveActive(dir) {
-            if(activeElement) {
-                if(dir === -1 && activeElement.previousElementSibling) activeElement.parentNode.insertBefore(activeElement, activeElement.previousElementSibling);
-                if(dir === 1 && activeElement.nextElementSibling) activeElement.parentNode.insertBefore(activeElement.nextElementSibling, activeElement);
-            }
-            closeContextMenu();
-        }
-
-        function renderInspector() {
-            if(!activeElement) return;
-            const box = activeElement.querySelector('.content-box');
-            const type = activeElement.dataset.type;
-            const ins = document.getElementById('inspector-content');
-            
-            let textFieldsHtml = '';
-            const textNodes = box.querySelectorAll('h1, h2, h3, h4, p, button, a');
-            textNodes.forEach((node, idx) => {
-                if(node.innerText.trim()) {
-                    textFieldsHtml += `
-                        <div class="mb-4">
-                            <label class="text-[9px] text-slate-400 mb-1 block uppercase">Text Field #${idx + 1} (${node.tagName})</label>
-                            <textarea oninput="updateSpecificText(${idx}, this.value)">${node.innerHTML.trim()}</textarea>
-                        </div>
-                    `;
-                }
-            });
-
-            ins.innerHTML = `
-                <div class="property-group">
-                    <label class="property-label">Visual Style</label>
-                    <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <span class="text-[9px] text-slate-500 block mb-1">Text Color</span>
-                            <input type="color" value="#000000" onchange="updateStyle('color', this.value)">
-                        </div>
-                        <div>
-                            <span class="text-[9px] text-slate-500 block mb-1">Background</span>
-                            <input type="color" value="#ffffff" onchange="updateStyle('backgroundColor', this.value)">
-                        </div>
-                    </div>
-                </div>
-
-                <div class="property-group">
-                    <label class="property-label">Entrance Animation</label>
-                    <select onchange="updateAnim(this.value)">
-                        <option value="">None (Static)</option>
-                        <option value="animate__fadeIn" ${box.dataset.anim === 'animate__fadeIn' ? 'selected' : ''}>Gentle Fade</option>
-                        <option value="animate__slideInUp" ${box.dataset.anim === 'animate__slideInUp' ? 'selected' : ''}>Slide from Bottom</option>
-                        <option value="animate__zoomIn" ${box.dataset.anim === 'animate__zoomIn' ? 'selected' : ''}>Zoom In</option>
-                    </select>
-                </div>
-
-                <div class="property-group">
-                    <label class="property-label">Content Editor</label>
-                    ${textFieldsHtml || '<p class="text-[10px] text-slate-500">No editable text found in this block.</p>'}
-                </div>
-
-                ${type === 'gallery' || type === 'split' ? `<div class="property-group"><label class="property-label">Image Source</label><input type="text" onchange="updateMedia('img', 'src', this.value)" placeholder="Paste image link here..."></div>` : ''}
-            `;
-            closeContextMenu();
-        }
-
-        function updateSpecificText(idx, val) {
-            const box = activeElement.querySelector('.content-box');
-            const nodes = box.querySelectorAll('h1, h2, h3, h4, p, button, a');
-            if(nodes[idx]) nodes[idx].innerHTML = val;
-            hijackLinks();
-        }
-
-        function updateStyle(prop, val) { if(activeElement) activeElement.style[prop] = val; }
-
-        function updateAnim(val) { 
-            const box = activeElement.querySelector('.content-box');
-            box.dataset.anim = val;
-            box.className = "content-box animate__animated " + val; 
-        }
-
-        function editText() { 
-            const box = activeElement.querySelector('.content-box');
-            const n = prompt("Edit text content (HTML works):", box.innerHTML);
-            if(n !== null) { box.innerHTML = n; hijackLinks(); renderInspector(); }
-        }
-
-        function updateMedia(tag, attr, val) { 
-            const m = activeElement.querySelector(tag);
-            if(m) m[attr] = val; 
-        }
-
+        function deleteEl(btn) { btn.closest('.dropped-element').remove(); updatePlaceholderVisibility(); }
         function move(btn, dir) {
             const el = btn.closest('.dropped-element');
             if(dir === -1 && el.previousElementSibling) el.parentNode.insertBefore(el, el.previousElementSibling);
             if(dir === 1 && el.nextElementSibling) el.parentNode.insertBefore(el.nextElementSibling, el);
         }
 
-        function togglePreview() {
-            isPreview = !isPreview;
-            const canvas = document.getElementById('canvas');
-            const btn = document.getElementById('preview-btn');
-            if(isPreview) {
-                projectPages[activePage] = canvas.innerHTML;
-                canvas.classList.add('preview-mode');
-                btn.innerHTML = '<i class="fas fa-edit mr-2"></i> Exit Preview';
-                btn.classList.replace('bg-slate-800', 'bg-indigo-600');
-                closeContextMenu();
-            } else {
-                canvas.classList.remove('preview-mode');
-                btn.innerHTML = '<i class="fas fa-play mr-2"></i> Preview Mode';
-                btn.classList.replace('bg-indigo-600', 'bg-slate-800');
-                switchPage(activePage);
-            }
+        function renderInspector() {
+            if(!activeElement) return;
+            const ins = document.getElementById('inspector-content');
+            ins.innerHTML = `
+                <div class="property-group">
+                    <label class="property-label">Background Color</label>
+                    <input type="color" onchange="activeElement.style.backgroundColor = this.value">
+                </div>
+                <div class="property-group">
+                    <label class="property-label">Block Padding</label>
+                    <input type="range" min="0" max="100" value="48" oninput="activeElement.style.padding = this.value + 'px'">
+                </div>
+                <button onclick="deleteActive()" class="w-full bg-red-500/10 text-red-500 py-2 rounded text-xs font-bold">Delete Block</button>
+            `;
+        }
+
+        function deleteActive() {
+            if(activeElement) { activeElement.remove(); activeElement = null; updatePlaceholderVisibility(); }
+        }
+
+        function updatePlaceholderVisibility() {
+            const p = document.getElementById('canvas-placeholder');
+            const c = document.getElementById('canvas');
+            if(p) p.style.display = (c && c.children.length > 0) ? 'none' : 'block';
         }
 
         async function saveProject() {
             if(!currentProject) return;
-            if(isPreview) togglePreview();
             projectPages[activePage] = document.getElementById('canvas').innerHTML;
             
             const { error } = await client.from('websites').update({ 
@@ -524,70 +419,55 @@
                 updated_at: new Date() 
             }).eq('id', currentProject.id);
             
-            if(error) {
-                console.error(error);
-                showToast("Error saving to database.");
-            } else {
-                showToast("All changes saved!");
-            }
+            if(error) showToast("Error saving.");
+            else showToast("Saved!");
         }
 
         async function publishProject() {
+            if(!currentProject) return;
             await saveProject();
+            
+            const { error } = await client.from('websites').update({ 
+                is_published: true 
+            }).eq('id', currentProject.id);
+
             const baseUrl = window.location.origin + window.location.pathname;
             const url = `${baseUrl}?id=${currentProject.id}&view=live`;
             document.getElementById('publish-url').value = url;
-            
             document.getElementById('visit-btn').onclick = () => window.open(url, '_blank');
-            
-            document.getElementById('share-native-btn').onclick = async () => {
-                if (navigator.share) {
-                    try {
-                        await navigator.share({
-                            title: currentProject.title,
-                            text: 'Check out the website I built with WebNix Studio!',
-                            url: url,
-                        });
-                    } catch (err) { copyPublishUrl(); }
-                } else {
-                    copyPublishUrl();
-                    showToast("Link copied!");
-                }
-            };
-
             document.getElementById('publish-modal').style.display = 'flex';
         }
 
-        function copyPublishUrl() { 
-            const u = document.getElementById('publish-url'); 
-            u.select(); 
-            document.execCommand('copy'); 
-            showToast("Link copied to clipboard!"); 
-        }
-
         async function createNewProject() {
-            const title = prompt("Enter a name for your website:", "My New Website") || "Untitled Site";
+            if(!currentUser) return showToast("Please login first.");
+            const title = prompt("Website Title:") || "My Site";
             const { data, error } = await client.from('websites').insert([
-                { user_id: currentUser.id, title: title, html_content: '{"index":""}' }
+                { user_id: currentUser.id, title: title, html_content: '{"index":""}', is_published: false }
             ]).select();
             
-            if(error) {
-                showToast("Error creating project.");
-                console.error(error);
-                return;
+            if(error) { showToast("Error creating site."); console.error(error); }
+            else if(data) openEditor(data[0].id);
+        }
+
+        function togglePreview() {
+            isPreview = !isPreview;
+            const canvas = document.getElementById('canvas');
+            const btn = document.getElementById('preview-btn');
+            if(isPreview) {
+                canvas.classList.add('preview-mode');
+                btn.innerHTML = 'Exit Preview';
+            } else {
+                canvas.classList.remove('preview-mode');
+                btn.innerHTML = 'Preview Mode';
             }
-            if(data) openEditor(data[0].id);
         }
 
         function exitToDashboard() {
-            if(confirm("Exit to dashboard? Make sure to save your progress.")) {
-                document.getElementById('view-editor').classList.add('hidden');
-                document.getElementById('editor-nav').classList.add('hidden');
-                document.getElementById('view-dashboard').classList.remove('hidden');
-                document.getElementById('dashboard-nav').classList.remove('hidden');
-                currentProject = null;
-                loadProjects();
-            }
+            document.getElementById('view-editor').classList.add('hidden');
+            document.getElementById('editor-nav').classList.add('hidden');
+            document.getElementById('view-dashboard').classList.remove('hidden');
+            document.getElementById('dashboard-nav').classList.remove('hidden');
+            loadProjects();
         }
 
         function showToast(m) {
