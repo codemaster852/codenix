@@ -70,25 +70,9 @@
             background: rgba(0,0,0,0.8); z-index: 3000; display: none;
             align-items: center; justify-content: center;
         }
-
-        /* Auth Overlay for simulation */
-        #auth-overlay {
-            position: fixed; inset: 0; background: var(--bg-dark); z-index: 9999;
-            display: flex; flex-direction: column; align-items: center; justify-content: center;
-            text-align: center;
-        }
     </style>
 </head>
 <body oncontextmenu="return false;">
-
-    <div id="auth-overlay" class="hidden">
-        <div class="bg-slate-800 p-10 rounded-3xl border border-slate-700 max-w-sm w-full">
-            <i class="fas fa-lock text-4xl text-indigo-500 mb-4"></i>
-            <h2 class="text-2xl font-bold mb-2">Login Required</h2>
-            <p class="text-slate-400 mb-6 text-sm">Please sign in to your account to manage your websites.</p>
-            <button onclick="simulateLogin()" class="w-full bg-indigo-600 py-3 rounded-xl font-bold hover:bg-indigo-500 transition">Go to Login Page</button>
-        </div>
-    </div>
 
     <div id="context-menu">
         <div class="menu-item" onclick="renderInspector()"><i class="fas fa-sliders-h"></i> Settings</div>
@@ -156,7 +140,7 @@
                 <div class="max-w-6xl mx-auto">
                     <h2 class="text-2xl font-bold mb-6">My Projects</h2>
                     <div id="projects-grid" class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        <!-- Projects load here -->
+                        <div class="col-span-full py-20 text-center text-slate-500">Loading your projects...</div>
                     </div>
                 </div>
             </div>
@@ -190,7 +174,7 @@
                 <aside class="sidebar border-l border-slate-800 p-5">
                     <h3 class="property-label">Editor Settings</h3>
                     <div id="inspector-content" class="space-y-4">
-                        <div class="text-slate-500 text-sm italic py-20 text-center">Click on any element or double-click text to begin editing.</div>
+                        <div class="text-slate-500 text-sm italic py-20 text-center">Click on any element to begin editing.</div>
                     </div>
                 </aside>
             </div>
@@ -200,9 +184,8 @@
     <div id="live-viewer" class="hidden min-h-screen bg-white text-slate-900"></div>
 
     <script>
-        // REPLACE WITH YOUR ACTUAL SUPABASE URL AND KEY
-        const SUPABASE_URL = "https://your-project.supabase.co";
-        const SUPABASE_KEY = "your-anon-key";
+        const SUPABASE_URL = "https://rnlwrngfgvznndlekmrz.supabase.co";
+        const SUPABASE_KEY = "sb_publishable_mtI0_ZBvU_n5oRuqV58QHg_qJt3Gfyt";
         const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
         let currentUser = null, currentProject = null, activeElement = null;
@@ -222,56 +205,29 @@
 
         async function checkAuth() {
             const { data: { user } } = await client.auth.getUser();
-            if (!user) { 
-                // In production, redirect to auth page. For now, show overlay.
-                document.getElementById('auth-overlay').classList.remove('hidden');
-                return; 
+            if (!user) {
+                // If not signed in, sign in anonymously for this session
+                const { data, error } = await client.auth.signInAnonymously();
+                if (error) {
+                    showToast("Authentication Error. Please check Supabase settings.");
+                    return;
+                }
+                currentUser = data.user;
+            } else {
+                currentUser = user;
             }
-            currentUser = user;
             loadProjects();
         }
 
-        function simulateLogin() {
-            // Placeholder for login redirect
-            showToast("Redirecting to login...");
-        }
-
-        async function renderLiveSite(id) {
-            const { data, error } = await client.from('websites').select('*').eq('id', id).single();
-            
-            if (error || !data) {
-                document.body.innerHTML = `<div class="h-screen flex items-center justify-center bg-slate-900 text-white">404 - Site Not Found</div>`;
+        async function loadProjects() {
+            const { data, error } = await client.from('websites').select('*').eq('user_id', currentUser.id).order('updated_at', { ascending: false });
+            const grid = document.getElementById('projects-grid');
+            if (error) {
+                grid.innerHTML = `<div class="col-span-full py-10 text-red-400">Failed to load projects.</div>`;
                 return;
             }
-
-            document.getElementById('app-shell').classList.add('hidden');
-            const viewer = document.getElementById('live-viewer');
-            viewer.classList.remove('hidden');
-            
-            const pages = JSON.parse(data.html_content || '{"index":""}');
-            
-            const render = () => {
-                const h = window.location.hash.replace('#/', '') || 'index';
-                viewer.innerHTML = pages[h] || pages['index'] || '<div class="p-20 text-center">Empty Page</div>';
-                
-                // Cleanup editor UI
-                viewer.querySelectorAll('.element-controls').forEach(e => e.remove());
-                viewer.querySelectorAll('.dropped-element').forEach(e => {
-                    e.style.outline = 'none'; 
-                    e.style.cursor = 'default';
-                });
-            };
-
-            window.onhashchange = render;
-            render();
-            document.title = data.title;
-        }
-
-        async function loadProjects() {
-            const { data } = await client.from('websites').select('*').eq('user_id', currentUser.id).order('updated_at', { ascending: false });
-            const grid = document.getElementById('projects-grid');
             if(!data || data.length === 0) {
-                grid.innerHTML = `<div class="col-span-full py-20 text-center text-slate-500 border-2 border-dashed border-slate-800 rounded-2xl">No projects found.</div>`;
+                grid.innerHTML = `<div class="col-span-full py-20 text-center text-slate-500 border-2 border-dashed border-slate-800 rounded-2xl">No projects found. Click "Start New Project" to begin.</div>`;
                 return;
             }
             grid.innerHTML = data.map(s => `
@@ -360,7 +316,6 @@
             if(type === 'hero') inner = `<div class="text-center py-10"><h1 class="text-5xl font-black">Modern Design</h1><p class="mt-4 text-slate-500">Simple visual building for everyone.</p><button class="mt-6 bg-indigo-600 text-white px-8 py-3 rounded-full">Start Building</button></div>`;
             if(type === 'features') inner = `<div class="grid grid-cols-3 gap-8 text-center"><div><i class="fas fa-bolt text-indigo-600 text-2xl mb-4"></i><h3 class="font-bold">Fast</h3></div><div><i class="fas fa-mobile-alt text-indigo-600 text-2xl mb-4"></i><h3 class="font-bold">Mobile</h3></div><div><i class="fas fa-shield-alt text-indigo-600 text-2xl mb-4"></i><h3 class="font-bold">Secure</h3></div></div>`;
             if(type === 'footer') inner = `<footer class="border-t pt-8 text-center text-slate-400 text-xs">© 2024 Your Brand. All rights reserved.</footer>`;
-            // Add more component structures as needed
 
             div.innerHTML = `<div class="element-controls"><button onclick="move(this,-1)"><i class="fas fa-chevron-up"></i></button><button onclick="move(this,1)"><i class="fas fa-chevron-down"></i></button><button onclick="deleteEl(this)"><i class="fas fa-trash"></i></button></div><div class="content-box">${inner || 'Empty Block'}</div>`;
             return div;
@@ -368,6 +323,15 @@
 
         function attachListeners(el) {
             el.onclick = (e) => { e.stopPropagation(); setActive(el); };
+            el.oncontextmenu = (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setActive(el);
+                const menu = document.getElementById('context-menu');
+                menu.style.display = 'block';
+                menu.style.left = e.pageX + 'px';
+                menu.style.top = e.pageY + 'px';
+            };
         }
 
         function setActive(el) {
@@ -377,7 +341,9 @@
             renderInspector();
         }
 
-        function deleteEl(btn) { btn.closest('.dropped-element').remove(); updatePlaceholderVisibility(); }
+        function closeContextMenu() { document.getElementById('context-menu').style.display = 'none'; }
+
+        function deleteEl(btn) { btn.closest('.dropped-element').remove(); updatePlaceholderVisibility(); activeElement = null; renderInspector(); }
         function move(btn, dir) {
             const el = btn.closest('.dropped-element');
             if(dir === -1 && el.previousElementSibling) el.parentNode.insertBefore(el, el.previousElementSibling);
@@ -385,24 +351,32 @@
         }
 
         function renderInspector() {
-            if(!activeElement) return;
             const ins = document.getElementById('inspector-content');
+            if(!activeElement) {
+                ins.innerHTML = `<div class="text-slate-500 text-sm italic py-20 text-center">Click on any element to begin editing.</div>`;
+                return;
+            }
             ins.innerHTML = `
                 <div class="property-group">
                     <label class="property-label">Background Color</label>
-                    <input type="color" onchange="activeElement.style.backgroundColor = this.value">
+                    <input type="color" onchange="activeElement.style.backgroundColor = this.value" value="${rgbToHex(activeElement.style.backgroundColor) || '#ffffff'}">
                 </div>
                 <div class="property-group">
                     <label class="property-label">Block Padding</label>
-                    <input type="range" min="0" max="100" value="48" oninput="activeElement.style.padding = this.value + 'px'">
+                    <input type="range" min="0" max="200" value="${parseInt(activeElement.style.padding) || 48}" oninput="activeElement.style.padding = this.value + 'px'">
                 </div>
                 <button onclick="deleteActive()" class="w-full bg-red-500/10 text-red-500 py-2 rounded text-xs font-bold">Delete Block</button>
             `;
         }
 
-        function deleteActive() {
-            if(activeElement) { activeElement.remove(); activeElement = null; updatePlaceholderVisibility(); }
+        function rgbToHex(rgb) {
+            if(!rgb) return "#ffffff";
+            const match = rgb.match(/^rgb\((\d+),\s*(\d+),\s*(\d+)\)$/);
+            if (!match) return "#ffffff";
+            return "#" + ((1 << 24) + (parseInt(match[1]) << 16) + (parseInt(match[2]) << 8) + parseInt(match[3])).toString(16).slice(1);
         }
+
+        function deleteActive() { if(activeElement) { activeElement.remove(); activeElement = null; updatePlaceholderVisibility(); renderInspector(); } }
 
         function updatePlaceholderVisibility() {
             const p = document.getElementById('canvas-placeholder');
@@ -420,32 +394,36 @@
             }).eq('id', currentProject.id);
             
             if(error) showToast("Error saving.");
-            else showToast("Saved!");
+            else showToast("Progress Saved!");
         }
 
         async function publishProject() {
             if(!currentProject) return;
             await saveProject();
             
-            const { error } = await client.from('websites').update({ 
-                is_published: true 
-            }).eq('id', currentProject.id);
+            const { error } = await client.from('websites').update({ is_published: true }).eq('id', currentProject.id);
+            if(error) return showToast("Publishing failed.");
 
-            const baseUrl = window.location.origin + window.location.pathname;
-            const url = `${baseUrl}?id=${currentProject.id}&view=live`;
+            const url = `${window.location.origin}${window.location.pathname}?id=${currentProject.id}&view=live`;
             document.getElementById('publish-url').value = url;
             document.getElementById('visit-btn').onclick = () => window.open(url, '_blank');
             document.getElementById('publish-modal').style.display = 'flex';
         }
 
+        function copyPublishUrl() {
+            const input = document.getElementById('publish-url');
+            input.select();
+            document.execCommand('copy');
+            showToast("Copied to clipboard!");
+        }
+
         async function createNewProject() {
-            if(!currentUser) return showToast("Please login first.");
-            const title = prompt("Website Title:") || "My Site";
+            const title = prompt("Website Title:") || "My New Site";
             const { data, error } = await client.from('websites').insert([
                 { user_id: currentUser.id, title: title, html_content: '{"index":""}', is_published: false }
             ]).select();
             
-            if(error) { showToast("Error creating site."); console.error(error); }
+            if(error) showToast("Error creating site.");
             else if(data) openEditor(data[0].id);
         }
 
@@ -455,19 +433,22 @@
             const btn = document.getElementById('preview-btn');
             if(isPreview) {
                 canvas.classList.add('preview-mode');
-                btn.innerHTML = 'Exit Preview';
+                btn.innerHTML = '<i class="fas fa-edit mr-2"></i> Edit Mode';
             } else {
                 canvas.classList.remove('preview-mode');
-                btn.innerHTML = 'Preview Mode';
+                btn.innerHTML = '<i class="fas fa-play mr-2"></i> Preview Mode';
             }
         }
 
         function exitToDashboard() {
-            document.getElementById('view-editor').classList.add('hidden');
-            document.getElementById('editor-nav').classList.add('hidden');
-            document.getElementById('view-dashboard').classList.remove('hidden');
-            document.getElementById('dashboard-nav').classList.remove('hidden');
-            loadProjects();
+            if(confirm("Exit to dashboard? Make sure you saved your changes.")) {
+                document.getElementById('view-editor').classList.add('hidden');
+                document.getElementById('editor-nav').classList.add('hidden');
+                document.getElementById('view-dashboard').classList.remove('hidden');
+                document.getElementById('dashboard-nav').classList.remove('hidden');
+                currentProject = null;
+                loadProjects();
+            }
         }
 
         function showToast(m) {
@@ -475,6 +456,26 @@
             document.getElementById('toast-msg').innerText = m;
             t.classList.add('show');
             setTimeout(() => t.classList.remove('show'), 2500);
+        }
+
+        async function renderLiveSite(id) {
+            const { data, error } = await client.from('websites').select('*').eq('id', id).single();
+            if (error || !data) {
+                document.body.innerHTML = `<div class="h-screen flex items-center justify-center bg-slate-900 text-white">404 - Site Not Found</div>`;
+                return;
+            }
+            document.getElementById('app-shell').classList.add('hidden');
+            const viewer = document.getElementById('live-viewer');
+            viewer.classList.remove('hidden');
+            const pages = JSON.parse(data.html_content || '{"index":""}');
+            const h = window.location.hash.replace('#/', '') || 'index';
+            viewer.innerHTML = pages[h] || pages['index'];
+            viewer.querySelectorAll('.element-controls').forEach(e => e.remove());
+            viewer.querySelectorAll('.dropped-element').forEach(e => {
+                e.style.outline = 'none';
+                e.classList.remove('dropped-element');
+            });
+            document.title = data.title;
         }
 
         initApp();
