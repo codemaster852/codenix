@@ -29,6 +29,18 @@
         .dropped-element { position: relative; outline: 1px solid transparent; transition: outline 0.1s; margin: 0 auto; width: 100%; cursor: default; }
         .dropped-element:hover { outline: 2px solid var(--primary); }
         
+        #context-menu {
+            position: fixed; display: none; z-index: 10000; background: #1e293b; 
+            border: 1px solid #334155; border-radius: 8px; box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+            min-width: 160px; padding: 5px;
+        }
+        .menu-item {
+            padding: 8px 12px; font-size: 12px; cursor: pointer; border-radius: 4px;
+            display: flex; align-items: center; gap: 10px; transition: background 0.2s;
+        }
+        .menu-item:hover { background: var(--primary); color: white; }
+        .menu-item.danger:hover { background: #ef4444; }
+
         .element-controls {
             display: none; position: absolute; top: -35px; right: 0;
             background: var(--primary); padding: 4px 10px; border-radius: 6px; z-index: 50; gap: 10px;
@@ -64,34 +76,60 @@
         }
 
         .editable-text:focus { outline: 2px dashed var(--primary); background: rgba(99, 102, 241, 0.05); }
-        .node-selected { outline: 2px solid var(--primary) !important; box-shadow: 0 0 10px rgba(99, 102, 241, 0.4); }
+        
+        /* Selected Text/Node Marker */
+        .node-selected { outline: 2px solid var(--primary) !important; }
     </style>
 </head>
-<body>
+<body oncontextmenu="return false;">
 
     <div id="auth-guard">
         <div class="text-center">
             <i class="fas fa-circle-notch fa-spin text-3xl text-indigo-500 mb-4"></i>
-            <p class="text-slate-400 text-sm">Accessing Studio...</p>
+            <p class="text-slate-400 text-sm">Validating Session...</p>
         </div>
+    </div>
+
+    <!-- Context Menu -->
+    <div id="context-menu">
+        <div class="menu-item" onclick="renderInspector()"><i class="fas fa-sliders-h"></i> Settings</div>
+        <div class="menu-item" onclick="moveActive(-1)"><i class="fas fa-arrow-up"></i> Move Up</div>
+        <div class="menu-item" onclick="moveActive(1)"><i class="fas fa-arrow-down"></i> Move Down</div>
+        <div class="border-t border-slate-700 my-1"></div>
+        <div class="menu-item danger" onclick="deleteActive()"><i class="fas fa-trash"></i> Remove</div>
     </div>
 
     <!-- Modals -->
     <div id="publish-modal" class="modal-overlay">
         <div class="bg-slate-800 p-8 rounded-2xl max-w-md w-full border border-slate-700 text-center animate__animated animate__zoomIn">
-            <div class="w-16 h-16 bg-indigo-500/20 text-indigo-500 rounded-full flex items-center justify-center mx-auto mb-4">
-                <i class="fas fa-globe text-3xl"></i>
+            <div class="w-16 h-16 bg-emerald-500/20 text-emerald-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                <i class="fas fa-check-circle text-3xl"></i>
             </div>
-            <h2 class="text-xl font-bold mb-2">Project Live!</h2>
-            <p class="text-slate-400 text-sm mb-6">Your site is ready to share using this link:</p>
+            <h2 class="text-xl font-bold mb-2">Website Live!</h2>
             <div class="bg-slate-900 p-3 rounded-lg border border-slate-700 flex flex-col gap-1 mb-6 text-left">
                 <p class="text-[10px] text-slate-500 uppercase font-bold">Public URL</p>
                 <input id="publish-url" readonly type="text" class="bg-transparent border-none text-xs w-full text-indigo-400 outline-none">
             </div>
             <div class="flex flex-col gap-3">
-                <button id="visit-btn" class="w-full bg-indigo-600 py-3 rounded-lg font-bold text-sm hover:bg-indigo-500 transition">View Website</button>
+                <button id="visit-btn" class="w-full bg-indigo-600 py-3 rounded-lg font-bold text-sm hover:bg-indigo-500 transition">Open Site</button>
                 <button onclick="copyPublishUrl()" class="w-full bg-slate-700 py-3 rounded-lg font-bold text-sm hover:bg-slate-600 transition">Copy Link</button>
-                <button onclick="document.getElementById('publish-modal').style.display='none'" class="mt-2 text-slate-500 text-xs hover:text-white">Close Window</button>
+                <button onclick="document.getElementById('publish-modal').style.display='none'" class="mt-2 text-slate-500 text-xs hover:text-white">Back to Editor</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="settings-modal" class="modal-overlay">
+        <div class="bg-slate-800 p-8 rounded-2xl max-w-md w-full border border-slate-700 animate__animated animate__fadeInDown">
+            <h2 class="text-xl font-bold mb-6 flex items-center gap-2"><i class="fas fa-cog text-slate-400"></i> Website Settings</h2>
+            <div class="space-y-4">
+                <div>
+                    <label class="property-label">Site Title</label>
+                    <input type="text" id="setting-title" placeholder="My Awesome Website">
+                </div>
+            </div>
+            <div class="mt-8 flex gap-3">
+                <button onclick="updateProjectSettings()" class="flex-1 bg-indigo-600 py-3 rounded-lg font-bold text-sm hover:bg-indigo-500 transition">Save Changes</button>
+                <button onclick="document.getElementById('settings-modal').style.display='none'" class="px-6 bg-slate-700 rounded-lg text-sm">Cancel</button>
             </div>
         </div>
     </div>
@@ -105,20 +143,21 @@
             <div class="flex items-center space-x-4">
                 <div class="bg-indigo-600 p-2 rounded-lg cursor-pointer" onclick="exitToDashboard()"><i class="fas fa-cube text-xl"></i></div>
                 <div>
-                    <h1 id="header-project-title" class="font-bold text-lg leading-none">WebNix Studio</h1>
-                    <span class="text-[10px] text-slate-500 uppercase tracking-widest">Cross-Device Builder</span>
+                    <h1 id="header-project-title" class="font-bold text-lg leading-none">WebNix Pro</h1>
+                    <span class="text-[10px] text-slate-500 uppercase tracking-widest">Website Editor</span>
                 </div>
             </div>
 
             <div id="editor-nav" class="hidden flex items-center space-x-3">
+                <button onclick="openSettingsModal()" class="text-xs bg-slate-800 px-3 py-2 rounded-md hover:bg-slate-700 transition"><i class="fas fa-cog mr-2"></i> Settings</button>
                 <button onclick="togglePreview()" id="preview-btn" class="text-xs bg-slate-800 px-3 py-2 rounded-md hover:bg-slate-700 transition"><i class="fas fa-play mr-2"></i> Preview</button>
                 <div class="h-6 w-[1px] bg-slate-700 mx-1"></div>
-                <button onclick="saveProject()" class="text-xs bg-slate-800 px-4 py-2 rounded-md font-medium text-slate-300">Save</button>
-                <button onclick="publishProject()" class="text-xs bg-indigo-600 px-4 py-2 rounded-md font-bold shadow-lg shadow-indigo-500/20">Publish Site</button>
+                <button onclick="saveProject()" class="text-xs bg-slate-800 px-4 py-2 rounded-md font-medium text-slate-300">Save Progress</button>
+                <button onclick="publishProject()" class="text-xs bg-indigo-600 px-4 py-2 rounded-md font-bold shadow-lg shadow-indigo-500/20">Publish</button>
             </div>
 
             <div id="dashboard-nav" class="flex items-center space-x-4">
-                <button onclick="createNewProject()" class="bg-indigo-600 px-4 py-2 rounded-md text-sm font-medium hover:bg-indigo-500">+ New Project</button>
+                <button onclick="createNewProject()" class="bg-indigo-600 px-4 py-2 rounded-md text-sm font-medium hover:bg-indigo-500">+ New Website</button>
                 <button onclick="handleLogout()" class="text-slate-400 hover:text-white text-xs px-3 py-2 border border-slate-700 rounded-md">Logout</button>
             </div>
         </header>
@@ -126,12 +165,9 @@
         <main class="flex-1 flex overflow-hidden">
             <div id="view-dashboard" class="flex-1 p-8 overflow-y-auto">
                 <div class="max-w-6xl mx-auto">
-                    <div class="flex justify-between items-center mb-6">
-                        <h2 class="text-2xl font-bold">My Websites</h2>
-                        <div id="user-slug-display" class="text-xs text-slate-500 bg-slate-800 px-3 py-1 rounded-full border border-slate-700"></div>
-                    </div>
+                    <h2 class="text-2xl font-bold mb-6">Your Projects</h2>
                     <div id="projects-grid" class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        <!-- Projects load here -->
+                        <div class="col-span-full py-20 text-center text-slate-500">Loading sites...</div>
                     </div>
                 </div>
             </div>
@@ -139,35 +175,36 @@
             <div id="view-editor" class="flex-1 flex hidden">
                 <aside class="sidebar border-r border-slate-800 p-4">
                     <div class="mb-8">
-                        <label class="property-label">Sitemap</label>
+                        <label class="property-label">Sitemap (Pages)</label>
                         <div id="pages-list" class="space-y-1 mb-3"></div>
-                        <button onclick="addNewPage()" class="w-full text-xs bg-indigo-500/10 text-indigo-400 py-2 rounded border border-indigo-500/30 hover:bg-indigo-500/20">+ New Page</button>
+                        <button onclick="addNewPage()" class="w-full text-xs bg-indigo-500/10 text-indigo-400 py-2 rounded border border-indigo-500/30 hover:bg-indigo-500/20">+ Add New Page</button>
                     </div>
 
-                    <label class="property-label">Elements</label>
+                    <label class="property-label">Basic Elements</label>
                     <div class="grid grid-cols-2 gap-2 mb-6">
                         <div draggable="true" ondragstart="onDragStart(event, 'button')" class="draggable-item flex-col text-[10px] gap-1 p-2"><i class="fas fa-square text-indigo-400"></i> Button</div>
                         <div draggable="true" ondragstart="onDragStart(event, 'image')" class="draggable-item flex-col text-[10px] gap-1 p-2"><i class="fas fa-image text-purple-400"></i> Image</div>
                     </div>
 
-                    <label class="property-label">Sections</label>
+                    <label class="property-label">Layout Sections</label>
                     <div class="space-y-1 overflow-y-auto pr-1 pb-10">
                         <div draggable="true" ondragstart="onDragStart(event, 'navbar')" class="draggable-item"><i class="fas fa-bars w-6 text-indigo-400"></i> Navbar</div>
-                        <div draggable="true" ondragstart="onDragStart(event, 'hero')" class="draggable-item"><i class="fas fa-rocket w-6 text-orange-400"></i> Hero Section</div>
+                        <div draggable="true" ondragstart="onDragStart(event, 'hero')" class="draggable-item"><i class="fas fa-rocket w-6 text-orange-400"></i> Hero Header</div>
                         <div draggable="true" ondragstart="onDragStart(event, 'features')" class="draggable-item"><i class="fas fa-th w-6 text-emerald-400"></i> Features</div>
+                        <div draggable="true" ondragstart="onDragStart(event, 'split')" class="draggable-item"><i class="fas fa-columns w-6 text-pink-400"></i> Image & Text</div>
                         <div draggable="true" ondragstart="onDragStart(event, 'footer')" class="draggable-item"><i class="fas fa-shoe-prints w-6 text-slate-400"></i> Footer</div>
                     </div>
                 </aside>
 
                 <div class="flex-1 overflow-auto bg-slate-900 flex justify-center p-8 relative" onclick="deselectAll()">
                     <div id="canvas" ondragover="onDragOver(event)" ondrop="onDrop(event)" class="canvas-area max-w-5xl bg-white shadow-2xl rounded-sm text-slate-900"></div>
-                    <div id="canvas-placeholder" class="canvas-placeholder">Start building by dragging elements here.</div>
+                    <div id="canvas-placeholder" class="canvas-placeholder">Drag elements to start building.</div>
                 </div>
 
                 <aside class="sidebar border-l border-slate-800 p-5">
-                    <h3 class="property-label">Properties</h3>
+                    <h3 class="property-label">Inspector</h3>
                     <div id="inspector-content" class="space-y-4">
-                        <div class="text-slate-500 text-sm italic py-20 text-center">Select an item to edit.</div>
+                        <div class="text-slate-500 text-sm italic py-20 text-center">Select an item on the canvas to edit.</div>
                     </div>
                 </aside>
             </div>
@@ -181,56 +218,29 @@
 
         let currentUser = null, currentProject = null, activeElement = null, selectedNode = null;
         let projectPages = { "index": "" }, activePage = "index", isPreview = false;
-        let userSlug = "";
 
         async function initApp() {
             const { data: { session } } = await client.auth.getSession();
             if (!session) { window.location.href = 'auth.html'; return; }
             currentUser = session.user;
-            
-            userSlug = currentUser.user_metadata?.username || currentUser.email.split('@')[0].replace(/[^a-z0-9]/g, '');
-            document.getElementById('user-slug-display').innerText = `@${userSlug}`;
-            
             document.getElementById('auth-guard').style.display = 'none';
             loadProjects();
-        }
-
-        function slugify(text) {
-            return text.toString().toLowerCase().trim()
-                .replace(/\s+/g, '-')
-                .replace(/[^\w\-]+/g, '')
-                .replace(/\-\-+/g, '-');
         }
 
         async function loadProjects() {
             const { data, error } = await client.from('websites').select('*').eq('user_id', currentUser.id).order('updated_at', { ascending: false });
             const grid = document.getElementById('projects-grid');
-            if (error) { grid.innerHTML = `<div class="text-red-400">Failed to load sites.</div>`; return; }
+            if (error) { grid.innerHTML = `<div class="text-red-400">Error loading sites.</div>`; return; }
+            if(!data || data.length === 0) { grid.innerHTML = `<div class="col-span-full py-20 text-center text-slate-500 border-2 border-dashed border-slate-800 rounded-2xl">Create your first site!</div>`; return; }
             
-            const currentDomain = window.location.origin;
-
-            grid.innerHTML = data.length === 0 ? 
-                `<div class="col-span-full py-20 text-center text-slate-500 border-2 border-dashed border-slate-800 rounded-2xl">Start your first project!</div>` :
-                data.map(s => `
-                    <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 hover:border-indigo-500 transition group relative">
-                        <div class="flex justify-between items-start mb-2">
-                            <h3 class="font-bold truncate pr-8">${s.title}</h3>
-                            <button onclick="deleteProject('${s.id}')" class="text-slate-600 hover:text-red-500 transition"><i class="fas fa-trash-alt"></i></button>
-                        </div>
-                        <p class="text-[10px] text-indigo-400 mb-4 font-mono truncate">${currentDomain}/${userSlug}/${slugify(s.title)}</p>
-                        <div class="flex space-x-2">
-                            <button onclick="openEditor('${s.id}')" class="flex-1 bg-indigo-600 py-2 rounded-lg text-sm font-bold">Edit Project</button>
-                        </div>
+            grid.innerHTML = data.map(s => `
+                <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 hover:border-indigo-500 transition">
+                    <h3 class="font-bold mb-4">${s.title}</h3>
+                    <div class="flex space-x-2">
+                        <button onclick="openEditor('${s.id}')" class="flex-1 bg-indigo-600 py-2 rounded-lg text-sm font-bold">Edit Site</button>
                     </div>
-                `).join('');
-        }
-
-        async function deleteProject(id) {
-            if(confirm("Permanently delete this project?")) {
-                await client.from('websites').delete().eq('id', id);
-                loadProjects();
-                showToast("Project deleted.");
-            }
+                </div>
+            `).join('');
         }
 
         async function openEditor(id) {
@@ -251,24 +261,38 @@
             const canvas = document.getElementById('canvas');
             canvas.innerHTML = projectPages[p] || "";
             updatePlaceholderVisibility();
-            if(!isPreview) initCanvasLogic();
-            else applyPreviewInteractions();
+            
+            // Critical for ensuring links/interactivity works after switch
+            if(!isPreview) {
+                initCanvasLogic();
+            } else {
+                applyPreviewInteractions();
+            }
+            
             renderPagesList();
-            deselectAll();
         }
 
         function captureCurrentPageContent() {
             const canvas = document.getElementById('canvas');
             const temp = canvas.cloneNode(true);
+            
+            // Clean up UI elements before saving
             temp.querySelectorAll('.element-controls').forEach(e => e.remove());
+            temp.querySelectorAll('.dropped-element').forEach(e => {
+                e.style.outline = 'none';
+            });
             temp.querySelectorAll('.node-selected').forEach(e => e.classList.remove('node-selected'));
             temp.querySelectorAll('[contenteditable]').forEach(e => e.removeAttribute('contenteditable'));
+            temp.querySelectorAll('.editable-text').forEach(e => e.classList.remove('editable-text'));
+            
             projectPages[activePage] = temp.innerHTML;
         }
 
         function initCanvasLogic() {
             const canvas = document.getElementById('canvas');
             canvas.querySelectorAll('.dropped-element').forEach(attachElementListeners);
+            
+            // Text/Link Selection Logic
             canvas.querySelectorAll('h1, h2, h3, p, span, a, button').forEach(el => {
                 el.classList.add('editable-text');
                 el.contentEditable = "true";
@@ -288,9 +312,12 @@
                     e.preventDefault();
                     e.stopPropagation();
                     const target = link.getAttribute('data-href');
-                    if(target && projectPages[target] !== undefined) switchPage(target);
+                    if(target && projectPages[target] !== undefined) {
+                        switchPage(target);
+                    }
                 };
             });
+            // Disable editing in preview
             canvas.querySelectorAll('[contenteditable]').forEach(el => el.contentEditable = "false");
         }
 
@@ -311,26 +338,18 @@
 
         function renderPagesList() {
             document.getElementById('pages-list').innerHTML = Object.keys(projectPages).map(p => `
-                <div onclick="switchPage('${p}')" class="page-item ${p === activePage ? 'active' : ''} cursor-pointer text-xs p-2 rounded flex justify-between items-center group">
+                <div onclick="switchPage('${p}')" class="page-item ${p === activePage ? 'active' : ''} cursor-pointer text-xs p-2 rounded flex justify-between items-center">
                     <span>/${p === 'index' ? 'home' : p}</span>
-                    ${p !== 'index' ? `<i onclick="event.stopPropagation(); deletePage('${p}')" class="fas fa-times opacity-0 group-hover:opacity-50"></i>` : ''}
                 </div>
             `).join('');
         }
 
-        function deletePage(p) {
-            if(confirm(`Delete page /${p}?`)) {
-                delete projectPages[p];
-                if(activePage === p) switchPage('index');
-                else renderPagesList();
-            }
-        }
-
         function addNewPage() {
-            const name = prompt("Page name:")?.toLowerCase().trim().replace(/[^a-z0-9]/g, '-');
+            const name = prompt("Page URL (e.g. about):")?.toLowerCase().trim().replace(/[^a-z0-9]/g, '-');
             if(name && !projectPages[name]) { 
                 projectPages[name] = ""; 
                 switchPage(name); 
+                showToast(`Page "${name}" created`);
             }
         }
 
@@ -352,18 +371,25 @@
             div.className = "dropped-element p-12 bg-white";
             div.dataset.type = type;
             let inner = '';
-            if(type === 'button') inner = `<div class="flex justify-center"><button class="bg-indigo-600 text-white px-8 py-3 rounded-full font-bold">Action Button</button></div>`;
+            
+            if(type === 'button') inner = `<div class="flex justify-center"><button class="bg-indigo-600 text-white px-8 py-3 rounded-full font-bold">New Button</button></div>`;
             if(type === 'image') inner = `<img src="https://images.unsplash.com/photo-1498050108023-c5249f4df085?w=800" class="w-full rounded-2xl">`;
-            if(type === 'navbar') inner = `<nav class="flex justify-between items-center"><span class="text-xl font-bold">WEBNIX</span><div class="flex space-x-4 text-sm font-semibold"><a data-href="index">Home</a><a data-href="#">Pricing</a></div></nav>`;
-            if(type === 'hero') inner = `<div class="text-center py-10"><h1 class="text-5xl font-black mb-6">Create Your Story</h1><p class="text-slate-500 mb-8">Professional web design made easy for everyone.</p><button class="bg-indigo-600 text-white px-8 py-3 rounded-full">Explore Now</button></div>`;
-            if(type === 'features') inner = `<div class="grid grid-cols-3 gap-6 py-4"><div class="text-center"><h4 class="font-bold">Lightning Fast</h4><p class="text-xs">Optimized code.</p></div><div class="text-center"><h4 class="font-bold">Mobile Ready</h4><p class="text-xs">Responsive design.</p></div><div class="text-center"><h4 class="font-bold">SEO Friendly</h4><p class="text-xs">Indexable content.</p></div></div>`;
-            if(type === 'footer') inner = `<footer class="border-t pt-8 text-center text-slate-400 text-xs">© 2024 Built with WebNix Studio</footer>`;
+            if(type === 'navbar') inner = `<nav class="flex justify-between items-center"><span class="text-xl font-bold">MY SITE</span><div class="flex space-x-4 text-sm font-semibold"><a data-href="index">Home</a><a data-href="#">About</a></div></nav>`;
+            if(type === 'hero') inner = `<div class="text-center py-10"><h1 class="text-5xl font-black mb-6">Dream Big</h1><p class="text-slate-500 mb-8">Build your vision today.</p><button class="bg-indigo-600 text-white px-8 py-3 rounded-full">Start Now</button></div>`;
+            if(type === 'features') inner = `<div class="grid grid-cols-3 gap-6 py-4"><div class="text-center"><h4 class="font-bold">Fast</h4><p class="text-xs text-slate-500">Blazing performance.</p></div><div class="text-center"><h4 class="font-bold">Easy</h4><p class="text-xs text-slate-500">No code needed.</p></div><div class="text-center"><h4 class="font-bold">Free</h4><p class="text-xs text-slate-500">Get started today.</p></div></div>`;
+            if(type === 'split') inner = `<div class="flex items-center gap-10"><div class="flex-1"><h2 class="text-2xl font-bold mb-4">Content Here</h2><p>Tell your story.</p></div><div class="flex-1 bg-slate-100 h-40 rounded-xl"></div></div>`;
+            if(type === 'footer') inner = `<footer class="border-t pt-8 text-center text-slate-400 text-xs">© 2024 Your Site Name</footer>`;
+
             div.innerHTML = `<div class="element-controls"><button onclick="move(this,-1)"><i class="fas fa-arrow-up"></i></button><button onclick="move(this,1)"><i class="fas fa-arrow-down"></i></button><button onclick="deleteEl(this)"><i class="fas fa-trash"></i></button></div><div class="content-box">${inner}</div>`;
             return div;
         }
 
         function attachElementListeners(el) {
-            el.onclick = (e) => { if (isPreview) return; e.stopPropagation(); setActiveElement(el); };
+            el.onclick = (e) => { 
+                if (isPreview) return;
+                e.stopPropagation(); 
+                setActiveElement(el); 
+            };
         }
 
         function setActiveElement(el) {
@@ -375,34 +401,77 @@
 
         function renderInspector() {
             const ins = document.getElementById('inspector-content');
+            
             if(selectedNode) {
+                // Link detection: check if element or parent is a link/button
                 const isLinkable = ['A', 'BUTTON'].includes(selectedNode.tagName);
                 const currentHref = selectedNode.getAttribute('data-href') || '#';
+                
                 let linkSettings = '';
                 if(isLinkable) {
-                    const options = Object.keys(projectPages).map(p => `<option value="${p}" ${currentHref === p ? 'selected' : ''}>Page: ${p}</option>`).join('');
-                    linkSettings = `<div class="property-group"><label class="property-label">Link Destination</label><select onchange="selectedNode.setAttribute('data-href', this.value); showToast('Link destination saved');"><option value="#">None</option>${options}</select></div>`;
+                    const options = Object.keys(projectPages).map(p => 
+                        `<option value="${p}" ${currentHref === p ? 'selected' : ''}>Page: ${p === 'index' ? 'Home' : p}</option>`
+                    ).join('');
+                    
+                    linkSettings = `
+                        <div class="property-group">
+                            <label class="property-label">Navigation Link (Internal)</label>
+                            <select onchange="selectedNode.setAttribute('data-href', this.value); showToast('Link target set to: ' + this.value);">
+                                <option value="#">None</option>
+                                ${options}
+                            </select>
+                            <p class="text-[10px] text-slate-500 mt-2 italic">Test links by clicking 'Preview' in the top bar.</p>
+                        </div>
+                    `;
                 }
-                ins.innerHTML = `<div class="bg-indigo-500/10 p-3 rounded mb-4"><p class="text-[10px] text-indigo-400 font-bold uppercase">Styles</p></div>${linkSettings}<div class="property-group"><label class="property-label">Text Color</label><input type="color" value="${rgbToHex(selectedNode.style.color)}" onchange="selectedNode.style.color = this.value"></div><div class="property-group"><label class="property-label">Size</label><input type="range" min="8" max="72" value="${parseInt(window.getComputedStyle(selectedNode).fontSize)}" oninput="selectedNode.style.fontSize = this.value + 'px'"></div><button onclick="deselectAll()" class="w-full bg-slate-700 py-2 rounded text-xs mt-4">Deselect</button>`;
+
+                ins.innerHTML = `
+                    <div class="bg-indigo-600/10 p-3 rounded-lg border border-indigo-600/30 mb-4">
+                        <p class="text-[10px] text-indigo-400 font-bold uppercase">Element Editor</p>
+                    </div>
+                    ${linkSettings}
+                    <div class="property-group">
+                        <label class="property-label">Text Color</label>
+                        <input type="color" value="${rgbToHex(selectedNode.style.color)}" onchange="selectedNode.style.color = this.value">
+                    </div>
+                    <div class="property-group">
+                        <label class="property-label">Font Size</label>
+                        <input type="range" min="8" max="72" value="${parseInt(window.getComputedStyle(selectedNode).fontSize)}" oninput="selectedNode.style.fontSize = this.value + 'px'">
+                    </div>
+                    <button onclick="deselectAll()" class="w-full bg-slate-700 py-2 rounded text-xs">Deselect</button>
+                `;
                 return;
             }
+
             if(activeElement) {
-                ins.innerHTML = `<div class="property-group"><label class="property-label">Background Color</label><input type="color" value="${rgbToHex(activeElement.style.backgroundColor)}" onchange="activeElement.style.backgroundColor = this.value"></div><button onclick="deleteActive()" class="w-full bg-red-500/20 text-red-500 py-3 rounded text-xs font-bold mt-4">Delete Section</button>`;
+                ins.innerHTML = `
+                    <div class="property-group">
+                        <label class="property-label">Section Background</label>
+                        <input type="color" value="${rgbToHex(activeElement.style.backgroundColor)}" onchange="activeElement.style.backgroundColor = this.value">
+                    </div>
+                    <div class="property-group">
+                        <label class="property-label">Vertical Padding</label>
+                        <input type="range" min="0" max="200" value="${parseInt(activeElement.style.paddingTop) || 48}" oninput="activeElement.style.paddingTop = activeElement.style.paddingBottom = this.value + 'px'">
+                    </div>
+                    <button onclick="deleteActive()" class="w-full bg-red-500/20 text-red-500 py-3 rounded-xl text-xs font-bold">Delete Section</button>
+                `;
                 return;
             }
-            ins.innerHTML = `<div class="text-slate-500 text-sm italic py-20 text-center">Select an item to edit properties.</div>`;
+
+            ins.innerHTML = `<div class="text-slate-500 text-sm italic py-20 text-center">Select an item on the canvas to edit.</div>`;
         }
 
         async function saveProject() {
             captureCurrentPageContent();
             await client.from('websites').update({ html_content: JSON.stringify(projectPages), updated_at: new Date() }).eq('id', currentProject.id);
-            showToast("Changes saved successfully.");
+            showToast("Saved Successfully!");
         }
 
         function togglePreview() {
             isPreview = !isPreview;
             const canvas = document.getElementById('canvas');
             const btn = document.getElementById('preview-btn');
+            
             if(isPreview) {
                 captureCurrentPageContent();
                 canvas.classList.add('preview-mode');
@@ -416,27 +485,6 @@
                 btn.classList.replace('bg-orange-600', 'bg-slate-800');
                 initCanvasLogic();
             }
-        }
-
-        function publishProject() {
-            saveProject();
-            
-            // USE CURRENT DOMAIN DYNAMICALLY
-            const currentDomain = window.location.origin;
-            const projectSlug = slugify(currentProject.title);
-            const url = `${currentDomain}/${userSlug}/${projectSlug}`;
-            
-            document.getElementById('publish-url').value = url;
-            document.getElementById('publish-modal').style.display = 'flex';
-            
-            document.getElementById('visit-btn').onclick = () => window.open(`https://webnix.studio/view/${currentProject.id}`, '_blank');
-        }
-
-        function copyPublishUrl() {
-            const el = document.getElementById('publish-url');
-            el.select();
-            document.execCommand('copy');
-            showToast("Link copied to clipboard!");
         }
 
         function rgbToHex(rgb) {
@@ -455,19 +503,9 @@
         function deleteEl(btn) { btn.closest('.dropped-element').remove(); deselectAll(); updatePlaceholderVisibility(); }
         function updatePlaceholderVisibility() { document.getElementById('canvas-placeholder').style.display = document.getElementById('canvas').children.length > 0 ? 'none' : 'block'; }
         
-        async function createNewProject() {
-            const title = prompt("Enter project name:", "My New Website") || "Untitled Site";
-            const { data, error } = await client.from('websites').insert([{ user_id: currentUser.id, title: title, html_content: '{"index":""}' }]).select();
-            if(!error && data) openEditor(data[0].id);
-        }
-
-        function exitToDashboard() {
-            document.getElementById('view-editor').classList.add('hidden');
-            document.getElementById('editor-nav').classList.add('hidden');
-            document.getElementById('view-dashboard').classList.remove('hidden');
-            document.getElementById('dashboard-nav').classList.remove('hidden');
-            currentProject = null;
-            loadProjects();
+        async function publishProject() {
+            await saveProject();
+            showToast("Project Published!");
         }
 
         function showToast(m) {
@@ -475,6 +513,12 @@
             document.getElementById('toast-msg').innerText = m;
             t.classList.add('show');
             setTimeout(() => t.classList.remove('show'), 2000);
+        }
+
+        function exitToDashboard() {
+            if(confirm("Exit to dashboard? Make sure to save your progress.")) {
+                location.reload();
+            }
         }
 
         initApp();
