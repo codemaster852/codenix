@@ -8,7 +8,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Bebas+Neue&family=Roboto+Mono&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Bebas+Neue&family=Roboto+Mono&family=Playfair+Display:wght@700&display=swap');
         
         body {
             font-family: 'Inter', sans-serif;
@@ -51,6 +51,10 @@
 
         input[type="range"] {
             @apply h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-500;
+        }
+
+        textarea, select {
+            @apply bg-slate-800 border border-slate-700 rounded p-2 text-xs text-white outline-none focus:border-blue-500 transition-colors;
         }
 
         .save-slot {
@@ -168,6 +172,26 @@
             <div class="flex-1 overflow-y-auto p-4">
                 <h3 class="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-6">Inspector</h3>
                 <div id="inspector-content" class="hidden space-y-6">
+                    
+                    <!-- Text Specific Editor -->
+                    <div id="text-properties" class="hidden bg-slate-900/50 p-3 rounded-lg border border-blue-500/30 space-y-3">
+                        <label class="text-[9px] font-bold text-blue-400 uppercase">Text Properties</label>
+                        <div class="space-y-2">
+                            <textarea id="inp-text-content" rows="2" class="w-full" placeholder="Text Content"></textarea>
+                            <div class="flex flex-col gap-1">
+                                <span class="text-[10px] text-slate-400">Font Family</span>
+                                <select id="inp-text-font" class="w-full">
+                                    <option value="Inter">Inter (Sans)</option>
+                                    <option value="'Bebas Neue'">Bebas Neue (Display)</option>
+                                    <option value="'Roboto Mono'">Roboto Mono (Code)</option>
+                                    <option value="'Playfair Display'">Playfair (Serif)</option>
+                                </select>
+                            </div>
+                            <div class="flex justify-between text-[10px]"><span>Font Size</span><span id="txt-fsize">40px</span></div>
+                            <input type="range" id="inp-text-size" min="10" max="200" class="w-full">
+                        </div>
+                    </div>
+
                     <div class="bg-slate-900/50 p-3 rounded-lg border border-slate-800 space-y-3">
                         <label class="text-[9px] font-bold text-slate-400 uppercase">Filters & FX</label>
                         <div class="space-y-2">
@@ -282,18 +306,53 @@
                 reader.readAsDataURL(file);
             };
 
+            // Global Inspector Controls
             document.getElementById('inp-opa').oninput = (e) => { if(selectedId) { find(selectedId).opacity = e.target.value/100; render(); updateInspector(); } };
             document.getElementById('inp-rot').oninput = (e) => { if(selectedId) { find(selectedId).rotation = +e.target.value; render(); updateInspector(); } };
             document.getElementById('inp-blur').oninput = (e) => { if(selectedId) { find(selectedId).blur = +e.target.value; render(); updateInspector(); } };
+
+            // Text Specific Inspector Controls
+            document.getElementById('inp-text-content').oninput = (e) => {
+                if(selectedId) {
+                    const o = find(selectedId);
+                    if(o.type === 'text') {
+                        o.text = e.target.value;
+                        o.name = e.target.value.substring(0, 15) || "Text Layer";
+                        render();
+                    }
+                }
+            };
+            document.getElementById('inp-text-font').onchange = (e) => {
+                if(selectedId) {
+                    const o = find(selectedId);
+                    if(o.type === 'text') {
+                        o.fontFamily = e.target.value;
+                        render();
+                    }
+                }
+            };
+            document.getElementById('inp-text-size').oninput = (e) => {
+                if(selectedId) {
+                    const o = find(selectedId);
+                    if(o.type === 'text') {
+                        o.h = +e.target.value;
+                        // Approximate width based on height to keep things visible
+                        o.w = (o.text.length * (o.h * 0.4));
+                        render();
+                        updateInspector();
+                    }
+                }
+            };
 
             textEditor.onblur = () => {
                 if(selectedId) {
                     const o = find(selectedId);
                     if(o.type === 'text') {
                         o.text = textEditor.value;
-                        o.name = textEditor.value || "Text Layer";
+                        o.name = textEditor.value.substring(0, 15) || "Text Layer";
                         textEditor.style.display = 'none';
                         render();
+                        updateInspector();
                     }
                 }
             };
@@ -329,7 +388,7 @@
             if (currentTool === 'eraser') {
                 const target = findAt(pos);
                 if (target) { objects = objects.filter(o => o.id !== target.id); render(); }
-                isDrawing = true; // Support "painting" erasure
+                isDrawing = true;
                 return;
             }
 
@@ -343,7 +402,7 @@
                 
                 if (obj.type === 'text' && now - lastClickTime < 300) {
                     showTextEditor(obj);
-                    lastClickTime = 0; // Prevent triple click issues
+                    lastClickTime = 0;
                     return;
                 }
             }
@@ -355,8 +414,11 @@
                 isDragging = true;
                 dragOffset = { x: pos.x - found.x, y: pos.y - found.y };
             } else {
-                if(currentTool === 'select') selectedId = null;
-                else addNew(pos);
+                if(currentTool === 'select') {
+                    selectedId = null;
+                } else {
+                    addNew(pos);
+                }
             }
             render();
             updateInspector();
@@ -378,6 +440,7 @@
             textEditor.style.width = (obj.w * (rect.width / canvas.width)) + 'px';
             textEditor.style.height = (obj.h * (rect.height / canvas.height)) + 'px';
             textEditor.style.fontSize = (obj.h * 0.5 * (rect.height / canvas.height)) + 'px';
+            textEditor.style.fontFamily = obj.fontFamily || 'Inter';
             textEditor.value = obj.text || "";
             textEditor.focus();
         }
@@ -395,7 +458,9 @@
             if (isResizing && selectedId) {
                 const o = find(selectedId);
                 o.w = Math.max(20, pos.x - o.x); o.h = Math.max(20, pos.y - o.y);
-                render(); return;
+                render(); 
+                updateInspector(); // Update values in inspector while resizing
+                return;
             }
             if (isDragging && selectedId) {
                 const o = find(selectedId);
@@ -416,8 +481,11 @@
         function addNew(pos) {
             const type = currentTool;
             const color = document.getElementById('primaryColor').value;
-            const meta = { color, w: type==='text'?200:100, h: type==='text'?60:100 };
-            if (type === 'text') meta.text = "New Text";
+            const meta = { color, w: type==='text'?250:100, h: type==='text'?60:100 };
+            if (type === 'text') {
+                meta.text = "New Text Line";
+                meta.fontFamily = "Inter";
+            }
             addObject(type, pos.x, pos.y, meta);
             document.querySelector('[data-tool="select"]').click();
         }
@@ -428,8 +496,9 @@
                 w: meta.w || 100, h: meta.h || 100,
                 color: meta.color || '#3b82f6',
                 opacity: 1, rotation: 0, blur: 0,
-                name: meta.text || (type.charAt(0).toUpperCase() + type.slice(1)),
+                name: meta.text ? meta.text.substring(0, 15) : (type.charAt(0).toUpperCase() + type.slice(1)),
                 text: meta.text || "",
+                fontFamily: meta.fontFamily || "Inter",
                 ...meta
             };
             objects.push(obj);
@@ -448,7 +517,7 @@
             else if (obj.type === 'star') drawStar(ctx, obj);
             else if (obj.type === 'heart') drawHeart(ctx, obj);
             else if (obj.type === 'text') { 
-                ctx.font = `bold ${obj.h/2}px Inter`; 
+                ctx.font = `bold ${obj.h/2}px ${obj.fontFamily || 'Inter'}`; 
                 ctx.textBaseline = 'middle';
                 ctx.fillText(obj.text || obj.name, obj.x, obj.y + obj.h/2); 
             }
@@ -549,16 +618,32 @@
             const o = find(selectedId);
             const content = document.getElementById('inspector-content');
             const empty = document.getElementById('inspector-empty');
+            const textProps = document.getElementById('text-properties');
+
             if (o) {
                 content.classList.remove('hidden'); empty.classList.add('hidden');
+                
+                // Common controls
                 document.getElementById('inp-opa').value = o.opacity*100;
                 document.getElementById('inp-rot').value = o.rotation;
                 document.getElementById('inp-blur').value = o.blur;
                 document.getElementById('txt-opa').innerText = Math.round(o.opacity*100)+'%';
                 document.getElementById('txt-rot').innerText = o.rotation+'°';
                 document.getElementById('txt-blur').innerText = o.blur+'px';
+
+                // Text controls
+                if (o.type === 'text') {
+                    textProps.classList.remove('hidden');
+                    document.getElementById('inp-text-content').value = o.text;
+                    document.getElementById('inp-text-font').value = o.fontFamily || 'Inter';
+                    document.getElementById('inp-text-size').value = o.h;
+                    document.getElementById('txt-fsize').innerText = o.h + 'px';
+                } else {
+                    textProps.classList.add('hidden');
+                }
             } else {
                 content.classList.add('hidden'); empty.classList.remove('hidden');
+                textProps.classList.add('hidden');
             }
         }
 
