@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DesignNix Ultra | Professional Creative Suite</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Bebas+Neue&family=Roboto+Mono&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #020617;
+            color: #f8fafc;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        .canvas-bg {
+            background-color: #0f172a;
+            background-image: radial-gradient(#1e293b 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+
+        .tool-btn {
+            @apply w-10 h-10 rounded-lg flex items-center justify-center transition-all duration-200 text-slate-400 hover:bg-slate-800 hover:text-white mb-1;
+        }
+
+        .tool-btn.active {
+            @apply bg-blue-600 text-white shadow-lg shadow-blue-600/40;
+        }
+
+        #artboard {
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+            background-color: white;
+            cursor: crosshair;
+        }
+
+        .resizer-h {
+            cursor: col-resize;
+            width: 4px;
+            background: transparent;
+            transition: background 0.2s;
+        }
+        .resizer-h:hover, .resizing {
+            background: #3b82f6;
+        }
+
+        input[type="range"] {
+            @apply h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-500;
+        }
+
+        .save-slot {
+            @apply p-2 rounded bg-slate-800/50 border border-slate-700 hover:border-blue-500 cursor-pointer transition-all mb-2 flex justify-between items-center;
+        }
+
+        #text-editor {
+            position: absolute;
+            background: #1e293b;
+            color: white;
+            border: 2px solid #3b82f6;
+            padding: 4px;
+            border-radius: 4px;
+            outline: none;
+            z-index: 100;
+            display: none;
+            font-family: 'Inter', sans-serif;
+            font-weight: bold;
+        }
+
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
+    </style>
+</head>
+<body class="h-screen flex flex-col">
+
+    <!-- Header -->
+    <nav class="h-14 border-b border-slate-800 bg-slate-950 px-4 flex items-center justify-between z-50">
+        <div class="flex items-center gap-6">
+            <div class="flex items-center gap-2">
+                <div class="w-8 h-8 bg-blue-600 rounded flex items-center justify-center shadow-lg">
+                    <i class="fas fa-layer-group text-white text-xs"></i>
+                </div>
+                <span class="font-bold text-lg">Design<span class="text-blue-500">Nix</span> Ultra</span>
+            </div>
+            <div class="h-6 w-[1px] bg-slate-800"></div>
+            <div class="flex gap-2">
+                <button onclick="saveToLocal()" class="px-3 py-1.5 bg-green-600/10 text-green-500 rounded border border-green-600/20 text-[11px] font-bold hover:bg-green-600 hover:text-white transition-all">
+                    <i class="fas fa-save mr-1"></i> SAVE TO BROWSER
+                </button>
+                <button onclick="newProject()" class="px-3 py-1.5 bg-slate-800 text-slate-300 rounded text-[11px] font-bold hover:bg-slate-700 transition-all">
+                    <i class="fas fa-file mr-1"></i> NEW
+                </button>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-4">
+            <div class="flex items-center bg-slate-900 rounded-lg px-3 py-1 border border-slate-800">
+                <button onclick="adjustZoom(-0.1)" class="hover:text-blue-400 p-1"><i class="fas fa-minus text-[10px]"></i></button>
+                <span id="zoom-val" class="text-[11px] font-mono w-10 text-center">100%</span>
+                <button onclick="adjustZoom(0.1)" class="hover:text-blue-400 p-1"><i class="fas fa-plus text-[10px]"></i></button>
+            </div>
+            
+            <div class="relative group">
+                <button class="bg-blue-600 hover:bg-blue-500 px-5 py-1.5 rounded-lg text-xs font-bold transition-all shadow-lg flex items-center">
+                    <i class="fas fa-download mr-2"></i> EXPORT <i class="fas fa-chevron-down ml-2 opacity-50"></i>
+                </button>
+                <div class="absolute right-0 mt-2 w-40 bg-slate-900 border border-slate-800 rounded-lg shadow-2xl hidden group-hover:block overflow-hidden">
+                    <button onclick="exportDesign('png')" class="w-full px-4 py-2 text-left text-[11px] hover:bg-blue-600 transition-colors">Export as PNG</button>
+                    <button onclick="exportDesign('jpg')" class="w-full px-4 py-2 text-left text-[11px] hover:bg-blue-600 transition-colors">Export as JPG</button>
+                    <button onclick="exportDesign('pdf')" class="w-full px-4 py-2 text-left text-[11px] hover:bg-blue-600 transition-colors">Export as PDF</button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="flex flex-1 overflow-hidden">
+        <!-- Sidebar -->
+        <aside id="sidebar" class="w-64 min-w-[180px] max-w-[400px] border-r border-slate-800 bg-slate-950 flex flex-col z-40">
+            <div class="flex-1 flex flex-col overflow-hidden">
+                <!-- Tools Grid -->
+                <div class="p-4 border-b border-slate-800">
+                    <h3 class="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-4">Toolbar</h3>
+                    <div class="grid grid-cols-4 gap-2">
+                        <button class="tool-btn active" data-tool="select" title="Select (V)"><i class="fas fa-mouse-pointer"></i></button>
+                        <button class="tool-btn" data-tool="brush" title="Brush (B)"><i class="fas fa-paint-brush"></i></button>
+                        <button class="tool-btn" data-tool="text" title="Text (T)"><i class="fas fa-font"></i></button>
+                        <button class="tool-btn" data-tool="rect" title="Rectangle (R)"><i class="fas fa-square"></i></button>
+                        <button class="tool-btn" data-tool="circle" title="Circle (O)"><i class="fas fa-circle"></i></button>
+                        <button class="tool-btn" data-tool="triangle" title="Triangle"><i class="fas fa-caret-up"></i></button>
+                        <button class="tool-btn" data-tool="star" title="Star (S)"><i class="fas fa-star"></i></button>
+                        <button class="tool-btn" data-tool="heart" title="Heart"><i class="fas fa-heart"></i></button>
+                        <button onclick="document.getElementById('imgInp').click()" class="tool-btn"><i class="fas fa-image"></i></button>
+                    </div>
+                    <input type="file" id="imgInp" class="hidden" accept="image/*">
+                    <div class="mt-4 flex items-center gap-3">
+                        <input type="color" id="primaryColor" class="w-10 h-10 p-0 rounded-lg cursor-pointer bg-transparent border-2 border-slate-800" value="#3b82f6">
+                        <div class="text-[10px] text-slate-400 leading-tight">Primary<br><span class="text-slate-200">Element Color</span></div>
+                    </div>
+                </div>
+
+                <!-- Browser Storage Slots -->
+                <div class="flex-1 flex flex-col min-h-0">
+                    <div class="p-4 flex items-center justify-between">
+                        <h3 class="text-[10px] font-black text-slate-500 uppercase tracking-widest">My Projects</h3>
+                        <button onclick="clearAllSaves()" class="text-[9px] text-red-400 hover:text-red-300">CLEAR ALL</button>
+                    </div>
+                    <div id="save-list" class="flex-1 overflow-y-auto px-4 pb-4"></div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Sidebar Resizer -->
+        <div class="resizer-h" onmousedown="initResize(event, 'sidebar')"></div>
+
+        <!-- Canvas -->
+        <main class="flex-1 canvas-bg relative flex items-center justify-center overflow-auto p-12">
+            <div id="canvas-wrapper" class="relative origin-center transition-transform duration-75">
+                <canvas id="artboard" width="1000" height="600"></canvas>
+                <input type="text" id="text-editor" />
+            </div>
+        </main>
+
+        <!-- Inspector Resizer -->
+        <div class="resizer-h" onmousedown="initResize(event, 'inspector')"></div>
+
+        <!-- Inspector -->
+        <aside id="inspector" class="w-72 min-w-[200px] max-w-[450px] border-l border-slate-800 bg-slate-950 flex flex-col z-40">
+            <div class="flex-1 overflow-y-auto p-4">
+                <h3 class="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-6">Inspector</h3>
+                
+                <div id="inspector-content" class="hidden space-y-6">
+                    <!-- Global Filters -->
+                    <div class="bg-slate-900/50 p-3 rounded-lg border border-slate-800 space-y-3">
+                        <label class="text-[9px] font-bold text-slate-400 uppercase">Filters & FX</label>
+                        <div class="space-y-2">
+                            <div class="flex justify-between text-[10px]"><span>Opacity</span><span id="txt-opa">100%</span></div>
+                            <input type="range" id="inp-opa" min="0" max="100" class="w-full">
+                            <div class="flex justify-between text-[10px]"><span>Rotation</span><span id="txt-rot">0°</span></div>
+                            <input type="range" id="inp-rot" min="0" max="360" class="w-full">
+                            <div class="flex justify-between text-[10px]"><span>Blur</span><span id="txt-blur">0px</span></div>
+                            <input type="range" id="inp-blur" min="0" max="40" class="w-full">
+                        </div>
+                    </div>
+
+                    <!-- Merge Tools -->
+                    <div class="bg-slate-900/50 p-3 rounded-lg border border-slate-800 space-y-2">
+                        <label class="text-[9px] font-bold text-slate-400 uppercase">Merge & Groups</label>
+                        <button onclick="mergeLayerDown()" class="w-full py-2 bg-indigo-600 hover:bg-indigo-500 rounded text-[10px] font-bold">
+                            <i class="fas fa-object-group mr-2"></i> MERGE LAYER DOWN
+                        </button>
+                    </div>
+
+                    <!-- Layout -->
+                    <div class="bg-slate-900/50 p-3 rounded-lg border border-slate-800">
+                        <label class="text-[9px] font-bold text-slate-400 uppercase">Actions</label>
+                        <div class="grid grid-cols-2 gap-2 mt-2">
+                            <button onclick="moveOrder('front')" class="bg-slate-800 p-2 rounded text-[10px] hover:bg-slate-700">Top</button>
+                            <button onclick="moveOrder('back')" class="bg-slate-800 p-2 rounded text-[10px] hover:bg-slate-700">Bottom</button>
+                            <button onclick="duplicate()" class="bg-slate-800 p-2 rounded text-[10px] hover:bg-slate-700">Clone</button>
+                            <button onclick="deleteSelected()" class="bg-red-900/20 text-red-500 p-2 rounded text-[10px] border border-red-500/20 hover:bg-red-500 hover:text-white">Delete</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="inspector-empty" class="text-center py-20 text-slate-600">
+                    <i class="fas fa-mouse-pointer text-3xl mb-4 opacity-20"></i>
+                    <p class="text-xs">Select an element to adjust properties</p>
+                </div>
+            </div>
+
+            <!-- Layers -->
+            <div class="h-64 border-t border-slate-800 flex flex-col bg-slate-900/30">
+                <div class="p-3 bg-slate-900/50 flex items-center justify-between">
+                    <span class="text-[10px] font-bold text-slate-500 uppercase">Layers</span>
+                    <span id="layer-badge" class="bg-blue-600 text-white text-[9px] px-1.5 py-0.5 rounded">0</span>
+                </div>
+                <div id="layer-list" class="flex-1 overflow-y-auto p-2 space-y-1"></div>
+            </div>
+        </aside>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('artboard');
+        const ctx = canvas.getContext('2d');
+        const wrapper = document.getElementById('canvas-wrapper');
+        const textEditor = document.getElementById('text-editor');
+        
+        let objects = [];
+        let selectedId = null;
+        let isDragging = false;
+        let isDrawing = false;
+        let isResizing = false;
+        let zoom = 1.0;
+        let currentTool = 'select';
+        let dragOffset = { x: 0, y: 0 };
+        let brushPath = [];
+        let lastClickTime = 0;
+
+        // UI Resizing State
+        let currentResizingPanel = null;
+
+        // App Init
+        window.onload = () => {
+            loadFromLocal();
+            setupControls();
+            render();
+            updateSaveListUI();
+            
+            // Auto-session save loop
+            setInterval(() => {
+                if (objects.length > 0) {
+                    const sessionData = JSON.stringify(objects.map(o => {
+                        const { img, ...rest } = o;
+                        return rest;
+                    }));
+                    localStorage.setItem('designnix_current_session', sessionData);
+                }
+            }, 2000);
+        };
+
+        function setupControls() {
+            document.querySelectorAll('.tool-btn[data-tool]').forEach(btn => {
+                btn.onclick = () => {
+                    document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    currentTool = btn.dataset.tool;
+                    if(currentTool !== 'select') selectedId = null;
+                    render();
+                    updateInspector();
+                };
+            });
+
+            canvas.onmousedown = (e) => handleDown(e);
+            window.onmousemove = (e) => {
+                handleMove(e);
+                handleUIResizeMove(e);
+            };
+            window.onmouseup = () => {
+                handleUp();
+                handleUIResizeUp();
+            };
+            
+            document.getElementById('imgInp').onchange = (e) => {
+                const file = e.target.files[0];
+                const reader = new FileReader();
+                reader.onload = (f) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        addObject('image', 100, 100, { 
+                            img, 
+                            imgSrc: f.target.result,
+                            w: img.width/2, 
+                            h: img.height/2, 
+                            name: 'Imported Image' 
+                        });
+                    };
+                    img.src = f.target.result;
+                };
+                reader.readAsDataURL(file);
+            };
+
+            document.getElementById('inp-opa').oninput = (e) => { if(selectedId) { find(selectedId).opacity = e.target.value/100; render(); updateInspector(); } };
+            document.getElementById('inp-rot').oninput = (e) => { if(selectedId) { find(selectedId).rotation = +e.target.value; render(); updateInspector(); } };
+            document.getElementById('inp-blur').oninput = (e) => { if(selectedId) { find(selectedId).blur = +e.target.value; render(); updateInspector(); } };
+
+            // Text Editing logic
+            textEditor.onblur = () => {
+                if(selectedId) {
+                    const o = find(selectedId);
+                    if(o.type === 'text') {
+                        o.text = textEditor.value;
+                        o.name = textEditor.value;
+                        textEditor.style.display = 'none';
+                        render();
+                    }
+                }
+            };
+            textEditor.onkeydown = (e) => { if(e.key === 'Enter') textEditor.blur(); };
+        }
+
+        // Panel Resizing
+        function initResize(e, panelId) {
+            currentResizingPanel = {
+                id: panelId,
+                el: document.getElementById(panelId),
+                startX: e.clientX,
+                startWidth: document.getElementById(panelId).offsetWidth
+            };
+            document.querySelectorAll('.resizer-h').forEach(r => r.classList.add('resizing'));
+        }
+
+        function handleUIResizeMove(e) {
+            if (!currentResizingPanel) return;
+            const delta = currentResizingPanel.id === 'sidebar' ? (e.clientX - currentResizingPanel.startX) : (currentResizingPanel.startX - e.clientX);
+            currentResizingPanel.el.style.width = (currentResizingPanel.startWidth + delta) + 'px';
+        }
+
+        function handleUIResizeUp() {
+            currentResizingPanel = null;
+            document.querySelectorAll('.resizer-h').forEach(r => r.classList.remove('resizing'));
+        }
+
+        function handleDown(e) {
+            const pos = getPos(e);
+            const now = Date.now();
+
+            if (currentTool === 'brush') { isDrawing = true; brushPath = [pos]; return; }
+
+            if (selectedId) {
+                const obj = find(selectedId);
+                // Resize Handle
+                if (pos.x > obj.x + obj.w - 10 && pos.x < obj.x + obj.w + 10 && 
+                    pos.y > obj.y + obj.h - 10 && pos.y < obj.y + obj.h + 10) {
+                    isResizing = true; return;
+                }
+                
+                // Double Click for Text
+                if (obj.type === 'text' && now - lastClickTime < 300) {
+                    showTextEditor(obj);
+                    return;
+                }
+            }
+            lastClickTime = now;
+
+            let found = null;
+            for (let i = objects.length - 1; i >= 0; i--) {
+                const o = objects[i];
+                if (pos.x >= o.x && pos.x <= o.x + o.w && pos.y >= o.y && pos.y <= o.y + o.h) {
+                    found = o; break;
+                }
+            }
+
+            if (found) {
+                selectedId = found.id;
+                isDragging = true;
+                dragOffset = { x: pos.x - found.x, y: pos.y - found.y };
+            } else {
+                if(currentTool === 'select') selectedId = null;
+                else addNew(pos);
+            }
+            render();
+            updateInspector();
+        }
+
+        function showTextEditor(obj) {
+            textEditor.style.display = 'block';
+            textEditor.style.left = (obj.x * zoom) + 'px';
+            textEditor.style.top = (obj.y * zoom) + 'px';
+            textEditor.style.width = (obj.w * zoom) + 'px';
+            textEditor.style.height = (obj.h * zoom) + 'px';
+            textEditor.style.fontSize = (obj.h * 0.5 * zoom) + 'px';
+            textEditor.value = obj.text || obj.name;
+            textEditor.focus();
+        }
+
+        function handleMove(e) {
+            const pos = getPos(e);
+            if (isDrawing) { brushPath.push(pos); render(); drawBrushPreview(); return; }
+            if (isResizing && selectedId) {
+                const o = find(selectedId);
+                o.w = Math.max(20, pos.x - o.x); o.h = Math.max(20, pos.y - o.y);
+                render(); return;
+            }
+            if (isDragging && selectedId) {
+                const o = find(selectedId);
+                o.x = pos.x - dragOffset.x; o.y = pos.y - dragOffset.y;
+                render();
+            }
+        }
+
+        function handleUp() {
+            if (isDrawing && brushPath.length > 1) {
+                addObject('brush', 0, 0, { path: [...brushPath], color: document.getElementById('primaryColor').value, name: 'Pencil Stroke' });
+            }
+            isDragging = isDrawing = isResizing = false;
+            brushPath = [];
+            render();
+        }
+
+        function addNew(pos) {
+            const type = currentTool;
+            const color = document.getElementById('primaryColor').value;
+            const meta = { color, w: 100, h: 100 };
+            if (type === 'text') meta.text = "Double click to edit";
+            addObject(type, pos.x, pos.y, meta);
+            document.querySelector('[data-tool="select"]').click();
+        }
+
+        function addObject(type, x, y, meta) {
+            const obj = {
+                id: Date.now(), type, x, y, 
+                w: meta.w || 100, h: meta.h || 100,
+                color: meta.color || '#3b82f6',
+                opacity: 1, rotation: 0, blur: 0,
+                name: meta.text || (type.charAt(0).toUpperCase() + type.slice(1)),
+                text: meta.text || "",
+                ...meta
+            };
+            objects.push(obj);
+            selectedId = obj.id;
+            render();
+            updateInspector();
+        }
+
+        function drawShape(ctx, obj) {
+            ctx.fillStyle = ctx.strokeStyle = obj.color;
+            ctx.lineWidth = 5; ctx.lineCap = 'round';
+
+            if (obj.type === 'rect') ctx.fillRect(obj.x, obj.y, obj.w, obj.h);
+            else if (obj.type === 'circle') { ctx.beginPath(); ctx.arc(obj.x + obj.w/2, obj.y + obj.h/2, obj.w/2, 0, Math.PI*2); ctx.fill(); }
+            else if (obj.type === 'triangle') { ctx.beginPath(); ctx.moveTo(obj.x + obj.w/2, obj.y); ctx.lineTo(obj.x, obj.y + obj.h); ctx.lineTo(obj.x+obj.w, obj.y+obj.h); ctx.fill(); }
+            else if (obj.type === 'star') drawStar(ctx, obj);
+            else if (obj.type === 'heart') drawHeart(ctx, obj);
+            else if (obj.type === 'text') { 
+                ctx.font = `bold ${obj.h/2}px Inter`; 
+                ctx.textBaseline = 'middle';
+                ctx.fillText(obj.text || obj.name, obj.x, obj.y + obj.h/2); 
+            }
+            else if (obj.type === 'brush' && obj.path) { 
+                ctx.beginPath(); 
+                ctx.moveTo(obj.path[0].x, obj.path[0].y); 
+                obj.path.forEach(p => ctx.lineTo(p.x, p.y)); 
+                ctx.stroke(); 
+            }
+            else if (obj.type === 'image' && obj.img) ctx.drawImage(obj.img, obj.x, obj.y, obj.w, obj.h);
+        }
+
+        function render() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            objects.forEach(obj => {
+                ctx.save();
+                ctx.globalAlpha = obj.opacity;
+                ctx.filter = obj.blur > 0 ? `blur(${obj.blur}px)` : 'none';
+                
+                ctx.translate(obj.x + obj.w/2, obj.y + obj.h/2);
+                ctx.rotate(obj.rotation * Math.PI / 180);
+                ctx.translate(-(obj.x + obj.w/2), -(obj.y + obj.h/2));
+
+                drawShape(ctx, obj);
+
+                ctx.restore();
+                if (obj.id === selectedId) drawSelection(obj);
+            });
+            updateLayerListUI();
+        }
+
+        function drawStar(ctx, o) {
+            let rot = Math.PI/2*3, cx=o.x+o.w/2, cy=o.y+o.h/2, spikes=5, outer=o.w/2, inner=o.w/4, step=Math.PI/spikes;
+            ctx.beginPath(); ctx.moveTo(cx, cy-outer);
+            for(let i=0; i<spikes; i++) {
+                ctx.lineTo(cx+Math.cos(rot)*outer, cy+Math.sin(rot)*outer); rot+=step;
+                ctx.lineTo(cx+Math.cos(rot)*inner, cy+Math.sin(rot)*inner); rot+=step;
+            }
+            ctx.closePath(); ctx.fill();
+        }
+
+        function drawHeart(ctx, o) {
+            let x=o.x, y=o.y, w=o.w, h=o.h;
+            ctx.beginPath(); ctx.moveTo(x + 0.5 * w, y + 0.3 * h);
+            ctx.bezierCurveTo(x + 0.2 * w, y, x, y + 0.6 * h, x + 0.5 * w, y + h);
+            ctx.bezierCurveTo(x + w, y + 0.6 * h, x + 0.8 * w, y, x + 0.5 * w, y + 0.3 * h); ctx.fill();
+        }
+
+        function drawSelection(o) {
+            ctx.save(); ctx.strokeStyle = '#3b82f6'; ctx.setLineDash([5, 5]);
+            ctx.strokeRect(o.x-5, o.y-5, o.w+10, o.h+10);
+            ctx.setLineDash([]); ctx.fillStyle = 'white';
+            ctx.fillRect(o.x+o.w-5, o.y+o.h-5, 10, 10); ctx.strokeRect(o.x+o.w-5, o.y+o.h-5, 10, 10);
+            ctx.restore();
+        }
+
+        function mergeLayerDown() {
+            if(!selectedId) return;
+            const idx = objects.findIndex(o => o.id === selectedId);
+            if(idx === 0) return;
+            const current = objects[idx];
+            const below = objects[idx-1];
+
+            const temp = document.createElement('canvas');
+            temp.width = canvas.width; temp.height = canvas.height;
+            const tctx = temp.getContext('2d');
+            
+            [below, current].forEach(o => {
+                tctx.save(); tctx.globalAlpha = o.opacity;
+                tctx.filter = o.blur > 0 ? `blur(${o.blur}px)` : 'none';
+                tctx.translate(o.x+o.w/2, o.y+o.h/2); tctx.rotate(o.rotation*Math.PI/180); tctx.translate(-(o.x+o.w/2), -(o.y+o.h/2));
+                drawShape(tctx, o);
+                tctx.restore();
+            });
+
+            const img = new Image();
+            const dataURL = temp.toDataURL();
+            img.onload = () => {
+                const merged = { 
+                    id: Date.now(), 
+                    type: 'image', 
+                    img, 
+                    imgSrc: dataURL, 
+                    x: 0, y: 0, 
+                    w: canvas.width, h: canvas.height, 
+                    name: 'Merged Layer', 
+                    opacity: 1, rotation: 0, blur: 0 
+                };
+                objects.splice(idx-1, 2, merged);
+                selectedId = merged.id;
+                render();
+            };
+            img.src = dataURL;
+        }
+
+        function find(id) { return objects.find(o => o.id === id); }
+        function getPos(e) { 
+            const r = canvas.getBoundingClientRect(); 
+            return { x: (e.clientX - r.left)*(canvas.width/r.width), y: (e.clientY - r.top)*(canvas.height/r.height) }; 
+        }
+        function drawBrushPreview() {
+            ctx.strokeStyle = document.getElementById('primaryColor').value;
+            ctx.lineWidth = 5; ctx.lineCap = 'round';
+            ctx.beginPath(); ctx.moveTo(brushPath[0].x, brushPath[0].y);
+            brushPath.forEach(p => ctx.lineTo(p.x, p.y)); ctx.stroke();
+        }
+
+        function updateInspector() {
+            const o = find(selectedId);
+            const content = document.getElementById('inspector-content');
+            const empty = document.getElementById('inspector-empty');
+            if (o) {
+                content.classList.remove('hidden'); empty.classList.add('hidden');
+                document.getElementById('inp-opa').value = o.opacity*100;
+                document.getElementById('inp-rot').value = o.rotation;
+                document.getElementById('inp-blur').value = o.blur;
+                document.getElementById('txt-opa').innerText = Math.round(o.opacity*100)+'%';
+                document.getElementById('txt-rot').innerText = o.rotation+'°';
+                document.getElementById('txt-blur').innerText = o.blur+'px';
+            } else {
+                content.classList.add('hidden'); empty.classList.remove('hidden');
+            }
+        }
+
+        function updateLayerListUI() {
+            const list = document.getElementById('layer-list');
+            list.innerHTML = '';
+            document.getElementById('layer-badge').innerText = objects.length;
+            [...objects].reverse().forEach(o => {
+                const el = document.createElement('div');
+                el.className = `p-2 text-[10px] rounded cursor-pointer flex justify-between items-center ${o.id===selectedId?'bg-blue-600 text-white':'hover:bg-slate-800 text-slate-400'}`;
+                el.innerHTML = `<span class="truncate pr-2"><i class="fas fa-layer-group mr-2 opacity-50"></i>${o.name}</span> <i class="fas fa-eye text-[8px]"></i>`;
+                el.onclick = () => { selectedId = o.id; render(); updateInspector(); };
+                list.appendChild(el);
+            });
+        }
+
+        function saveToLocal() {
+            const name = prompt("Project Name:", "My Design " + new Date().toLocaleTimeString());
+            if (!name) return;
+            const project = { name, date: Date.now(), data: objects.map(o => {
+                const { img, ...rest } = o;
+                return rest;
+            })};
+            const saves = JSON.parse(localStorage.getItem('designnix_saves') || '[]');
+            saves.push(project);
+            localStorage.setItem('designnix_saves', JSON.stringify(saves));
+            updateSaveListUI();
+        }
+
+        function loadFromLocal() {
+            const lastSession = localStorage.getItem('designnix_current_session');
+            if (lastSession) {
+                objects = JSON.parse(lastSession);
+                restoreImages();
+            }
+        }
+
+        function restoreImages() {
+            objects.forEach(o => {
+                if (o.type === 'image' && o.imgSrc) {
+                    const img = new Image();
+                    img.onload = () => { o.img = img; render(); };
+                    img.src = o.imgSrc;
+                }
+            });
+        }
+
+        function loadProject(idx) {
+            const saves = JSON.parse(localStorage.getItem('designnix_saves'));
+            if (!saves || !saves[idx]) return;
+            objects = JSON.parse(JSON.stringify(saves[idx].data));
+            restoreImages();
+            selectedId = null;
+            render();
+            updateInspector();
+        }
+
+        function updateSaveListUI() {
+            const saves = JSON.parse(localStorage.getItem('designnix_saves') || '[]');
+            const list = document.getElementById('save-list');
+            list.innerHTML = '';
+            saves.forEach((s, i) => {
+                const el = document.createElement('div');
+                el.className = 'save-slot';
+                el.innerHTML = `<div><div class="text-[11px] font-bold text-white truncate w-32">${s.name}</div><div class="text-[9px] text-slate-500">${new Date(s.date).toLocaleDateString()}</div></div><i class="fas fa-folder-open text-slate-600"></i>`;
+                el.onclick = () => loadProject(i);
+                list.appendChild(el);
+            });
+        }
+
+        function exportDesign(format) {
+            const tempSelected = selectedId;
+            selectedId = null;
+            render();
+
+            if (format === 'pdf') {
+                const { jsPDF } = window.jspdf;
+                const pdf = new jsPDF({ orientation: 'landscape', unit: 'px', format: [canvas.width, canvas.height] });
+                pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, canvas.width, canvas.height);
+                pdf.save('designnix-export.pdf');
+            } else {
+                const mime = format === 'jpg' ? 'image/jpeg' : 'image/png';
+                const link = document.createElement('a');
+                link.download = `designnix-export.${format}`;
+                link.href = canvas.toDataURL(mime, 0.9);
+                link.click();
+            }
+
+            selectedId = tempSelected;
+            render();
+        }
+
+        function clearAllSaves() { if(confirm("Clear all browser saves?")) { localStorage.removeItem('designnix_saves'); updateSaveListUI(); } }
+        function newProject() { objects = []; selectedId = null; render(); updateInspector(); }
+        function deleteSelected() { objects = objects.filter(o => o.id !== selectedId); selectedId = null; render(); updateInspector(); }
+        function duplicate() { if(!selectedId) return; const o = find(selectedId); const copy = {...JSON.parse(JSON.stringify(o)), id: Date.now(), x: o.x+20, y: o.y+20}; if(o.img) copy.img = o.img; objects.push(copy); selectedId = copy.id; render(); }
+        function moveOrder(dir) { const idx = objects.findIndex(o => o.id === selectedId); if(idx===-1) return; const o = objects.splice(idx, 1)[0]; dir==='front'?objects.push(o):objects.unshift(o); render(); }
+        function adjustZoom(d) { zoom = Math.max(0.2, Math.min(3, zoom+d)); wrapper.style.transform = `scale(${zoom})`; document.getElementById('zoom-val').innerText = Math.round(zoom*100)+'%'; }
+    </script>
+</body>
+</html>
