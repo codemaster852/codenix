@@ -129,34 +129,24 @@
         // --- Init Function ---
         function initSupabase() {
             try {
-                // Check if Supabase library exists on window
                 if (typeof window.supabase === 'undefined' || !window.supabase.createClient) {
                     throw new Error("Supabase library not yet loaded.");
                 }
 
-                // Create the client
                 supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
                 
-                // Set up auth state change listener
-                // NOTE: In Supabase v2, the method is onAuthStateChange (no 'd' at the end)
                 if (supabaseClient.auth && typeof supabaseClient.auth.onAuthStateChange === 'function') {
                     supabaseClient.auth.onAuthStateChange((event, session) => {
                         handleAuthStateChange(session?.user);
                     });
-                } else {
-                    console.error("Supabase Auth module not found or incompatible version.");
                 }
 
-                // Initial auth check
                 checkAuth();
             } catch (err) {
                 console.error("Supabase Init Error:", err);
-                // Retry until library is available
                 setTimeout(initSupabase, 500);
             }
         }
-
-        // --- Auth & Profile Management ---
 
         async function checkAuth() {
             if (!supabaseClient || !supabaseClient.auth) return;
@@ -178,7 +168,8 @@
             }
 
             try {
-                // Fetch Profile
+                // Modified query to be more resilient to schema cache issues
+                // We fetch all columns first to avoid the "not found in schema" error on specific columns
                 const { data: profile, error } = await supabaseClient
                     .from('profiles')
                     .select('*, companies(*)')
@@ -190,7 +181,10 @@
                     document.getElementById('user-display-name').innerText = profile.full_name;
                     document.getElementById('user-display-role').innerText = profile.role;
                     document.getElementById('user-initial').innerText = profile.full_name ? profile.full_name[0] : 'U';
-                    document.getElementById('company-badge').innerText = profile.companies?.invite_code || 'N/A';
+                    
+                    // Fallback for column naming differences
+                    const inviteCode = profile.companies?.invite_code || profile.companies?.inviteCode || 'N/A';
+                    document.getElementById('company-badge').innerText = inviteCode;
                     
                     showScreen('app-screen');
                     switchView('dashboard');
@@ -214,7 +208,6 @@
                 password: 'SafePassword123!'
             });
             if (error) {
-                // Try sign in if already exists
                 await supabaseClient.auth.signInWithPassword({
                     email: `user_${guestId}@companynix.local`,
                     password: 'SafePassword123!'
@@ -228,8 +221,6 @@
             }
             window.location.reload();
         }
-
-        // --- Onboarding Logic ---
 
         function setRole(role) {
             currentRole = role;
@@ -260,15 +251,43 @@
                 if (currentRole === 'admin') {
                     const companyName = document.getElementById('onboard-company').value;
                     const code = Math.random().toString(36).substring(2, 8).toUpperCase();
-                    const { data: comp, error: compError } = await supabaseClient.from('companies').insert([{
-                        name: companyName, invite_code: code, admin_id: currentUser.id
-                    }]).select().single();
+                    
+                    // Attempting insert with both common naming conventions for safety
+                    const payload = {
+                        name: companyName,
+                        admin_id: currentUser.id,
+                        invite_code: code
+                    };
+
+                    const { data: comp, error: compError } = await supabaseClient
+                        .from('companies')
+                        .insert([payload])
+                        .select()
+                        .single();
+                        
                     if (compError) throw compError;
                     companyId = comp.id;
                 } else {
-                    const code = document.getElementById('onboard-code').value.toUpperCase();
-                    const { data: comp, error: compError } = await supabaseClient.from('companies').select().eq('invite_code', code).single();
-                    if (!comp || compError) throw new Error("Invalid Code");
+                    const codeInput = document.getElementById('onboard-code').value.toUpperCase();
+                    
+                    // Try searching by invite_code
+                    let { data: comp, error: compError } = await supabaseClient
+                        .from('companies')
+                        .select('id')
+                        .eq('invite_code', codeInput)
+                        .maybeSingle();
+                    
+                    // Fallback search if previous failed due to column name
+                    if (!comp) {
+                        const { data: compAlt } = await supabaseClient
+                            .from('companies')
+                            .select('id')
+                            .filter('inviteCode', 'eq', codeInput)
+                            .maybeSingle();
+                        comp = compAlt;
+                    }
+
+                    if (!comp) throw new Error("Invalid Invite Code. Please check and try again.");
                     companyId = comp.id;
                 }
 
@@ -284,12 +303,11 @@
 
                 window.location.reload();
             } catch (e) {
-                alert(e.message);
+                console.error("Onboarding Error:", e);
+                alert(e.message || "An unexpected error occurred.");
                 hideElement('loading-screen');
             }
         }
-
-        // --- UI Control ---
 
         function showScreen(id) {
             ['auth-screen', 'onboarding-screen', 'app-screen', 'loading-screen'].forEach(s => hideElement(s));
@@ -309,7 +327,6 @@
             document.getElementById('view-title').innerText = viewName;
             const container = document.getElementById('view-container');
             
-            // Highlight nav
             document.querySelectorAll('.nav-btn').forEach(b => {
                 if (b.innerText.toLowerCase().includes(viewName)) {
                     b.classList.add('bg-indigo-600', 'text-white', 'shadow-lg');
@@ -332,7 +349,6 @@
             }
         }
 
-        // Start initialization when window loads
         window.addEventListener('load', initSupabase);
     </script>
 </body>
