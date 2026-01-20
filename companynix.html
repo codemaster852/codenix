@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CompanyNix - Workspace</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Plus Jakarta Sans', sans-serif; }
+        .hide { display: none !important; }
+        .glass { background: rgba(255, 255, 255, 0.8); backdrop-filter: blur(10px); }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-900">
+
+    <!-- Loading Overlay -->
+    <div id="loading-screen" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-50">
+        <div class="flex flex-col items-center">
+            <div class="w-16 h-16 bg-indigo-600 rounded-2xl mb-4 shadow-lg animate-pulse"></div>
+            <p class="text-slate-500 font-medium tracking-tight">Syncing Workspace...</p>
+        </div>
+    </div>
+
+    <!-- Auth Section -->
+    <div id="auth-screen" class="hide h-screen flex items-center justify-center bg-indigo-600 px-4">
+        <div class="bg-white p-10 rounded-[2.5rem] shadow-2xl w-full max-w-md text-center">
+            <div class="w-20 h-20 bg-indigo-600 rounded-3xl mx-auto flex items-center justify-center text-white text-4xl font-black mb-8 shadow-xl">CN</div>
+            <h2 class="text-3xl font-black text-slate-800 mb-4 tracking-tight">Access Restricted</h2>
+            <p class="text-slate-500 mb-10 text-lg leading-relaxed">You must be signed in to access the CompanyNix workspace.</p>
+            <button onclick="handleRegister()" class="w-full bg-slate-900 text-white py-5 rounded-2xl font-black text-lg hover:bg-black transition-all shadow-xl active:scale-95">
+                Sign In / Register
+            </button>
+        </div>
+    </div>
+
+    <!-- Onboarding Section -->
+    <div id="onboarding-screen" class="hide h-screen flex flex-col items-center justify-center bg-slate-50 p-6">
+        <div id="onboarding-role" class="w-full max-w-3xl">
+            <div class="text-center mb-12">
+                <h2 class="text-4xl font-black text-slate-900 mb-2">Welcome to the Team</h2>
+                <p class="text-slate-500 font-medium">How will you be using CompanyNix today?</p>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <button onclick="setRole('admin')" class="bg-white p-10 rounded-[2rem] border-4 border-transparent hover:border-indigo-600 shadow-xl transition-all text-center group">
+                    <div class="w-16 h-16 bg-indigo-50 text-indigo-600 rounded-2xl mx-auto flex items-center justify-center mb-6 text-2xl">🛡️</div>
+                    <h3 class="text-2xl font-black mb-2">Admin</h3>
+                    <p class="text-slate-500 text-sm">Create a company and manage operations.</p>
+                </button>
+                <button onclick="setRole('worker')" class="bg-white p-10 rounded-[2rem] border-4 border-transparent hover:border-emerald-500 shadow-xl transition-all text-center group">
+                    <div class="w-16 h-16 bg-emerald-50 text-emerald-600 rounded-2xl mx-auto flex items-center justify-center mb-6 text-2xl">👤</div>
+                    <h3 class="text-2xl font-black mb-2">Worker</h3>
+                    <p class="text-slate-500 text-sm">Join a team and complete tasks.</p>
+                </button>
+            </div>
+        </div>
+
+        <div id="onboarding-form" class="hide bg-white p-12 rounded-[2.5rem] shadow-xl w-full max-w-xl">
+            <button onclick="resetOnboarding()" class="text-xs font-black uppercase text-indigo-600 tracking-widest mb-6 block">← Back</button>
+            <h2 class="text-3xl font-black mb-8">Final Details</h2>
+            <div class="space-y-6">
+                <div>
+                    <label class="block text-xs font-black uppercase tracking-widest text-slate-400 mb-2">Full Name</label>
+                    <input id="onboard-name" type="text" placeholder="Your Name" class="w-full p-4 rounded-2xl border-2 border-slate-100 bg-slate-50 outline-none focus:border-indigo-500">
+                </div>
+                <div id="admin-field" class="hide">
+                    <label class="block text-xs font-black uppercase tracking-widest text-slate-400 mb-2">Business Entity Name</label>
+                    <input id="onboard-company" type="text" placeholder="Company Name" class="w-full p-4 rounded-2xl border-2 border-slate-100 bg-slate-50 outline-none focus:border-indigo-500">
+                </div>
+                <div id="worker-field" class="hide">
+                    <label class="block text-xs font-black uppercase tracking-widest text-slate-400 mb-2">Invite Passcode</label>
+                    <input id="onboard-code" type="text" placeholder="Invite Code" class="w-full p-4 rounded-2xl border-2 border-slate-100 bg-slate-50 outline-none focus:border-indigo-500 uppercase">
+                </div>
+                <button onclick="submitOnboarding()" class="w-full bg-indigo-600 text-white py-5 rounded-2xl font-black text-lg hover:bg-indigo-700 transition-all shadow-lg">
+                    Launch Dashboard
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Application UI -->
+    <div id="app-screen" class="hide flex h-screen">
+        <!-- Sidebar -->
+        <aside class="w-64 bg-white border-r border-slate-200 flex flex-col shadow-sm">
+            <div class="p-6 border-b border-slate-100 flex items-center gap-3">
+                <div class="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white font-bold">CN</div>
+                <span class="font-bold text-xl tracking-tight">CompanyNix</span>
+            </div>
+            <nav class="flex-1 p-4 space-y-2">
+                <button onclick="switchView('dashboard')" class="nav-btn active w-full flex items-center gap-3 p-3 rounded-2xl text-slate-500 hover:bg-slate-50 font-bold text-sm">📊 Overview</button>
+                <button onclick="switchView('tasks')" class="nav-btn w-full flex items-center gap-3 p-3 rounded-2xl text-slate-500 hover:bg-slate-50 font-bold text-sm">✅ Projects</button>
+                <button onclick="switchView('chat')" class="nav-btn w-full flex items-center gap-3 p-3 rounded-2xl text-slate-500 hover:bg-slate-50 font-bold text-sm">💬 Team Chat</button>
+            </nav>
+            <div class="p-4 border-t border-slate-100">
+                <div class="p-3 bg-slate-50 rounded-2xl mb-2 flex items-center gap-2">
+                    <div id="user-initial" class="w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold">U</div>
+                    <div class="truncate">
+                        <p id="user-display-name" class="text-xs font-bold truncate">Loading...</p>
+                        <p id="user-display-role" class="text-[10px] text-slate-400 uppercase">Role</p>
+                    </div>
+                </div>
+                <button onclick="handleSignOut()" class="w-full p-2 text-slate-400 hover:text-red-600 transition-all text-xs font-black uppercase tracking-widest">Sign Out</button>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="flex-1 overflow-y-auto">
+            <header class="h-16 bg-white border-b border-slate-200 px-8 flex items-center justify-between sticky top-0 z-10">
+                <h1 id="view-title" class="text-lg font-bold capitalize text-slate-700">Dashboard</h1>
+                <span id="company-badge" class="bg-indigo-50 text-indigo-700 px-3 py-1.5 rounded-xl text-xs font-black uppercase border border-indigo-100">CODE</span>
+            </header>
+
+            <div id="view-container" class="p-8 max-w-6xl mx-auto">
+                <!-- Views injected here by JS -->
+            </div>
+        </main>
+    </div>
+
+    <script>
+        const SUPABASE_URL = "https://rnlwrngfgvznndlekmrz.supabase.co";
+        const SUPABASE_ANON_KEY = "sb_publishable_mtI0_ZBvU_n5oRuqV58QHg_qJt3Gfyt";
+        
+        let supabaseClient = null;
+        let currentUser = null;
+        let currentProfile = null;
+        let currentRole = null;
+
+        // --- Init Function ---
+        function initSupabase() {
+            try {
+                // Check if Supabase library exists on window
+                if (typeof window.supabase === 'undefined' || !window.supabase.createClient) {
+                    throw new Error("Supabase library not yet loaded.");
+                }
+
+                // Create the client
+                supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+                
+                // Set up auth state change listener
+                // NOTE: In Supabase v2, the method is onAuthStateChange (no 'd' at the end)
+                if (supabaseClient.auth && typeof supabaseClient.auth.onAuthStateChange === 'function') {
+                    supabaseClient.auth.onAuthStateChange((event, session) => {
+                        handleAuthStateChange(session?.user);
+                    });
+                } else {
+                    console.error("Supabase Auth module not found or incompatible version.");
+                }
+
+                // Initial auth check
+                checkAuth();
+            } catch (err) {
+                console.error("Supabase Init Error:", err);
+                // Retry until library is available
+                setTimeout(initSupabase, 500);
+            }
+        }
+
+        // --- Auth & Profile Management ---
+
+        async function checkAuth() {
+            if (!supabaseClient || !supabaseClient.auth) return;
+            try {
+                const { data: { session }, error } = await supabaseClient.auth.getSession();
+                if (error) console.error("Session fetch error:", error);
+                handleAuthStateChange(session?.user);
+            } catch (e) {
+                console.error("getSession fail:", e);
+            }
+        }
+
+        async function handleAuthStateChange(user) {
+            currentUser = user;
+            if (!user) {
+                showScreen('auth-screen');
+                hideElement('loading-screen');
+                return;
+            }
+
+            try {
+                // Fetch Profile
+                const { data: profile, error } = await supabaseClient
+                    .from('profiles')
+                    .select('*, companies(*)')
+                    .eq('id', user.id)
+                    .maybeSingle();
+
+                if (profile && profile.role) {
+                    currentProfile = profile;
+                    document.getElementById('user-display-name').innerText = profile.full_name;
+                    document.getElementById('user-display-role').innerText = profile.role;
+                    document.getElementById('user-initial').innerText = profile.full_name ? profile.full_name[0] : 'U';
+                    document.getElementById('company-badge').innerText = profile.companies?.invite_code || 'N/A';
+                    
+                    showScreen('app-screen');
+                    switchView('dashboard');
+                } else {
+                    showScreen('onboarding-screen');
+                    resetOnboarding();
+                }
+            } catch (err) {
+                console.error("Profile fetch error:", err);
+            } finally {
+                hideElement('loading-screen');
+            }
+        }
+
+        async function handleRegister() {
+            if (!supabaseClient) return;
+            showElement('loading-screen');
+            const guestId = Math.random().toString(36).substring(7);
+            const { error } = await supabaseClient.auth.signUp({
+                email: `user_${guestId}@companynix.local`,
+                password: 'SafePassword123!'
+            });
+            if (error) {
+                // Try sign in if already exists
+                await supabaseClient.auth.signInWithPassword({
+                    email: `user_${guestId}@companynix.local`,
+                    password: 'SafePassword123!'
+                });
+            }
+        }
+
+        async function handleSignOut() {
+            if (supabaseClient && supabaseClient.auth) {
+                await supabaseClient.auth.signOut();
+            }
+            window.location.reload();
+        }
+
+        // --- Onboarding Logic ---
+
+        function setRole(role) {
+            currentRole = role;
+            hideElement('onboarding-role');
+            showElement('onboarding-form');
+            if (role === 'admin') {
+                showElement('admin-field');
+                hideElement('worker-field');
+            } else {
+                hideElement('admin-field');
+                showElement('worker-field');
+            }
+        }
+
+        function resetOnboarding() {
+            showElement('onboarding-role');
+            hideElement('onboarding-form');
+            currentRole = null;
+        }
+
+        async function submitOnboarding() {
+            if (!supabaseClient) return;
+            showElement('loading-screen');
+            const fullName = document.getElementById('onboard-name').value;
+            let companyId = null;
+
+            try {
+                if (currentRole === 'admin') {
+                    const companyName = document.getElementById('onboard-company').value;
+                    const code = Math.random().toString(36).substring(2, 8).toUpperCase();
+                    const { data: comp, error: compError } = await supabaseClient.from('companies').insert([{
+                        name: companyName, invite_code: code, admin_id: currentUser.id
+                    }]).select().single();
+                    if (compError) throw compError;
+                    companyId = comp.id;
+                } else {
+                    const code = document.getElementById('onboard-code').value.toUpperCase();
+                    const { data: comp, error: compError } = await supabaseClient.from('companies').select().eq('invite_code', code).single();
+                    if (!comp || compError) throw new Error("Invalid Code");
+                    companyId = comp.id;
+                }
+
+                const { error: profError } = await supabaseClient.from('profiles').upsert({
+                    id: currentUser.id,
+                    full_name: fullName,
+                    role: currentRole,
+                    company_id: companyId,
+                    updated_at: new Date()
+                });
+                
+                if (profError) throw profError;
+
+                window.location.reload();
+            } catch (e) {
+                alert(e.message);
+                hideElement('loading-screen');
+            }
+        }
+
+        // --- UI Control ---
+
+        function showScreen(id) {
+            ['auth-screen', 'onboarding-screen', 'app-screen', 'loading-screen'].forEach(s => hideElement(s));
+            showElement(id);
+        }
+
+        function showElement(id) { 
+            const el = document.getElementById(id);
+            if (el) el.classList.remove('hide'); 
+        }
+        function hideElement(id) { 
+            const el = document.getElementById(id);
+            if (el) el.classList.add('hide'); 
+        }
+
+        function switchView(viewName) {
+            document.getElementById('view-title').innerText = viewName;
+            const container = document.getElementById('view-container');
+            
+            // Highlight nav
+            document.querySelectorAll('.nav-btn').forEach(b => {
+                if (b.innerText.toLowerCase().includes(viewName)) {
+                    b.classList.add('bg-indigo-600', 'text-white', 'shadow-lg');
+                } else {
+                    b.classList.remove('bg-indigo-600', 'text-white', 'shadow-lg');
+                }
+            });
+
+            if (viewName === 'dashboard') {
+                container.innerHTML = `
+                    <div class="bg-white p-10 rounded-[2rem] border border-slate-100 shadow-sm">
+                        <h2 class="text-3xl font-black mb-2">Welcome Back!</h2>
+                        <p class="text-slate-500">You are logged in as <span class="text-indigo-600 font-bold">${currentProfile?.full_name || 'User'}</span>.</p>
+                    </div>
+                `;
+            } else if (viewName === 'tasks') {
+                container.innerHTML = `<div class="p-10 text-center text-slate-400 font-bold">Project Management coming soon...</div>`;
+            } else if (viewName === 'chat') {
+                container.innerHTML = `<div class="p-10 text-center text-slate-400 font-bold">Real-time team communication initialization...</div>`;
+            }
+        }
+
+        // Start initialization when window loads
+        window.addEventListener('load', initSupabase);
+    </script>
+</body>
+</html>
