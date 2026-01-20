@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flashcardy Pro | AI Learning</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
+
+        :root {
+            --primary: #6366f1;
+            --bg: #0f172a;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: radial-gradient(circle at top left, #1e293b, #0f172a);
+            color: #f8fafc;
+            min-height: 100vh;
+        }
+
+        #loader {
+            position: fixed;
+            inset: 0;
+            background: var(--bg);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+            transition: opacity 0.5s ease;
+        }
+
+        .loader-spinner {
+            width: 50px;
+            height: 50px;
+            border: 5px solid #1e293b;
+            border-top: 5px solid var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        .card-inner {
+            transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+            transform-style: preserve-3d;
+            cursor: pointer;
+            height: 100%;
+        }
+
+        .card-flipped { transform: rotateY(180deg); }
+
+        .card-front, .card-back {
+            backface-visibility: hidden;
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 1.5rem;
+            text-align: center;
+            border-radius: 1rem;
+            overflow: hidden;
+        }
+
+        .card-back { transform: rotateY(180deg); }
+
+        .glass {
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .mastery-dot { width: 8px; height: 8px; border-radius: 50%; }
+        .mastery-0 { background: #64748b; }
+        .mastery-1 { background: #facc15; }
+        .mastery-2 { background: #4ade80; }
+        .mastery-3 { background: #22d3ee; }
+
+        .media-preview {
+            max-height: 100px;
+            width: auto;
+            border-radius: 0.5rem;
+            margin-top: 0.5rem;
+            object-fit: cover;
+        }
+
+        .ai-loading {
+            animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
+
+        /* Fix for buttons inside cards */
+        .btn-delete {
+            position: absolute;
+            z-index: 50;
+            pointer-events: auto;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+
+    <div id="loader">
+        <div class="loader-spinner mb-4"></div>
+        <h1 class="text-2xl font-bold text-white">Flashcardy Pro</h1>
+    </div>
+
+    <div class="max-w-5xl mx-auto">
+        <header class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-10">
+            <div>
+                <h1 class="text-3xl font-extrabold bg-gradient-to-r from-indigo-400 to-cyan-400 bg-clip-text text-transparent">Flashcardy</h1>
+                <p class="text-slate-400 text-sm">Spaced Repetition & AI Learning</p>
+            </div>
+            <div class="flex flex-wrap gap-2">
+                <button id="btn-review" class="bg-emerald-600 hover:bg-emerald-500 transition-colors px-4 py-2 rounded-lg font-semibold flex items-center gap-2 relative z-10">
+                    <i class="fas fa-play"></i> Review Due
+                </button>
+                <button id="btn-add" class="bg-indigo-600 hover:bg-indigo-500 transition-colors px-4 py-2 rounded-lg font-semibold flex items-center gap-2 relative z-10">
+                    <i class="fas fa-plus"></i> Add Card
+                </button>
+                <button id="btn-bulk" class="bg-slate-700 hover:bg-slate-600 transition-colors px-4 py-2 rounded-lg font-semibold flex items-center gap-2 relative z-10">
+                    <i class="fas fa-robot"></i> AI Bulk Create
+                </button>
+            </div>
+        </header>
+
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+            <div class="glass p-4 rounded-xl text-center">
+                <p class="text-slate-500 text-xs font-bold uppercase">Total</p>
+                <p id="stat-total" class="text-xl font-bold">0</p>
+            </div>
+            <div class="glass p-4 rounded-xl text-center">
+                <p class="text-slate-500 text-xs font-bold uppercase">Due Now</p>
+                <p id="stat-due" class="text-xl font-bold text-amber-400">0</p>
+            </div>
+            <div class="glass p-4 rounded-xl text-center">
+                <p class="text-slate-500 text-xs font-bold uppercase">Mastered</p>
+                <p id="stat-mastered" class="text-xl font-bold text-cyan-400">0</p>
+            </div>
+            <div class="glass p-4 rounded-xl text-center">
+                <p class="text-slate-500 text-xs font-bold uppercase">Next Review</p>
+                <p id="stat-next" class="text-sm font-semibold text-slate-300">N/A</p>
+            </div>
+        </div>
+
+        <div id="cards-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+
+        <div id="empty-state" class="hidden flex flex-col items-center justify-center py-20 text-slate-500">
+            <i class="fas fa-brain text-6xl mb-4 opacity-20"></i>
+            <p>Your brain is ready. Add some cards to start.</p>
+        </div>
+    </div>
+
+    <!-- Modal: Single Card -->
+    <div id="modal-single" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center z-[100] p-4">
+        <div class="glass bg-slate-900 w-full max-w-lg p-6 rounded-2xl border border-white/10 max-h-[90vh] overflow-y-auto custom-scrollbar">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-xl font-bold">New Flashcard</h2>
+                <button class="close-modal text-slate-400 hover:text-white p-2"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm text-slate-400 mb-1">Front (Question)</label>
+                    <div class="flex gap-2">
+                        <textarea id="inp-front" class="flex-1 bg-slate-800 border border-slate-700 rounded-lg p-3 text-white h-20 resize-none" placeholder="Enter term..."></textarea>
+                        <button id="ai-single-btn" class="bg-indigo-600 hover:bg-indigo-500 w-12 rounded-lg flex items-center justify-center transition-all">
+                            <i class="fas fa-magic"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 gap-4">
+                    <div>
+                        <label class="block text-sm text-slate-400 mb-1">Image (URL or Upload)</label>
+                        <div class="flex gap-2">
+                            <input type="text" id="inp-img-url" class="flex-1 bg-slate-800 border border-slate-700 rounded-lg p-2 text-sm text-white" placeholder="https://...">
+                            <button id="trigger-upload" class="bg-slate-700 px-3 rounded-lg text-xs hover:bg-slate-600">
+                                <i class="fas fa-upload"></i>
+                            </button>
+                        </div>
+                        <input type="file" id="inp-image-file" accept="image/*" class="hidden">
+                    </div>
+                    <div>
+                        <label class="block text-sm text-slate-400 mb-1">Audio</label>
+                        <button id="record-btn" class="w-full bg-slate-800 border-2 border-dashed border-slate-700 p-2 rounded-lg text-slate-400 hover:text-white flex items-center justify-center gap-2">
+                            <i class="fas fa-microphone"></i> <span id="rec-label" class="text-xs">Record Audio</span>
+                        </button>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm text-slate-400 mb-1">Back (Answer)</label>
+                    <textarea id="inp-back" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 text-white h-24 resize-none"></textarea>
+                </div>
+                <button id="save-card-btn" class="w-full bg-indigo-600 hover:bg-indigo-500 py-4 rounded-xl font-bold text-lg mt-4 active:scale-[0.98] transition-transform">Save Flashcard</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Bulk AI -->
+    <div id="modal-bulk" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center z-[100] p-4">
+        <div class="glass bg-slate-900 w-full max-w-2xl p-6 rounded-2xl border border-white/10">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-xl font-bold">Bulk Generate from Text</h2>
+                <button class="close-modal text-slate-400 hover:text-white p-2"><i class="fas fa-times"></i></button>
+            </div>
+            <p class="text-sm text-slate-400 mb-4">Paste your notes, lecture, or an article. AI will create multiple cards for you.</p>
+            <textarea id="bulk-text" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-4 text-white h-60 resize-none mb-4 custom-scrollbar" placeholder="Paste text here..."></textarea>
+            <button id="run-bulk-ai" class="w-full bg-indigo-600 hover:bg-indigo-500 py-4 rounded-xl font-bold text-lg flex items-center justify-center gap-3 active:scale-[0.98] transition-transform">
+                <i class="fas fa-robot"></i> <span>Generate Cards</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Review Overlay -->
+    <div id="review-overlay" class="fixed inset-0 bg-slate-950 hidden z-[200] p-4 flex flex-col items-center justify-center">
+        <div class="w-full max-w-xl">
+            <div class="flex justify-between items-center mb-8">
+                <span id="review-progress" class="text-slate-400 font-mono text-sm">Card 1 of 5</span>
+                <button id="btn-close-review" class="text-slate-400 hover:text-white text-xl p-2"><i class="fas fa-times"></i></button>
+            </div>
+            <div id="review-card-container" class="h-80 w-full mb-10" style="perspective: 1000px;"></div>
+            <div id="review-controls" class="flex gap-4 opacity-0 pointer-events-none transition-opacity duration-300">
+                <button id="btn-forgot" class="flex-1 bg-red-500/20 border border-red-500/50 hover:bg-red-500 text-white py-4 rounded-xl font-bold">Forgot</button>
+                <button id="btn-remembered" class="flex-1 bg-emerald-500/20 border border-emerald-500/50 hover:bg-emerald-500 text-white py-4 rounded-xl font-bold">Remembered</button>
+            </div>
+            <p id="tap-instruction" class="text-center text-slate-500 mt-4 animate-pulse">Tap card to reveal</p>
+        </div>
+    </div>
+
+    <script>
+        const API_KEY = "ak_2Q14Wb6iZ0DI72b1Im4pv1jo3iO9X";
+        const ENDPOINT = "https://api.longcat.chat/openai/v1/chat/completions";
+
+        let cards = [];
+        let mediaRecorder;
+        let audioChunks = [];
+        let currentAudioBase64 = null;
+        let currentImageBase64 = null;
+        let reviewQueue = [];
+        let currentReviewIndex = 0;
+
+        const INTERVALS = [0, 4, 24, 72, 168, 720];
+
+        // Initialization
+        window.addEventListener('DOMContentLoaded', () => {
+            const saved = localStorage.getItem('flashcardy_v5');
+            cards = saved ? JSON.parse(saved) : [];
+            renderUI();
+            
+            // Hide Loader
+            setTimeout(() => {
+                document.getElementById('loader').style.opacity = '0';
+                setTimeout(() => document.getElementById('loader').classList.add('hidden'), 500);
+            }, 500);
+            
+            setupEventListeners();
+        });
+
+        function setupEventListeners() {
+            // Main Actions
+            document.getElementById('btn-add').onclick = () => document.getElementById('modal-single').classList.remove('hidden');
+            document.getElementById('btn-bulk').onclick = () => document.getElementById('modal-bulk').classList.remove('hidden');
+            document.getElementById('btn-review').onclick = startReview;
+            
+            // Modal Closers
+            document.querySelectorAll('.close-modal').forEach(btn => {
+                btn.onclick = (e) => {
+                    e.stopPropagation();
+                    document.getElementById('modal-single').classList.add('hidden');
+                    document.getElementById('modal-bulk').classList.add('hidden');
+                };
+            });
+
+            // Single Card Actions
+            document.getElementById('ai-single-btn').onclick = askAISingle;
+            document.getElementById('save-card-btn').onclick = saveCard;
+            document.getElementById('record-btn').onclick = toggleRecording;
+            document.getElementById('trigger-upload').onclick = () => document.getElementById('inp-image-file').click();
+            document.getElementById('inp-image-file').onchange = (e) => handleFileUpload(e.target);
+
+            // Bulk Actions
+            document.getElementById('run-bulk-ai').onclick = runBulkAI;
+
+            // Review Actions
+            document.getElementById('btn-close-review').onclick = () => document.getElementById('review-overlay').classList.add('hidden');
+            document.getElementById('btn-forgot').onclick = () => processReview(false);
+            document.getElementById('btn-remembered').onclick = () => processReview(true);
+        }
+
+        // AI Features
+        async function askAISingle() {
+            const term = document.getElementById('inp-front').value.trim();
+            if (!term) return alert("Enter a term first!");
+            
+            const btn = document.getElementById('ai-single-btn');
+            btn.disabled = true; btn.classList.add('ai-loading');
+            
+            try {
+                const res = await callAI(`Provide a short, 1-sentence definition for: ${term}`);
+                document.getElementById('inp-back').value = res;
+            } catch (e) { alert("AI error."); }
+            finally { btn.disabled = false; btn.classList.remove('ai-loading'); }
+        }
+
+        async function runBulkAI() {
+            const text = document.getElementById('bulk-text').value.trim();
+            if (!text) return alert("Paste some text first!");
+            
+            const btn = document.getElementById('run-bulk-ai');
+            const originalHtml = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> Reading...';
+
+            try {
+                const prompt = `Based on the following text, create 3 to 5 clear flashcards. Return ONLY a valid JSON array of objects with "front" and "back" keys. Text: ${text}`;
+                const raw = await callAI(prompt);
+                
+                let newCardsData = [];
+                const jsonMatch = raw.match(/\[.*\]/s);
+                if (jsonMatch) {
+                    newCardsData = JSON.parse(jsonMatch[0]);
+                } else {
+                    throw new Error("Invalid JSON from AI");
+                }
+                
+                newCardsData.forEach(c => {
+                    cards.unshift({
+                        id: Date.now() + Math.random(),
+                        front: c.front,
+                        back: c.back,
+                        level: 0,
+                        nextReview: Date.now()
+                    });
+                });
+                
+                saveToStorage();
+                document.getElementById('modal-bulk').classList.add('hidden');
+                document.getElementById('bulk-text').value = '';
+                alert(`Successfully generated ${newCardsData.length} cards!`);
+            } catch (e) { 
+                console.error(e);
+                alert("Failed to generate. Ensure text is clear and try again."); 
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = originalHtml;
+            }
+        }
+
+        async function callAI(prompt) {
+            const response = await fetch(ENDPOINT, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${API_KEY}` },
+                body: JSON.stringify({
+                    model: "LongCat-Flash-Chat",
+                    messages: [
+                        { role: "system", content: "You are a flashcard expert. Output JSON only." },
+                        { role: "user", content: prompt }
+                    ],
+                    temperature: 0.7
+                })
+            });
+            const data = await response.json();
+            return data.choices[0].message.content.trim();
+        }
+
+        // Multimedia Logic
+        function handleFileUpload(input) {
+            const file = input.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (e) => { currentImageBase64 = e.target.result; alert("Image attached!"); };
+            reader.readAsDataURL(file);
+        }
+
+        async function toggleRecording() {
+            const btn = document.getElementById('record-btn');
+            const label = document.getElementById('rec-label');
+
+            if (mediaRecorder?.state === "recording") {
+                mediaRecorder.stop();
+                btn.classList.remove('border-red-500', 'text-red-500');
+                return;
+            }
+
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                mediaRecorder = new MediaRecorder(stream);
+                audioChunks = [];
+                mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+                mediaRecorder.onstop = () => {
+                    const blob = new Blob(audioChunks, { type: 'audio/webm' });
+                    const reader = new FileReader();
+                    reader.onload = (e) => { currentAudioBase64 = e.target.result; label.innerText = "Audio Ready"; };
+                    reader.readAsDataURL(blob);
+                };
+                mediaRecorder.start();
+                btn.classList.add('border-red-500', 'text-red-500');
+                label.innerText = "Recording...";
+            } catch (e) { alert("Mic permission denied."); }
+        }
+
+        // Core App Logic
+        function saveCard() {
+            const front = document.getElementById('inp-front').value.trim();
+            const back = document.getElementById('inp-back').value.trim();
+            const imgUrl = document.getElementById('inp-img-url').value.trim();
+            
+            if (!front || !back) return alert("Please fill both sides.");
+
+            cards.unshift({
+                id: Date.now(),
+                front, back,
+                image: currentImageBase64 || imgUrl || null,
+                audio: currentAudioBase64,
+                level: 0,
+                nextReview: Date.now()
+            });
+
+            saveToStorage();
+            document.getElementById('modal-single').classList.add('hidden');
+            resetInputs();
+        }
+
+        function resetInputs() {
+            document.getElementById('inp-front').value = '';
+            document.getElementById('inp-back').value = '';
+            document.getElementById('inp-img-url').value = '';
+            document.getElementById('rec-label').innerText = "Record Audio";
+            currentAudioBase64 = null;
+            currentImageBase64 = null;
+        }
+
+        window.deleteCard = function(id) {
+            cards = cards.filter(c => c.id !== id);
+            saveToStorage();
+        };
+
+        function saveToStorage() {
+            localStorage.setItem('flashcardy_v5', JSON.stringify(cards));
+            renderUI();
+        }
+
+        // Review Flow
+        function startReview() {
+            const now = Date.now();
+            reviewQueue = cards.filter(c => c.nextReview <= now);
+            if (!reviewQueue.length) return alert("All caught up! Nothing to review.");
+            
+            currentReviewIndex = 0;
+            document.getElementById('review-overlay').classList.remove('hidden');
+            showReviewCard();
+        }
+
+        function showReviewCard() {
+            const card = reviewQueue[currentReviewIndex];
+            const cont = document.getElementById('review-card-container');
+            document.getElementById('review-progress').innerText = `Card ${currentReviewIndex + 1}/${reviewQueue.length}`;
+            document.getElementById('review-controls').classList.add('opacity-0', 'pointer-events-none');
+            document.getElementById('tap-instruction').classList.remove('hidden');
+
+            cont.innerHTML = `
+                <div class="card-inner w-full h-full relative" onclick="this.classList.add('card-flipped'); document.getElementById('review-controls').classList.remove('opacity-0', 'pointer-events-none'); document.getElementById('tap-instruction').classList.add('hidden');">
+                    <div class="card-front glass border-indigo-500/30">
+                        ${card.image ? `<img src="${card.image}" class="max-h-32 mb-4 rounded shadow-lg">` : ''}
+                        <p class="text-xl font-bold">${card.front}</p>
+                        ${card.audio ? `<button onclick="event.stopPropagation(); new Audio('${card.audio}').play()" class="mt-4 text-indigo-400 hover:text-white transition-colors"><i class="fas fa-volume-up fa-2x"></i></button>` : ''}
+                    </div>
+                    <div class="card-back glass bg-indigo-900/20 border-indigo-500/50">
+                        <p class="text-lg leading-relaxed">${card.back}</p>
+                    </div>
+                </div>
+            `;
+        }
+
+        function processReview(remembered) {
+            const card = reviewQueue[currentReviewIndex];
+            const idx = cards.findIndex(c => c.id === card.id);
+            
+            if (remembered) cards[idx].level = Math.min(cards[idx].level + 1, 5);
+            else cards[idx].level = 0;
+
+            cards[idx].nextReview = Date.now() + (INTERVALS[cards[idx].level] * 3600000);
+            
+            currentReviewIndex++;
+            if (currentReviewIndex < reviewQueue.length) showReviewCard();
+            else {
+                saveToStorage();
+                document.getElementById('review-overlay').classList.add('hidden');
+                alert("Study session complete!");
+            }
+        }
+
+        function renderUI() {
+            const cont = document.getElementById('cards-container');
+            const now = Date.now();
+            cont.innerHTML = '';
+            
+            let due = 0, mastered = 0, next = Infinity;
+
+            cards.forEach(c => {
+                if (c.nextReview <= now) due++;
+                if (c.level >= 4) mastered++;
+                if (c.nextReview < next) next = c.nextReview;
+
+                const cardBox = document.createElement('div');
+                cardBox.className = 'relative h-64 group';
+                cardBox.innerHTML = `
+                    <div class="card-inner w-full h-full relative" onclick="this.classList.toggle('card-flipped')">
+                        <div class="card-front glass">
+                            <div class="absolute top-3 left-3 flex gap-1">
+                                ${Array(5).fill().map((_, i) => `<div class="mastery-dot ${i < c.level ? 'mastery-' + Math.min(c.level, 3) : 'bg-slate-700'}"></div>`).join('')}
+                            </div>
+                            ${c.image ? `<img src="${c.image}" class="media-preview mb-2 shadow-sm">` : ''}
+                            <p class="px-4 text-center text-sm font-bold line-clamp-3">${c.front}</p>
+                        </div>
+                        <div class="card-back glass bg-slate-800/80">
+                            <p class="text-[10px] text-slate-500 font-bold mb-2 uppercase tracking-widest">Answer</p>
+                            <p class="text-xs px-4 text-slate-300 line-clamp-6">${c.back}</p>
+                        </div>
+                    </div>
+                    <button onclick="event.stopPropagation(); deleteCard(${c.id})" class="btn-delete absolute top-2 right-2 opacity-0 group-hover:opacity-100 bg-red-500/20 text-red-500 p-2 rounded-full hover:bg-red-500 hover:text-white transition-all">
+                        <i class="fas fa-trash text-xs"></i>
+                    </button>
+                `;
+                cont.appendChild(cardBox);
+            });
+
+            document.getElementById('stat-total').innerText = cards.length;
+            document.getElementById('stat-due').innerText = due;
+            document.getElementById('stat-mastered').innerText = mastered;
+            
+            const nextReviewEl = document.getElementById('stat-next');
+            if (next === Infinity) {
+                nextReviewEl.innerText = 'N/A';
+            } else {
+                const diff = Math.max(0, Math.ceil((next - now) / 60000));
+                nextReviewEl.innerText = diff > 60 ? `${Math.floor(diff/60)}h ${diff%60}m` : `${diff}m`;
+            }
+            
+            document.getElementById('empty-state').classList.toggle('hidden', cards.length > 0);
+        }
+    </script>
+</body>
+</html>
