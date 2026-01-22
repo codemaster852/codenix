@@ -183,7 +183,6 @@
         const syncActive = document.getElementById('sync-active');
         const syncStatusText = document.getElementById('sync-status-text');
 
-        // UI Tabs
         const tabManual = document.getElementById('tab-manual');
         const tabAI = document.getElementById('tab-ai');
         const viewManual = document.getElementById('view-manual');
@@ -213,19 +212,35 @@
             apiStatus.classList.toggle('hidden', !apiKey);
         });
 
-        // SYNC ENGINE - Updated to only send Q and A
+        // Helper for exponential backoff retries
+        async function fetchWithRetry(url, options, maxRetries = 5) {
+            for (let i = 0; i < maxRetries; i++) {
+                try {
+                    const response = await fetch(url, options);
+                    if (response.ok) return response;
+                    if (response.status !== 429 && response.status < 500) {
+                        throw new Error(`Request failed with status ${response.status}`);
+                    }
+                } catch (err) {
+                    if (i === maxRetries - 1) throw err;
+                }
+                const delay = Math.pow(2, i) * 1000;
+                await new Promise(res => setTimeout(res, delay));
+            }
+        }
+
         async function syncToSheets(rawPayload) {
             syncActive.style.display = 'block';
             syncStatusText.innerText = "Syncing...";
             syncStatusText.className = "text-sky-400";
 
-            // Map payload to remove timestamps before sending to Google Sheets
             const cleanPayload = rawPayload.map(item => ({
                 q: item.q,
                 a: item.a
             }));
 
             try {
+                // Using simple fetch without retry for sheet sync as it uses no-cors
                 await fetch(SCRIPT_URL, {
                     method: 'POST',
                     mode: 'no-cors',
@@ -264,29 +279,57 @@
             if (!topic) return showToast('Enter Topic', 'error');
 
             setLoading(true);
+            
             const prompt = `Create 5 high-quality training examples for an AI assistant on the topic: "${topic}". 
-            Format as a plain JSON array: [{"q": "question", "a": "answer"}]. 
-            Return ONLY the JSON array.`;
+            Format exactly as a valid JSON array: [{"q": "question text", "a": "answer text"}]. 
+            Do not include any words before or after the JSON.`;
+
+            // Use the updated model version
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
 
             try {
-                const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+                const res = await fetchWithRetry(url, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+                    body: JSON.stringify({ 
+                        contents: [{ parts: [{ text: prompt }] }],
+                        generationConfig: {
+                            temperature: 0.7,
+                            responseMimeType: "application/json"
+                        }
+                    })
                 });
+                
                 const data = await res.json();
-                const text = data.candidates[0].content.parts[0].text.replace(/```json|```/g, '').trim();
+                
+                if (!data.candidates || !data.candidates[0].content.parts[0].text) {
+                    throw new Error('Invalid API response structure');
+                }
+
+                let text = data.candidates[0].content.parts[0].text;
+                
+                // Robust JSON extraction
+                text = text.replace(/```json/g, '').replace(/```/g, '').trim();
+                
                 const newPairs = JSON.parse(text);
                 
-                const pairsWithTime = newPairs.map(p => ({ ...p, timestamp: new Date().toLocaleString() }));
+                if (!Array.isArray(newPairs)) throw new Error('Response is not an array');
+
+                const pairsWithTime = newPairs.map(p => ({ 
+                    q: p.q || p.question || "", 
+                    a: p.a || p.answer || "", 
+                    timestamp: new Date().toLocaleString() 
+                }));
+                
                 pairsWithTime.forEach(p => dataset.unshift(p));
                 
                 saveLocally();
-                showToast('QA AI Syncing...', 'success');
+                showToast('Syncing AI pairs...', 'success');
                 await syncToSheets(pairsWithTime);
                 genTopic.value = '';
             } catch (err) {
-                showToast('AI Generation Failed', 'error');
+                console.error("AI Gen Error:", err);
+                showToast('AI Error: ' + err.message, 'error');
             } finally {
                 setLoading(false);
             }
