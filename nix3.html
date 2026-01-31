@@ -106,19 +106,21 @@
 
                         if (event.results[0].isFinal) {
                             setVoiceStatus("Processing...");
-                            recognitionRef.current.stop(); // Temporarily stop mic
+                            // Critical: Force stop recognition before AI processing/speaking
+                            recognitionRef.current.stop(); 
                             processQuery(transcript);
                         }
                     };
 
                     recognitionRef.current.onerror = (e) => {
                         if (e.error !== 'no-speech') {
+                            console.error("Speech Recognition Error:", e.error);
                             setVoiceStatus("Retry speaking...");
                         }
                     };
 
                     recognitionRef.current.onend = () => {
-                        // Mic stays closed unless we are in Listening state
+                        // Only restart if we are in Voice Mode and expecting to listen
                         if (isVoiceMode && voiceStatus === "Listening...") {
                             try { recognitionRef.current.start(); } catch(e) {}
                         }
@@ -133,7 +135,9 @@
             }, [messages, isTyping, interimTranscript]);
 
             const speak = (text) => {
+                // Clear any existing queue to prevent sticking
                 synth.cancel();
+                
                 const utterance = new SpeechSynthesisUtterance(text);
                 
                 utterance.onstart = () => {
@@ -145,11 +149,18 @@
                     if (isVoiceMode) {
                         setVoiceStatus("Listening...");
                         setInterimTranscript("");
+                        // Small delay before turning mic back on to avoid feedback
                         setTimeout(() => {
                             try { recognitionRef.current.start(); } catch(e) {}
-                        }, 100);
+                        }, 300);
                     }
                 };
+
+                utterance.onerror = (e) => {
+                    console.error("Speech Synthesis Error:", e);
+                    if (isVoiceMode) setVoiceStatus("Listening...");
+                };
+                
                 synth.speak(utterance);
             };
 
@@ -186,24 +197,28 @@
                     }
 
                     setMessages(prev => [...prev, { role: 'assistant', content: response, id: Date.now() + 1 }]);
-                    if (isVoiceMode) speak(response);
+                    
+                    // Trigger speak after state update
+                    speak(response);
                 } catch (e) {
                     const err = "I'm having trouble connecting.";
                     setMessages(prev => [...prev, { role: 'assistant', content: err, id: Date.now() + 2 }]);
-                    if (isVoiceMode) speak(err);
+                    speak(err);
                 } finally {
                     setIsTyping(false);
                 }
             };
 
             const checkLocal = async (q) => {
-                const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tq=${encodeURIComponent("SELECT A, B")}&headers=0&t=${Date.now()}`;
-                const res = await fetch(url);
-                const text = await res.text();
-                const json = JSON.parse(text.match(/google\.visualization\.Query\.setResponse\(([\s\S\w]+)\);/)[1]);
-                const norm = q.toLowerCase().trim();
-                const match = json.table.rows.find(r => r.c && r.c[0] && String(r.c[0].v).toLowerCase().trim() === norm);
-                return match ? String(match.c[1].v) : null;
+                try {
+                    const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tq=${encodeURIComponent("SELECT A, B")}&headers=0&t=${Date.now()}`;
+                    const res = await fetch(url);
+                    const text = await res.text();
+                    const json = JSON.parse(text.match(/google\.visualization\.Query\.setResponse\(([\s\S\w]+)\);/)[1]);
+                    const norm = q.toLowerCase().trim();
+                    const match = json.table.rows.find(r => r.c && r.c[0] && String(r.c[0].v).toLowerCase().trim() === norm);
+                    return match ? String(match.c[1].v) : null;
+                } catch(e) { return null; }
             };
 
             const askAI = async (q) => {
@@ -255,7 +270,6 @@
                     {/* Chat Area */}
                     <main ref={scrollRef} className="flex-1 overflow-y-auto px-4 pt-6 pb-32 space-y-8 relative">
                         
-                        {/* Welcome Message (Always shows when empty) */}
                         {messages.length === 0 && (
                             <div className="h-full flex flex-col items-center justify-center text-center welcome-anim px-8">
                                 <div className="w-20 h-20 rounded-[2rem] bg-gradient-to-tr from-purple-600 to-indigo-600 flex items-center justify-center shadow-2xl mb-8 relative">
@@ -267,7 +281,6 @@
                             </div>
                         )}
 
-                        {/* Real Chat Subtitles / Messages */}
                         <div className="max-w-3xl mx-auto space-y-8">
                             {messages.map((msg) => (
                                 <div key={msg.id} className={`flex gap-4 message-anim ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
@@ -280,11 +293,11 @@
                                         </div>
                                         {msg.role === 'assistant' && (
                                             <div className="mt-3 flex gap-4 px-1">
-                                                <button onClick={() => copyToClipboard(msg.content)} className="flex items-center gap-1.5 text-[10px] font-semibold opacity-30 hover:opacity-100 uppercase tracking-widest transition-opacity">
-                                                    Copy
+                                                <button onClick={() => copyToClipboard(msg.content)} className="flex items-center gap-1.5 text-[10px] font-semibold opacity-40 hover:opacity-100 uppercase tracking-widest transition-opacity">
+                                                    <span>📋</span> Copy
                                                 </button>
-                                                <button onClick={() => speak(msg.content)} className="flex items-center gap-1.5 text-[10px] font-semibold opacity-30 hover:opacity-100 uppercase tracking-widest transition-opacity">
-                                                    Replay
+                                                <button onClick={() => speak(msg.content)} className="flex items-center gap-1.5 text-[10px] font-semibold opacity-40 hover:opacity-100 uppercase tracking-widest transition-opacity">
+                                                    <span>🔊</span> Replay
                                                 </button>
                                             </div>
                                         )}
@@ -292,7 +305,6 @@
                                 </div>
                             ))}
 
-                            {/* Interim Transcript (Live Subtitles) */}
                             {interimTranscript && (
                                 <div className="flex flex-row-reverse gap-4 message-anim opacity-60">
                                     <div className="w-8 h-8 rounded-lg flex-shrink-0 bg-white/5 border border-white/10 flex items-center justify-center text-[10px] font-bold">...</div>
@@ -300,7 +312,6 @@
                                 </div>
                             )}
 
-                            {/* Thinking Animation */}
                             {isTyping && (
                                 <div className="flex gap-4 message-anim">
                                     <div className="w-8 h-8 rounded-lg flex-shrink-0 bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-[10px] font-bold text-white">N3</div>
