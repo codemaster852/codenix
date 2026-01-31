@@ -85,7 +85,6 @@
             const synth = window.speechSynthesis;
             const scrollRef = useRef(null);
 
-            // Pre-load voices to avoid Chrome "no voice" bug
             useEffect(() => {
                 const loadVoices = () => synth.getVoices();
                 loadVoices();
@@ -120,6 +119,12 @@
                 }
             }, [isVoiceMode, voiceStatus]);
 
+            useEffect(() => {
+                if (scrollRef.current) {
+                    scrollRef.current.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
+                }
+            }, [messages, isTyping]);
+
             const startRecognition = () => {
                 try {
                     recognitionRef.current?.start();
@@ -127,13 +132,8 @@
             };
 
             const speak = (text) => {
-                if (!isVoiceMode) return;
-                
-                synth.cancel(); // Force stop any previous hung audio
-                
+                synth.cancel(); 
                 const utterance = new SpeechSynthesisUtterance(text);
-                
-                // Select a preferred voice if available
                 const voices = synth.getVoices();
                 const preferredVoice = voices.find(v => v.name.includes("Google") && v.lang.startsWith("en")) || voices[0];
                 if (preferredVoice) utterance.voice = preferredVoice;
@@ -141,7 +141,9 @@
                 utterance.onstart = () => setVoiceStatus("Speaking...");
                 utterance.onend = () => {
                     setVoiceStatus("Listening...");
-                    setTimeout(() => startRecognition(), 400);
+                    if (isVoiceMode) {
+                        setTimeout(() => startRecognition(), 400);
+                    }
                 };
 
                 synth.speak(utterance);
@@ -150,7 +152,6 @@
             const activateVoiceSession = () => {
                 setHasActivatedVoice(true);
                 setVoiceStatus("Listening...");
-                // Welcome message
                 const welcome = "Hello! I am Nix 3. I am ready to talk. How can I help you today?";
                 setMessages(prev => [...prev, { role: 'assistant', content: welcome, id: Date.now() }]);
                 speak(welcome);
@@ -166,6 +167,15 @@
                     synth.cancel();
                     recognitionRef.current?.stop();
                 }
+            };
+
+            const copyToClipboard = (text) => {
+                const el = document.createElement('textarea');
+                el.value = text;
+                document.body.appendChild(el);
+                el.select();
+                document.execCommand('copy');
+                document.body.removeChild(el);
             };
 
             const processQuery = async (query) => {
@@ -187,6 +197,7 @@
 
                     setMessages(prev => [...prev, { role: 'assistant', content: response, id: Date.now() + 1 }]);
                     if (isVoiceMode) speak(response);
+                    else setVoiceStatus("Idle");
                 } catch (e) {
                     const err = "I'm having a connection issue.";
                     setMessages(prev => [...prev, { role: 'assistant', content: err, id: Date.now() + 2 }]);
@@ -245,14 +256,36 @@
 
                     <main ref={scrollRef} className="flex-1 overflow-y-auto px-4 pt-6 pb-32 chat-container">
                         <div className="max-w-2xl mx-auto space-y-6">
+                            {messages.length === 0 && !isVoiceMode && (
+                                <div className="h-[60vh] flex flex-col items-center justify-center text-center opacity-40">
+                                    <div className="w-16 h-16 bg-white/5 rounded-3xl flex items-center justify-center mb-4">
+                                        <span className="text-2xl">👋</span>
+                                    </div>
+                                    <h2 className="text-lg font-bold">Welcome to Nix 3</h2>
+                                    <p className="text-xs">Type below or switch to Voice Mode</p>
+                                </div>
+                            )}
+
                             {!isVoiceMode ? (
                                 messages.map((msg) => (
                                     <div key={msg.id} className={`flex gap-3 message-anim ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
                                         <div className={`w-7 h-7 rounded-md flex-shrink-0 flex items-center justify-center text-[9px] font-bold ${msg.role === 'user' ? 'bg-white/10' : 'bg-indigo-600 text-white'}`}>
                                             {msg.role === 'user' ? 'U' : 'N'}
                                         </div>
-                                        <div className={`max-w-[85%] p-3 px-4 rounded-2xl text-[14px] leading-relaxed ${msg.role === 'user' ? 'bg-neutral-900 border border-white/5' : 'bg-transparent text-gray-300'}`}>
-                                            {msg.content}
+                                        <div className={`max-w-[85%] ${msg.role === 'user' ? 'text-right' : ''}`}>
+                                            <div className={`p-3 px-4 rounded-2xl text-[14px] leading-relaxed ${msg.role === 'user' ? 'bg-neutral-900 border border-white/5 text-white' : 'bg-transparent text-gray-300'}`}>
+                                                {msg.content}
+                                            </div>
+                                            {msg.role === 'assistant' && (
+                                                <div className="flex gap-4 mt-2 px-1">
+                                                    <button onClick={() => copyToClipboard(msg.content)} className="flex items-center gap-1 text-[9px] font-bold opacity-30 hover:opacity-100 transition-opacity uppercase tracking-wider">
+                                                        <span>📋</span> Copy
+                                                    </button>
+                                                    <button onClick={() => speak(msg.content)} className="flex items-center gap-1 text-[9px] font-bold opacity-30 hover:opacity-100 transition-opacity uppercase tracking-wider">
+                                                        <span>🔊</span> Hear
+                                                    </button>
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 ))
@@ -263,13 +296,13 @@
                                             <div className="w-20 h-20 bg-indigo-600/20 rounded-full flex items-center justify-center mx-auto mb-4 animate-pulse">
                                                 <svg className="w-10 h-10 text-indigo-500" fill="currentColor" viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
                                             </div>
-                                            <h2 className="text-xl font-bold">Ready for Voice?</h2>
-                                            <p className="text-gray-400 text-sm max-w-xs mx-auto">Click below to start the conversation and unlock audio.</p>
+                                            <h2 className="text-xl font-bold">Nix 3 Voice Mode</h2>
+                                            <p className="text-gray-400 text-sm max-w-xs mx-auto">Tap to start talking. Subtitles are hidden for a pure voice experience.</p>
                                             <button 
                                                 onClick={activateVoiceSession}
                                                 className="bg-indigo-600 hover:bg-indigo-500 px-8 py-4 rounded-2xl font-bold text-sm tracking-widest uppercase shadow-xl shadow-indigo-500/20 active:scale-95 transition-all"
                                             >
-                                                Start Conversation
+                                                Start Session
                                             </button>
                                         </div>
                                     ) : (
@@ -316,7 +349,7 @@
                                 />
                                 <button 
                                     onClick={() => { processQuery(input); setInput(""); }}
-                                    className="bg-indigo-600 w-12 h-12 rounded-xl flex items-center justify-center"
+                                    className="bg-indigo-600 w-12 h-12 rounded-xl flex items-center justify-center active:scale-95 transition-all"
                                 >
                                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 12h14M12 5l7 7-7 7"/></svg>
                                 </button>
