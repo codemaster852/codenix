@@ -7,7 +7,7 @@
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
         
-        body { font-family: 'Inter', sans-serif; }
+        body { font-family: 'Inter', sans-serif; -webkit-font-smoothing: antialiased; }
         .book-card { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
         .book-card:hover { transform: translateY(-4px); box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04); }
         
@@ -25,12 +25,16 @@
             letter-spacing: -0.01em;
         }
 
-        /* Prevent body scroll when modal is open */
         .modal-open { overflow: hidden; }
+        
+        @media (max-width: 640px) {
+            .mobile-modal-bottom { align-items: flex-end; }
+            .mobile-modal-content { border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
+        }
     </style>
 </head>
 <body class="bg-gray-50 min-h-screen text-gray-900">
-    <!-- Enhanced Navigation -->
+    <!-- Navigation -->
     <nav class="glass-nav text-white p-4 shadow-lg sticky top-0 z-40">
         <div class="container mx-auto flex justify-between items-center max-w-6xl">
             <div class="flex items-center space-x-2">
@@ -47,16 +51,25 @@
     </nav>
 
     <main class="container mx-auto py-8 px-4 max-w-6xl">
-        <!-- Status Indicator -->
         <div id="loading" class="flex flex-col items-center py-24">
             <div class="loader ease-linear rounded-full border-4 border-t-4 border-gray-200 h-12 w-12 mb-4"></div>
-            <p class="text-gray-400 font-semibold tracking-wide uppercase text-xs">Curating Collection...</p>
+            <p id="loadingMsg" class="text-gray-400 font-semibold tracking-wide uppercase text-xs text-center">Syncing with Google Sheets...</p>
         </div>
 
         <div id="bookGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 hidden"></div>
+        
+        <!-- Connection Instructions (Fallback for Uploads/Reviews) -->
+        <div id="connectionError" class="hidden max-w-lg mx-auto mt-12 p-8 bg-white rounded-3xl border-2 border-dashed border-gray-200 text-center">
+            <div class="bg-indigo-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg class="w-8 h-8 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            </div>
+            <h3 class="text-xl font-bold text-gray-900 mb-2">Editor Mode Enabled</h3>
+            <p class="text-gray-500 text-sm mb-6">You are viewing the public sheet. To contribute new works or post reviews, please use your private Published Web App URL.</p>
+            <a id="directAppLink" target="_blank" class="inline-block bg-indigo-600 text-white px-8 py-3 rounded-2xl font-bold hover:bg-indigo-700 transition shadow-lg">Open Web App</a>
+        </div>
     </main>
 
-    <!-- Reading View (Enhanced Typography) -->
+    <!-- Reading View -->
     <div id="viewerModal" class="fixed inset-0 bg-white z-50 hidden flex flex-col">
         <div class="p-4 border-b flex justify-between items-center bg-white shadow-sm sticky top-0">
             <div class="flex flex-col min-w-0 pr-4">
@@ -71,84 +84,54 @@
     </div>
 
     <!-- Upload Modal -->
-    <div id="uploadModal" class="fixed inset-0 bg-black bg-opacity-60 hidden flex items-end sm:items-center justify-center p-0 sm:p-4 z-50 backdrop-blur-md">
-        <div class="bg-white rounded-t-3xl sm:rounded-3xl w-full max-w-lg p-6 md:p-8 shadow-2xl max-h-[95vh] overflow-y-auto custom-scrollbar">
+    <div id="uploadModal" class="fixed inset-0 bg-black bg-opacity-60 hidden flex items-center justify-center p-0 sm:p-4 z-50 backdrop-blur-md mobile-modal-bottom">
+        <div class="bg-white rounded-t-3xl sm:rounded-3xl w-full max-w-lg p-6 md:p-8 shadow-2xl max-h-[95vh] overflow-y-auto custom-scrollbar mobile-modal-content">
             <div class="flex justify-between items-center mb-8">
-                <div>
-                    <h2 class="text-2xl font-extrabold text-gray-900">New Work</h2>
-                    <p class="text-sm text-gray-500">Share your thoughts with the community</p>
-                </div>
-                <button onclick="closeModal('uploadModal')" class="text-gray-400 hover:text-gray-600 transition-colors">
+                <h2 class="text-2xl font-extrabold text-gray-900">New Work</h2>
+                <button onclick="closeModal('uploadModal')" class="text-gray-400 hover:text-gray-600 transition-colors p-1">
                     <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                 </button>
             </div>
-            
             <form id="uploadForm" onsubmit="handleUpload(event)" class="space-y-5">
-                <div class="space-y-1">
-                    <label class="text-xs font-bold text-gray-400 uppercase tracking-widest ml-1">Title</label>
-                    <input type="text" id="upTitle" placeholder="The title of your piece" required class="w-full p-4 bg-gray-50 border-0 rounded-2xl focus:ring-2 focus:ring-indigo-400 outline-none transition shadow-inner">
-                </div>
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div class="space-y-1">
-                        <label class="text-xs font-bold text-gray-400 uppercase tracking-widest ml-1">Author</label>
-                        <input type="text" id="upAuthor" placeholder="Pen Name" required class="w-full p-4 bg-gray-50 border-0 rounded-2xl focus:ring-2 focus:ring-indigo-400 outline-none transition shadow-inner">
-                    </div>
-                    <div class="space-y-1">
-                        <label class="text-xs font-bold text-gray-400 uppercase tracking-widest ml-1">Uploader</label>
-                        <input type="text" id="upUser" placeholder="Your Name" required class="w-full p-4 bg-gray-50 border-0 rounded-2xl focus:ring-2 focus:ring-indigo-400 outline-none transition shadow-inner">
-                    </div>
-                </div>
-                <div class="space-y-1">
-                    <label class="text-xs font-bold text-gray-400 uppercase tracking-widest ml-1">Content</label>
-                    <textarea id="upText" placeholder="Once upon a time..." required class="w-full h-48 md:h-64 p-4 bg-gray-50 border-0 rounded-2xl focus:ring-2 focus:ring-indigo-400 outline-none transition resize-none shadow-inner"></textarea>
-                </div>
-
-                <div class="pt-4 pb-4 sm:pb-0">
-                    <button type="submit" id="submitBtn" class="w-full py-4 bg-indigo-600 text-white rounded-2xl font-extrabold hover:bg-indigo-700 transition shadow-xl active:scale-95 text-lg">
-                        Publish Now
-                    </button>
-                </div>
+                <input type="text" id="upTitle" placeholder="Title" required class="w-full p-4 bg-gray-50 border-0 rounded-2xl focus:ring-2 focus:ring-indigo-400 outline-none">
+                <input type="text" id="upAuthor" placeholder="Author Name" required class="w-full p-4 bg-gray-50 border-0 rounded-2xl focus:ring-2 focus:ring-indigo-400 outline-none">
+                <input type="text" id="upUser" placeholder="Your Name" required class="w-full p-4 bg-gray-50 border-0 rounded-2xl focus:ring-2 focus:ring-indigo-400 outline-none">
+                <textarea id="upText" placeholder="Write or paste content here..." required class="w-full h-48 p-4 bg-gray-50 border-0 rounded-2xl focus:ring-2 focus:ring-indigo-400 outline-none resize-none"></textarea>
+                <button type="submit" id="submitBtn" class="w-full py-4 bg-indigo-600 text-white rounded-2xl font-extrabold hover:bg-indigo-700 shadow-xl transition active:scale-95">Publish Now</button>
             </form>
         </div>
     </div>
 
-    <!-- Review Modal (New: Replaces Window Prompts) -->
+    <!-- Review Modal -->
     <div id="reviewModal" class="fixed inset-0 bg-black bg-opacity-60 hidden flex items-center justify-center p-4 z-50 backdrop-blur-sm">
         <div class="bg-white rounded-3xl max-w-sm w-full p-8 shadow-2xl">
-            <h3 class="text-xl font-bold mb-2">Write Review</h3>
-            <p class="text-sm text-gray-500 mb-6">What did you think of this piece?</p>
+            <h3 class="text-xl font-bold mb-6">Write Review</h3>
             <div class="space-y-4">
-                <input type="text" id="revUser" placeholder="Your Name" class="w-full p-3 bg-gray-50 rounded-xl outline-none focus:ring-2 focus:ring-indigo-400">
-                <textarea id="revText" placeholder="Your comments..." class="w-full h-24 p-3 bg-gray-50 rounded-xl outline-none focus:ring-2 focus:ring-indigo-400 resize-none"></textarea>
-                <div class="flex items-center space-x-2">
-                    <label class="text-xs font-bold text-gray-400">RATING</label>
-                    <select id="revRate" class="bg-gray-100 p-2 rounded-lg text-sm font-bold border-none outline-none grow">
-                        <option value="5">5 Stars - Amazing</option>
-                        <option value="4">4 Stars - Good</option>
-                        <option value="3">3 Stars - Okay</option>
-                        <option value="2">2 Stars - Poor</option>
-                        <option value="1">1 Star - Bad</option>
-                    </select>
-                </div>
+                <input type="text" id="revUser" placeholder="Your Name" class="w-full p-3 bg-gray-50 rounded-xl outline-none">
+                <textarea id="revText" placeholder="Your comments..." class="w-full h-24 p-3 bg-gray-50 rounded-xl outline-none resize-none"></textarea>
+                <select id="revRate" class="grow bg-gray-100 p-2 rounded-lg text-sm font-bold w-full">
+                    <option value="5">5 Stars</option>
+                    <option value="4">4 Stars</option>
+                    <option value="3">3 Stars</option>
+                    <option value="2">2 Stars</option>
+                    <option value="1">1 Star</option>
+                </select>
                 <input type="hidden" id="revBookId">
                 <div class="flex space-x-3 pt-2">
                     <button onclick="closeModal('reviewModal')" class="flex-1 py-3 text-gray-500 font-bold">Cancel</button>
-                    <button onclick="submitReviewAction()" class="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-bold shadow-md">Post</button>
+                    <button onclick="submitReviewAction()" id="submitReviewBtn" class="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-bold">Post</button>
                 </div>
             </div>
         </div>
     </div>
 
     <script>
-        function openModal(id) {
-            document.getElementById(id).classList.remove('hidden');
-            document.body.classList.add('modal-open');
-        }
+        const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwjyaDDvqH7fTgC25i8qHuWPfPR9l9DMldV-tgUIswDeAc9V06yt1LpVHnyWbKZ0B4/exec";
+        // Public CSV export of your spreadsheet for preview mode bypass
+        const PUBLIC_CSV_URL = "https://docs.google.com/spreadsheets/d/1iYMPgg7vygdPsyUH-qNRBWHgiZU6l8NfWwQBh2EayG8/gviz/tq?tqx=out:csv&sheet=Books";
 
-        function closeModal(id) {
-            document.getElementById(id).classList.add('hidden');
-            document.body.classList.remove('modal-open');
-        }
+        function openModal(id) { document.getElementById(id).classList.remove('hidden'); document.body.classList.add('modal-open'); }
+        function closeModal(id) { document.getElementById(id).classList.add('hidden'); document.body.classList.remove('modal-open'); }
 
         function openViewer(title, author, content) {
             document.getElementById('viewTitle').textContent = title;
@@ -157,81 +140,107 @@
             openModal('viewerModal');
         }
 
-        function initApp() {
-            if (typeof google !== 'undefined' && google.script && google.script.run) {
-                loadBooks();
-            } else {
-                setTimeout(initApp, 100);
+        /**
+         * Parses CSV data from Google Sheets public export
+         */
+        function parseCSV(csvText) {
+            const lines = csvText.split(/\r?\n/);
+            const headers = lines[0].split(',').map(h => h.replace(/^"|"$/g, ''));
+            const books = [];
+
+            for (let i = 1; i < lines.length; i++) {
+                if (!lines[i]) continue;
+                // Simple CSV parse handling quotes
+                const row = lines[i].match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g) || [];
+                const cleanRow = row.map(val => val.replace(/^"|"$/g, '').replace(/""/g, '"'));
+                
+                if (cleanRow.length < 3) continue;
+
+                let comments = [];
+                try { 
+                    const commentStr = cleanRow[7] || '[]';
+                    comments = JSON.parse(commentStr); 
+                } catch(e) { comments = []; }
+
+                const ratingSum = parseFloat(cleanRow[5]) || 0;
+                const ratingCount = parseFloat(cleanRow[6]) || 0;
+
+                books.push({
+                    id: cleanRow[0],
+                    title: cleanRow[1],
+                    author: cleanRow[2],
+                    url: cleanRow[3],
+                    uploader: cleanRow[4],
+                    rating: ratingCount === 0 ? 0 : (ratingSum / ratingCount).toFixed(1),
+                    comments: comments
+                });
             }
+            return books;
+        }
+
+        function getGoogleRunner() {
+            if (typeof google !== 'undefined' && google.script && google.script.run) {
+                return google.script.run;
+            }
+            return {
+                withSuccessHandler: function(h) { this.sh = h; return this; },
+                withFailureHandler: function(h) { this.fh = h; return this; },
+                getBooks: function() {
+                    // Fetch via Public CSV Link to bypass CORS/Auth in preview
+                    fetch(PUBLIC_CSV_URL)
+                        .then(response => response.text())
+                        .then(csvText => {
+                            const books = parseCSV(csvText);
+                            this.sh(books);
+                            // Show uploader instructions since they can see but not write from here
+                            document.getElementById('connectionError').classList.remove('hidden');
+                            document.getElementById('directAppLink').href = GAS_WEB_APP_URL;
+                        })
+                        .catch(err => {
+                            console.error("Fetch Error:", err);
+                            document.getElementById('loadingMsg').innerText = "Database connection restricted.";
+                        });
+                }
+            };
+        }
+
+        function renderBooks(books) {
+            const grid = document.getElementById('bookGrid');
+            grid.innerHTML = '';
+            if (!books || books.length === 0) {
+                grid.innerHTML = `<div class="col-span-full text-center py-24 text-gray-400">The library is currently silent.</div>`;
+            } else {
+                books.forEach(book => {
+                    const card = document.createElement('div');
+                    card.className = 'bg-white rounded-3xl border border-gray-100 flex flex-col overflow-hidden book-card';
+                    card.innerHTML = `
+                        <div class="p-6 flex-grow">
+                            <div class="flex justify-between items-start mb-3">
+                                <h3 class="text-xl font-extrabold text-gray-900 line-clamp-2">${book.title}</h3>
+                                <div class="bg-indigo-50 px-2 py-1 rounded-lg text-indigo-700 text-[10px] font-black">★ ${book.rating}</div>
+                            </div>
+                            <p class="text-indigo-500 font-bold text-xs mb-6 italic">by ${book.author}</p>
+                            <button onclick="openViewer(\`${(book.title||'').replace(/'/g,"\\'")}\`, \`${(book.author||'').replace(/'/g,"\\'")}\`, \`${(book.url||'').replace(/'/g,"\\'").replace(/\n/g,"\\n")}\`)" 
+                                    class="w-full bg-indigo-600 text-white py-3.5 rounded-2xl font-extrabold shadow-lg">Read Now</button>
+                        </div>
+                        <div class="bg-gray-50 p-6 border-t border-gray-100">
+                            <div class="flex justify-between items-center mb-4">
+                                <h4 class="text-[10px] font-black uppercase text-gray-400 tracking-widest">Feedback (${book.comments.length})</h4>
+                                <button onclick="openReviewModal('${book.id}')" class="text-[10px] bg-white px-2 py-1 rounded-lg text-indigo-600 font-bold shadow-sm">+ Review</button>
+                            </div>
+                            <div class="max-h-24 overflow-y-auto space-y-3 custom-scrollbar">
+                                ${book.comments.map(c => `<div class="bg-white p-3 rounded-xl shadow-sm text-xs"><b class="text-indigo-600">${c.user}</b>: ${c.text}</div>`).join('') || '<p class="text-[10px] text-gray-400 text-center">No reviews yet.</p>'}
+                            </div>
+                        </div>`;
+                    grid.appendChild(card);
+                });
+            }
+            document.getElementById('loading').classList.add('hidden');
+            grid.classList.remove('hidden');
         }
 
         function loadBooks() {
-            const loading = document.getElementById('loading');
-            const grid = document.getElementById('bookGrid');
-            loading.classList.remove('hidden');
-            grid.classList.add('hidden');
-            
-            google.script.run.withSuccessHandler(books => {
-                grid.innerHTML = '';
-                if (!books || books.length === 0) {
-                    grid.innerHTML = `<div class="col-span-full text-center py-24 text-gray-400 italic font-medium px-4">The library is currently silent. Be the first to add your voice.</div>`;
-                } else {
-                    books.forEach(book => {
-                        const isVerified = book.status && book.status.toLowerCase() === 'verified';
-                        const card = document.createElement('div');
-                        card.className = 'bg-white rounded-3xl border border-gray-100 flex flex-col overflow-hidden book-card';
-                        
-                        card.innerHTML = `
-                            <div class="p-6 flex-grow">
-                                <div class="flex justify-between items-start mb-3">
-                                    <h3 class="text-xl font-extrabold text-gray-900 line-clamp-2 leading-tight">${book.title}</h3>
-                                    <div class="flex items-center bg-indigo-50 px-2 py-1 rounded-lg text-indigo-700 text-[10px] font-black shrink-0 ml-2">★ ${book.rating}</div>
-                                </div>
-                                <p class="text-indigo-500 font-bold text-xs mb-6 flex items-center">
-                                    <span class="opacity-50 mr-1">By</span> ${book.author}
-                                </p>
-                                
-                                <div class="flex items-center space-x-3 mb-6 bg-gray-50 p-3 rounded-2xl">
-                                    <div class="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center text-xs font-bold text-white uppercase shadow-sm">${book.uploader.charAt(0)}</div>
-                                    <div class="flex flex-col min-w-0">
-                                        <span class="text-[9px] text-gray-400 font-bold uppercase tracking-widest leading-none mb-1">Curator</span>
-                                        <div class="flex items-center">
-                                            <span class="text-xs font-bold text-gray-800 truncate">${book.uploader}</span>
-                                            ${isVerified ? `
-                                                <div class="ml-1.5 bg-blue-500 text-white rounded-full p-0.5 shadow-sm">
-                                                    <svg class="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20"><path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/></svg>
-                                                </div>` : ''}
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <button onclick="openViewer(\`${book.title.replace(/'/g, "\\'")}\`, \`${book.author.replace(/'/g, "\\'")}\`, \`${book.url.replace(/'/g, "\\'").replace(/\n/g, "\\n")}\`)" 
-                                        class="w-full text-center bg-indigo-600 text-white py-3.5 rounded-2xl font-extrabold hover:bg-indigo-700 transition shadow-lg shadow-indigo-100">
-                                    Read Now
-                                </button>
-                            </div>
-                            
-                            <div class="bg-gray-50 p-6 border-t border-gray-100">
-                                <div class="flex justify-between items-center mb-4">
-                                    <h4 class="text-[10px] font-black uppercase text-gray-400 tracking-widest">Community Feedback (${book.comments.length})</h4>
-                                    <button onclick="openReviewModal('${book.id}')" class="text-[10px] bg-white border border-gray-200 px-2 py-1 rounded-lg text-indigo-600 font-bold shadow-sm">+ Review</button>
-                                </div>
-                                <div class="max-h-24 overflow-y-auto space-y-3 mb-2 pr-1 custom-scrollbar">
-                                    ${book.comments.map(c => `
-                                        <div class="bg-white p-3 rounded-xl border border-gray-100 shadow-sm">
-                                            <div class="flex justify-between text-[10px] mb-1.5"><b class="text-indigo-600 uppercase tracking-tighter">${c.user}</b><span class="text-gray-400">${c.date}</span></div>
-                                            <p class="text-gray-700 text-xs leading-relaxed">${c.text}</p>
-                                        </div>
-                                    `).join('') || '<p class="text-[10px] text-gray-400 text-center italic py-2">First impressions are everything. Share yours.</p>'}
-                                </div>
-                            </div>
-                        `;
-                        grid.appendChild(card);
-                    });
-                }
-                loading.classList.add('hidden');
-                grid.classList.remove('hidden');
-            }).getBooks();
+            getGoogleRunner().withSuccessHandler(renderBooks).getBooks();
         }
 
         function handleUpload(e) {
@@ -241,19 +250,20 @@
                 title: document.getElementById('upTitle').value,
                 author: document.getElementById('upAuthor').value,
                 uploader: document.getElementById('upUser').value,
-                textContent: document.getElementById('upText').value,
-                type: 'text'
+                textContent: document.getElementById('upText').value
             };
+            
+            if (typeof google === 'undefined') {
+                alert("Writing to the database requires the official Web App link.");
+                return;
+            }
 
             btn.disabled = true;
-            btn.innerHTML = '<span class="flex items-center justify-center"><svg class="animate-spin h-5 w-5 mr-3 border-t-2 border-white rounded-full" viewBox="0 0 24 24"></svg> Publishing...</span>';
-
-            google.script.run.withSuccessHandler(res => {
-                if (res && res.success) {
-                    closeModal('uploadModal');
-                    loadBooks();
-                    document.getElementById('uploadForm').reset();
-                } else { alert("Publishing failed: " + res.error); }
+            btn.innerText = 'Publishing...';
+            getGoogleRunner().withSuccessHandler(() => {
+                closeModal('uploadModal');
+                loadBooks();
+                document.getElementById('uploadForm').reset();
                 btn.disabled = false;
                 btn.innerText = 'Publish Now';
             }).uploadBook(data);
@@ -265,25 +275,22 @@
         }
 
         function submitReviewAction() {
-            const bookId = document.getElementById('revBookId').value;
-            const user = document.getElementById('revUser').value;
-            const text = document.getElementById('revText').value;
-            const rating = document.getElementById('revRate').value;
-
-            if (!user || !text) {
-                alert("Please fill in your name and review.");
+            if (typeof google === 'undefined') {
+                alert("Posting reviews requires the official Web App link.");
                 return;
             }
-
-            google.script.run.withSuccessHandler(() => {
+            getGoogleRunner().withSuccessHandler(() => {
                 closeModal('reviewModal');
-                document.getElementById('revUser').value = '';
-                document.getElementById('revText').value = '';
                 loadBooks();
-            }).addFeedback(bookId, rating, text, user);
+            }).addFeedback(
+                document.getElementById('revBookId').value,
+                document.getElementById('revRate').value,
+                document.getElementById('revText').value,
+                document.getElementById('revUser').value
+            );
         }
 
-        document.addEventListener('DOMContentLoaded', initApp);
+        document.addEventListener('DOMContentLoaded', loadBooks);
     </script>
 </body>
 </html>
