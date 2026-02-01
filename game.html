@@ -5,7 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Neural Arcade | Codenix AI</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+    <!-- Use version 2.40.0 for stability -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.40.0/dist/umd/supabase.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
     
@@ -63,6 +64,7 @@
             display: flex;
             align-items: center;
             justify-content: center;
+            transition: opacity 0.5s ease;
         }
     </style>
 </head>
@@ -72,7 +74,7 @@
     <div id="auth-guard">
         <div class="flex flex-col items-center gap-4">
             <div class="w-12 h-12 border-4 border-brand-500 border-t-transparent rounded-full animate-spin"></div>
-            <p class="font-mono text-xs text-brand-500 tracking-widest uppercase">Verifying_Neural_Handshake</p>
+            <p id="guard-text" class="font-mono text-xs text-brand-500 tracking-widest uppercase">Verifying_Neural_Handshake</p>
         </div>
     </div>
 
@@ -171,8 +173,13 @@
         // Supabase Configuration
         const supabaseUrl = 'https://rnlwrngfgvznndlekmrz.supabase.co';
         const supabaseKey = 'sb_publishable_mtI0_ZBvU_n5oRuqV58QHg_qJt3Gfyt';
-        // Renamed 'supabase' to 'supabaseClient' to avoid collision with global Supabase library
-        const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
+        
+        let supabaseClient;
+        try {
+            supabaseClient = window.supabase.createClient(supabaseUrl, supabaseKey);
+        } catch (e) {
+            console.error("Supabase initialization failed", e);
+        }
 
         const games = [
             { title: "Go Gravity", path: "gravitygo.html", icon: "fa-arrows-to-circle", color: "text-emerald-500", category: "Physics Engine", desc: "Strategic Go-variant utilizing simulated gravitational fields." },
@@ -190,22 +197,36 @@
         ];
 
         async function checkUser() {
+            if (!supabaseClient) {
+                console.error("Supabase client not initialized.");
+                document.getElementById('guard-text').innerText = "SYSTEM_LOAD_ERROR";
+                return;
+            }
+
             try {
                 const { data: { session }, error } = await supabaseClient.auth.getSession();
                 if (error || !session) {
+                    console.log("No session found, redirecting to auth...");
                     window.location.href = 'auth.html';
                 } else {
-                    document.getElementById('auth-guard').classList.add('hidden');
+                    console.log("Auth verified.");
+                    document.getElementById('auth-guard').style.opacity = '0';
+                    setTimeout(() => {
+                        document.getElementById('auth-guard').classList.add('hidden');
+                    }, 500);
                     renderGames();
                 }
             } catch (err) {
                 console.error("Auth check failed:", err);
-                window.location.href = 'auth.html';
+                document.getElementById('guard-text').innerText = "NETWORK_UNSTABLE_RETRYING";
+                // Fallback attempt after 2 seconds if just a network hiccup
+                setTimeout(checkUser, 2000);
             }
         }
 
         function renderGames() {
             const grid = document.getElementById('games-grid');
+            if (!grid) return;
             grid.innerHTML = games.map(game => `
                 <div onclick="window.location.href='${game.path}'" class="game-card group p-6 rounded-3xl" data-title="${game.title.toLowerCase()}">
                     <div class="mb-6 w-12 h-12 bg-white/5 border border-white/10 rounded-xl flex items-center justify-center ${game.color} group-hover:scale-110 transition-transform">
@@ -247,13 +268,19 @@
             document.getElementById('sidebar-overlay').classList.toggle('hidden');
         }
 
-        // Initialize
-        window.addEventListener('load', () => {
-            checkUser();
+        // Initialize immediately
+        const init = () => {
             const savedTheme = localStorage.getItem('theme') || 'dark';
             document.getElementById('html-root').classList.toggle('dark', savedTheme === 'dark');
             updateThemeIcons(savedTheme === 'dark');
-        });
+            checkUser();
+        };
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', init);
+        } else {
+            init();
+        }
     </script>
 </body>
 </html>
