@@ -38,9 +38,10 @@
             letter-spacing: 4px;
             cursor: pointer;
             transition: 0.2s;
-            border-radius: 0; /* Sharp for GD aesthetic */
+            border-radius: 0; 
             backdrop-filter: blur(10px);
         }
+        .btn:hover { background: rgba(255, 255, 255, 0.1); transform: translateY(-2px); }
         .btn:active { transform: scale(0.9) rotate(-2deg); background: #ff0055; }
         
         .score-box {
@@ -56,6 +57,16 @@
             font-style: italic;
             text-shadow: 4px 4px 0px #ff0055, -4px -4px 0px #00f2ff;
             line-height: 0.9;
+            animation: glitch-anim 0.2s infinite;
+        }
+
+        @keyframes glitch-anim {
+            0% { transform: translate(0); }
+            20% { transform: translate(-2px, 2px); }
+            40% { transform: translate(-2px, -2px); }
+            60% { transform: translate(2px, 2px); }
+            80% { transform: translate(2px, -2px); }
+            100% { transform: translate(0); }
         }
 
         #action-text {
@@ -67,17 +78,22 @@
             opacity: 0;
             pointer-events: none;
             text-shadow: 0 0 20px rgba(255,255,255,0.5);
+            transition: opacity 0.3s;
         }
 
-        .shake-ui { animation: shake 0.5s infinite; }
-        @keyframes shake {
-            0% { transform: translate(1px, 1px); }
-            50% { transform: translate(-1px, -1px); }
-            100% { transform: translate(1px, 1px); }
+        .flash {
+            position: fixed;
+            top:0; left:0; width:100%; height:100%;
+            background: white;
+            pointer-events: none;
+            opacity: 0;
+            z-index: 100;
         }
     </style>
 </head>
 <body>
+
+    <div id="flash-overlay" class="flash"></div>
 
     <div id="ui-layer">
         <div id="menu-screen" class="flex flex-col items-center">
@@ -123,10 +139,11 @@
         }
 
         const sfx = {
-            flip: () => playSfx(400, 'square', 0.1),
-            jump: () => playSfx(800, 'triangle', 0.15),
-            death: () => { playSfx(100, 'sawtooth', 0.5, 0.2); playSfx(50, 'square', 0.3); },
-            troll: () => playSfx(200, 'sine', 0.5, 0.1)
+            flip: () => playSfx(300, 'square', 0.1),
+            jump: () => playSfx(600, 'triangle', 0.1),
+            death: () => { playSfx(100, 'sawtooth', 0.6, 0.2); playSfx(40, 'square', 0.4); },
+            troll: () => playSfx(150, 'sine', 0.4, 0.1),
+            land: () => playSfx(200, 'triangle', 0.05, 0.05)
         };
 
         // --- Game State ---
@@ -138,6 +155,8 @@
         let gameSpeed = 9;
         let worldTilt = 0;
         let screenShake = 0;
+        let bgScroll = 0;
+        let flashOpacity = 0;
         let currentTheme = '#00f2ff';
         let obstacles = [];
         let particles = [];
@@ -145,22 +164,29 @@
 
         let player = {
             x: 0, y: 0, w: 35, h: 35,
-            velY: 0, grav: 1.8, dir: 1, 
+            velY: 0, grav: 1.4, dir: 1, 
             rot: 0, jumps: 0, 
-            trail: []
+            trail: [],
+            squash: 1, stretch: 1
         };
 
         function resize() {
             canvas.width = window.innerWidth;
             canvas.height = window.innerHeight;
-            groundY = canvas.height * 0.75;
-            ceilingY = canvas.height * 0.25;
+            groundY = canvas.height * 0.7;
+            ceilingY = canvas.height * 0.3;
             player.x = canvas.width * 0.15;
         }
         window.addEventListener('resize', resize);
         resize();
 
-        // --- Input Handling (Single vs Double Tap) ---
+        function triggerFlash(intensity = 0.3) {
+            const flash = document.getElementById('flash-overlay');
+            flash.style.opacity = intensity;
+            setTimeout(() => flash.style.opacity = 0, 50);
+        }
+
+        // --- Input Handling ---
         function handleInput(e) {
             if (state !== 'PLAYING') return;
             if (e) e.preventDefault();
@@ -171,16 +197,20 @@
             if (timespan < 250) { 
                 // DOUBLE TAP: Air Jump
                 if (player.jumps < 2) {
-                    player.velY = -12 * player.dir;
+                    player.velY = -14 * player.dir;
                     player.jumps++;
+                    player.squash = 0.5; player.stretch = 1.5;
                     sfx.jump();
-                    spawnParticles(player.x, player.y, 'white', 10);
+                    spawnParticles(player.x, player.y + (player.dir > 0 ? player.h : 0), 'white', 15);
+                    screenShake = 5;
                 }
             } else {
                 // SINGLE TAP: Flip Gravity
                 player.dir *= -1;
-                player.jumps = 1; // Can still jump once in mid-air after flip
+                player.jumps = 1;
+                player.stretch = 1.3;
                 sfx.flip();
+                triggerFlash(0.1);
             }
             lastTap = now;
         }
@@ -205,16 +235,18 @@
             document.getElementById('menu-screen').classList.add('hidden');
             document.getElementById('end-screen').classList.add('hidden');
             document.getElementById('hud').classList.remove('hidden');
+            triggerFlash(0.5);
         }
 
         function spawnParticles(x, y, color, count) {
             for(let i=0; i<count; i++) {
                 particles.push({
                     x, y, 
-                    vx: (Math.random()-0.5)*10, 
-                    vy: (Math.random()-0.5)*10,
+                    vx: (Math.random()-0.5)*15, 
+                    vy: (Math.random()-0.5)*15,
                     life: 1.0, 
-                    color
+                    color,
+                    size: Math.random() * 5 + 2
                 });
             }
         }
@@ -222,115 +254,145 @@
         function showTrollText(txt) {
             const el = document.getElementById('action-text');
             el.innerText = txt;
-            el.style.left = Math.random()*50 + 25 + '%';
+            el.style.left = Math.random()*40 + 30 + '%';
             el.style.top = '40%';
             el.style.opacity = 1;
-            setTimeout(() => el.style.opacity = 0, 1000);
+            el.style.transform = `rotate(${(Math.random()-0.5)*20}deg) scale(${1.5})`;
+            setTimeout(() => {
+                el.style.opacity = 0;
+                el.style.transform = `scale(1)`;
+            }, 800);
             sfx.troll();
+            triggerFlash(0.2);
         }
 
         function spawnObstacle() {
             const isTop = Math.random() > 0.5;
-            const h = 40 + Math.random() * 60;
+            const h = 45 + Math.random() * 70;
             
-            // TROLL BEHAVIORS (Level Devil style)
             const roll = Math.random();
             let type = 'normal';
-            if (roll > 0.8) type = 'falling';
-            else if (roll > 0.7) type = 'moving-ground';
-            else if (roll > 0.6) type = 'hidden';
+            if (roll > 0.85) type = 'falling';
+            else if (roll > 0.75) type = 'fake'; // Disappears when close
+            else if (roll > 0.65) type = 'sideways'; // Speeds up/slows down
 
             obstacles.push({
                 x: canvas.width + 100,
                 y: isTop ? ceilingY : groundY - h,
-                w: 35, h: h,
+                w: 40, h: h,
                 pos: isTop ? 'top' : 'bottom',
                 type,
-                active: type !== 'hidden',
+                active: true,
                 triggered: false,
-                vx: 0, vy: 0
+                vx: 0, vy: 0,
+                opacity: 1
             });
         }
 
         function update() {
             if (state !== 'PLAYING') return;
             frame++;
-            score += 0.1;
+            score += 0.15;
+            bgScroll -= gameSpeed * 0.5;
             document.getElementById('score-val').innerText = Math.floor(score);
 
-            // Chaos Events
-            if (frame % 400 === 0) {
-                worldTilt = (Math.random()-0.5) * 0.2;
-                showTrollText("TILTED!");
+            // Level Devil Chaos Logic
+            if (frame % 500 === 0) {
+                const flipRoll = Math.random();
+                if(flipRoll > 0.7) {
+                    worldTilt = worldTilt === 0 ? Math.PI : 0;
+                    showTrollText("SCREEN FLIP!");
+                } else {
+                    worldTilt = (Math.random()-0.5) * 0.3;
+                    showTrollText("TILTED!");
+                }
             }
-            if (frame % 600 === 0) {
-                gameSpeed += 2;
-                showTrollText("FASTER!");
+            if (frame % 800 === 0) {
+                gameSpeed += 1.5;
+                showTrollText("VIBE CHECK");
             }
 
-            // Player Physics
+            // Player Physics & Squash/Stretch
             player.velY += player.grav * player.dir;
             player.y += player.velY;
-            player.rot += 0.15 * player.dir;
+            player.rot += (0.1 + (Math.abs(player.velY) * 0.02)) * player.dir;
+            
+            player.squash += (1 - player.squash) * 0.2;
+            player.stretch += (1 - player.stretch) * 0.2;
 
-            // Collision with Rails
+            // Landing / Ceiling Hits
             if (player.y + player.h > groundY) {
+                if (player.velY > 2) {
+                    player.squash = 1.4; player.stretch = 0.6;
+                    sfx.land();
+                    spawnParticles(player.x + player.w/2, groundY, '#00f2ff', 5);
+                }
                 player.y = groundY - player.h;
                 player.velY = 0;
                 player.jumps = 0;
             }
             if (player.y < ceilingY) {
+                if (player.velY < -2) {
+                    player.squash = 1.4; player.stretch = 0.6;
+                    sfx.land();
+                    spawnParticles(player.x + player.w/2, ceilingY, '#00f2ff', 5);
+                }
                 player.y = ceilingY;
                 player.velY = 0;
                 player.jumps = 0;
             }
 
-            // Trail
-            player.trail.push({x: player.x, y: player.y, r: player.rot});
-            if (player.trail.length > 10) player.trail.shift();
+            // Trail Logic
+            if (frame % 2 === 0) {
+                player.trail.push({x: player.x, y: player.y, r: player.rot, s: player.squash, st: player.stretch});
+            }
+            if (player.trail.length > 12) player.trail.shift();
 
             // Particles
             particles.forEach((p, i) => {
                 p.x += p.vx; p.y += p.vy;
-                p.life -= 0.02;
+                p.life -= 0.03;
                 if (p.life <= 0) particles.splice(i, 1);
             });
 
-            // Obstacles logic
-            if (frame % Math.floor(60 - gameSpeed) === 0) spawnObstacle();
+            // Obstacles
+            if (frame % Math.max(25, Math.floor(65 - gameSpeed)) === 0) spawnObstacle();
 
             obstacles.forEach((o, i) => {
-                o.x -= gameSpeed;
-                o.x += o.vx;
+                let currentSpeed = gameSpeed;
+                if (o.type === 'sideways' && o.triggered) currentSpeed *= 2.5;
+                
+                o.x -= currentSpeed;
                 o.y += o.vy;
 
                 const dist = o.x - player.x;
 
-                // Troll Activation
-                if (!o.triggered && dist < 300) {
+                // Troll Triggers
+                if (!o.triggered && dist < 350) {
                     o.triggered = true;
                     if (o.type === 'falling') {
-                        o.vy = o.pos === 'top' ? 10 : -10;
+                        o.vy = o.pos === 'top' ? 12 : -12;
+                        sfx.troll();
                     }
-                    if (o.type === 'moving-ground' && o.pos === 'bottom') {
-                        groundY += 50;
-                        setTimeout(() => groundY -= 50, 500);
+                    if (o.type === 'fake') {
+                        showTrollText("FAKE!");
                     }
-                    if (o.type === 'hidden') {
-                        o.active = true;
-                        showTrollText("SURPRISE!");
-                    }
+                }
+                
+                if (o.type === 'fake' && dist < 150) {
+                    o.opacity -= 0.1;
+                    if (o.opacity <= 0) o.active = false;
                 }
 
                 // Collision
-                const pad = 8;
-                if (o.active && 
+                const pad = 10;
+                if (o.active && o.opacity > 0.5 &&
                     player.x + pad < o.x + o.w && player.x + player.w - pad > o.x &&
                     player.y + pad < o.y + o.h && player.y + player.h - pad > o.y) {
                     die();
                 }
 
-                if (o.x < -100) obstacles.splice(i, 1);
+                if (o.x < -150) obstacles.splice(i, 1);
             });
 
             if (screenShake > 0) screenShake *= 0.9;
@@ -339,10 +401,11 @@
         function die() {
             state = 'DEAD';
             sfx.death();
-            screenShake = 40;
-            spawnParticles(player.x, player.y, '#ff0055', 30);
+            screenShake = 50;
+            triggerFlash(0.6);
+            spawnParticles(player.x, player.y, '#ff0055', 40);
             document.getElementById('end-screen').classList.remove('hidden');
-            document.getElementById('end-msg').innerText = `CRASHED AT ${Math.floor(score)}m`;
+            document.getElementById('end-msg').innerText = `TOTAL CHAOS: ${Math.floor(score)}m`;
         }
 
         function restart() {
@@ -352,24 +415,30 @@
         function draw() {
             ctx.save();
             
-            // Screen FX
+            // Background & Shake
             if (screenShake > 1) {
                 ctx.translate((Math.random()-0.5)*screenShake, (Math.random()-0.5)*screenShake);
             }
             
-            // Draw background
             ctx.fillStyle = '#050508';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-            // Chaos World Tilt
+            // BG Grid / Pulse
+            ctx.strokeStyle = '#111';
+            ctx.lineWidth = 1;
+            for(let x = bgScroll % 100; x < canvas.width; x+=100) {
+                ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke();
+            }
+
+            // World Transformations
             ctx.translate(canvas.width/2, canvas.height/2);
             ctx.rotate(worldTilt);
             ctx.translate(-canvas.width/2, -canvas.height/2);
 
-            // Rails
-            ctx.strokeStyle = 'white';
+            // Game Rails
+            ctx.strokeStyle = '#00f2ff';
             ctx.lineWidth = 4;
-            ctx.globalAlpha = 0.2;
+            ctx.globalAlpha = 0.3;
             ctx.beginPath();
             ctx.moveTo(0, groundY); ctx.lineTo(canvas.width, groundY);
             ctx.moveTo(0, ceilingY); ctx.lineTo(canvas.width, ceilingY);
@@ -379,16 +448,17 @@
             particles.forEach(p => {
                 ctx.globalAlpha = p.life;
                 ctx.fillStyle = p.color;
-                ctx.fillRect(p.x, p.y, 4, 4);
+                ctx.fillRect(p.x, p.y, p.size, p.size);
             });
 
-            // Player Trail (GD Style)
+            // Player Trail
             player.trail.forEach((t, i) => {
-                ctx.globalAlpha = i / 20;
+                ctx.globalAlpha = (i / player.trail.length) * 0.4;
                 ctx.fillStyle = '#ff0055';
                 ctx.save();
                 ctx.translate(t.x + player.w/2, t.y + player.h/2);
                 ctx.rotate(t.r);
+                ctx.scale(t.s, t.st);
                 ctx.fillRect(-player.w/2, -player.h/2, player.w, player.h);
                 ctx.restore();
             });
@@ -396,8 +466,10 @@
             // Obstacles
             obstacles.forEach(o => {
                 if (!o.active) return;
-                ctx.globalAlpha = 1;
-                ctx.fillStyle = o.triggered ? 'white' : '#1a1a1a';
+                ctx.globalAlpha = o.opacity;
+                ctx.fillStyle = o.triggered && o.type !== 'fake' ? 'white' : '#1a1a1a';
+                if (o.type === 'fake') ctx.strokeStyle = '#333';
+                
                 ctx.beginPath();
                 if (o.pos === 'bottom') {
                     ctx.moveTo(o.x, o.y + o.h); ctx.lineTo(o.x + o.w/2, o.y); ctx.lineTo(o.x + o.w, o.y + o.h);
@@ -405,26 +477,34 @@
                     ctx.moveTo(o.x, o.y); ctx.lineTo(o.x + o.w/2, o.y + o.h); ctx.lineTo(o.x + o.w, o.y);
                 }
                 ctx.fill();
+                if(o.type === 'fake') ctx.stroke();
             });
 
-            // Player (GD Cube)
+            // Player (Cube)
             if (state !== 'DEAD' && state !== 'MENU') {
                 ctx.save();
                 ctx.globalAlpha = 1;
                 ctx.translate(player.x + player.w/2, player.y + player.h/2);
                 ctx.rotate(player.rot);
+                ctx.scale(player.squash, player.stretch);
                 
-                // Outer Body
+                // Shadow/Glow
+                ctx.shadowBlur = 15;
+                ctx.shadowColor = '#00f2ff';
+                
+                // Body
                 ctx.fillStyle = '#00f2ff';
                 ctx.fillRect(-player.w/2, -player.h/2, player.w, player.h);
+                ctx.shadowBlur = 0;
                 ctx.strokeStyle = 'white';
                 ctx.lineWidth = 3;
                 ctx.strokeRect(-player.w/2, -player.h/2, player.w, player.h);
 
-                // Face
+                // Expressive Face (Eyes follow velocity)
                 ctx.fillStyle = 'white';
-                ctx.fillRect(5, -10, 8, 8); // Eyes
-                ctx.fillRect(5, 2, 8, 8);
+                let eyeY = (player.velY * 0.5);
+                ctx.fillRect(5, -10 + eyeY, 8, 8); 
+                ctx.fillRect(5, 2 + eyeY, 8, 8);
                 ctx.restore();
             }
 
