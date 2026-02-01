@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en" class="dark" id="html-root">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Services | Codenix AI</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.40.0/dist/umd/supabase.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Plus Jakarta Sans', 'sans-serif'],
+                        mono: ['Space Mono', 'monospace'],
+                    },
+                    colors: {
+                        brand: { 500: '#10b981', 600: '#059669' },
+                        surface: { dark: '#0A0A0A' },
+                        border: { dark: '#1A1A1A' }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        .glass { backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
+        .sidebar-transition { transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+        
+        .service-card {
+            background: rgba(10, 10, 10, 0.6);
+            border: 1px solid #1A1A1A;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .service-card:hover {
+            transform: translateY(-8px);
+            border-color: #10b981;
+            box-shadow: 0 20px 40px -20px rgba(16, 185, 129, 0.2);
+            background: rgba(16, 185, 129, 0.03);
+        }
+
+        .grid-bg {
+            background-image: radial-gradient(circle at 2px 2px, rgba(255, 255, 255, 0.03) 1px, transparent 0);
+            background-size: 32px 32px;
+        }
+
+        .service-card::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 150px;
+            height: 150px;
+            background: radial-gradient(circle at center, var(--glow-color, #10b981) 0%, transparent 70%);
+            opacity: 0;
+            transition: opacity 0.4s ease;
+            filter: blur(40px);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .service-card:hover::after {
+            opacity: 0.15;
+        }
+
+        #auth-guard {
+            position: fixed;
+            inset: 0;
+            background: black;
+            z-index: 9999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: opacity 0.4s ease, visibility 0.4s ease;
+        }
+        
+        #auth-guard.hidden-guard {
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body class="bg-black text-white min-h-screen grid-bg font-sans">
+
+    <!-- Auth Guard -->
+    <div id="auth-guard">
+        <div class="flex flex-col items-center gap-4">
+            <div class="w-12 h-12 border-4 border-brand-500 border-t-transparent rounded-full animate-spin"></div>
+            <p id="guard-text" class="font-mono text-xs text-brand-500 tracking-widest uppercase">Syncing_Services_Manifest</p>
+        </div>
+    </div>
+
+    <!-- Sidebar Overlay -->
+    <div id="sidebar-overlay" onclick="toggleSidebar()" class="fixed inset-0 bg-black/60 z-40 hidden lg:hidden glass"></div>
+
+    <!-- Sidebar -->
+    <aside id="sidebar" class="fixed left-0 top-0 h-full w-64 border-r border-border-dark bg-surface-dark z-50 sidebar-transition -translate-x-full lg:translate-x-0">
+        <div class="p-6">
+            <div class="flex items-center gap-3 mb-10">
+                <div class="w-8 h-8 bg-brand-500 rounded-lg flex items-center justify-center">
+                    <i class="fa-solid fa-layer-group text-black text-sm"></i>
+                </div>
+                <span class="font-bold text-lg tracking-tight">Codenix Services</span>
+            </div>
+
+            <nav class="space-y-1">
+                <a href="portal.html" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-400 hover:bg-white/5 transition-all">
+                    <i class="fa-solid fa-arrow-left w-5 text-sm"></i> Back to Portal
+                </a>
+                <div class="h-px bg-white/10 my-4"></div>
+                <a href="#" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl bg-brand-500/10 text-brand-500 font-medium transition-all">
+                    <i class="fa-solid fa-server w-5 text-sm"></i> Active Services
+                </a>
+                <a href="advanced.html" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-400 hover:bg-white/5 transition-all">
+                    <i class="fa-solid fa-flask w-5 text-sm"></i> Advanced Labs
+                </a>
+            </nav>
+        </div>
+
+        <div class="absolute bottom-6 left-6 right-6">
+            <div class="p-4 bg-white/5 rounded-2xl border border-border-dark">
+                <p class="text-[10px] text-slate-500 uppercase tracking-widest font-bold mb-1">Service Node</p>
+                <div class="flex items-center gap-2">
+                    <div class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+                    <p class="font-mono text-xs">US_EAST_01_STABLE</p>
+                </div>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="lg:ml-64 min-h-screen">
+        <header class="sticky top-0 z-30 border-b border-border-dark bg-black/80 glass px-4 lg:px-8 py-4 flex items-center justify-between">
+            <button onclick="toggleSidebar()" class="lg:hidden p-2 hover:bg-white/5 rounded-lg">
+                <i class="fa-solid fa-bars-staggered"></i>
+            </button>
+
+            <div class="flex items-center gap-6">
+                <div class="hidden sm:block">
+                    <h2 class="text-sm font-bold text-slate-400 uppercase tracking-widest">Enterprise Suite</h2>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-4">
+                <div class="w-24 h-1.5 bg-white/5 rounded-full overflow-hidden">
+                    <div class="w-3/4 h-full bg-brand-500"></div>
+                </div>
+                <p class="text-[10px] font-mono text-slate-500">QUOTA: 75%</p>
+            </div>
+        </header>
+
+        <div class="p-6 lg:p-10 max-w-7xl mx-auto">
+            <section class="mb-12">
+                <h1 class="text-4xl lg:text-5xl font-extrabold tracking-tighter mb-4">
+                    Productivity <span class="text-brand-500 italic">Evolved</span>
+                </h1>
+                <p class="text-slate-400 max-w-2xl text-lg">
+                    Deploy AI-driven workflows specifically engineered for development, design, and documentation.
+                </p>
+            </section>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Webnix -->
+                <a href="webnix.html" class="service-card p-8 rounded-3xl group" style="--glow-color: #3b82f6;">
+                    <div class="relative z-10">
+                        <div class="w-14 h-14 bg-blue-500/10 border border-blue-500/20 rounded-2xl flex items-center justify-center text-blue-500 mb-6 group-hover:scale-110 transition-transform">
+                            <i class="fa-solid fa-globe text-2xl"></i>
+                        </div>
+                        <h3 class="text-2xl font-bold mb-2">Webnix</h3>
+                        <p class="text-slate-400 mb-6 leading-relaxed">Automated full-stack deployment and real-time site optimization for the modern web.</p>
+                        <div class="flex items-center text-xs font-bold text-blue-400 font-mono tracking-widest uppercase">
+                            Deploy Module <i class="fa-solid fa-chevron-right ml-2 group-hover:translate-x-1 transition-transform"></i>
+                        </div>
+                    </div>
+                </a>
+
+                <!-- RenderNix -->
+                <a href="rendernix.html" class="service-card p-8 rounded-3xl group" style="--glow-color: #f43f5e;">
+                    <div class="relative z-10">
+                        <div class="w-14 h-14 bg-rose-500/10 border border-rose-500/20 rounded-2xl flex items-center justify-center text-rose-500 mb-6 group-hover:scale-110 transition-transform">
+                            <i class="fa-solid fa-cube text-2xl"></i>
+                        </div>
+                        <h3 class="text-2xl font-bold mb-2">RenderNix</h3>
+                        <p class="text-slate-400 mb-6 leading-relaxed">Cloud-native 3D rendering and visual processing engine for high-fidelity assets.</p>
+                        <div class="flex items-center text-xs font-bold text-rose-400 font-mono tracking-widest uppercase">
+                            Initialize Render <i class="fa-solid fa-chevron-right ml-2 group-hover:translate-x-1 transition-transform"></i>
+                        </div>
+                    </div>
+                </a>
+
+                <!-- DesignNix -->
+                <a href="designnix.html" class="service-card p-8 rounded-3xl group" style="--glow-color: #a855f7;">
+                    <div class="relative z-10">
+                        <div class="w-14 h-14 bg-purple-500/10 border border-purple-500/20 rounded-2xl flex items-center justify-center text-purple-500 mb-6 group-hover:scale-110 transition-transform">
+                            <i class="fa-solid fa-bezier-curve text-2xl"></i>
+                        </div>
+                        <h3 class="text-2xl font-bold mb-2">DesignNix</h3>
+                        <p class="text-slate-400 mb-6 leading-relaxed">Generative UI/UX workspace featuring intelligent component systems and branding logic.</p>
+                        <div class="flex items-center text-xs font-bold text-purple-400 font-mono tracking-widest uppercase">
+                            Open Canvas <i class="fa-solid fa-chevron-right ml-2 group-hover:translate-x-1 transition-transform"></i>
+                        </div>
+                    </div>
+                </a>
+
+                <!-- docNix -->
+                <a href="doc.html" class="service-card p-8 rounded-3xl group" style="--glow-color: #eab308;">
+                    <div class="relative z-10">
+                        <div class="w-14 h-14 bg-yellow-500/10 border border-yellow-500/20 rounded-2xl flex items-center justify-center text-yellow-500 mb-6 group-hover:scale-110 transition-transform">
+                            <i class="fa-solid fa-file-invoice text-2xl"></i>
+                        </div>
+                        <h3 class="text-2xl font-bold mb-2">docNix</h3>
+                        <p class="text-slate-400 mb-6 leading-relaxed">Collaborative intelligent document editor with markdown support and live LaTeX preview.</p>
+                        <div class="flex items-center text-xs font-bold text-yellow-400 font-mono tracking-widest uppercase">
+                            Launch Editor <i class="fa-solid fa-chevron-right ml-2 group-hover:translate-x-1 transition-transform"></i>
+                        </div>
+                    </div>
+                </a>
+            </div>
+
+            <footer class="mt-20 py-8 border-t border-white/5 flex items-center justify-between">
+                <p class="text-xs text-slate-600 uppercase font-mono">Status: All_Systems_Operational</p>
+                <div class="flex gap-4">
+                    <div class="w-8 h-8 rounded-full border border-white/10 flex items-center justify-center text-slate-500 hover:text-white transition-colors cursor-pointer">
+                        <i class="fa-brands fa-github"></i>
+                    </div>
+                    <div class="w-8 h-8 rounded-full border border-white/10 flex items-center justify-center text-slate-500 hover:text-white transition-colors cursor-pointer">
+                        <i class="fa-brands fa-discord"></i>
+                    </div>
+                </div>
+            </footer>
+        </div>
+    </main>
+
+    <script>
+        const supabaseUrl = 'https://rnlwrngfgvznndlekmrz.supabase.co';
+        const supabaseKey = 'sb_publishable_mtI0_ZBvU_n5oRuqV58QHg_qJt3Gfyt';
+        let supabaseClient;
+
+        async function checkUser() {
+            try {
+                if (!supabaseClient) {
+                    supabaseClient = window.supabase.createClient(supabaseUrl, supabaseKey);
+                }
+                const { data: { session }, error } = await supabaseClient.auth.getSession();
+                if (error || !session) {
+                    window.location.href = 'auth.html';
+                } else {
+                    document.getElementById('auth-guard').classList.add('hidden-guard');
+                }
+            } catch (err) {
+                console.error("Auth Error:", err);
+                document.getElementById('guard-text').innerText = "CONNECTION_REFUSED";
+            }
+        }
+
+        function toggleSidebar() {
+            document.getElementById('sidebar').classList.toggle('-translate-x-full');
+            document.getElementById('sidebar-overlay').classList.toggle('hidden');
+        }
+
+        checkUser();
+    </script>
+</body>
+</html>
