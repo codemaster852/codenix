@@ -1,183 +1,283 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark" id="html-root">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Advanced Features | AI Suite</title>
+    <title>Advanced Labs | Codenix AI</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.40.0/dist/umd/supabase.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Plus Jakarta Sans', 'sans-serif'],
+                        mono: ['Space Mono', 'monospace'],
+                    },
+                    colors: {
+                        brand: { 500: '#6366f1', 600: '#4f46e5' },
+                        surface: { light: '#F9FAFB', dark: '#0A0A0A' },
+                        border: { light: '#E5E7EB', dark: '#1A1A1A' }
+                    }
+                }
+            }
+        }
+    </script>
+
     <style>
-        :root {
-            --accent: #6366f1;
-            --accent-glow: rgba(99, 102, 241, 0.3);
+        .glass { backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
+        .sidebar-transition { transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+        
+        .feature-card {
+            background: rgba(10, 10, 10, 0.6);
+            border: 1px solid #1A1A1A;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        .feature-card:hover {
+            transform: translateY(-8px);
+            border-color: #6366f1;
+            box-shadow: 0 20px 40px -20px rgba(99, 102, 241, 0.3);
+            background: rgba(99, 102, 241, 0.03);
         }
 
-        body {
-            font-family: 'Plus Jakarta Sans', sans-serif;
-            background-color: #030712;
-            color: #f3f4f6;
-            min-height: 100vh;
+        .grid-bg {
+            background-image: radial-gradient(circle at 2px 2px, rgba(99, 102, 241, 0.05) 1px, transparent 0);
+            background-size: 40px 40px;
         }
 
-        .glass-card {
-            background: rgba(17, 24, 39, 0.7);
-            backdrop-filter: blur(12px);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1);
+        .glow-text {
+            text-shadow: 0 0 20px rgba(99, 102, 241, 0.3);
         }
 
-        .glass-card:hover {
-            transform: translateY(-5px);
-            border-color: var(--accent);
-            box-shadow: 0 20px 40px -15px var(--accent-glow);
-        }
-
-        .mesh-bg {
+        #auth-guard {
             position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: 
-                radial-gradient(circle at 10% 10%, rgba(99, 102, 241, 0.1) 0%, transparent 40%),
-                radial-gradient(circle at 90% 90%, rgba(168, 85, 247, 0.1) 0%, transparent 40%);
-            z-index: -1;
+            inset: 0;
+            background: black;
+            z-index: 9999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: opacity 0.4s ease, visibility 0.4s ease;
         }
-
-        .btn-glow {
-            transition: all 0.3s ease;
-        }
-        .btn-glow:hover {
-            box-shadow: 0 0 20px rgba(99, 102, 241, 0.4);
-            transform: scale(1.02);
+        
+        #auth-guard.hidden-guard {
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
         }
     </style>
 </head>
-<body>
-    <div class="mesh-bg"></div>
+<body class="bg-black text-white min-h-screen grid-bg font-sans">
 
-    <!-- Navigation -->
-    <nav class="border-b border-white/10 bg-black/20 backdrop-blur-md sticky top-0 z-50">
-        <div class="max-w-6xl mx-auto px-6 h-20 flex items-center justify-between">
-            <div class="flex items-center gap-3">
-                <div class="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-500/20">
-                    <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-                    </svg>
+    <!-- Auth Guard Loading Screen -->
+    <div id="auth-guard">
+        <div class="flex flex-col items-center gap-4">
+            <div class="w-12 h-12 border-4 border-brand-500 border-t-transparent rounded-full animate-spin"></div>
+            <p id="guard-text" class="font-mono text-xs text-brand-500 tracking-widest uppercase">Initializing_Advanced_Core</p>
+        </div>
+    </div>
+
+    <!-- Mobile Sidebar Overlay -->
+    <div id="sidebar-overlay" onclick="toggleSidebar()" class="fixed inset-0 bg-black/60 z-40 hidden lg:hidden glass"></div>
+
+    <!-- Sidebar -->
+    <aside id="sidebar" class="fixed left-0 top-0 h-full w-64 border-r border-border-dark bg-surface-dark z-50 sidebar-transition -translate-x-full lg:translate-x-0">
+        <div class="p-6">
+            <div class="flex items-center gap-3 mb-10">
+                <div class="w-8 h-8 bg-brand-500 rounded-lg flex items-center justify-center">
+                    <i class="fa-solid fa-flask text-white text-sm"></i>
                 </div>
-                <h1 class="text-xl font-extrabold tracking-tight">ADVANCED <span class="text-indigo-500">LABS</span></h1>
+                <span class="font-bold text-lg tracking-tight">Advanced Labs</span>
             </div>
 
-            <a href="portal.html" class="flex items-center gap-2 px-5 py-2.5 rounded-full bg-white/5 border border-white/10 hover:bg-white/10 transition-all text-sm font-semibold">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-                </svg>
-                Back to Portal
-            </a>
-        </div>
-    </nav>
-
-    <main class="max-w-6xl mx-auto px-6 py-16">
-        <!-- Hero Section -->
-        <div class="text-center mb-16">
-            <h2 class="text-4xl md:text-5xl font-extrabold mb-4 bg-gradient-to-r from-white via-indigo-200 to-indigo-500 bg-clip-text text-transparent">
-                Specialized Power Tools
-            </h2>
-            <p class="text-gray-400 text-lg max-w-2xl mx-auto">
-                Access the experimental modules of our core engine. Designed for creators, researchers, and developers.
-            </p>
+            <nav class="space-y-1">
+                <a href="portal.html" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-400 hover:bg-white/5 transition-all">
+                    <i class="fa-solid fa-arrow-left w-5 text-sm"></i> Back to Portal
+                </a>
+                <div class="h-px bg-white/10 my-4"></div>
+                <a href="#" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl bg-brand-500/10 text-brand-500 font-medium transition-all">
+                    <i class="fa-solid fa-microchip w-5 text-sm"></i> All Modules
+                </a>
+                <a href="games.html" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-400 hover:bg-white/5 transition-all">
+                    <i class="fa-solid fa-gamepad w-5 text-sm"></i> Game Hub
+                </a>
+            </nav>
         </div>
 
-        <!-- Features Grid -->
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 lg:gap-8">
-            
-            <!-- Image Gen -->
-            <a href="image.html" class="glass-card p-8 rounded-3xl block group">
-                <div class="flex justify-between items-start mb-6">
-                    <div class="w-14 h-14 bg-blue-500/10 rounded-2xl flex items-center justify-center text-blue-500 border border-blue-500/20">
-                        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                        </svg>
-                    </div>
-                    <span class="text-xs font-bold uppercase tracking-widest text-blue-500 bg-blue-500/10 px-3 py-1 rounded-full">Vision</span>
+        <div class="absolute bottom-6 left-6 right-6">
+            <div class="p-4 bg-white/5 rounded-2xl border border-border-dark">
+                <p class="text-[10px] text-slate-500 uppercase tracking-widest font-bold mb-1">Compute Status</p>
+                <div class="flex items-center gap-2">
+                    <span class="relative flex h-2 w-2">
+                        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
+                        <span class="relative inline-flex rounded-full h-2 w-2 bg-indigo-500"></span>
+                    </span>
+                    <p class="font-mono text-xs">OPTIMAL_LOAD</p>
                 </div>
-                <h3 class="text-2xl font-bold mb-3 group-hover:text-blue-400 transition-colors">Neural Image Gen</h3>
-                <p class="text-gray-400 leading-relaxed mb-6">
-                    High-fidelity latent diffusion models for generating professional-grade artistic assets and photography.
-                </p>
-                <div class="flex items-center text-sm font-bold text-white/50 group-hover:text-white transition-colors">
-                    LAUNCH MODULE <svg class="ml-2 w-4 h-4 transform group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
-                </div>
-            </a>
-
-            <!-- Voice Gen -->
-            <a href="voice.html" class="glass-card p-8 rounded-3xl block group">
-                <div class="flex justify-between items-start mb-6">
-                    <div class="w-14 h-14 bg-purple-500/10 rounded-2xl flex items-center justify-center text-purple-500 border border-purple-500/20">
-                        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
-                        </svg>
-                    </div>
-                    <span class="text-xs font-bold uppercase tracking-widest text-purple-500 bg-purple-500/10 px-3 py-1 rounded-full">Audio</span>
-                </div>
-                <h3 class="text-2xl font-bold mb-3 group-hover:text-purple-400 transition-colors">Vocal Synthesis</h3>
-                <p class="text-gray-400 leading-relaxed mb-6">
-                    Advanced text-to-speech with natural prosody, emotional inflection, and multi-speaker capabilities.
-                </p>
-                <div class="flex items-center text-sm font-bold text-white/50 group-hover:text-white transition-colors">
-                    LAUNCH MODULE <svg class="ml-2 w-4 h-4 transform group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
-                </div>
-            </a>
-
-            <!-- Translator -->
-            <a href="translator.html" class="glass-card p-8 rounded-3xl block group">
-                <div class="flex justify-between items-start mb-6">
-                    <div class="w-14 h-14 bg-emerald-500/10 rounded-2xl flex items-center justify-center text-emerald-500 border border-emerald-500/20">
-                        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129" />
-                        </svg>
-                    </div>
-                    <span class="text-xs font-bold uppercase tracking-widest text-emerald-500 bg-emerald-500/10 px-3 py-1 rounded-full">Language</span>
-                </div>
-                <h3 class="text-2xl font-bold mb-3 group-hover:text-emerald-400 transition-colors">Polyglot Engine</h3>
-                <p class="text-gray-400 leading-relaxed mb-6">
-                    Real-time semantic translation across 100+ languages with contextual awareness and dialect support.
-                </p>
-                <div class="flex items-center text-sm font-bold text-white/50 group-hover:text-white transition-colors">
-                    LAUNCH MODULE <svg class="ml-2 w-4 h-4 transform group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
-                </div>
-            </a>
-
-            <!-- Calculator -->
-            <a href="calculator.html" class="glass-card p-8 rounded-3xl block group">
-                <div class="flex justify-between items-start mb-6">
-                    <div class="w-14 h-14 bg-orange-500/10 rounded-2xl flex items-center justify-center text-orange-500 border border-orange-500/20">
-                        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                        </svg>
-                    </div>
-                    <span class="text-xs font-bold uppercase tracking-widest text-orange-500 bg-orange-500/10 px-3 py-1 rounded-full">Logic</span>
-                </div>
-                <h3 class="text-2xl font-bold mb-3 group-hover:text-orange-400 transition-colors">Precision Calculator</h3>
-                <p class="text-gray-400 leading-relaxed mb-6">
-                    Advanced scientific computation and unit conversion engine for complex mathematical workflows.
-                </p>
-                <div class="flex items-center text-sm font-bold text-white/50 group-hover:text-white transition-colors">
-                    LAUNCH MODULE <svg class="ml-2 w-4 h-4 transform group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
-                </div>
-            </a>
-
-        </div>
-
-        <!-- System Footer -->
-        <div class="mt-20 border-t border-white/5 pt-10 flex flex-col md:flex-row justify-between items-center text-gray-500 text-sm">
-            <p>&copy; 2025 Advanced AI Systems. Secure Connection Active.</p>
-            <div class="flex gap-8 mt-4 md:mt-0">
-                <a href="portal.html" class="hover:text-indigo-400 transition-colors">Portal Home</a>
-                <a href="#" class="hover:text-indigo-400 transition-colors">API Status</a>
-                <a href="#" class="hover:text-indigo-400 transition-colors">Documentation</a>
             </div>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="lg:ml-64 min-h-screen">
+        <header class="sticky top-0 z-30 border-b border-border-dark bg-black/80 glass px-4 lg:px-8 py-4 flex items-center justify-between">
+            <button onclick="toggleSidebar()" class="lg:hidden p-2 hover:bg-white/5 rounded-lg">
+                <i class="fa-solid fa-bars-staggered"></i>
+            </button>
+
+            <div class="flex-1 px-4 max-w-xl">
+                <div class="relative group">
+                    <i class="fa-solid fa-terminal absolute left-3 top-1/2 -translate-y-1/2 text-brand-500 text-sm"></i>
+                    <input type="text" placeholder="Search system modules..." class="w-full bg-white/5 border border-transparent focus:border-brand-500/50 rounded-xl py-2 pl-10 pr-4 outline-none transition-all text-sm font-medium">
+                </div>
+            </div>
+
+            <div class="flex items-center gap-4">
+                <div class="hidden sm:flex flex-col items-end">
+                    <p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Experimental Access</p>
+                    <p class="text-xs font-mono text-brand-500">V.2.5.0_ALPHA</p>
+                </div>
+                <div class="w-10 h-10 rounded-full bg-brand-500/20 border border-brand-500/40 flex items-center justify-center">
+                    <i class="fa-solid fa-user-secret text-brand-500"></i>
+                </div>
+            </div>
+        </header>
+
+        <div class="p-6 lg:p-10 max-w-7xl mx-auto">
+            <!-- Hero -->
+            <section class="mb-12">
+                <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-brand-500/30 bg-brand-500/10 text-brand-500 text-[10px] font-bold font-mono tracking-tighter mb-6">
+                    SYSTEM_ACCESS: GRANTED // MODULES_READY
+                </div>
+                <h1 class="text-4xl lg:text-6xl font-extrabold tracking-tighter mb-4 glow-text">
+                    Specialized <span class="text-brand-500 italic">Power Tools</span>
+                </h1>
+                <p class="text-slate-400 max-w-2xl text-lg leading-relaxed">
+                    Access the high-performance experimental modules of the core AI engine. Designed for precision workflows, research, and creative generation.
+                </p>
+            </section>
+
+            <!-- Grid -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Image Card -->
+                <a href="image.html" class="feature-card p-8 rounded-3xl group">
+                    <div class="flex justify-between items-start mb-8">
+                        <div class="w-14 h-14 bg-blue-500/10 border border-blue-500/20 rounded-2xl flex items-center justify-center text-blue-500 group-hover:scale-110 transition-transform">
+                            <i class="fa-solid fa-image text-2xl"></i>
+                        </div>
+                        <span class="text-[10px] font-bold uppercase tracking-widest text-blue-400 bg-blue-500/10 px-3 py-1 rounded-full border border-blue-500/20">Latent Diffusion</span>
+                    </div>
+                    <h3 class="text-2xl font-bold mb-3 group-hover:text-blue-400 transition-colors">Neural Image Gen</h3>
+                    <p class="text-slate-400 leading-relaxed mb-8">
+                        High-fidelity generative models for professional-grade artistic assets, textures, and cinematic photography.
+                    </p>
+                    <div class="flex items-center text-sm font-bold text-blue-400 font-mono">
+                        INITIALIZE_VISION_CORE <i class="fa-solid fa-arrow-right ml-2 group-hover:translate-x-1 transition-transform"></i>
+                    </div>
+                </a>
+
+                <!-- Voice Card -->
+                <a href="voice.html" class="feature-card p-8 rounded-3xl group">
+                    <div class="flex justify-between items-start mb-8">
+                        <div class="w-14 h-14 bg-purple-500/10 border border-purple-500/20 rounded-2xl flex items-center justify-center text-purple-500 group-hover:scale-110 transition-transform">
+                            <i class="fa-solid fa-waveform-lines text-2xl"></i>
+                        </div>
+                        <span class="text-[10px] font-bold uppercase tracking-widest text-purple-400 bg-purple-500/10 px-3 py-1 rounded-full border border-purple-500/20">Prosody Engine</span>
+                    </div>
+                    <h3 class="text-2xl font-bold mb-3 group-hover:text-purple-400 transition-colors">Vocal Synthesis</h3>
+                    <p class="text-slate-400 leading-relaxed mb-8">
+                        Natural language audio synthesis with emotional inflection, multi-speaker cloning, and high-frequency output.
+                    </p>
+                    <div class="flex items-center text-sm font-bold text-purple-400 font-mono">
+                        INITIALIZE_AUDIO_LINK <i class="fa-solid fa-arrow-right ml-2 group-hover:translate-x-1 transition-transform"></i>
+                    </div>
+                </a>
+
+                <!-- Translator Card -->
+                <a href="translator.html" class="feature-card p-8 rounded-3xl group">
+                    <div class="flex justify-between items-start mb-8">
+                        <div class="w-14 h-14 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl flex items-center justify-center text-emerald-500 group-hover:scale-110 transition-transform">
+                            <i class="fa-solid fa-language text-2xl"></i>
+                        </div>
+                        <span class="text-[10px] font-bold uppercase tracking-widest text-emerald-400 bg-emerald-500/10 px-3 py-1 rounded-full border border-emerald-500/20">NLU Core</span>
+                    </div>
+                    <h3 class="text-2xl font-bold mb-3 group-hover:text-emerald-400 transition-colors">Polyglot Engine</h3>
+                    <p class="text-slate-400 leading-relaxed mb-8">
+                        Real-time semantic translation across 100+ dialects with full contextual preservation and nuance awareness.
+                    </p>
+                    <div class="flex items-center text-sm font-bold text-emerald-400 font-mono">
+                        INITIALIZE_LANG_BRIDGE <i class="fa-solid fa-arrow-right ml-2 group-hover:translate-x-1 transition-transform"></i>
+                    </div>
+                </a>
+
+                <!-- Calculator Card -->
+                <a href="calculator.html" class="feature-card p-8 rounded-3xl group">
+                    <div class="flex justify-between items-start mb-8">
+                        <div class="w-14 h-14 bg-orange-500/10 border border-orange-500/20 rounded-2xl flex items-center justify-center text-orange-500 group-hover:scale-110 transition-transform">
+                            <i class="fa-solid fa-calculator text-2xl"></i>
+                        </div>
+                        <span class="text-[10px] font-bold uppercase tracking-widest text-orange-400 bg-orange-500/10 px-3 py-1 rounded-full border border-orange-500/20">Precision Logic</span>
+                    </div>
+                    <h3 class="text-2xl font-bold mb-3 group-hover:text-orange-400 transition-colors">Scientific Compute</h3>
+                    <p class="text-slate-400 leading-relaxed mb-8">
+                        Advanced mathematical computation suite featuring complex equation solving, graphing, and unit conversions.
+                    </p>
+                    <div class="flex items-center text-sm font-bold text-orange-400 font-mono">
+                        INITIALIZE_LOGIC_UNIT <i class="fa-solid fa-arrow-right ml-2 group-hover:translate-x-1 transition-transform"></i>
+                    </div>
+                </a>
+            </div>
+
+            <!-- Footer Info -->
+            <footer class="mt-20 py-10 border-t border-white/5 flex flex-col md:flex-row justify-between items-center gap-6">
+                <div class="flex flex-col gap-1">
+                    <p class="text-xs font-mono text-slate-500 tracking-wider">SYSTEM_HASH: 7a82b9c104ef</p>
+                    <p class="text-slate-600 text-xs">© 2025 Codenix Advanced Labs. All operations monitored.</p>
+                </div>
+                <div class="flex gap-6">
+                    <a href="#" class="text-xs font-bold text-slate-500 hover:text-brand-500 transition-colors uppercase tracking-widest">Documentation</a>
+                    <a href="#" class="text-xs font-bold text-slate-500 hover:text-brand-500 transition-colors uppercase tracking-widest">API Status</a>
+                    <a href="portal.html" class="text-xs font-bold text-slate-500 hover:text-brand-500 transition-colors uppercase tracking-widest">Portal Root</a>
+                </div>
+            </footer>
         </div>
     </main>
+
+    <script>
+        const supabaseUrl = 'https://rnlwrngfgvznndlekmrz.supabase.co';
+        const supabaseKey = 'sb_publishable_mtI0_ZBvU_n5oRuqV58QHg_qJt3Gfyt';
+        let supabaseClient;
+
+        async function checkUser() {
+            try {
+                if (!supabaseClient) {
+                    supabaseClient = window.supabase.createClient(supabaseUrl, supabaseKey);
+                }
+                const { data: { session }, error } = await supabaseClient.auth.getSession();
+                if (error || !session) {
+                    window.location.href = 'auth.html';
+                } else {
+                    const guard = document.getElementById('auth-guard');
+                    guard.classList.add('hidden-guard');
+                }
+            } catch (err) {
+                console.error("Auth check error:", err);
+                document.getElementById('guard-text').innerText = "HANDSHAKE_FAILED_RETIRING";
+            }
+        }
+
+        function toggleSidebar() {
+            document.getElementById('sidebar').classList.toggle('-translate-x-full');
+            document.getElementById('sidebar-overlay').classList.toggle('hidden');
+        }
+
+        // Initialize
+        checkUser();
+    </script>
 </body>
 </html>
