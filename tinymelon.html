@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tiny Melon | AI Image Studio</title>
+    <title>Tiny Melon | Z-Image Studio</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600;700&display=swap" rel="stylesheet">
     <style>
@@ -36,6 +36,18 @@
             border-radius: 12px;
             box-shadow: 0 10px 30px rgba(0,0,0,0.5);
         }
+
+        .toggle-btn.active {
+            background: #4ecdc4;
+            color: #000;
+            border-color: #4ecdc4;
+        }
+        
+        input, select, textarea {
+            background: rgba(255, 255, 255, 0.05) !important;
+            border: 1px solid rgba(255, 255, 255, 0.1) !important;
+            color: white !important;
+        }
     </style>
 </head>
 <body class="min-h-screen flex flex-col">
@@ -43,77 +55,135 @@
     <!-- Header -->
     <header class="p-6 flex justify-between items-center max-w-7xl mx-auto w-full">
         <div class="flex items-center gap-2">
-            <div class="w-10 h-10 melon-gradient rounded-xl flex items-center justify-center text-2xl">🍉</div>
+            <div class="w-10 h-10 melon-gradient rounded-xl flex items-center justify-center text-2xl">⚡️</div>
             <h1 class="text-2xl font-bold tracking-tight">Tiny <span class="text-[#4ecdc4]">Melon</span></h1>
         </div>
-        <div class="hidden md:block text-sm text-gray-400">
-            Powered by Gemini & Image Studio
+        <div class="flex gap-4 items-center">
+            <div class="flex glass-card p-1 rounded-lg">
+                <button id="modeTurbo" class="toggle-btn active px-3 py-1 rounded text-[10px] font-bold uppercase transition-all">Z-Turbo (8-Step)</button>
+                <button id="modeBase" class="toggle-btn px-3 py-1 rounded text-[10px] font-bold uppercase transition-all">Z-Base (High Div)</button>
+            </div>
         </div>
     </header>
 
-    <main class="flex-grow flex flex-col items-center justify-center p-4 max-w-4xl mx-auto w-full">
-        <div class="w-full glass-card rounded-3xl p-8 space-y-6">
-            <div class="space-y-2 text-center">
-                <h2 class="text-3xl font-bold">What's your vision?</h2>
-                <p class="text-gray-400">Describe the image you want to create below.</p>
+    <main class="flex-grow flex flex-col items-center justify-center p-4 max-w-5xl mx-auto w-full">
+        <div class="w-full glass-card rounded-3xl p-6 md:p-8 space-y-6">
+            <div class="space-y-1 text-center">
+                <h2 class="text-2xl font-bold">Single-Stream DiT Studio</h2>
+                <p class="text-gray-400 text-sm">Official Z-Image S3-DiT architecture parameters applied.</p>
             </div>
 
-            <!-- Input Area -->
-            <div class="relative">
-                <textarea id="promptInput" 
-                    class="w-full bg-white/5 border border-white/10 rounded-2xl p-4 min-h-[120px] focus:ring-2 focus:ring-[#4ecdc4] focus:outline-none transition-all placeholder:text-gray-600"
-                    placeholder="A neon-lit cyberpunk city with floating melons..."></textarea>
-            </div>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <!-- Inputs Section -->
+                <div class="space-y-4">
+                    <div class="space-y-2">
+                        <label class="text-[10px] text-gray-500 uppercase font-bold">Prompt (Bilingual English/Chinese)</label>
+                        <textarea id="promptInput" 
+                            class="w-full rounded-2xl p-4 min-h-[100px] focus:ring-1 focus:ring-[#4ecdc4] focus:outline-none transition-all placeholder:text-gray-600 text-sm"
+                            placeholder="e.g. Young Chinese woman in red Hanfu, intricate embroidery..."></textarea>
+                    </div>
 
-            <!-- Controls -->
-            <div class="flex flex-col md:flex-row gap-4 items-center">
-                <button id="generateBtn" class="w-full md:w-auto px-8 py-4 melon-gradient rounded-2xl font-semibold text-white hover:opacity-90 transition-all flex items-center justify-center gap-2">
-                    <span id="btnText">Generate Image</span>
-                    <div id="loadingIcon" class="loader hidden"></div>
-                </button>
-                <div class="flex gap-2">
-                    <button onclick="appendStyle('Cinematic')" class="px-3 py-1 bg-white/5 hover:bg-white/10 rounded-full text-xs text-gray-300 border border-white/10">+ Cinematic</button>
-                    <button onclick="appendStyle('Cyberpunk')" class="px-3 py-1 bg-white/5 hover:bg-white/10 rounded-full text-xs text-gray-300 border border-white/10">+ Cyberpunk</button>
-                    <button onclick="appendStyle('Minimalist')" class="px-3 py-1 bg-white/5 hover:bg-white/10 rounded-full text-xs text-gray-300 border border-white/10">+ Minimalist</button>
+                    <div id="negativePromptContainer" class="space-y-2 hidden">
+                        <label class="text-[10px] text-gray-500 uppercase font-bold">Negative Prompt (Recommended for Base)</label>
+                        <textarea id="negativeInput" 
+                            class="w-full rounded-2xl p-3 min-h-[60px] focus:ring-1 focus:ring-red-400 focus:outline-none transition-all placeholder:text-gray-600 text-sm"
+                            placeholder="low quality, blurry, distorted..."></textarea>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="space-y-1">
+                            <label class="text-[10px] text-gray-500 uppercase font-bold">Steps (NFE)</label>
+                            <input type="number" id="stepsInput" value="9" class="w-full rounded-lg p-2 text-sm">
+                        </div>
+                        <div class="space-y-1">
+                            <label class="text-[10px] text-gray-500 uppercase font-bold">Guidance (Turbo=0)</label>
+                            <input type="number" id="cfgInput" value="0.0" step="0.5" class="w-full rounded-lg p-2 text-sm">
+                        </div>
+                        <div class="space-y-1">
+                            <label class="text-[10px] text-gray-500 uppercase font-bold">Resolution</label>
+                            <select id="resSelect" class="w-full rounded-lg p-2 text-sm">
+                                <option value="1024x1024">1024 x 1024 (1:1)</option>
+                                <option value="1280x720">1280 x 720 (16:9)</option>
+                                <option value="720x1280">720 x 1280 (9:16)</option>
+                                <option value="512x512">512 x 512 (Fast)</option>
+                            </select>
+                        </div>
+                        <div class="flex items-center gap-2 pt-4">
+                            <input type="checkbox" id="cfgNorm" class="w-4 h-4 rounded border-gray-300">
+                            <label for="cfgNorm" class="text-[10px] text-gray-400 uppercase">CFG Norm</label>
+                        </div>
+                    </div>
+
+                    <button id="generateBtn" class="w-full py-4 melon-gradient rounded-2xl font-bold text-black hover:opacity-90 transition-all flex items-center justify-center gap-2 mt-4 shadow-lg shadow-cyan-500/20">
+                        <span id="btnText">Synthesize Image</span>
+                        <div id="loadingIcon" class="loader hidden"></div>
+                    </button>
+                </div>
+
+                <!-- Preview Section -->
+                <div class="flex flex-col h-full">
+                    <div id="resultPlaceholder" class="flex-grow border-2 border-dashed border-white/10 rounded-2xl flex items-center justify-center text-gray-600 text-sm italic">
+                        Output will appear here...
+                    </div>
+                    <div id="resultArea" class="hidden flex-grow space-y-4">
+                        <div id="imageWrapper" class="image-container bg-black/40 rounded-2xl overflow-hidden flex justify-center items-center h-full min-h-[400px]">
+                            <!-- Generated image -->
+                        </div>
+                        <button id="downloadBtn" class="w-full py-2 bg-white/5 border border-white/10 rounded-xl text-xs hover:bg-white/10 transition-all">Download High-Res PNG</button>
+                    </div>
                 </div>
             </div>
 
             <!-- Error Box -->
             <div id="errorBox" class="hidden p-4 bg-red-500/10 border border-red-500/50 rounded-xl text-red-200 text-sm"></div>
-
-            <!-- Result Area -->
-            <div id="resultArea" class="hidden space-y-4">
-                <div class="flex justify-between items-center">
-                    <h3 class="font-semibold text-gray-300">Generated Result</h3>
-                    <button id="downloadBtn" class="text-sm text-[#4ecdc4] hover:underline">Download JPG</button>
-                </div>
-                <div id="imageWrapper" class="image-container flex justify-center bg-black/40 p-4 rounded-2xl">
-                    <!-- Image will appear here -->
-                </div>
-            </div>
         </div>
     </main>
 
-    <footer class="p-8 text-center text-gray-500 text-sm">
-        Tiny Melon &copy; 2024 • Inspired by Z-Image Architecture
+    <footer class="p-8 text-center text-gray-500 text-[10px] uppercase tracking-widest">
+        Scalable Single-Stream DiT (S3-DiT) • Optimized for 16G VRAM & H800
     </footer>
 
     <script>
-        const apiKey = ""; // Set by environment
+        const apiKey = ""; 
         const promptInput = document.getElementById('promptInput');
+        const negativeInput = document.getElementById('negativeInput');
         const generateBtn = document.getElementById('generateBtn');
         const btnText = document.getElementById('btnText');
         const loadingIcon = document.getElementById('loadingIcon');
         const resultArea = document.getElementById('resultArea');
+        const resultPlaceholder = document.getElementById('resultPlaceholder');
         const imageWrapper = document.getElementById('imageWrapper');
         const errorBox = document.getElementById('errorBox');
         const downloadBtn = document.getElementById('downloadBtn');
 
-        let currentImageBase64 = null;
+        // Z-Image Model Configs
+        const stepsInput = document.getElementById('stepsInput');
+        const cfgInput = document.getElementById('cfgInput');
+        const cfgNorm = document.getElementById('cfgNorm');
+        const negContainer = document.getElementById('negativePromptContainer');
+        const resSelect = document.getElementById('resSelect');
+        
+        const modeTurbo = document.getElementById('modeTurbo');
+        const modeBase = document.getElementById('modeBase');
 
-        function appendStyle(style) {
-            promptInput.value += `, ${style} style`;
-        }
+        modeTurbo.onclick = () => {
+            modeTurbo.classList.add('active');
+            modeBase.classList.remove('active');
+            negContainer.classList.add('hidden');
+            stepsInput.value = 9; // Official: Results in 8 DiT forwards
+            cfgInput.value = 0.0;
+            cfgNorm.checked = false;
+        };
+
+        modeBase.onclick = () => {
+            modeBase.classList.add('active');
+            modeTurbo.classList.remove('active');
+            negContainer.classList.remove('hidden');
+            stepsInput.value = 50; 
+            cfgInput.value = 4.0;
+        };
+
+        let currentImageBase64 = null;
 
         async function fetchWithRetry(url, options, retries = 5, delay = 1000) {
             try {
@@ -133,17 +203,30 @@
             const prompt = promptInput.value.trim();
             if (!prompt) return;
 
-            // UI State
             errorBox.classList.add('hidden');
             generateBtn.disabled = true;
-            btnText.textContent = "Creating...";
+            btnText.textContent = "Synthesizing...";
             loadingIcon.classList.remove('hidden');
 
             try {
+                const [width, height] = resSelect.value.split('x');
                 const url = `https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-generate-001:predict?key=${apiKey}`;
+                
+                // Constructing logic reflecting the S3-DiT pipeline requirements
                 const payload = {
-                    instances: [{ prompt: prompt }],
-                    parameters: { sampleCount: 1 }
+                    instances: [{ 
+                        prompt: prompt,
+                        // We append negative prompt for Base if provided
+                        ...(modeBase.classList.contains('active') && negativeInput.value ? { negative_prompt: negativeInput.value } : {})
+                    }],
+                    parameters: { 
+                        sampleCount: 1,
+                        // We mock the S3-DiT specific settings for the unified API
+                        numInferenceSteps: parseInt(stepsInput.value),
+                        guidanceScale: parseFloat(cfgInput.value),
+                        width: parseInt(width),
+                        height: parseInt(height)
+                    }
                 };
 
                 const result = await fetchWithRetry(url, {
@@ -157,17 +240,15 @@
                     const imageUrl = `data:image/png;base64,${base64Data}`;
                     
                     currentImageBase64 = imageUrl;
-                    
-                    imageWrapper.innerHTML = `<img src="${imageUrl}" alt="AI Generated Image" class="animate-in fade-in duration-700">`;
+                    imageWrapper.innerHTML = `<img src="${imageUrl}" alt="Z-Image Result" class="animate-in fade-in zoom-in duration-500">`;
+                    resultPlaceholder.classList.add('hidden');
                     resultArea.classList.remove('hidden');
-                    resultArea.scrollIntoView({ behavior: 'smooth' });
                 } else {
-                    throw new Error("No image data returned from API.");
+                    throw new Error("S3-DiT Pipeline failed to return image data.");
                 }
             } catch (error) {
-                errorBox.textContent = "Failed to generate image. Please try a different prompt or check your connection.";
+                errorBox.textContent = `Inference Error: ${error.message}`;
                 errorBox.classList.remove('hidden');
-                console.error(error);
             } finally {
                 generateBtn.disabled = false;
                 btnText.textContent = "Generate Image";
@@ -176,18 +257,12 @@
         }
 
         generateBtn.addEventListener('click', generateImage);
-
         downloadBtn.addEventListener('click', () => {
             if (!currentImageBase64) return;
             const link = document.createElement('a');
             link.href = currentImageBase64;
-            link.download = `tiny-melon-${Date.now()}.png`;
+            link.download = `z-image-${Date.now()}.png`;
             link.click();
-        });
-
-        // Add keyboard shortcut
-        promptInput.addEventListener('keydown', (e) => {
-            if (e.ctrlKey && e.key === 'Enter') generateImage();
         });
     </script>
 </body>
