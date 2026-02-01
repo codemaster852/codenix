@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Neural Arcade | Codenix AI</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Use version 2.40.0 for stability -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.40.0/dist/umd/supabase.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
@@ -42,13 +41,15 @@
             display: flex;
             flex-direction: column;
             cursor: pointer;
+            position: relative;
+            z-index: 10; /* Ensure cards are above grid bg */
         }
         
         .game-card:hover {
             transform: translateY(-8px);
             border-color: #10b981;
             box-shadow: 0 20px 40px -20px rgba(16, 185, 129, 0.2);
-            background: rgba(16, 185, 129, 0.03);
+            background: rgba(16, 185, 129, 0.05);
         }
 
         .grid-bg {
@@ -56,6 +57,7 @@
             background-size: 32px 32px;
         }
 
+        /* Fixed the blocking issue by using pointer-events: none when hidden */
         #auth-guard {
             position: fixed;
             inset: 0;
@@ -64,7 +66,13 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            transition: opacity 0.5s ease;
+            transition: opacity 0.4s ease, visibility 0.4s ease;
+        }
+        
+        #auth-guard.hidden-guard {
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none; /* Crucial: This allows clicks to pass through */
         }
     </style>
 </head>
@@ -99,9 +107,6 @@
                 <a href="#" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl bg-brand-500/10 text-brand-500 font-medium transition-all">
                     <i class="fa-solid fa-house w-5 text-sm"></i> All Games
                 </a>
-                <a href="#" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-500 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-white/5 transition-all">
-                    <i class="fa-solid fa-bolt w-5 text-sm"></i> Trending
-                </a>
             </nav>
         </div>
 
@@ -121,7 +126,6 @@
 
     <!-- Main Content -->
     <main class="lg:ml-64 min-h-screen">
-        <!-- Header -->
         <header class="sticky top-0 z-30 border-b border-gray-200 dark:border-border-dark bg-white/80 dark:bg-black/80 glass px-4 lg:px-8 py-4 flex items-center justify-between">
             <button onclick="toggleSidebar()" class="lg:hidden p-2 hover:bg-gray-100 dark:hover:bg-white/5 rounded-lg">
                 <i class="fa-solid fa-bars-staggered"></i>
@@ -143,7 +147,6 @@
         </header>
 
         <div class="p-6 lg:p-10 max-w-7xl mx-auto">
-            <!-- Hero Section -->
             <section class="mb-12">
                 <div class="inline-flex items-center gap-4 mb-4">
                     <a href="portal.html" class="flex items-center gap-2 text-xs font-bold text-slate-500 hover:text-brand-500 transition-colors">
@@ -162,25 +165,17 @@
                 </p>
             </section>
 
-            <!-- Games Grid -->
             <div id="games-grid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                <!-- Data is rendered dynamically via JavaScript for better management -->
+                <!-- Grid items populated by JS -->
             </div>
         </div>
     </main>
 
     <script>
-        // Supabase Configuration
         const supabaseUrl = 'https://rnlwrngfgvznndlekmrz.supabase.co';
         const supabaseKey = 'sb_publishable_mtI0_ZBvU_n5oRuqV58QHg_qJt3Gfyt';
         
         let supabaseClient;
-        try {
-            supabaseClient = window.supabase.createClient(supabaseUrl, supabaseKey);
-        } catch (e) {
-            console.error("Supabase initialization failed", e);
-        }
-
         const games = [
             { title: "Go Gravity", path: "gravitygo.html", icon: "fa-arrows-to-circle", color: "text-emerald-500", category: "Physics Engine", desc: "Strategic Go-variant utilizing simulated gravitational fields." },
             { title: "Type2Save", path: "type2save.html", icon: "fa-keyboard", color: "text-blue-500", category: "Linguistic Speed", desc: "High-stakes typing gauntlet where speed prevents system failure." },
@@ -197,30 +192,24 @@
         ];
 
         async function checkUser() {
-            if (!supabaseClient) {
-                console.error("Supabase client not initialized.");
-                document.getElementById('guard-text').innerText = "SYSTEM_LOAD_ERROR";
-                return;
-            }
-
             try {
+                // Initialize Supabase only once
+                if (!supabaseClient) {
+                    supabaseClient = window.supabase.createClient(supabaseUrl, supabaseKey);
+                }
+
                 const { data: { session }, error } = await supabaseClient.auth.getSession();
                 if (error || !session) {
-                    console.log("No session found, redirecting to auth...");
                     window.location.href = 'auth.html';
                 } else {
-                    console.log("Auth verified.");
-                    document.getElementById('auth-guard').style.opacity = '0';
-                    setTimeout(() => {
-                        document.getElementById('auth-guard').classList.add('hidden');
-                    }, 500);
+                    // Success: Remove guard and render content
+                    const guard = document.getElementById('auth-guard');
+                    guard.classList.add('hidden-guard');
                     renderGames();
                 }
             } catch (err) {
-                console.error("Auth check failed:", err);
-                document.getElementById('guard-text').innerText = "NETWORK_UNSTABLE_RETRYING";
-                // Fallback attempt after 2 seconds if just a network hiccup
-                setTimeout(checkUser, 2000);
+                console.error("Auth check error:", err);
+                document.getElementById('guard-text').innerText = "SYSTEM_LOAD_ERROR";
             }
         }
 
@@ -268,18 +257,16 @@
             document.getElementById('sidebar-overlay').classList.toggle('hidden');
         }
 
-        // Initialize immediately
-        const init = () => {
-            const savedTheme = localStorage.getItem('theme') || 'dark';
-            document.getElementById('html-root').classList.toggle('dark', savedTheme === 'dark');
-            updateThemeIcons(savedTheme === 'dark');
-            checkUser();
-        };
-
+        // Run as soon as page is interactive
         if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', init);
+            document.addEventListener('DOMContentLoaded', () => {
+                checkUser();
+                const savedTheme = localStorage.getItem('theme') || 'dark';
+                document.getElementById('html-root').classList.toggle('dark', savedTheme === 'dark');
+                updateThemeIcons(savedTheme === 'dark');
+            });
         } else {
-            init();
+            checkUser();
         }
     </script>
 </body>
