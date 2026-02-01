@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Type2Save - Typing Trainer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #050505;
+            color: #fff;
+            font-family: 'Share Tech Mono', monospace;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            background: radial-gradient(circle at center, #1b2735 0%, #090a0f 100%);
+        }
+
+        .star {
+            position: absolute;
+            background: white;
+            border-radius: 50%;
+            opacity: 0.5;
+            animation: twinkle var(--duration) infinite;
+        }
+
+        @keyframes twinkle {
+            0%, 100% { opacity: 0.3; }
+            50% { opacity: 1; }
+        }
+
+        #rocket {
+            position: absolute;
+            bottom: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            transition: left 0.15s cubic-bezier(0.175, 0.885, 0.32, 1.275), transform 0.1s;
+            z-index: 10;
+        }
+
+        .word-container {
+            position: absolute;
+            white-space: nowrap;
+            font-family: 'Orbitron', sans-serif;
+            font-weight: bold;
+            text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+            pointer-events: none;
+            font-size: 1.3rem;
+            letter-spacing: 1px;
+            background: rgba(0,0,0,0.3);
+            padding: 2px 8px;
+            border-radius: 4px;
+        }
+
+        .word-active {
+            color: #ffffff;
+            text-shadow: 0 0 15px #00f2ff;
+            transform: scale(1.15);
+            z-index: 20;
+            border: 1px solid rgba(0, 242, 255, 0.3);
+            background: rgba(0, 242, 255, 0.1);
+        }
+
+        .word-typed { color: #00f2ff; }
+        .word-error { 
+            color: #ff0055; 
+            text-decoration: underline;
+            animation: blink 0.2s infinite;
+        }
+
+        @keyframes blink {
+            50% { opacity: 0.5; }
+        }
+
+        #earth-shield {
+            position: absolute;
+            bottom: -50px;
+            left: 0;
+            width: 100%;
+            height: 100px;
+            background: linear-gradient(to top, rgba(0, 150, 255, 0.4), transparent);
+            border-top: 2px solid #0096ff;
+            box-shadow: 0 0 50px #0096ff;
+            z-index: 5;
+        }
+
+        .ui-panel {
+            font-family: 'Orbitron', sans-serif;
+            background: rgba(0, 0, 0, 0.8);
+            border: 1px solid #00f2ff;
+            backdrop-filter: blur(8px);
+        }
+
+        .laser {
+            position: absolute;
+            width: 4px;
+            background: linear-gradient(to right, transparent, #00f2ff, transparent);
+            box-shadow: 0 0 15px #00f2ff;
+            z-index: 8;
+        }
+
+        #screen-flash {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: white;
+            opacity: 0;
+            pointer-events: none;
+            z-index: 100;
+        }
+
+        .shake {
+            animation: shake 0.4s cubic-bezier(.36,.07,.19,.97) both;
+        }
+
+        @keyframes shake {
+            10%, 90% { transform: translate3d(-2px, 0, 0); }
+            20%, 80% { transform: translate3d(4px, 0, 0); }
+            30%, 50%, 70% { transform: translate3d(-6px, 0, 0); }
+            40%, 60% { transform: translate3d(6px, 0, 0); }
+        }
+
+        .btn-glow {
+            transition: all 0.3s;
+            box-shadow: 0 0 5px #00f2ff;
+            cursor: pointer;
+        }
+        .btn-glow:hover {
+            box-shadow: 0 0 20px #00f2ff;
+            background: #00f2ff;
+            color: black;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <div id="stars"></div>
+
+        <!-- Main Menu -->
+        <div id="start-screen" class="absolute inset-0 z-50 flex flex-col items-center justify-center p-6 text-center bg-black/40">
+            <h1 class="text-6xl md:text-8xl font-bold mb-4 tracking-tighter text-cyan-400 font-['Orbitron']">TYPE2SAVE</h1>
+            <p class="text-xl mb-8 max-w-lg opacity-80 font-mono italic">Precision is the only shield. Backspace is your only second chance.</p>
+            <div class="space-y-4">
+                <button onclick="showLevelSelect()" class="btn-glow border border-cyan-400 px-10 py-3 text-2xl uppercase font-bold w-72 block">Story Mode</button>
+                <button onclick="startGame('endless')" class="btn-glow border border-yellow-400 text-yellow-400 px-10 py-3 text-2xl uppercase font-bold w-72 block">Endless Training</button>
+                <div id="high-score-display" class="text-xs text-yellow-500 mt-2">HIGH SCORE: 0</div>
+            </div>
+            <p class="mt-12 text-sm opacity-50">TRAIN YOUR SPEED • SAVE THE WORLD</p>
+        </div>
+
+        <!-- Level Select Screen -->
+        <div id="level-select-screen" class="absolute inset-0 z-50 hidden bg-black/90 flex flex-col items-center justify-center p-6">
+            <h2 class="text-4xl font-bold mb-8 text-cyan-400 font-['Orbitron']">SELECT SECTOR</h2>
+            <div id="levels-grid" class="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl w-full"></div>
+            <button onclick="hideLevelSelect()" class="mt-10 text-gray-400 hover:text-white uppercase tracking-widest text-sm underline">Back to Menu</button>
+        </div>
+
+        <!-- Story/Dialogue Screen -->
+        <div id="story-screen" class="absolute inset-0 z-40 hidden bg-black flex flex-col items-center justify-center p-10 text-center">
+            <h2 id="chapter-title" class="text-3xl text-cyan-400 mb-6 font-['Orbitron'] uppercase tracking-widest"></h2>
+            <p id="chapter-text" class="text-xl max-w-2xl leading-relaxed mb-10 h-32 font-mono text-gray-300"></p>
+            <button id="proceed-btn" class="btn-glow border border-cyan-400 px-10 py-3 text-xl uppercase font-bold">Initiate Launch</button>
+        </div>
+
+        <!-- Game Over / Victory Screen -->
+        <div id="status-screen" class="absolute inset-0 z-50 hidden bg-black/95 flex flex-col items-center justify-center p-6 text-center">
+            <h2 id="status-title" class="text-6xl font-bold mb-4 font-['Orbitron']">MISSION OVER</h2>
+            <div id="status-stats" class="text-xl mb-8 font-mono space-y-2"></div>
+            <div class="flex flex-col gap-4">
+                <button id="status-primary-btn" class="btn-glow border border-cyan-400 px-10 py-3 text-2xl uppercase font-bold min-w-[300px]">Continue</button>
+                <button onclick="returnToMenu()" class="text-gray-400 hover:text-white uppercase tracking-widest text-sm">Return to Menu</button>
+            </div>
+        </div>
+
+        <!-- HUD -->
+        <div id="hud" class="hidden absolute top-6 left-6 right-6 z-30 flex justify-between items-start pointer-events-none">
+            <div class="flex flex-col gap-4">
+                <div class="ui-panel p-4 rounded-lg border-l-4 border-l-cyan-500">
+                    <div class="text-xs opacity-60">PLANETARY STABILITY</div>
+                    <div class="w-48 h-4 bg-gray-800 rounded-full mt-1 overflow-hidden border border-gray-700">
+                        <div id="health-bar" class="h-full bg-cyan-500 transition-all duration-300" style="width: 100%"></div>
+                    </div>
+                    <div id="health-text" class="text-right text-xs mt-1">100%</div>
+                </div>
+                <div class="ui-panel p-3 rounded-lg flex gap-6 border-l-4 border-l-yellow-500 text-sm">
+                    <div>WPM: <span id="wpm-val" class="text-yellow-400 font-bold">0</span></div>
+                    <div>ACC: <span id="acc-val" class="text-green-400 font-bold">100%</span></div>
+                </div>
+            </div>
+
+            <div class="ui-panel p-4 rounded-lg text-right min-w-[150px] border-r-4 border-r-cyan-500">
+                <div id="stat-label" class="text-xs opacity-60 uppercase tracking-widest">Targets</div>
+                <div id="stat-value" class="text-3xl font-bold text-cyan-400">0</div>
+                <div id="level-name" class="text-xs text-yellow-400 uppercase mt-1">Sector 1</div>
+            </div>
+        </div>
+
+        <div id="rocket" class="hidden">
+            <svg width="60" height="100" viewBox="0 0 60 100">
+                <path d="M30 0 L55 70 L45 80 L15 80 L5 70 Z" fill="#111" stroke="#00f2ff" stroke-width="2"/>
+                <circle cx="30" cy="40" r="8" fill="#00f2ff" opacity="0.4"/>
+                <path id="thruster" d="M20 80 L30 100 L40 80" fill="#ff4400" />
+            </svg>
+        </div>
+
+        <div id="earth-shield"></div>
+        <div id="screen-flash"></div>
+    </div>
+
+    <script>
+        const wordsBank = {
+            1: ["the", "be", "to", "of", "and", "in", "that", "have", "it", "for", "not", "on", "with", "he", "as", "you", "do", "at"],
+            2: ["orbit", "space", "star", "dust", "ship", "void", "fuel", "core", "sky", "dark", "fire", "mars", "moon", "jump"],
+            3: ["galaxy", "nebula", "meteor", "planet", "vacuum", "thrust", "plasma", "shield", "oxygen", "comet", "rocket", "fusion"],
+            4: ["asteroid", "starship", "radiation", "velocity", "supernova", "blackhole", "satellite", "gravity", "pulsar", "quantum"],
+            5: ["interstellar", "constellation", "extra-terrestrial", "hyperspace", "lightspeed", "astrophysics", "thermodynamics"]
+        };
+
+        const levels = [
+            { id: 0, name: "Sector 1: Quick Scan", wordsCount: 15, speed: 0.8, difficulty: 1, text: "Initial contact. Keep your keystrokes light and fast. Clear the small debris." },
+            { id: 1, name: "Sector 2: Solar Winds", wordsCount: 25, speed: 1.2, difficulty: 2, text: "The gravity is picking up. You'll need to maintain rhythm to keep the shield stable." },
+            { id: 2, name: "Sector 3: Asteroid Belt", wordsCount: 35, speed: 1.6, difficulty: 3, text: "Dense field ahead. One mistake could lead to a cascade failure. Focus on accuracy." },
+            { id: 3, name: "Sector 4: Event Horizon", wordsCount: 50, speed: 2.1, difficulty: 4, text: "Maximum velocity required. The core is unstable. Save humanity, Pilot." }
+        ];
+
+        let gameState = {
+            mode: 'story',
+            currentLevel: 0,
+            health: 100,
+            activeWords: [],
+            spawnedCount: 0,
+            destroyedCount: 0,
+            score: 0,
+            currentWord: null,
+            isGameOver: false,
+            isPlaying: false,
+            endlessLevel: 1,
+            unlockedLevel: 0,
+            highScore: 0,
+            
+            // Typing Stats
+            totalCharsTyped: 0,
+            correctCharsTyped: 0,
+            startTime: 0,
+            errorsInCurrentWord: 0
+        };
+
+        const container = document.getElementById('game-container');
+        const rocket = document.getElementById('rocket');
+        const healthBar = document.getElementById('health-bar');
+        const healthText = document.getElementById('health-text');
+        const statValue = document.getElementById('stat-value');
+        const statLabel = document.getElementById('stat-label');
+        const levelNameDisplay = document.getElementById('level-name');
+        const flash = document.getElementById('screen-flash');
+        const statusScreen = document.getElementById('status-screen');
+        const wpmDisplay = document.getElementById('wpm-val');
+        const accDisplay = document.getElementById('acc-val');
+
+        window.onload = () => {
+            loadProgress();
+            createStars();
+            updateHighScoreDisplay();
+        };
+
+        function loadProgress() {
+            const saved = localStorage.getItem('type2save_v2');
+            if (saved) {
+                const data = JSON.parse(saved);
+                gameState.unlockedLevel = data.unlockedLevel || 0;
+                gameState.highScore = data.highScore || 0;
+            }
+        }
+
+        function saveProgress() {
+            localStorage.setItem('type2save_v2', JSON.stringify({
+                unlockedLevel: gameState.unlockedLevel,
+                highScore: gameState.highScore
+            }));
+            updateHighScoreDisplay();
+        }
+
+        function updateHighScoreDisplay() {
+            document.getElementById('high-score-display').innerText = `HIGH SCORE: ${gameState.highScore}`;
+        }
+
+        function createStars() {
+            const starsContainer = document.getElementById('stars');
+            for (let i = 0; i < 150; i++) {
+                const star = document.createElement('div');
+                star.className = 'star';
+                const size = Math.random() * 2 + 1;
+                star.style.width = size + 'px'; star.style.height = size + 'px';
+                star.style.left = Math.random() * 100 + 'vw';
+                star.style.top = Math.random() * 100 + 'vh';
+                star.style.setProperty('--duration', (Math.random() * 3 + 2) + 's');
+                starsContainer.appendChild(star);
+            }
+        }
+
+        function showLevelSelect() {
+            document.getElementById('start-screen').classList.add('hidden');
+            const grid = document.getElementById('levels-grid');
+            grid.innerHTML = '';
+            levels.forEach((lvl, idx) => {
+                const isLocked = idx > gameState.unlockedLevel;
+                const btn = document.createElement('button');
+                btn.className = `p-4 border text-left transition-all ${isLocked ? 'opacity-40 cursor-not-allowed border-gray-800' : 'btn-glow border-cyan-800 bg-cyan-900/20'}`;
+                btn.innerHTML = `<div class="text-xs ${isLocked ? 'text-gray-600' : 'text-cyan-400'}">SECTOR 0${idx+1}</div><div class="font-bold">${lvl.name.split(': ')[1]}</div>`;
+                if (!isLocked) btn.onclick = () => { gameState.currentLevel = idx; gameState.mode = 'story'; hideLevelSelect(); showChapter(); };
+                grid.appendChild(btn);
+            });
+            document.getElementById('level-select-screen').classList.remove('hidden');
+        }
+
+        function hideLevelSelect() {
+            document.getElementById('level-select-screen').classList.add('hidden');
+            document.getElementById('start-screen').classList.remove('hidden');
+        }
+
+        function returnToMenu() {
+            gameState.isPlaying = false;
+            gameState.isGameOver = true;
+            clearActiveWords();
+            statusScreen.classList.add('hidden');
+            document.getElementById('hud').classList.add('hidden');
+            rocket.classList.add('hidden');
+            document.getElementById('story-screen').classList.add('hidden');
+            document.getElementById('start-screen').classList.remove('hidden');
+        }
+
+        function clearActiveWords() {
+            gameState.activeWords.forEach(w => {
+                if(w.element) w.element.remove();
+            });
+            gameState.activeWords = [];
+            gameState.currentWord = null;
+        }
+
+        function startGame(mode) {
+            gameState.mode = mode;
+            document.getElementById('start-screen').classList.add('hidden');
+            if (mode === 'endless') startEndless();
+        }
+
+        function showChapter() {
+            const level = levels[gameState.currentLevel];
+            const screen = document.getElementById('story-screen');
+            const text = document.getElementById('chapter-text');
+            gameState.isPlaying = false;
+            screen.classList.remove('hidden');
+            document.getElementById('chapter-title').innerText = level.name;
+            text.innerText = "";
+            let i = 0;
+            const interval = setInterval(() => {
+                text.innerText += level.text.charAt(i); i++;
+                if (i >= level.text.length) clearInterval(interval);
+            }, 25);
+            document.getElementById('proceed-btn').onclick = () => { screen.classList.add('hidden'); initGameSession(); };
+        }
+
+        function startEndless() {
+            gameState.mode = 'endless';
+            gameState.score = 0;
+            gameState.endlessLevel = 1;
+            initGameSession();
+        }
+
+        function initGameSession() {
+            // Complete reset of game state
+            gameState.isPlaying = true;
+            gameState.isGameOver = false;
+            gameState.spawnedCount = 0;
+            gameState.destroyedCount = 0;
+            clearActiveWords();
+            
+            gameState.health = 100;
+            gameState.totalCharsTyped = 0;
+            gameState.correctCharsTyped = 0;
+            gameState.startTime = Date.now();
+            
+            statusScreen.classList.add('hidden');
+            document.getElementById('hud').classList.remove('hidden');
+            rocket.classList.remove('hidden');
+            rocket.style.left = '50%';
+            
+            updateStatsUI();
+            
+            if (gameState.mode === 'story') {
+                statLabel.innerText = "TARGETS LEFT";
+                levelNameDisplay.innerText = levels[gameState.currentLevel].name;
+                statValue.innerText = levels[gameState.currentLevel].wordsCount;
+            } else {
+                statLabel.innerText = "SCORE";
+                statValue.innerText = "0";
+                levelNameDisplay.innerText = "MODE: ENDLESS LVL 1";
+            }
+            
+            // Kickstart loop
+            requestAnimationFrame(gameLoop);
+        }
+
+        function updateStatsUI() {
+            const minutes = (Date.now() - gameState.startTime) / 60000;
+            const wpm = minutes > 0 ? Math.round((gameState.correctCharsTyped / 5) / minutes) : 0;
+            const acc = gameState.totalCharsTyped > 0 ? Math.round((gameState.correctCharsTyped / gameState.totalCharsTyped) * 100) : 100;
+            wpmDisplay.innerText = wpm;
+            accDisplay.innerText = acc + "%";
+            healthBar.style.width = gameState.health + '%';
+            healthText.innerText = Math.ceil(gameState.health) + '%';
+        }
+
+        function gameLoop() {
+            if (!gameState.isPlaying || gameState.isGameOver) return;
+
+            let currentSpeed, spawnRate, maxWords;
+            if (gameState.mode === 'story') {
+                const level = levels[gameState.currentLevel];
+                currentSpeed = level.speed;
+                spawnRate = 0.015;
+                maxWords = level.wordsCount;
+            } else {
+                currentSpeed = 0.8 + (gameState.endlessLevel * 0.2);
+                spawnRate = 0.015 + (gameState.endlessLevel * 0.005);
+                maxWords = Infinity;
+            }
+            
+            if (gameState.spawnedCount < maxWords && Math.random() < spawnRate) spawnWord();
+
+            gameState.activeWords.forEach((wordObj, index) => {
+                wordObj.y += currentSpeed;
+                wordObj.element.style.top = wordObj.y + 'px';
+                if (wordObj.y > window.innerHeight - 80) {
+                    takeDamage(gameState.mode === 'story' ? 12 : 10 + (gameState.endlessLevel * 2));
+                    removeWord(index);
+                }
+            });
+
+            if (gameState.mode === 'story' && gameState.destroyedCount >= maxWords) {
+                showMissionSuccess(); return;
+            }
+
+            updateStatsUI();
+            requestAnimationFrame(gameLoop);
+        }
+
+        function spawnWord() {
+            let diff;
+            if (gameState.mode === 'story') diff = levels[gameState.currentLevel].difficulty;
+            else diff = Math.min(5, Math.floor(gameState.score / 500) + 1);
+
+            const bank = wordsBank[diff] || wordsBank[5];
+            const text = bank[Math.floor(Math.random() * bank.length)];
+            const element = document.createElement('div');
+            element.className = 'word-container';
+            element.innerText = text;
+            const x = Math.max(100, Math.min(window.innerWidth - 150, Math.random() * (window.innerWidth - 200)));
+            element.style.left = x + 'px';
+            element.style.top = '-50px';
+            container.appendChild(element);
+            gameState.activeWords.push({ text, element, y: -50, x, typed: "", errorCount: 0 });
+            gameState.spawnedCount++;
+        }
+
+        function takeDamage(amt) {
+            gameState.health -= amt;
+            if (gameState.health <= 0) {
+                gameState.health = 0;
+                showGameOver();
+            }
+            container.classList.add('shake');
+            flash.style.opacity = '0.3';
+            setTimeout(() => { container.classList.remove('shake'); flash.style.opacity = '0'; }, 300);
+        }
+
+        function removeWord(index) {
+            const wordObj = gameState.activeWords[index];
+            if (wordObj && wordObj.element) wordObj.element.remove();
+            gameState.activeWords.splice(index, 1);
+            if (gameState.currentWord === wordObj) gameState.currentWord = null;
+        }
+
+        function fireLaser(targetX, targetY, isError = false) {
+            const rocketBox = rocket.getBoundingClientRect();
+            const startX = rocketBox.left + rocketBox.width / 2;
+            const startY = rocketBox.top;
+            const laser = document.createElement('div');
+            laser.className = 'laser';
+            if (isError) {
+                laser.style.background = 'linear-gradient(to right, transparent, #ff0055, transparent)';
+                laser.style.boxShadow = '0 0 15px #ff0055';
+            }
+            const dx = targetX - startX, dy = targetY - startY;
+            const distance = Math.sqrt(dx*dx + dy*dy), angle = Math.atan2(dy, dx);
+            laser.style.height = distance + 'px';
+            laser.style.left = startX + 'px';
+            laser.style.bottom = (window.innerHeight - startY) + 'px';
+            laser.style.transformOrigin = 'bottom center';
+            laser.style.transform = `rotate(${angle + Math.PI/2}deg)`;
+            container.appendChild(laser);
+            setTimeout(() => laser.remove(), 60);
+        }
+
+        function updateWordDisplay() {
+            if (!gameState.currentWord) return;
+            const { text, typed, errorCount } = gameState.currentWord;
+            
+            let html = `<span class="word-typed">${text.substring(0, typed.length)}</span>`;
+            if (errorCount > 0) {
+                html += `<span class="word-error">${text.charAt(typed.length)}</span>`;
+                html += `<span>${text.substring(typed.length + 1)}</span>`;
+            } else {
+                html += `<span>${text.substring(typed.length)}</span>`;
+            }
+            gameState.currentWord.element.innerHTML = html;
+        }
+
+        window.addEventListener('keydown', (e) => {
+            if (!gameState.isPlaying || gameState.isGameOver) return;
+            
+            if (e.key === 'Backspace' && gameState.currentWord && gameState.currentWord.errorCount > 0) {
+                gameState.currentWord.errorCount = 0;
+                updateWordDisplay();
+                return;
+            }
+
+            const char = e.key;
+            if (char.length !== 1 || e.ctrlKey || e.altKey) return;
+            
+            gameState.totalCharsTyped++;
+
+            if (!gameState.currentWord) {
+                const candidates = gameState.activeWords.filter(w => w.text.startsWith(char.toLowerCase())).sort((a, b) => b.y - a.y);
+                if (candidates.length > 0) {
+                    gameState.currentWord = candidates[0];
+                    gameState.currentWord.element.classList.add('word-active');
+                }
+            }
+
+            if (gameState.currentWord) {
+                if (gameState.currentWord.errorCount > 0) return;
+
+                const targetChar = gameState.currentWord.text.charAt(gameState.currentWord.typed.length);
+                if (char.toLowerCase() === targetChar.toLowerCase()) {
+                    gameState.correctCharsTyped++;
+                    gameState.currentWord.typed += targetChar;
+                    rocket.style.left = gameState.currentWord.x + 'px';
+                    fireLaser(gameState.currentWord.x, gameState.currentWord.y + 20);
+                    
+                    if (gameState.currentWord.typed === gameState.currentWord.text) {
+                        const scoreGain = gameState.currentWord.text.length * 10;
+                        removeWord(gameState.activeWords.indexOf(gameState.currentWord));
+                        if (gameState.mode === 'story') {
+                            gameState.destroyedCount++;
+                            statValue.innerText = levels[gameState.currentLevel].wordsCount - gameState.destroyedCount;
+                        } else {
+                            gameState.score += scoreGain;
+                            statValue.innerText = gameState.score;
+                            gameState.endlessLevel = Math.floor(gameState.score / 500) + 1;
+                        }
+                    } else {
+                        updateWordDisplay();
+                    }
+                } else {
+                    gameState.currentWord.errorCount = 1;
+                    fireLaser(gameState.currentWord.x, gameState.currentWord.y + 20, true);
+                    updateWordDisplay();
+                }
+            }
+        });
+
+        function showMissionSuccess() {
+            gameState.isGameOver = true; 
+            gameState.isPlaying = false;
+            if (gameState.currentLevel === gameState.unlockedLevel && gameState.unlockedLevel < levels.length - 1) {
+                gameState.unlockedLevel++; 
+                saveProgress();
+            }
+            statusScreen.classList.remove('hidden');
+            const title = document.getElementById('status-title');
+            title.innerText = "MISSION SUCCESS";
+            title.className = "text-6xl font-bold mb-4 font-['Orbitron'] text-cyan-400";
+            
+            const mins = (Date.now() - gameState.startTime) / 60000;
+            const wpm = Math.round((gameState.correctCharsTyped / 5) / mins);
+            document.getElementById('status-stats').innerHTML = `WPM: ${wpm} | Accuracy: ${Math.round((gameState.correctCharsTyped/gameState.totalCharsTyped)*100)}%`;
+            
+            const btn = document.getElementById('status-primary-btn');
+            if (gameState.currentLevel < levels.length - 1) {
+                btn.innerText = "PROCEED TO NEXT SECTOR";
+                btn.onclick = () => { gameState.currentLevel++; showChapter(); };
+            } else { 
+                btn.innerText = "FINISH STORY"; 
+                btn.onclick = returnToMenu; 
+            }
+        }
+
+        function showGameOver() {
+            gameState.isGameOver = true; 
+            gameState.isPlaying = false;
+            statusScreen.classList.remove('hidden');
+            const title = document.getElementById('status-title');
+            title.innerText = "EARTH HAS FALLEN";
+            title.className = "text-6xl font-bold mb-4 font-['Orbitron'] text-red-600";
+            
+            const btn = document.getElementById('status-primary-btn');
+            if (gameState.mode === 'endless') {
+                if (gameState.score > gameState.highScore) { 
+                    gameState.highScore = gameState.score; 
+                    saveProgress(); 
+                }
+                document.getElementById('status-stats').innerHTML = `<div class="text-yellow-500">FINAL SCORE: ${gameState.score}</div>`;
+                btn.innerText = "TRY AGAIN";
+                btn.onclick = startEndless;
+            } else {
+                document.getElementById('status-stats').innerText = `Sector overwhelmed. Training incomplete.`;
+                btn.innerText = "RETRY MISSION";
+                btn.onclick = initGameSession;
+            }
+        }
+    </script>
+</body>
+</html>
