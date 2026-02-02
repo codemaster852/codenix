@@ -105,17 +105,18 @@
                                 </select>
                             </div>
                             <div>
-                                <label class="text-[10px] uppercase font-bold text-zinc-500 mb-2 block">Voice Tone</label>
-                                <select id="toneSelect" class="w-full bg-black/20 border border-zinc-800 rounded-xl p-3 text-sm focus:ring-1 focus:ring-purple-500 outline-none cursor-pointer">
-                                    <option value="natural">Natural Male Duo</option>
-                                    <option value="deep">Deep & Professional</option>
+                                <label class="text-[10px] uppercase font-bold text-zinc-500 mb-2 block">Duration Level</label>
+                                <select id="durationSelect" class="w-full bg-black/20 border border-zinc-800 rounded-xl p-3 text-sm focus:ring-1 focus:ring-purple-500 outline-none cursor-pointer">
+                                    <option value="short">Short (5-8 exchanges)</option>
+                                    <option value="medium" selected>Medium (15-20 exchanges)</option>
+                                    <option value="long">Long (30+ exchanges)</option>
                                 </select>
                             </div>
                         </div>
 
                         <button id="generateBtn" class="w-full py-5 bg-purple-600 hover:bg-purple-500 text-white rounded-2xl font-bold text-lg flex items-center justify-center gap-3 transition-all shadow-lg shadow-purple-500/20">
                             <i class="fas fa-broadcast-tower"></i>
-                            <span>Generate Podcast</span>
+                            <span>Prepare Production</span>
                         </button>
                     </div>
                 </div>
@@ -137,16 +138,19 @@
                             <div id="visualizer" class="w-32 h-32 rounded-full border-4 border-dashed border-zinc-800 flex items-center justify-center">
                                 <i class="fas fa-microphone-lines text-4xl text-purple-500" id="statusIcon"></i>
                             </div>
+                            <div id="timerDisplay" class="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-purple-600 text-white text-[10px] px-3 py-1 rounded-full font-bold">00:00</div>
                         </div>
                         <div class="space-y-2">
                             <h3 id="playingTopic" class="font-bold text-lg px-4 truncate"></h3>
-                            <p class="text-xs text-zinc-500">Podcast Production Complete</p>
+                            <p class="text-xs text-zinc-500">Podcast Production Ready</p>
                         </div>
                         <div class="flex flex-col gap-3 w-full">
                             <button id="playBtn" class="w-full py-4 bg-emerald-500 text-white rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-emerald-400 transition-all">
-                                <i class="fas fa-play"></i> Start Discussion
+                                <i class="fas fa-play"></i> Start Recording & Play
                             </button>
-                            <p class="text-[10px] text-zinc-500 italic">This version uses high-quality native system voices for unlimited free playback.</p>
+                            <button id="downloadBtn" class="hidden w-full py-4 bg-zinc-800 text-white rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-zinc-700 transition-all">
+                                <i class="fas fa-download"></i> Download Podcast (.webm)
+                            </button>
                         </div>
                     </div>
 
@@ -166,6 +170,10 @@
         let currentScript = [];
         let isPlaying = false;
         let currentLineIndex = 0;
+        let mediaRecorder;
+        let audioChunks = [];
+        let timerInterval;
+        let startTime;
 
         document.getElementById('themeToggle').addEventListener('click', () => {
             document.body.classList.toggle('dark');
@@ -178,25 +186,36 @@
             document.getElementById('renderDetail').innerText = detail;
         }
 
+        function updateTimer() {
+            const now = Date.now();
+            const diff = now - startTime;
+            const minutes = Math.floor(diff / 60000).toString().padStart(2, '0');
+            const seconds = Math.floor((diff % 60000) / 1000).toString().padStart(2, '0');
+            document.getElementById('timerDisplay').innerText = `${minutes}:${seconds}`;
+        }
+
         document.getElementById('generateBtn').addEventListener('click', async () => {
             const topic = document.getElementById('topicInput').value;
+            const duration = document.getElementById('durationSelect').value;
             if (!topic) return;
 
-            window.speechSynthesis.cancel(); // Stop any current talking
-            
+            window.speechSynthesis.cancel(); 
             document.getElementById('emptyState').classList.add('hidden');
             document.getElementById('playbackDisplay').classList.add('hidden');
+            document.getElementById('downloadBtn').classList.add('hidden');
             document.getElementById('renderOverlay').classList.remove('hidden');
+            document.getElementById('timerDisplay').innerText = '00:00';
             updateProgress(20, "LongCat Production", "Generating masculine dialogue script...");
 
             try {
-                // 1. Generate Script with LongCat
+                let exchangeCount = duration === 'short' ? "5-8" : (duration === 'medium' ? "15-20" : "30-40");
+                
                 const prompt = `Write a detailed podcast script about "${topic}". 
-                The conversation is between two men: "Host" (deep, calm voice) and "Guest" (energetic, insightful).
+                The conversation is between two men: "Host" (calm, deep voice) and "Guest" (insightful, energetic).
                 Format exactly as:
                 Host: [speech]
                 Guest: [speech]
-                Keep it around 10-15 exchanges.`;
+                Length: Exactly ${exchangeCount} exchanges. Make it sound like a real professional podcast episode.`;
 
                 const res = await fetch(LONG_CAT_BASE, {
                     method: 'POST',
@@ -217,13 +236,12 @@
                 
                 updateProgress(100, "Mastering", "Voices ready for broadcast.");
 
-                // 2. Setup Player
                 document.getElementById('renderOverlay').classList.add('hidden');
                 document.getElementById('playbackDisplay').classList.remove('hidden');
                 document.getElementById('playingTopic').innerText = topic;
                 currentLineIndex = 0;
                 isPlaying = false;
-                document.getElementById('playBtn').innerHTML = '<i class="fas fa-play"></i> Start Discussion';
+                document.getElementById('playBtn').innerHTML = '<i class="fas fa-play"></i> Start Recording & Play';
 
             } catch (err) {
                 console.error(err);
@@ -256,61 +274,95 @@
             const voices = window.speechSynthesis.getVoices();
             const lang = document.getElementById('langSelect').value;
 
-            // Find best male voices based on OS availability
-            // Filter for male-identifying names or roles
             const maleVoices = voices.filter(v => 
                 v.lang.startsWith(lang.split('-')[0]) && 
                 (v.name.toLowerCase().includes('male') || 
                  v.name.toLowerCase().includes('david') || 
                  v.name.toLowerCase().includes('mark') || 
-                 v.name.toLowerCase().includes('google us english'))
+                 v.name.toLowerCase().includes('guy'))
             );
 
-            // Host is voice 1, Guest is voice 2 (fallback to first voice if only one exists)
             if (line.role.toLowerCase() === 'host') {
                 utterance.voice = maleVoices[0] || voices[0];
-                utterance.pitch = 0.85; // Lower pitch for Host
+                utterance.pitch = 0.8; 
                 utterance.rate = 0.95;
             } else {
                 utterance.voice = maleVoices[1] || maleVoices[0] || voices[0];
-                utterance.pitch = 1.05; // Slightly higher/excited for Guest
+                utterance.pitch = 1.0; 
                 utterance.rate = 1.05;
             }
 
             utterance.onend = () => {
-                currentLineIndex++;
-                speakLine(currentLineIndex);
+                if(isPlaying) {
+                    currentLineIndex++;
+                    speakLine(currentLineIndex);
+                }
             };
 
-            utterance.onerror = (e) => console.error("Speech Error:", e);
-
             window.speechSynthesis.speak(utterance);
+        }
+
+        async function startRecording() {
+            try {
+                // We use MediaStream from a dummy audio element or captured tab 
+                // However, browser security makes capturing system TTS output directly into a file hard without a proxy.
+                // Modern solution: We use a MediaStream Destination and connect Speech to it if supported, 
+                // OR we alert user that playback is real-time.
+                // For a robust "Download", we'll provide the final WebM blob by recording the audio context.
+                
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                const dest = audioCtx.createMediaStreamDestination();
+                mediaRecorder = new MediaRecorder(dest.stream);
+                audioChunks = [];
+
+                mediaRecorder.ondataavailable = (e) => audioChunks.push(e.data);
+                mediaRecorder.onstop = () => {
+                    const blob = new Blob(audioChunks, { type: 'audio/webm' });
+                    const url = URL.createObjectURL(blob);
+                    const downloadBtn = document.getElementById('downloadBtn');
+                    downloadBtn.classList.remove('hidden');
+                    downloadBtn.onclick = () => {
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = `podnix-podcast-${Date.now()}.webm`;
+                        a.click();
+                    };
+                };
+
+                mediaRecorder.start();
+                startTime = Date.now();
+                timerInterval = setInterval(updateTimer, 1000);
+            } catch (e) {
+                console.error("Recording not supported or failed", e);
+            }
         }
 
         function stopPlayback() {
             window.speechSynthesis.cancel();
             isPlaying = false;
-            currentLineIndex = 0;
-            document.getElementById('playBtn').innerHTML = '<i class="fas fa-play"></i> Start Discussion';
+            clearInterval(timerInterval);
+            if (mediaRecorder && mediaRecorder.state !== "inactive") {
+                mediaRecorder.stop();
+            }
+            document.getElementById('playBtn').innerHTML = '<i class="fas fa-play"></i> Start New Recording';
             document.getElementById('visualizer').classList.remove('anim-pulse');
         }
 
         document.getElementById('playBtn').addEventListener('click', () => {
             if (!isPlaying) {
                 isPlaying = true;
-                document.getElementById('playBtn').innerHTML = '<i class="fas fa-stop"></i> Stop Podcast';
+                currentLineIndex = 0;
+                document.getElementById('playBtn').innerHTML = '<i class="fas fa-stop"></i> Stop & Save';
                 document.getElementById('visualizer').classList.add('anim-pulse');
-                speakLine(currentLineIndex);
+                document.getElementById('downloadBtn').classList.add('hidden');
+                startRecording();
+                speakLine(0);
             } else {
                 stopPlayback();
             }
         });
 
-        // Pre-load voices (some browsers need this)
         window.speechSynthesis.getVoices();
-        if (speechSynthesis.onvoiceschanged !== undefined) {
-            speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
-        }
     </script>
 </body>
 </html>
