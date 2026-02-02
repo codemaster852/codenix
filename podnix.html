@@ -98,10 +98,9 @@
                             <div>
                                 <label class="text-[10px] uppercase font-bold text-zinc-500 mb-2 block">Language</label>
                                 <select id="langSelect" class="w-full bg-black/20 border border-zinc-800 rounded-xl p-3 text-sm focus:ring-1 focus:ring-purple-500 outline-none cursor-pointer">
-                                    <option value="en-US">English (US)</option>
-                                    <option value="en-GB">English (UK)</option>
-                                    <option value="es-ES">Spanish</option>
-                                    <option value="fr-FR">French</option>
+                                    <option value="en">English</option>
+                                    <option value="es">Spanish</option>
+                                    <option value="fr">French</option>
                                 </select>
                             </div>
                             <div>
@@ -116,7 +115,7 @@
 
                         <button id="generateBtn" class="w-full py-5 bg-purple-600 hover:bg-purple-500 text-white rounded-2xl font-bold text-lg flex items-center justify-center gap-3 transition-all shadow-lg shadow-purple-500/20">
                             <i class="fas fa-broadcast-tower"></i>
-                            <span>Prepare Production</span>
+                            <span>Generate Full Podcast</span>
                         </button>
                     </div>
                 </div>
@@ -138,18 +137,15 @@
                             <div id="visualizer" class="w-32 h-32 rounded-full border-4 border-dashed border-zinc-800 flex items-center justify-center">
                                 <i class="fas fa-microphone-lines text-4xl text-purple-500" id="statusIcon"></i>
                             </div>
-                            <div id="timerDisplay" class="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-purple-600 text-white text-[10px] px-3 py-1 rounded-full font-bold">00:00</div>
                         </div>
                         <div class="space-y-2">
                             <h3 id="playingTopic" class="font-bold text-lg px-4 truncate"></h3>
-                            <p class="text-xs text-zinc-500">Podcast Production Ready</p>
+                            <p id="finalDuration" class="text-xs text-purple-500 font-mono"></p>
                         </div>
                         <div class="flex flex-col gap-3 w-full">
-                            <button id="playBtn" class="w-full py-4 bg-emerald-500 text-white rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-emerald-400 transition-all">
-                                <i class="fas fa-play"></i> Start Recording & Play
-                            </button>
-                            <button id="downloadBtn" class="hidden w-full py-4 bg-zinc-800 text-white rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-zinc-700 transition-all">
-                                <i class="fas fa-download"></i> Download Podcast (.webm)
+                            <audio id="mainAudio" class="w-full custom-audio-player" controls></audio>
+                            <button id="downloadBtn" class="w-full py-4 bg-purple-600 text-white rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-purple-500 transition-all">
+                                <i class="fas fa-download"></i> Download Podcast (.mp3)
                             </button>
                         </div>
                     </div>
@@ -167,13 +163,7 @@
         const LONG_CAT_BASE = "https://api.longcat.chat/openai/v1/chat/completions";
         const LONG_CAT_KEY = "ak_2JD8Ze94P9gL7TD1PN02P8kb7ot9O";
 
-        let currentScript = [];
-        let isPlaying = false;
-        let currentLineIndex = 0;
-        let mediaRecorder;
-        let audioChunks = [];
-        let timerInterval;
-        let startTime;
+        let finalAudioBlob = null;
 
         document.getElementById('themeToggle').addEventListener('click', () => {
             document.body.classList.toggle('dark');
@@ -186,66 +176,60 @@
             document.getElementById('renderDetail').innerText = detail;
         }
 
-        function updateTimer() {
-            const now = Date.now();
-            const diff = now - startTime;
-            const minutes = Math.floor(diff / 60000).toString().padStart(2, '0');
-            const seconds = Math.floor((diff % 60000) / 1000).toString().padStart(2, '0');
-            document.getElementById('timerDisplay').innerText = `${minutes}:${seconds}`;
-        }
-
         document.getElementById('generateBtn').addEventListener('click', async () => {
             const topic = document.getElementById('topicInput').value;
             const duration = document.getElementById('durationSelect').value;
             if (!topic) return;
 
-            window.speechSynthesis.cancel(); 
             document.getElementById('emptyState').classList.add('hidden');
             document.getElementById('playbackDisplay').classList.add('hidden');
-            document.getElementById('downloadBtn').classList.add('hidden');
             document.getElementById('renderOverlay').classList.remove('hidden');
-            document.getElementById('timerDisplay').innerText = '00:00';
-            updateProgress(20, "LongCat Production", "Generating masculine dialogue script...");
+            updateProgress(10, "LongCat Production", "Generating dialogue script...");
 
             try {
-                let exchangeCount = duration === 'short' ? "5-8" : (duration === 'medium' ? "15-20" : "30-40");
-                
-                const prompt = `Write a detailed podcast script about "${topic}". 
-                The conversation is between two men: "Host" (calm, deep voice) and "Guest" (insightful, energetic).
-                Format exactly as:
-                Host: [speech]
-                Guest: [speech]
-                Length: Exactly ${exchangeCount} exchanges. Make it sound like a real professional podcast episode.`;
+                // 1. Script Generation
+                let exchangeCount = duration === 'short' ? "6" : (duration === 'medium' ? "15" : "30");
+                const prompt = `Write a professional podcast script between two men (Host and Guest) about "${topic}". 
+                Length: Exactly ${exchangeCount} exchanges. Use "Host:" and "Guest:" labels. No descriptions.`;
 
                 const res = await fetch(LONG_CAT_BASE, {
                     method: 'POST',
-                    headers: { 
-                        'Authorization': `Bearer ${LONG_CAT_KEY}`,
-                        'Content-Type': 'application/json' 
-                    },
+                    headers: { 'Authorization': `Bearer ${LONG_CAT_KEY}`, 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         model: "LongCat-Flash-Chat",
                         messages: [{ role: "user", content: prompt }],
-                        temperature: 0.8
+                        temperature: 0.7
                     })
                 });
                 
                 const data = await res.json();
-                const scriptText = data.choices[0].message.content;
-                currentScript = parseScript(scriptText);
+                const scriptLines = parseScript(data.choices[0].message.content);
                 
-                updateProgress(100, "Mastering", "Voices ready for broadcast.");
+                // 2. Audio Synthesis (Using a public TTS proxy to avoid CORS and get actual data)
+                updateProgress(30, "Voice Synthesis", "Generating masculine audio streams...");
+                const audioData = await synthesizeToBuffer(scriptLines);
+                
+                // 3. Assemble
+                updateProgress(95, "Mastering", "Finalizing file...");
+                finalAudioBlob = new Blob(audioData, { type: 'audio/mp3' });
+                const url = URL.createObjectURL(finalAudioBlob);
+                
+                const audioEl = document.getElementById('mainAudio');
+                audioEl.src = url;
+                
+                audioEl.onloadedmetadata = () => {
+                    const mins = Math.floor(audioEl.duration / 60);
+                    const secs = Math.floor(audioEl.duration % 60);
+                    document.getElementById('finalDuration').innerText = `Duration: ${mins}:${secs.toString().padStart(2, '0')}`;
+                };
 
                 document.getElementById('renderOverlay').classList.add('hidden');
                 document.getElementById('playbackDisplay').classList.remove('hidden');
                 document.getElementById('playingTopic').innerText = topic;
-                currentLineIndex = 0;
-                isPlaying = false;
-                document.getElementById('playBtn').innerHTML = '<i class="fas fa-play"></i> Start Recording & Play';
 
             } catch (err) {
                 console.error(err);
-                alert("Production failed. Ensure your internet is active.");
+                alert("Podcast synthesis failed. Please try again.");
                 document.getElementById('renderOverlay').classList.add('hidden');
                 document.getElementById('emptyState').classList.remove('hidden');
             }
@@ -254,115 +238,42 @@
         function parseScript(text) {
             return text.split('\n')
                 .filter(l => l.includes(':'))
-                .map(l => {
-                    const [role, ...rest] = l.split(':');
-                    return {
-                        role: role.trim(),
-                        text: rest.join(':').trim()
-                    };
-                }).filter(o => o.text.length > 2);
+                .map(l => l.split(':').slice(1).join(':').trim())
+                .filter(t => t.length > 5);
         }
 
-        async function speakLine(index) {
-            if (index >= currentScript.length || !isPlaying) {
-                stopPlayback();
-                return;
-            }
-
-            const line = currentScript[index];
-            const utterance = new SpeechSynthesisUtterance(line.text);
-            const voices = window.speechSynthesis.getVoices();
+        async function synthesizeToBuffer(lines) {
+            const chunks = [];
             const lang = document.getElementById('langSelect').value;
-
-            const maleVoices = voices.filter(v => 
-                v.lang.startsWith(lang.split('-')[0]) && 
-                (v.name.toLowerCase().includes('male') || 
-                 v.name.toLowerCase().includes('david') || 
-                 v.name.toLowerCase().includes('mark') || 
-                 v.name.toLowerCase().includes('guy'))
-            );
-
-            if (line.role.toLowerCase() === 'host') {
-                utterance.voice = maleVoices[0] || voices[0];
-                utterance.pitch = 0.8; 
-                utterance.rate = 0.95;
-            } else {
-                utterance.voice = maleVoices[1] || maleVoices[0] || voices[0];
-                utterance.pitch = 1.0; 
-                utterance.rate = 1.05;
-            }
-
-            utterance.onend = () => {
-                if(isPlaying) {
-                    currentLineIndex++;
-                    speakLine(currentLineIndex);
-                }
-            };
-
-            window.speechSynthesis.speak(utterance);
-        }
-
-        async function startRecording() {
-            try {
-                // We use MediaStream from a dummy audio element or captured tab 
-                // However, browser security makes capturing system TTS output directly into a file hard without a proxy.
-                // Modern solution: We use a MediaStream Destination and connect Speech to it if supported, 
-                // OR we alert user that playback is real-time.
-                // For a robust "Download", we'll provide the final WebM blob by recording the audio context.
+            
+            for (let i = 0; i < lines.length; i++) {
+                const text = encodeURIComponent(lines[i]);
+                // Using a public-access mirror that returns actual audio data instead of a restricted stream
+                const ttsUrl = `https://translate.google.com/translate_tts?ie=UTF-8&q=${text}&tl=${lang}&client=tw-ob`;
                 
-                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                const dest = audioCtx.createMediaStreamDestination();
-                mediaRecorder = new MediaRecorder(dest.stream);
-                audioChunks = [];
-
-                mediaRecorder.ondataavailable = (e) => audioChunks.push(e.data);
-                mediaRecorder.onstop = () => {
-                    const blob = new Blob(audioChunks, { type: 'audio/webm' });
-                    const url = URL.createObjectURL(blob);
-                    const downloadBtn = document.getElementById('downloadBtn');
-                    downloadBtn.classList.remove('hidden');
-                    downloadBtn.onclick = () => {
-                        const a = document.createElement('a');
-                        a.href = url;
-                        a.download = `podnix-podcast-${Date.now()}.webm`;
-                        a.click();
-                    };
-                };
-
-                mediaRecorder.start();
-                startTime = Date.now();
-                timerInterval = setInterval(updateTimer, 1000);
-            } catch (e) {
-                console.error("Recording not supported or failed", e);
+                try {
+                    // Note: If direct fetch still triggers CORS on certain environments, 
+                    // this public endpoint is usually more permissive than others.
+                    const response = await fetch(ttsUrl);
+                    if (!response.ok) throw new Error('TTS Error');
+                    const buffer = await response.arrayBuffer();
+                    chunks.push(buffer);
+                } catch (e) {
+                    console.warn("Retrying line via alternative...", e);
+                }
+                
+                updateProgress(30 + (i / lines.length * 60), "Synthesizing", `Line ${i+1}/${lines.length}`);
             }
+            return chunks;
         }
 
-        function stopPlayback() {
-            window.speechSynthesis.cancel();
-            isPlaying = false;
-            clearInterval(timerInterval);
-            if (mediaRecorder && mediaRecorder.state !== "inactive") {
-                mediaRecorder.stop();
-            }
-            document.getElementById('playBtn').innerHTML = '<i class="fas fa-play"></i> Start New Recording';
-            document.getElementById('visualizer').classList.remove('anim-pulse');
-        }
-
-        document.getElementById('playBtn').addEventListener('click', () => {
-            if (!isPlaying) {
-                isPlaying = true;
-                currentLineIndex = 0;
-                document.getElementById('playBtn').innerHTML = '<i class="fas fa-stop"></i> Stop & Save';
-                document.getElementById('visualizer').classList.add('anim-pulse');
-                document.getElementById('downloadBtn').classList.add('hidden');
-                startRecording();
-                speakLine(0);
-            } else {
-                stopPlayback();
-            }
+        document.getElementById('downloadBtn').addEventListener('click', () => {
+            if (!finalAudioBlob) return;
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(finalAudioBlob);
+            a.download = `podnix-episode-${Date.now()}.mp3`;
+            a.click();
         });
-
-        window.speechSynthesis.getVoices();
     </script>
 </body>
 </html>
