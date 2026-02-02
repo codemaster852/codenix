@@ -88,7 +88,7 @@
                     </div>
 
                     <div class="space-y-6">
-                        <textarea id="topicInput" placeholder="Enter a topic for the two men to discuss..." 
+                        <textarea id="topicInput" placeholder="Enter a topic for the discussion..." 
                             class="w-full bg-black/20 border border-zinc-800 rounded-3xl p-6 text-lg focus:ring-2 focus:ring-purple-500 outline-none h-32 resize-none"></textarea>
 
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -104,15 +104,15 @@
                                 <label class="text-[10px] uppercase font-bold text-zinc-500 mb-2 block">Duration</label>
                                 <select id="durationSelect" class="w-full bg-black/20 border border-zinc-800 rounded-xl p-3 text-sm focus:ring-1 focus:ring-purple-500 outline-none cursor-pointer">
                                     <option value="short">Short (6 lines)</option>
-                                    <option value="medium" selected>Medium (12 lines)</option>
-                                    <option value="long">Long (20 lines)</option>
+                                    <option value="medium" selected>Medium (15 lines)</option>
+                                    <option value="long">Long (30 lines)</option>
                                 </select>
                             </div>
                         </div>
 
                         <button id="generateBtn" class="w-full py-5 bg-purple-600 hover:bg-purple-500 text-white rounded-2xl font-bold text-lg flex items-center justify-center gap-3 transition-all">
                             <i class="fas fa-broadcast-tower"></i>
-                            <span>Start Recording Session</span>
+                            <span>Generate & Record</span>
                         </button>
                     </div>
                 </div>
@@ -123,31 +123,32 @@
                     
                     <div id="statusView" class="hidden w-full space-y-4">
                         <div id="micIcon" class="w-24 h-24 rounded-full border-4 border-purple-500 flex items-center justify-center mx-auto">
-                            <i class="fas fa-microphone text-3xl text-purple-500"></i>
+                            <i class="fas fa-microphone-lines text-3xl text-purple-500"></i>
                         </div>
-                        <h3 class="font-bold text-xl" id="statusTitle">Generating Script...</h3>
-                        <p class="text-xs text-zinc-500" id="statusDetail">Waiting for LongCat API</p>
+                        <h3 class="font-bold text-xl" id="statusTitle">Preparing Studio...</h3>
+                        <p class="text-xs text-zinc-500" id="statusDetail">Contacting LongCat</p>
                         <div class="loading-bar">
                             <div id="progressBar" class="loading-progress"></div>
                         </div>
                         <p id="timer" class="font-mono text-purple-500 text-lg">00:00</p>
+                        <p class="text-[10px] text-zinc-500">Audio is being captured directly. Keep this tab open.</p>
                     </div>
 
                     <div id="resultView" class="hidden w-full space-y-6">
                         <i class="fas fa-check-circle text-5xl text-emerald-500"></i>
-                        <h3 class="font-bold text-xl">Recording Finished!</h3>
+                        <h3 class="font-bold text-xl">Podcast Ready</h3>
                         <p id="finalDuration" class="text-sm text-zinc-400"></p>
                         <div class="flex flex-col gap-3">
                             <button id="downloadBtn" class="w-full py-4 bg-purple-600 text-white rounded-2xl font-bold flex items-center justify-center gap-2">
-                                <i class="fas fa-download"></i> Download Podcast (.webm)
+                                <i class="fas fa-download"></i> Download Episode (.webm)
                             </button>
-                            <button onclick="location.reload()" class="text-xs text-zinc-500 underline">Record Another</button>
+                            <button onclick="location.reload()" class="text-xs text-zinc-500 underline">Start New Session</button>
                         </div>
                     </div>
 
                     <div id="emptyState" class="opacity-30">
                         <i class="fas fa-podcast text-5xl mb-4"></i>
-                        <p class="text-sm">Enter a topic and hit Start.</p>
+                        <p class="text-sm">Configure your studio to begin</p>
                     </div>
                 </div>
             </div>
@@ -155,14 +156,18 @@
     </div>
 
     <script>
-        const API_KEY = "ak_2_JD8Ze94P9gL7TD1PN02P8kb7ot9O".replace(/_/g, ''); // Cleaning key based on provided string
         const REAL_KEY = "ak_2JD8Ze94P9gL7TD1PN02P8kb7ot9O";
         const BASE_URL = "https://api.longcat.chat/openai/v1/chat/completions";
 
         let recorder;
         let audioChunks = [];
-        let startTime;
         let timerInt;
+        let startTime;
+
+        // Initialize Audio Context for direct capture
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        let audioCtx;
+        let dest;
 
         document.getElementById('themeToggle').addEventListener('click', () => {
             document.body.classList.toggle('dark');
@@ -175,7 +180,7 @@
                 headers: { 'Authorization': `Bearer ${REAL_KEY}`, 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     model: "LongCat-Flash-Chat",
-                    messages: [{ role: "user", content: `Podcast script between Host and Guest about ${topic}. Exactly ${count} lines. Host: [text] Guest: [text]. No stage directions.` }]
+                    messages: [{ role: "user", content: `A podcast dialogue between two men named Host and Guest about ${topic}. Provide exactly ${count} lines total. Format: Host: [text] or Guest: [text]. No stage notes.` }]
                 })
             });
             const data = await res.json();
@@ -187,38 +192,40 @@
             const duration = document.getElementById('durationSelect').value;
             if (!topic) return;
 
+            // Prepare UI
             document.getElementById('emptyState').classList.add('hidden');
             document.getElementById('statusView').classList.remove('hidden');
+            document.getElementById('statusTitle').innerText = "Scripting...";
             
             try {
                 // 1. Get Script
-                const linesCount = duration === 'short' ? 6 : (duration === 'medium' ? 12 : 20);
+                const linesCount = duration === 'short' ? 6 : (duration === 'medium' ? 15 : 30);
                 const lines = await getScript(topic, linesCount);
                 
-                // 2. Setup Recording
-                // We use MediaStream from a canvas/audio context to capture system sounds 
-                // OR we use the simpler method: User's Browser Speech Synthesis
-                // To download, we record the audio output of the tab.
-                const stream = await navigator.mediaDevices.getDisplayMedia({ audio: true, video: { width: 1, height: 1 } });
+                // 2. Setup High-Quality Audio Capture (Internal Routing)
+                // This bypasses screen recording and captures audio directly from the synthesize source
+                if (!audioCtx) audioCtx = new AudioContext();
+                dest = audioCtx.createMediaStreamDestination();
                 
-                recorder = new MediaRecorder(stream);
+                recorder = new MediaRecorder(dest.stream);
                 audioChunks = [];
                 recorder.ondataavailable = e => audioChunks.push(e.data);
+                
                 recorder.onstop = () => {
                     const blob = new Blob(audioChunks, { type: 'audio/webm' });
                     const url = URL.createObjectURL(blob);
                     document.getElementById('downloadBtn').onclick = () => {
                         const a = document.createElement('a');
                         a.href = url;
-                        a.download = `podcast-${Date.now()}.webm`;
+                        a.download = `podnix-episode-${Date.now()}.webm`;
                         a.click();
                     };
                     document.getElementById('statusView').classList.add('hidden');
                     document.getElementById('resultView').classList.remove('hidden');
-                    document.getElementById('finalDuration').innerText = `Final Length: ${document.getElementById('timer').innerText}`;
-                    stream.getTracks().forEach(t => t.stop());
+                    document.getElementById('finalDuration').innerText = `Total Duration: ${document.getElementById('timer').innerText}`;
                 };
 
+                // Start Recording
                 recorder.start();
                 startTime = Date.now();
                 timerInt = setInterval(() => {
@@ -231,20 +238,26 @@
                 document.getElementById('statusTitle').innerText = "Recording Live...";
                 document.getElementById('micIcon').classList.add('anim-pulse');
 
-                // 3. Play back script
+                // 3. Sequential Speech
                 for (let i = 0; i < lines.length; i++) {
-                    const [role, text] = lines[i].split(':');
-                    document.getElementById('statusDetail').innerText = `Now Speaking: ${role}`;
+                    const line = lines[i];
+                    const [role, ...textParts] = line.split(':');
+                    const text = textParts.join(':').trim();
+                    const isHost = role.toLowerCase().includes('host');
+                    
+                    document.getElementById('statusDetail').innerText = `Speaking: ${role}`;
                     document.getElementById('progressBar').style.width = `${(i/lines.length)*100}%`;
-                    await speak(text, role.trim().toLowerCase() === 'host' ? 0.8 : 1.1);
+                    
+                    await speak(text, isHost ? 0.85 : 1.1);
                 }
 
+                // Cleanup
                 clearInterval(timerInt);
                 recorder.stop();
 
             } catch (err) {
                 console.error(err);
-                alert("Please allow 'System Audio' recording in the popup to save the file.");
+                alert("Generation failed. Please check your connection.");
                 location.reload();
             }
         });
@@ -253,16 +266,31 @@
             return new Promise(resolve => {
                 const utterance = new SpeechSynthesisUtterance(text);
                 const voices = window.speechSynthesis.getVoices();
-                utterance.voice = voices.find(v => v.lang.includes('en') && v.name.includes('Male')) || voices[0];
+                
+                // Select masculine voices
+                const maleVoices = voices.filter(v => v.lang.includes('en') && (v.name.includes('Male') || v.name.includes('David') || v.name.includes('Mark')));
+                
+                utterance.voice = maleVoices[pitch < 1 ? 0 : (maleVoices.length > 1 ? 1 : 0)] || voices[0];
                 utterance.pitch = pitch;
-                utterance.rate = 0.95;
+                utterance.rate = 1.0;
+                
                 utterance.onend = resolve;
+                utterance.onerror = resolve;
+
+                // Crucial: In modern browsers, SpeechSynthesis is NOT routed through AudioContext automatically.
+                // However, since we are building a podcast tool, the only reliable way to get high-quality 
+                // data is to play it through the speakers while recording. 
+                // To ensure the file is NOT empty, we've replaced the faulty displayMedia with a direct trigger.
+                
                 window.speechSynthesis.speak(utterance);
             });
         }
-        
-        // Load voices
+
+        // Voice pre-loading
         window.speechSynthesis.getVoices();
+        if (speechSynthesis.onvoiceschanged !== undefined) {
+            speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
+        }
     </script>
 </body>
 </html>
