@@ -98,25 +98,24 @@
                             <div>
                                 <label class="text-[10px] uppercase font-bold text-zinc-500 mb-2 block">Language</label>
                                 <select id="langSelect" class="w-full bg-black/20 border border-zinc-800 rounded-xl p-3 text-sm focus:ring-1 focus:ring-purple-500 outline-none cursor-pointer">
-                                    <option value="en">English</option>
-                                    <option value="es">Spanish</option>
-                                    <option value="fr">French</option>
-                                    <option value="de">German</option>
+                                    <option value="en-US">English (US)</option>
+                                    <option value="en-GB">English (UK)</option>
+                                    <option value="es-ES">Spanish</option>
+                                    <option value="fr-FR">French</option>
                                 </select>
                             </div>
                             <div>
-                                <label class="text-[10px] uppercase font-bold text-zinc-500 mb-2 block">Target Duration</label>
-                                <select id="durationSelect" class="w-full bg-black/20 border border-zinc-800 rounded-xl p-3 text-sm focus:ring-1 focus:ring-purple-500 outline-none cursor-pointer">
-                                    <option value="short">Short (1-2 Min)</option>
-                                    <option value="medium" selected>Medium (3-4 Min)</option>
-                                    <option value="long">Long (5-6 Min)</option>
+                                <label class="text-[10px] uppercase font-bold text-zinc-500 mb-2 block">Voice Tone</label>
+                                <select id="toneSelect" class="w-full bg-black/20 border border-zinc-800 rounded-xl p-3 text-sm focus:ring-1 focus:ring-purple-500 outline-none cursor-pointer">
+                                    <option value="natural">Natural Male Duo</option>
+                                    <option value="deep">Deep & Professional</option>
                                 </select>
                             </div>
                         </div>
 
                         <button id="generateBtn" class="w-full py-5 bg-purple-600 hover:bg-purple-500 text-white rounded-2xl font-bold text-lg flex items-center justify-center gap-3 transition-all shadow-lg shadow-purple-500/20">
                             <i class="fas fa-broadcast-tower"></i>
-                            <span>Produce Full Audio Podcast</span>
+                            <span>Generate Podcast</span>
                         </button>
                     </div>
                 </div>
@@ -138,19 +137,16 @@
                             <div id="visualizer" class="w-32 h-32 rounded-full border-4 border-dashed border-zinc-800 flex items-center justify-center">
                                 <i class="fas fa-microphone-lines text-4xl text-purple-500" id="statusIcon"></i>
                             </div>
-                            <div id="timeLabel" class="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-purple-600 text-white text-[10px] px-3 py-1 rounded-full font-bold">00:00</div>
                         </div>
                         <div class="space-y-2">
                             <h3 id="playingTopic" class="font-bold text-lg px-4 truncate"></h3>
-                            <p class="text-xs text-zinc-500">Audio Mastered (Two Male Speakers)</p>
+                            <p class="text-xs text-zinc-500">Podcast Production Complete</p>
                         </div>
                         <div class="flex flex-col gap-3 w-full">
                             <button id="playBtn" class="w-full py-4 bg-emerald-500 text-white rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-emerald-400 transition-all">
-                                <i class="fas fa-play"></i> Play Episode
+                                <i class="fas fa-play"></i> Start Discussion
                             </button>
-                            <button id="downloadAudioBtn" class="w-full py-4 bg-purple-600 text-white rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-purple-500 transition-all">
-                                <i class="fas fa-download"></i> Download Podcast (.mp3)
-                            </button>
+                            <p class="text-[10px] text-zinc-500 italic">This version uses high-quality native system voices for unlimited free playback.</p>
                         </div>
                     </div>
 
@@ -167,9 +163,9 @@
         const LONG_CAT_BASE = "https://api.longcat.chat/openai/v1/chat/completions";
         const LONG_CAT_KEY = "ak_2JD8Ze94P9gL7TD1PN02P8kb7ot9O";
 
-        let audioUrl = null;
-        let audioPlayer = new Audio();
-        let finalBlob = null;
+        let currentScript = [];
+        let isPlaying = false;
+        let currentLineIndex = 0;
 
         document.getElementById('themeToggle').addEventListener('click', () => {
             document.body.classList.toggle('dark');
@@ -184,124 +180,137 @@
 
         document.getElementById('generateBtn').addEventListener('click', async () => {
             const topic = document.getElementById('topicInput').value;
-            const duration = document.getElementById('durationSelect').value;
             if (!topic) return;
 
+            window.speechSynthesis.cancel(); // Stop any current talking
+            
             document.getElementById('emptyState').classList.add('hidden');
             document.getElementById('playbackDisplay').classList.add('hidden');
             document.getElementById('renderOverlay').classList.remove('hidden');
-            updateProgress(10, "LongCat Production", "Generating masculine script...");
+            updateProgress(20, "LongCat Production", "Generating masculine dialogue script...");
 
             try {
                 // 1. Generate Script with LongCat
-                const wordGoal = duration === 'short' ? 250 : (duration === 'medium' ? 550 : 850);
-                const scriptText = await callLongCat(topic, wordGoal);
-                const scriptLines = parseScript(scriptText);
+                const prompt = `Write a detailed podcast script about "${topic}". 
+                The conversation is between two men: "Host" (deep, calm voice) and "Guest" (energetic, insightful).
+                Format exactly as:
+                Host: [speech]
+                Guest: [speech]
+                Keep it around 10-15 exchanges.`;
+
+                const res = await fetch(LONG_CAT_BASE, {
+                    method: 'POST',
+                    headers: { 
+                        'Authorization': `Bearer ${LONG_CAT_KEY}`,
+                        'Content-Type': 'application/json' 
+                    },
+                    body: JSON.stringify({
+                        model: "LongCat-Flash-Chat",
+                        messages: [{ role: "user", content: prompt }],
+                        temperature: 0.8
+                    })
+                });
                 
-                updateProgress(40, "Voice Synthesis", "Generating audio tracks (Unlimited API)...");
-
-                // 2. Synthesize using public TTS
-                const audioChunks = await synthesizeScript(scriptLines);
+                const data = await res.json();
+                const scriptText = data.choices[0].message.content;
+                currentScript = parseScript(scriptText);
                 
-                updateProgress(90, "Mastering", "Creating final podcast file...");
+                updateProgress(100, "Mastering", "Voices ready for broadcast.");
 
-                // 3. Assemble and Show
-                finalBlob = new Blob(audioChunks, { type: 'audio/mpeg' });
-                audioUrl = URL.createObjectURL(finalBlob);
-                audioPlayer.src = audioUrl;
-
+                // 2. Setup Player
                 document.getElementById('renderOverlay').classList.add('hidden');
                 document.getElementById('playbackDisplay').classList.remove('hidden');
                 document.getElementById('playingTopic').innerText = topic;
+                currentLineIndex = 0;
+                isPlaying = false;
+                document.getElementById('playBtn').innerHTML = '<i class="fas fa-play"></i> Start Discussion';
 
-                audioPlayer.onloadedmetadata = () => {
-                    const m = Math.floor(audioPlayer.duration / 60).toString().padStart(2, '0');
-                    const s = Math.floor(audioPlayer.duration % 60).toString().padStart(2, '0');
-                    document.getElementById('timeLabel').innerText = `${m}:${s}`;
-                };
             } catch (err) {
                 console.error(err);
-                alert("Podcast production failed. Please check your connection and try again.");
+                alert("Production failed. Ensure your internet is active.");
                 document.getElementById('renderOverlay').classList.add('hidden');
                 document.getElementById('emptyState').classList.remove('hidden');
             }
         });
-
-        async function callLongCat(topic, words) {
-            const prompt = `Act as a podcast director. Write a natural conversation between two men, Host and Guest, discussing: ${topic}. 
-            Total length should be approximately ${words} words.
-            Format clearly with "Host:" and "Guest:" labels. No extra descriptions.`;
-
-            const res = await fetch(LONG_CAT_BASE, {
-                method: 'POST',
-                headers: { 
-                    'Authorization': `Bearer ${LONG_CAT_KEY}`,
-                    'Content-Type': 'application/json' 
-                },
-                body: JSON.stringify({
-                    model: "LongCat-Flash-Chat",
-                    messages: [{ role: "user", content: prompt }],
-                    temperature: 0.7
-                })
-            });
-            const data = await res.json();
-            return data.choices[0].message.content;
-        }
 
         function parseScript(text) {
             return text.split('\n')
                 .filter(l => l.includes(':'))
                 .map(l => {
                     const [role, ...rest] = l.split(':');
-                    return rest.join(':').trim();
-                }).filter(t => t.length > 2);
+                    return {
+                        role: role.trim(),
+                        text: rest.join(':').trim()
+                    };
+                }).filter(o => o.text.length > 2);
         }
 
-        async function synthesizeScript(lines) {
-            const chunks = [];
-            const lang = document.getElementById('langSelect').value;
-            
-            for (let i = 0; i < lines.length; i++) {
-                // Split long text into chunks for the public TTS API limits
-                const textChunks = lines[i].match(/.{1,180}(\s|$)/g) || [lines[i]];
-                
-                for (const segment of textChunks) {
-                    const ttsUrl = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(segment)}&tl=${lang}&client=tw-ob`;
-                    const response = await fetch(ttsUrl);
-                    const buffer = await response.arrayBuffer();
-                    chunks.push(buffer);
-                }
-                
-                const progress = 40 + (i / lines.length * 50);
-                updateProgress(progress, "Synthesizing", `Rendering audio segment ${i + 1}/${lines.length}`);
+        async function speakLine(index) {
+            if (index >= currentScript.length || !isPlaying) {
+                stopPlayback();
+                return;
             }
-            return chunks;
+
+            const line = currentScript[index];
+            const utterance = new SpeechSynthesisUtterance(line.text);
+            const voices = window.speechSynthesis.getVoices();
+            const lang = document.getElementById('langSelect').value;
+
+            // Find best male voices based on OS availability
+            // Filter for male-identifying names or roles
+            const maleVoices = voices.filter(v => 
+                v.lang.startsWith(lang.split('-')[0]) && 
+                (v.name.toLowerCase().includes('male') || 
+                 v.name.toLowerCase().includes('david') || 
+                 v.name.toLowerCase().includes('mark') || 
+                 v.name.toLowerCase().includes('google us english'))
+            );
+
+            // Host is voice 1, Guest is voice 2 (fallback to first voice if only one exists)
+            if (line.role.toLowerCase() === 'host') {
+                utterance.voice = maleVoices[0] || voices[0];
+                utterance.pitch = 0.85; // Lower pitch for Host
+                utterance.rate = 0.95;
+            } else {
+                utterance.voice = maleVoices[1] || maleVoices[0] || voices[0];
+                utterance.pitch = 1.05; // Slightly higher/excited for Guest
+                utterance.rate = 1.05;
+            }
+
+            utterance.onend = () => {
+                currentLineIndex++;
+                speakLine(currentLineIndex);
+            };
+
+            utterance.onerror = (e) => console.error("Speech Error:", e);
+
+            window.speechSynthesis.speak(utterance);
+        }
+
+        function stopPlayback() {
+            window.speechSynthesis.cancel();
+            isPlaying = false;
+            currentLineIndex = 0;
+            document.getElementById('playBtn').innerHTML = '<i class="fas fa-play"></i> Start Discussion';
+            document.getElementById('visualizer').classList.remove('anim-pulse');
         }
 
         document.getElementById('playBtn').addEventListener('click', () => {
-            if (audioPlayer.paused) {
-                audioPlayer.play();
-                document.getElementById('playBtn').innerHTML = '<i class="fas fa-pause"></i> Pause Episode';
+            if (!isPlaying) {
+                isPlaying = true;
+                document.getElementById('playBtn').innerHTML = '<i class="fas fa-stop"></i> Stop Podcast';
                 document.getElementById('visualizer').classList.add('anim-pulse');
+                speakLine(currentLineIndex);
             } else {
-                audioPlayer.pause();
-                document.getElementById('playBtn').innerHTML = '<i class="fas fa-play"></i> Play Episode';
-                document.getElementById('visualizer').classList.remove('anim-pulse');
+                stopPlayback();
             }
         });
 
-        document.getElementById('downloadAudioBtn').addEventListener('click', () => {
-            if (!finalBlob) return;
-            const a = document.createElement('a');
-            a.href = audioUrl;
-            a.download = `podcast-${Date.now()}.mp3`;
-            a.click();
-        });
-
-        audioPlayer.onended = () => {
-            document.getElementById('playBtn').innerHTML = '<i class="fas fa-play"></i> Play Episode';
-            document.getElementById('visualizer').classList.remove('anim-pulse');
-        };
+        // Pre-load voices (some browsers need this)
+        window.speechSynthesis.getVoices();
+        if (speechSynthesis.onvoiceschanged !== undefined) {
+            speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
+        }
     </script>
 </body>
 </html>
