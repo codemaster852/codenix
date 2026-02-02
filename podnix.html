@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PodNix Studio - AI Podcast Creator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #9333ea;
+            --primary-hover: #a855f7;
+        }
+
+        .dark {
+            --bg: #0a0a0a;
+            --card: #121212;
+            --text: #ffffff;
+            --text-dim: #a1a1aa;
+            --border: #27272a;
+        }
+
+        .light {
+            --bg: #fcfaff;
+            --card: #ffffff;
+            --text: #18181b;
+            --text-dim: #71717a;
+            --border: #f4f4f5;
+        }
+
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            transition: all 0.3s ease;
+        }
+
+        .pod-card {
+            background-color: var(--card);
+            border: 1px solid var(--border);
+        }
+
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: var(--primary); border-radius: 10px; opacity: 0.3; }
+
+        @keyframes pulse-purple {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.05); opacity: 0.8; }
+        }
+        .anim-pulse { animation: pulse-purple 2s infinite ease-in-out; }
+        
+        .loading-bar {
+            height: 4px;
+            background: #27272a;
+            border-radius: 2px;
+            overflow: hidden;
+            width: 100%;
+        }
+        .loading-progress {
+            height: 100%;
+            background: var(--primary);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+    </style>
+</head>
+<body class="dark min-h-screen font-sans">
+    <div class="max-w-6xl mx-auto p-4 md:p-8">
+        
+        <!-- Navigation -->
+        <nav class="flex items-center justify-between mb-12">
+            <div class="flex items-center gap-3">
+                <div class="p-3 bg-purple-600 rounded-2xl shadow-lg shadow-purple-500/40">
+                    <i class="fas fa-podcast text-2xl text-white"></i>
+                </div>
+                <div>
+                    <h1 class="text-2xl font-black tracking-tight tracking-widest">PODNIX</h1>
+                    <p class="text-[10px] font-bold uppercase text-purple-500">Dual Male Voice Studio</p>
+                </div>
+            </div>
+            
+            <button id="themeToggle" class="p-3 rounded-2xl border border-zinc-800 bg-zinc-900 text-yellow-400 hover:scale-105 transition-all">
+                <i class="fas fa-sun" id="themeIcon"></i>
+            </button>
+        </nav>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            
+            <!-- Left: Inputs -->
+            <div class="lg:col-span-7 space-y-6">
+                <div class="pod-card p-8 rounded-[2.5rem] shadow-xl">
+                    <div class="flex items-center gap-3 mb-6">
+                        <i class="fas fa-wand-magic-sparkles text-purple-500"></i>
+                        <h2 class="text-lg font-bold">Studio Configuration</h2>
+                    </div>
+
+                    <div class="space-y-6">
+                        <textarea id="topicInput" placeholder="Enter a topic for the men's discussion..." 
+                            class="w-full bg-black/20 border border-zinc-800 rounded-3xl p-6 text-lg focus:ring-2 focus:ring-purple-500 outline-none h-32 resize-none"></textarea>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="text-[10px] uppercase font-bold text-zinc-500 mb-2 block">Language</label>
+                                <select id="langSelect" class="w-full bg-black/20 border border-zinc-800 rounded-xl p-3 text-sm focus:ring-1 focus:ring-purple-500 outline-none cursor-pointer">
+                                    <option value="en">English</option>
+                                    <option value="es">Spanish</option>
+                                    <option value="fr">French</option>
+                                    <option value="de">German</option>
+                                    <option value="it">Italian</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="text-[10px] uppercase font-bold text-zinc-500 mb-2 block">Target Duration</label>
+                                <select id="durationSelect" class="w-full bg-black/20 border border-zinc-800 rounded-xl p-3 text-sm focus:ring-1 focus:ring-purple-500 outline-none cursor-pointer">
+                                    <option value="short">Short (1-2 Minutes)</option>
+                                    <option value="medium" selected>Medium (3-4 Minutes)</option>
+                                    <option value="long">Long (5-6 Minutes)</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <button id="generateBtn" class="w-full py-5 bg-purple-600 hover:bg-purple-500 text-white rounded-2xl font-bold text-lg flex items-center justify-center gap-3 transition-all shadow-lg shadow-purple-500/20">
+                            <i class="fas fa-layer-group"></i>
+                            <span>Generate & Produce Audio</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right: Playback -->
+            <div class="lg:col-span-5 flex flex-col gap-6">
+                <div class="pod-card p-8 rounded-[2.5rem] flex-1 flex flex-col items-center justify-center text-center">
+                    
+                    <!-- Pre-Show Loading -->
+                    <div id="renderOverlay" class="hidden w-full space-y-4">
+                        <i class="fas fa-compact-disc fa-spin text-4xl text-purple-500"></i>
+                        <h3 class="font-bold" id="renderStatus">Directing Script...</h3>
+                        <p class="text-xs text-zinc-500" id="renderDetail">Connecting to production servers</p>
+                        <div class="loading-bar">
+                            <div id="renderProgress" class="loading-progress"></div>
+                        </div>
+                    </div>
+
+                    <div id="playbackDisplay" class="hidden w-full space-y-6">
+                        <div class="relative inline-block">
+                            <div id="visualizer" class="w-32 h-32 rounded-full border-4 border-dashed border-zinc-800 flex items-center justify-center">
+                                <i class="fas fa-microphone-lines text-4xl text-purple-500" id="statusIcon"></i>
+                            </div>
+                            <div id="timeLabel" class="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-purple-600 text-white text-[10px] px-3 py-1 rounded-full font-bold">00:00</div>
+                        </div>
+
+                        <div class="space-y-2">
+                            <h3 id="playingTopic" class="font-bold text-lg px-4 truncate"></h3>
+                            <p class="text-xs text-zinc-500">Audio Mastered (Two Male Voices)</p>
+                        </div>
+
+                        <div class="flex flex-col gap-3 w-full">
+                            <button id="playBtn" class="w-full py-4 bg-emerald-500 text-white rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-emerald-400 transition-all">
+                                <i class="fas fa-play"></i> Play Episode
+                            </button>
+                            <button id="downloadAudioBtn" class="w-full py-4 bg-purple-600 text-white rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-purple-500 transition-all">
+                                <i class="fas fa-download"></i> Download Podcast (.wav)
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="emptyState" class="opacity-30">
+                        <i class="fas fa-headphones-alt text-5xl mb-4"></i>
+                        <p class="text-sm">Ready to build your podcast</p>
+                    </div>
+                </div>
+
+                <div id="scriptContainer" class="pod-card hidden p-6 rounded-3xl max-h-[300px] overflow-y-auto custom-scrollbar">
+                    <div id="scriptLines" class="space-y-4 text-left"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const apiKey = ""; // API key is handled by the environment automatically
+        const LONG_CAT_BASE_URL = "https://api.longcat.chat/openai/v1/chat/completions";
+        const LONG_CAT_API_KEY = "ak_2JD8Ze94P9gL7TD1PN02P8kb7ot9O";
+
+        let fullAudioBlob = null;
+        let audioUrl = null;
+        let audioPlayer = new Audio();
+        let script = [];
+
+        // --- UI Logic ---
+        document.getElementById('themeToggle').addEventListener('click', () => {
+            document.body.classList.toggle('dark');
+            document.body.classList.toggle('light');
+        });
+
+        function updateProgress(val, title, detail) {
+            document.getElementById('renderProgress').style.width = `${val}%`;
+            document.getElementById('renderStatus').innerText = title;
+            document.getElementById('renderDetail').innerText = detail;
+        }
+
+        // --- Production Engine ---
+        document.getElementById('generateBtn').addEventListener('click', async () => {
+            const topic = document.getElementById('topicInput').value;
+            const duration = document.getElementById('durationSelect').value;
+            if (!topic) return;
+
+            document.getElementById('emptyState').classList.add('hidden');
+            document.getElementById('playbackDisplay').classList.add('hidden');
+            document.getElementById('renderOverlay').classList.remove('hidden');
+            updateProgress(10, "Directing Script", "Crafting a male-perspective dialogue...");
+
+            try {
+                // 1. Generate Script
+                const wordCount = duration === 'short' ? 250 : (duration === 'medium' ? 500 : 800);
+                const scriptText = await generateScript(topic, wordCount);
+                script = parseScript(scriptText);
+                updateProgress(30, "Synthesizing Voices", "Connecting to Gemini Audio API...");
+
+                // 2. Generate Audio via Gemini TTS (Supported Public API)
+                const audioChunks = await produceAudio(script);
+                updateProgress(90, "Mastering Audio", "Stitching male vocal tracks...");
+
+                // 3. Create Final Blob
+                fullAudioBlob = await mergeAudioChunks(audioChunks);
+                audioUrl = URL.createObjectURL(fullAudioBlob);
+                audioPlayer.src = audioUrl;
+
+                // 4. Finalize
+                showPlayer(topic);
+            } catch (err) {
+                console.error(err);
+                alert("Production failed. This is likely due to service availability. Try again in a moment.");
+                document.getElementById('renderOverlay').classList.add('hidden');
+                document.getElementById('emptyState').classList.remove('hidden');
+            }
+        });
+
+        async function generateScript(topic, targetWords) {
+            const prompt = `Write a podcast script about "${topic}". 
+            It must be a dialogue between two men: "Host" and "Guest". 
+            Target length: Approximately ${targetWords} words.
+            Format exactly like this:
+            Host: [Dialogue]
+            Guest: [Dialogue]`;
+
+            const res = await fetch(LONG_CAT_BASE_URL, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${LONG_CAT_API_KEY}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    model: "LongCat-Flash-Chat",
+                    messages: [{ role: "user", content: prompt }]
+                })
+            });
+            const data = await res.json();
+            return data.choices[0].message.content;
+        }
+
+        function parseScript(text) {
+            return text.split('\n')
+                .filter(l => l.includes(':'))
+                .map(l => {
+                    const [role, ...rest] = l.split(':');
+                    return { role: role.trim(), text: rest.join(':').trim() };
+                });
+        }
+
+        async function produceAudio(lines) {
+            const chunks = [];
+            const total = lines.length;
+            
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i];
+                // Two distinct male voices: Kore (Deep/Host) and Zephyr (Expressive/Guest)
+                const voice = line.role.toLowerCase().includes('host') ? "Kore" : "Zephyr";
+                
+                const payload = {
+                    contents: [{ parts: [{ text: `Say in a masculine, natural tone: ${line.text}` }] }],
+                    generationConfig: {
+                        responseModalities: ["AUDIO"],
+                        speechConfig: { 
+                            voiceConfig: { 
+                                prebuiltVoiceConfig: { voiceName: voice } 
+                            } 
+                        }
+                    },
+                    model: "gemini-2.5-flash-preview-tts"
+                };
+
+                // Use exponential backoff for reliability
+                let attempts = 0;
+                let success = false;
+                let b64Data = null;
+
+                while(attempts < 5 && !success) {
+                    try {
+                        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${apiKey}`, {
+                            method: 'POST',
+                            body: JSON.stringify(payload)
+                        });
+                        const data = await res.json();
+                        b64Data = data.candidates[0].content.parts[0].inlineData.data;
+                        success = true;
+                    } catch(e) {
+                        attempts++;
+                        await new Promise(r => setTimeout(r, Math.pow(2, attempts) * 1000));
+                    }
+                }
+
+                if (!b64Data) throw new Error("Audio generation failed after retries.");
+
+                const binary = atob(b64Data);
+                const bytes = new Uint8Array(binary.length);
+                for (let j = 0; j < binary.length; j++) bytes[j] = binary.charCodeAt(j);
+                
+                chunks.push(bytes.buffer);
+                updateProgress(30 + (i / total * 50), "Synthesizing Voices", `Vocalizing: ${line.role} (${i+1}/${total})`);
+            }
+            return chunks;
+        }
+
+        async function mergeAudioChunks(buffers) {
+            const totalLen = buffers.reduce((a, b) => a + b.byteLength, 0);
+            const combined = new Uint8Array(totalLen);
+            let offset = 0;
+            buffers.forEach(b => {
+                combined.set(new Uint8Array(b), offset);
+                offset += b.byteLength;
+            });
+
+            // Gemini TTS returns L16 PCM at 24000Hz
+            return createWavBlob(combined, 24000); 
+        }
+
+        function createWavBlob(pcmData, sampleRate) {
+            const buffer = new ArrayBuffer(44 + pcmData.byteLength);
+            const view = new DataView(buffer);
+            
+            const writeString = (offset, string) => {
+                for (let i = 0; i < string.length; i++) {
+                    view.setUint8(offset + i, string.charCodeAt(i));
+                }
+            };
+
+            writeString(0, 'RIFF');
+            view.setUint32(4, 36 + pcmData.byteLength, true);
+            writeString(8, 'WAVE');
+            writeString(12, 'fmt ');
+            view.setUint32(16, 16, true);
+            view.setUint16(20, 1, true); 
+            view.setUint16(22, 1, true); 
+            view.setUint32(24, sampleRate, true);
+            view.setUint32(28, sampleRate * 2, true);
+            view.setUint16(32, 2, true);
+            view.setUint16(34, 16, true);
+            writeString(36, 'data');
+            view.setUint32(40, pcmData.byteLength, true);
+
+            const final = new Uint8Array(buffer);
+            final.set(new Uint8Array(pcmData), 44);
+            return new Blob([final], { type: 'audio/wav' });
+        }
+
+        function showPlayer(topic) {
+            document.getElementById('renderOverlay').classList.add('hidden');
+            document.getElementById('playbackDisplay').classList.remove('hidden');
+            document.getElementById('playingTopic').innerText = topic;
+            
+            audioPlayer.onloadedmetadata = () => {
+                const m = Math.floor(audioPlayer.duration / 60).toString().padStart(2, '0');
+                const s = Math.floor(audioPlayer.duration % 60).toString().padStart(2, '0');
+                document.getElementById('timeLabel').innerText = `${m}:${s}`;
+            };
+        }
+
+        // --- Controls ---
+        document.getElementById('playBtn').addEventListener('click', () => {
+            if (audioPlayer.paused) {
+                audioPlayer.play();
+                document.getElementById('playBtn').innerHTML = '<i class="fas fa-pause"></i> Pause Episode';
+                document.getElementById('visualizer').classList.add('anim-pulse');
+            } else {
+                audioPlayer.pause();
+                document.getElementById('playBtn').innerHTML = '<i class="fas fa-play"></i> Play Episode';
+                document.getElementById('visualizer').classList.remove('anim-pulse');
+            }
+        });
+
+        document.getElementById('downloadAudioBtn').addEventListener('click', () => {
+            if (!audioUrl) return;
+            const a = document.createElement('a');
+            a.href = audioUrl;
+            a.download = `podnix-male-duo-${Date.now()}.wav`;
+            a.click();
+        });
+
+        audioPlayer.onended = () => {
+            document.getElementById('playBtn').innerHTML = '<i class="fas fa-play"></i> Play Episode';
+            document.getElementById('visualizer').classList.remove('anim-pulse');
+        };
+    </script>
+</body>
+</html>
