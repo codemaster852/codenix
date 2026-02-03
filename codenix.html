@@ -38,10 +38,10 @@
         
         <!-- Activity Bar -->
         <div class="w-12 h-full bg-[#1e1e1e] flex flex-col items-center py-4 space-y-4 border-r border-[#2b2b2b] z-50 shadow-xl">
-            <button onclick="switchTab('explorer')" id="btn-explorer" class="p-2.5 rounded-xl transition-all bg-[#3b82f6] text-white shadow-lg shadow-blue-500/20">
+            <button onclick="switchTab('explorer')" id="btn-explorer" class="p-2.5 rounded-xl transition-all text-[#858585] hover:text-white hover:bg-[#2d2d2d]">
                 <i data-lucide="file-code" size="22"></i>
             </button>
-            <button onclick="switchTab('chat')" id="btn-chat" class="p-2.5 rounded-xl transition-all text-[#858585] hover:text-white hover:bg-[#2d2d2d]">
+            <button onclick="switchTab('chat')" id="btn-chat" class="p-2.5 rounded-xl transition-all bg-[#2563eb] text-white shadow-lg shadow-blue-500/20">
                 <i data-lucide="message-square" size="22"></i>
             </button>
             <div class="mt-auto p-2 text-[#858585] cursor-pointer hover:text-white" onclick="toggleSidebar()">
@@ -54,7 +54,7 @@
             <div id="sidebar" class="w-full bg-[#181818] flex flex-col border-r border-[#2b2b2b] overflow-hidden">
                 
                 <!-- Explorer View -->
-                <div id="view-explorer" class="flex-1 flex flex-col">
+                <div id="view-explorer" class="hidden flex-1 flex flex-col">
                     <div class="p-4 text-[10px] uppercase font-bold text-[#666] tracking-widest flex justify-between items-center">
                         <span>Workspace</span>
                         <i data-lucide="folder-open" size="14"></i>
@@ -63,11 +63,14 @@
                 </div>
 
                 <!-- Chat View -->
-                <div id="view-chat" class="hidden flex-1 flex flex-col bg-[#181818] overflow-hidden">
+                <div id="view-chat" class="flex-1 flex flex-col bg-[#181818] overflow-hidden">
                     <div class="p-4 border-b border-[#2b2b2b] flex items-center justify-between">
                         <div class="text-[11px] font-bold uppercase tracking-widest text-blue-400 flex items-center">
                             <i data-lucide="zap" size="14" class="mr-2"></i> Nix 3
                         </div>
+                        <button onclick="startNewApp()" title="New Project" class="p-1.5 rounded-lg hover:bg-red-500/10 text-gray-500 hover:text-red-400 transition-all">
+                            <i data-lucide="plus-circle" size="16"></i>
+                        </button>
                     </div>
 
                     <!-- Tasks List -->
@@ -85,7 +88,7 @@
                     <div id="chat-messages" class="flex-1 overflow-y-auto p-4 space-y-4 text-xs custom-scrollbar">
                         <div class="flex justify-start">
                             <div class="max-w-[85%] p-3 rounded-2xl bg-[#2a2a2a] border border-[#3e3e3e] text-[#ddd]">
-                                Hello! I'm Nix 3, your high-performance coding assistant. Ready to build?
+                                Hello! I'm Nix 3. I can now see your current code to provide better updates. <br><br>Click the <b>+</b> icon above to clear the code and start a new app.
                             </div>
                         </div>
                     </div>
@@ -186,6 +189,19 @@
             document.getElementById('chat-input').addEventListener('keypress', (e) => { if (e.key === 'Enter') handleSendMessage(); });
         };
 
+        function startNewApp() {
+            files = {
+                'index.html': `<!DOCTYPE html>\n<html>\n<head>\n  <meta charset="UTF-8">\n  <title>New Nix App</title>\n</head>\n<body>\n  <h1>New Project Ready</h1>\n</body>\n</html>`,
+                'styles.css': `body { background: #111; color: #fff; font-family: sans-serif; text-align: center; }`,
+                'script.js': `// New script`
+            };
+            activeFile = 'index.html';
+            updateEditor();
+            renderFileList();
+            document.getElementById('chat-messages').innerHTML = `<div class="flex justify-start"><div class="max-w-[85%] p-3 rounded-2xl bg-[#2a2a2a] border border-[#3e3e3e] text-[#ddd]">Workspace cleared. Nix 3 is ready for your new app!</div></div>`;
+            document.getElementById('task-container').classList.add('hidden');
+        }
+
         function renderFileList() {
             const list = document.getElementById('file-list');
             list.innerHTML = Object.keys(files).map(name => `
@@ -239,20 +255,43 @@
             const prompt = input.value.trim();
             if (!prompt) return;
 
+            // Sync current editor content before sending
+            files[activeFile] = document.getElementById('editor').value;
+
             addChatMessage('user', prompt);
             input.value = '';
             toggleLoading(true);
 
             try {
-                // Task 1: Generate Planning
-                const planRes = await callLongCat(`Plan code updates for: "${prompt}". Respond ONLY with JSON format: {"tasks": [{"id":1, "label": "Add a header", "file": "index.html"}]}`);
-                const plan = JSON.parse(planRes.match(/\{[\s\S]*\}/)[0]);
+                // Construct context: Send prompt along with current file content
+                const contextPrompt = `
+                CURRENT FILE CONTENT (${activeFile}):
+                ${files[activeFile]}
+                
+                USER INSTRUCTION:
+                ${prompt}
+                
+                Plan code updates. Respond ONLY with JSON format: {"tasks": [{"id":1, "label": "Task description", "file": "filename"}]}`;
+
+                const planRes = await callLongCat(contextPrompt);
+                const planMatch = planRes.match(/\{[\s\S]*\}/);
+                if (!planMatch) throw new Error("Invalid plan format");
+                const plan = JSON.parse(planMatch[0]);
                 showTasks(plan.tasks);
 
-                // Task 2: Execute code generation for each task
                 for (const task of plan.tasks) {
                     updateTaskStatus(task.id, 'running');
-                    const codeRes = await callLongCat(`Provide full source code for "${task.file}" based on task: "${task.label}". Overall goal: "${prompt}". No conversational text, no backticks, just code.`);
+                    
+                    const executionPrompt = `
+                    ACTUAL FILE CONTENT (${task.file}):
+                    ${files[task.file] || ""}
+                    
+                    TASK: "${task.label}" 
+                    GOAL: "${prompt}"
+                    
+                    Provide the complete updated source code for "${task.file}". No conversational text, no markdown backticks, just the raw code.`;
+
+                    const codeRes = await callLongCat(executionPrompt);
                     const cleanCode = codeRes.replace(/^```[a-z]*\n/i, "").replace(/\n```$/, "");
                     
                     setActiveFile(task.file);
@@ -309,6 +348,7 @@
 
         function updateTaskStatus(id, status) {
             const el = document.getElementById(`task-${id}`);
+            if (!el) return;
             const icon = el.querySelector('.status-icon');
             if (status === 'running') {
                 el.classList.add('border-blue-500/50');
