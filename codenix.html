@@ -1,364 +1,465 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { 
-  FileCode, MessageSquare, Settings, Play, ChevronRight, ChevronDown, 
-  Terminal as TerminalIcon, CheckCircle2, Circle, Loader2, Send, Cpu, 
-  FolderOpen, Eye, Menu, PanelLeftClose, PanelLeft, Maximize2, Minimize2
-} from 'lucide-react';
-
-const API_KEY = ""; // Using environment key
-const BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=";
-
-const INITIAL_FILES = {
-  'index.html': `<!DOCTYPE html>
-<html>
+<!DOCTYPE html>
+<html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Nix 3 Project</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Codenix IDE 3.5.2</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .font-mono { font-family: 'Fira Code', monospace; }
+        
+        /* Custom Scrollbar */
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; height: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #333; border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #444; }
+
+        /* Resizing Overlay to prevent iframe interference */
+        .resize-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            z-index: 1000;
+            cursor: col-resize;
+        }
+        .resizing-v .resize-overlay { cursor: row-resize; display: block; }
+        .resizing-h .resize-overlay { cursor: col-resize; display: block; }
+
+        /* Animations */
+        @keyframes pulse-soft {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .animate-pulse-soft { animation: pulse-soft 2s infinite; }
+    </style>
+</head>
+<body class="bg-[#0d0d0d] text-[#e0e0e0] overflow-hidden select-none">
+
+    <div id="resize-overlay" class="resize-overlay"></div>
+
+    <div class="flex h-screen w-full">
+        
+        <!-- Activity Bar -->
+        <div class="w-12 h-full bg-[#1e1e1e] flex flex-col items-center py-4 space-y-4 border-r border-[#2b2b2b] z-50 shadow-xl">
+            <button onclick="switchTab('explorer')" id="btn-explorer" class="p-2.5 rounded-xl transition-all bg-[#3b82f6] text-white shadow-lg shadow-blue-500/20">
+                <i data-lucide="file-code" size="22"></i>
+            </button>
+            <button onclick="switchTab('chat')" id="btn-chat" class="p-2.5 rounded-xl transition-all text-[#858585] hover:text-white hover:bg-[#2d2d2d]">
+                <i data-lucide="message-square" size="22"></i>
+            </button>
+            <div class="mt-auto p-2 text-[#858585] cursor-pointer hover:text-white" onclick="toggleSidebar()">
+                <i id="sidebar-toggle-icon" data-lucide="panel-left-close" size="20"></i>
+            </div>
+        </div>
+
+        <!-- Sidebar -->
+        <div id="sidebar-container" class="flex" style="width: 300px;">
+            <div id="sidebar" class="w-full bg-[#181818] flex flex-col border-r border-[#2b2b2b] overflow-hidden">
+                
+                <!-- Explorer View -->
+                <div id="view-explorer" class="flex-1 flex flex-col">
+                    <div class="p-4 text-[10px] uppercase font-bold text-[#666] tracking-widest flex justify-between items-center">
+                        <span>Workspace</span>
+                        <i data-lucide="folder-open" size="14"></i>
+                    </div>
+                    <div id="file-list" class="px-2 space-y-1">
+                        <!-- Files injected by JS -->
+                    </div>
+                </div>
+
+                <!-- Chat View -->
+                <div id="view-chat" class="hidden flex-1 flex flex-col bg-[#181818] overflow-hidden">
+                    <div class="p-4 border-b border-[#2b2b2b] flex items-center justify-between">
+                        <div class="text-[11px] font-bold uppercase tracking-widest text-purple-400 flex items-center">
+                            <i data-lucide="sparkles" size="14" class="mr-2"></i> Nix Intelligence
+                        </div>
+                    </div>
+
+                    <!-- Tasks List -->
+                    <div id="task-container" class="hidden px-4 py-3 border-b border-[#2b2b2b] bg-[#1a1a1a]">
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="text-[10px] text-gray-500 uppercase font-bold">Plan & Progress</span>
+                            <button onclick="clearTasks()" class="text-[10px] text-red-400 hover:text-red-300 transition-colors">
+                                <i data-lucide="trash-2" size="10"></i>
+                            </button>
+                        </div>
+                        <div id="task-list" class="max-h-32 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
+                            <!-- Tasks injected by JS -->
+                        </div>
+                    </div>
+
+                    <!-- Messages -->
+                    <div id="chat-messages" class="flex-1 overflow-y-auto p-4 space-y-4 text-xs custom-scrollbar">
+                        <div class="flex justify-start">
+                            <div class="max-w-[85%] p-3 rounded-2xl bg-[#2a2a2a] border border-[#3e3e3e] text-[#ddd]">
+                                Hello! I'm the HTML version of Nix 3.5. Ready to build something great?
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Input -->
+                    <div class="p-4 border-t border-[#2b2b2b] bg-[#1e1e1e]">
+                        <div class="relative">
+                            <input id="chat-input" type="text" 
+                                class="w-full bg-[#2a2a2a] rounded-xl p-3 pr-10 text-xs outline-none border border-transparent focus:border-purple-500/50 transition-all shadow-inner"
+                                placeholder="Ask Nix to modify code...">
+                            <button onclick="handleSendMessage()" class="absolute right-2 top-2 p-1.5 text-gray-400 hover:text-white">
+                                <i data-lucide="send" size="16"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- Resize Handle H -->
+            <div id="handle-sidebar" class="w-1 cursor-col-resize hover:bg-blue-500 active:bg-blue-600 transition-colors z-50"></div>
+        </div>
+
+        <!-- Main Workspace -->
+        <div class="flex-1 flex flex-col min-w-0 bg-[#0d0d0d]">
+            <!-- Tab Bar -->
+            <div class="h-10 flex bg-[#181818] items-center border-b border-[#2b2b2b] px-2 space-x-1">
+                <button onclick="switchView('editor')" id="tab-editor" class="px-4 h-full flex items-center text-[11px] font-medium transition-all rounded-t-lg bg-[#1e1e1e] text-white border-b-2 border-blue-500">
+                    <i data-lucide="code-2" size="14" class="mr-2"></i> Editor
+                </button>
+                <button onclick="switchView('preview')" id="tab-preview" class="px-4 h-full flex items-center text-[11px] font-medium transition-all rounded-t-lg text-gray-500 hover:text-gray-300">
+                    <i data-lucide="monitor" size="14" class="mr-2"></i> Live Preview
+                </button>
+                <div class="flex-1"></div>
+                <div id="active-filename" class="mr-4 text-[9px] font-bold text-gray-600 uppercase tracking-[0.2em]">index.html</div>
+            </div>
+
+            <!-- Content Area -->
+            <div class="flex-1 flex flex-col overflow-hidden relative">
+                <textarea id="editor" spellcheck="false" class="flex-1 bg-[#1e1e1e] p-8 outline-none font-mono text-[14px] leading-relaxed resize-none text-[#cbd5e1] caret-blue-500 selection:bg-blue-500/30"></textarea>
+                <iframe id="preview" class="hidden w-full h-full border-none bg-white"></iframe>
+            </div>
+
+            <!-- Terminal -->
+            <div id="terminal-container" class="flex flex-col">
+                <div id="handle-terminal" class="h-1 cursor-row-resize hover:bg-blue-500 active:bg-blue-600 transition-colors z-50"></div>
+                <div id="terminal" style="height: 160px;" class="bg-[#0f0f0f] border-t border-[#2b2b2b] flex flex-col overflow-hidden shadow-2xl">
+                    <div class="h-8 bg-[#1a1a1a] flex items-center justify-between px-4 border-b border-[#2b2b2b]">
+                        <div class="text-[10px] font-bold uppercase tracking-widest flex items-center text-gray-400">
+                            <i data-lucide="terminal" size="12" class="mr-2 text-blue-500"></i> Output Terminal
+                        </div>
+                        <i data-lucide="minimize-2" size="12" class="cursor-pointer text-gray-500 hover:text-white transition-colors" onclick="toggleTerminal()"></i>
+                    </div>
+                    <div id="terminal-content" class="flex-1 p-4 font-mono text-[12px] overflow-y-auto custom-scrollbar">
+                        <div class="text-emerald-500 mb-1 opacity-80">✓ Nix-Runtime Environment Connected</div>
+                        <div class="text-blue-400 opacity-80">ℹ Hot-Reload initialized</div>
+                        <div class="flex items-center mt-2">
+                            <span class="text-blue-500 font-bold mr-2">$</span>
+                            <span class="w-2 h-4 bg-gray-600 animate-pulse rounded-sm"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Status Bar -->
+            <div class="h-7 bg-[#2563eb] flex items-center justify-between px-4 text-white text-[10px] font-medium z-50">
+                <div class="flex items-center space-x-6">
+                    <div class="flex items-center cursor-pointer hover:bg-white/10 px-2 py-0.5 rounded transition-all" onclick="toggleTerminal()">
+                        <i data-lucide="terminal" size="12" class="mr-1.5"></i> Console <span id="console-status">Active</span>
+                    </div>
+                    <div class="opacity-80">UTF-8</div>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <span id="status-filename" class="opacity-80 uppercase">INDEX.HTML</span>
+                    <div class="flex items-center space-x-1.5 bg-blue-400/30 px-2 py-0.5 rounded-full">
+                        <div class="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse"></div>
+                        <span class="text-[9px]">SYNCED</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // State
+        const INITIAL_FILES = {
+            'index.html': `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Nix Website</title>
 </head>
 <body>
-  <div class="container">
-    <h1>Welcome to Nix 3</h1>
-    <p>Everything is now resizable and faster.</p>
-    <div id="counter-display">Count: 0</div>
-    <button id="increment-btn">Increment</button>
-  </div>
+    <div class="hero">
+        <h1>Nix HTML Edition</h1>
+        <p>A high-speed, resizable developer workspace.</p>
+        <button id="main-btn">Click Me</button>
+    </div>
 </body>
 </html>`,
-  'styles.css': `.container {
-  font-family: system-ui, -apple-system, sans-serif;
-  text-align: center;
-  padding: 40px;
-  background: #ffffff;
-  border-radius: 12px;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.1);
-  max-width: 320px;
-  margin: 15vh auto;
-}
-button {
-  background: #007acc;
-  color: white;
-  border: none;
-  padding: 12px 24px;
-  border-radius: 8px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-button:active { transform: scale(0.95); }`,
-  'script.js': `let count = 0;
-const display = document.getElementById('counter-display');
-const btn = document.getElementById('increment-btn');
-
-btn.addEventListener('click', () => {
-  count++;
-  display.innerText = 'Count: ' + count;
-});`
-};
-
-export default function App() {
-  const [files, setFiles] = useState(INITIAL_FILES);
-  const [activeFile, setActiveFile] = useState('index.html');
-  const [sidebarTab, setSidebarTab] = useState('explorer');
-  const [viewMode, setViewMode] = useState('editor');
-  const [prompt, setPrompt] = useState("");
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [aiTasks, setAiTasks] = useState([]);
-  const [messages, setMessages] = useState([
-    { role: 'assistant', content: 'Nix 3 is ready. I have fixed the connection errors and stabilized the AI task manager. What should we build?' }
-  ]);
-  const [isTyping, setIsTyping] = useState(false);
-
-  // Layout State
-  const [sidebarWidth, setSidebarWidth] = useState(260);
-  const [terminalHeight, setTerminalHeight] = useState(140);
-  const [isSidebarVisible, setIsSidebarVisible] = useState(true);
-  const [isTerminalVisible, setIsTerminalVisible] = useState(true);
-
-  // Resizing Refs
-  const isResizingSidebar = useRef(false);
-  const isResizingTerminal = useRef(false);
-
-  const startResizingSidebar = () => (isResizingSidebar.current = true);
-  const startResizingTerminal = () => (isResizingTerminal.current = true);
-
-  const stopResizing = useCallback(() => {
-    isResizingSidebar.current = false;
-    isResizingTerminal.current = false;
-  }, []);
-
-  const onMouseMove = useCallback((e) => {
-    if (isResizingSidebar.current) {
-      const newWidth = Math.max(160, Math.min(600, e.clientX - 48));
-      setSidebarWidth(newWidth);
-    }
-    if (isResizingTerminal.current) {
-      const newHeight = Math.max(40, Math.min(500, window.innerHeight - e.clientY));
-      setTerminalHeight(newHeight);
-    }
-  }, []);
-
-  useEffect(() => {
-    window.addEventListener('mousemove', onMouseMove);
-    window.addEventListener('mouseup', stopResizing);
-    return () => {
-      window.removeEventListener('mousemove', onMouseMove);
-      window.removeEventListener('mouseup', stopResizing);
-    };
-  }, [onMouseMove, stopResizing]);
-
-  const getPreviewContent = useCallback(() => {
-    const html = files['index.html'] || '';
-    const css = files['styles.css'] || '';
-    const js = files['script.js'] || '';
-    const styleTag = `<style>${css}</style>`;
-    const scriptTag = `<script>${js}<\/script>`;
-    
-    let doc = html;
-    doc = doc.includes('</head>') ? doc.replace('</head>', `${styleTag}</head>`) : styleTag + doc;
-    doc = doc.includes('</body>') ? doc.replace('</body>', `${scriptTag}</body>`) : doc + scriptTag;
-    return doc;
-  }, [files]);
-
-  const callNix = async (userPrompt) => {
-    setIsProcessing(true);
-    setSidebarTab('chat');
-    
-    try {
-      // Step 1: Planning with retry logic
-      const planPayload = {
-        contents: [{ parts: [{ text: `Create a coding plan for this request: "${userPrompt}". Output ONLY valid JSON in this format: {"tasks": [{"id": 1, "label": "Description of action", "file": "index.html"}]}` }] }],
-        systemInstruction: { parts: [{ text: "You are Nix 3, a senior software architect. You output strict JSON plans for code modifications." }] }
-      };
-
-      const planResponse = await fetch(`${BASE_URL}${API_KEY}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(planPayload)
-      });
-
-      const planData = await planResponse.json();
-      const rawContent = planData.candidates?.[0]?.content?.parts?.[0]?.text || "";
-      
-      let planJson;
-      try {
-        const jsonMatch = rawContent.match(/\{[\s\S]*\}/);
-        planJson = JSON.parse(jsonMatch ? jsonMatch[0] : rawContent);
-      } catch (e) {
-        // Fallback if planning fails
-        planJson = { tasks: [{ id: 1, label: "Update project", file: activeFile }] };
-      }
-
-      if (!planJson.tasks || !Array.isArray(planJson.tasks)) {
-        planJson = { tasks: [{ id: 1, label: "Update current file", file: activeFile }] };
-      }
-
-      setAiTasks(planJson.tasks.map(t => ({ ...t, status: 'pending' })));
-
-      // Step 2: Execute each task
-      for (const task of planJson.tasks) {
-        setAiTasks(prev => prev.map(t => t.id === task.id ? { ...t, status: 'running' } : t));
-        
-        const codePayload = {
-          contents: [{ parts: [{ text: `Write the full updated content for the file "${task.file}" based on this objective: "${task.label}". User overall prompt: "${userPrompt}". Return ONLY the code, no markdown commentary.` }] }],
-          systemInstruction: { parts: [{ text: "You are Nix 3. You only output source code. Do not use markdown backticks unless they are part of the actual code. Provide full file contents." }] }
+            'styles.css': `body { background: #0f172a; color: white; display: flex; align-items: center; justify-content: center; height: 100vh; font-family: sans-serif; }
+.hero { text-align: center; }
+button { background: #3b82f6; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; }`,
+            'script.js': `document.getElementById('main-btn').addEventListener('click', () => alert('Hello from Nix!'));`
         };
 
-        const codeResponse = await fetch(`${BASE_URL}${API_KEY}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(codePayload)
-        });
+        let files = { ...INITIAL_FILES };
+        let activeFile = 'index.html';
+        let isSidebarVisible = true;
+        let isTerminalVisible = true;
+        let currentTab = 'explorer';
+        let currentView = 'editor';
+        let sidebarWidth = 300;
+        let terminalHeight = 160;
 
-        const codeData = await codeResponse.json();
-        let newCode = codeData.candidates?.[0]?.content?.parts?.[0]?.text || "";
-        
-        // Clean up markdown block syntax if the model included it despite instructions
-        newCode = newCode.replace(/^```[a-z]*\n/i, "").replace(/\n```$/, "");
-        
-        setActiveFile(task.file);
-        await simulateTyping(task.file, newCode);
-        setAiTasks(prev => prev.map(t => t.id === task.id ? { ...t, status: 'completed' } : t));
-      }
+        // API Setup
+        const API_KEY = ""; // Environment Key
+        const BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=";
 
-      setMessages(prev => [...prev, { role: 'assistant', content: `Finished updates for: ${planJson.tasks.map(t => t.file).join(', ')}.` }]);
-    } catch (e) {
-      console.error("Nix 3 Error:", e);
-      setMessages(prev => [...prev, { role: 'assistant', content: "I encountered an error while processing your request. Please try again." }]);
-    } finally {
-      setIsProcessing(false);
-    }
-  };
+        // Initialization
+        window.onload = () => {
+            lucide.createIcons();
+            renderFileList();
+            updateEditor();
+            setupResizing();
+            
+            document.getElementById('chat-input').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') handleSendMessage();
+            });
+        };
 
-  const simulateTyping = (fileName, fullContent) => {
-    return new Promise((resolve) => {
-      setIsTyping(true);
-      let index = 0;
-      const step = () => {
-        // High speed typing for UX
-        index += Math.ceil(fullContent.length / 50); 
-        const currentSlice = fullContent.slice(0, index);
-        setFiles(prev => ({ ...prev, [fileName]: currentSlice }));
-        
-        if (index < fullContent.length) {
-          requestAnimationFrame(step);
-        } else {
-          setFiles(prev => ({ ...prev, [fileName]: fullContent }));
-          setIsTyping(false);
-          resolve();
+        function renderFileList() {
+            const list = document.getElementById('file-list');
+            list.innerHTML = Object.keys(files).map(name => `
+                <div onclick="setActiveFile('${name}')" class="flex items-center px-3 py-2 rounded-md cursor-pointer text-xs transition-colors ${activeFile === name ? 'bg-[#2d2d2d] text-blue-400 border border-[#3e3e3e]' : 'hover:bg-[#252525] text-[#999]'}">
+                    <i data-lucide="file-code" class="w-3.5 h-3.5 mr-2 ${activeFile === name ? 'text-blue-400' : 'text-gray-500'}"></i> ${name}
+                </div>
+            `).join('');
+            lucide.createIcons();
         }
-      };
-      requestAnimationFrame(step);
-    });
-  };
 
-  return (
-    <div className="flex h-screen w-full bg-[#181818] text-[#cccccc] font-sans overflow-hidden select-none">
-      
-      {/* Activity Bar */}
-      <div className="w-12 h-full bg-[#333333] flex flex-col items-center py-4 space-y-4 border-r border-[#2b2b2b] z-50">
-        <div 
-          className={`p-2 cursor-pointer rounded transition-colors ${sidebarTab === 'explorer' ? 'bg-[#444] text-white' : 'text-[#858585] hover:text-white'}`}
-          onClick={() => { setSidebarTab('explorer'); setIsSidebarVisible(true); }}
-        >
-          <FileCode size={20} />
-        </div>
-        <div 
-          className={`p-2 cursor-pointer rounded transition-colors ${sidebarTab === 'chat' ? 'bg-[#444] text-white' : 'text-[#858585] hover:text-white'}`}
-          onClick={() => { setSidebarTab('chat'); setIsSidebarVisible(true); }}
-        >
-          <MessageSquare size={20} />
-        </div>
-        <div className="mt-auto p-2 text-[#858585] cursor-pointer hover:text-white" onClick={() => setIsSidebarVisible(!isSidebarVisible)}>
-          {isSidebarVisible ? <PanelLeftClose size={20} /> : <PanelLeft size={20} />}
-        </div>
-      </div>
+        function setActiveFile(name) {
+            // Save current editor content back to files
+            files[activeFile] = document.getElementById('editor').value;
+            activeFile = name;
+            updateEditor();
+            renderFileList();
+            document.getElementById('active-filename').innerText = name;
+            document.getElementById('status-filename').innerText = name.toUpperCase();
+        }
 
-      {/* Sidebar */}
-      {isSidebarVisible && (
-        <>
-          <div style={{ width: sidebarWidth }} className="bg-[#252526] flex flex-col border-r border-[#181818] overflow-hidden">
-            {sidebarTab === 'explorer' ? (
-              <div className="flex-1 flex flex-col">
-                <div className="p-3 text-[11px] uppercase font-bold text-[#bbbbbb] flex justify-between">
-                  <span>Explorer</span>
-                  <FolderOpen size={14} />
+        function updateEditor() {
+            document.getElementById('editor').value = files[activeFile];
+        }
+
+        // Layout Functions
+        function switchTab(tab) {
+            currentTab = tab;
+            document.getElementById('view-explorer').classList.toggle('hidden', tab !== 'explorer');
+            document.getElementById('view-chat').classList.toggle('hidden', tab !== 'chat');
+            
+            document.getElementById('btn-explorer').className = tab === 'explorer' ? 
+                'p-2.5 rounded-xl transition-all bg-[#3b82f6] text-white shadow-lg shadow-blue-500/20' : 
+                'p-2.5 rounded-xl transition-all text-[#858585] hover:text-white hover:bg-[#2d2d2d]';
+            
+            document.getElementById('btn-chat').className = tab === 'chat' ? 
+                'p-2.5 rounded-xl transition-all bg-[#8b5cf6] text-white shadow-lg shadow-purple-500/20' : 
+                'p-2.5 rounded-xl transition-all text-[#858585] hover:text-white hover:bg-[#2d2d2d]';
+        }
+
+        function switchView(view) {
+            currentView = view;
+            const editorEl = document.getElementById('editor');
+            const previewEl = document.getElementById('preview');
+            const tabEditor = document.getElementById('tab-editor');
+            const tabPreview = document.getElementById('tab-preview');
+
+            if (view === 'editor') {
+                editorEl.classList.remove('hidden');
+                previewEl.classList.add('hidden');
+                tabEditor.className = 'px-4 h-full flex items-center text-[11px] font-medium transition-all rounded-t-lg bg-[#1e1e1e] text-white border-b-2 border-blue-500';
+                tabPreview.className = 'px-4 h-full flex items-center text-[11px] font-medium transition-all rounded-t-lg text-gray-500 hover:text-gray-300';
+            } else {
+                files[activeFile] = editorEl.value;
+                editorEl.classList.add('hidden');
+                previewEl.classList.remove('hidden');
+                tabPreview.className = 'px-4 h-full flex items-center text-[11px] font-medium transition-all rounded-t-lg bg-[#1e1e1e] text-white border-b-2 border-green-500';
+                tabEditor.className = 'px-4 h-full flex items-center text-[11px] font-medium transition-all rounded-t-lg text-gray-500 hover:text-gray-300';
+                
+                const content = `
+                    <html><style>${files['styles.css']}</style><body>${files['index.html']}<script>${files['script.js']}<\/script></body></html>
+                `;
+                previewEl.srcdoc = content;
+            }
+        }
+
+        function toggleSidebar() {
+            isSidebarVisible = !isSidebarVisible;
+            document.getElementById('sidebar-container').style.display = isSidebarVisible ? 'flex' : 'none';
+            document.getElementById('sidebar-toggle-icon').setAttribute('data-lucide', isSidebarVisible ? 'panel-left-close' : 'panel-left');
+            lucide.createIcons();
+        }
+
+        function toggleTerminal() {
+            isTerminalVisible = !isTerminalVisible;
+            document.getElementById('terminal').style.display = isTerminalVisible ? 'flex' : 'none';
+            document.getElementById('handle-terminal').style.display = isTerminalVisible ? 'block' : 'none';
+            document.getElementById('console-status').innerText = isTerminalVisible ? 'Active' : 'Hidden';
+        }
+
+        // Resizing Logic
+        function setupResizing() {
+            const hSidebar = document.getElementById('handle-sidebar');
+            const hTerminal = document.getElementById('handle-terminal');
+            const overlay = document.getElementById('resize-overlay');
+
+            let isResizingH = false;
+            let isResizingV = false;
+
+            hSidebar.onmousedown = () => { isResizingH = true; document.body.classList.add('resizing-h'); };
+            hTerminal.onmousedown = () => { isResizingV = true; document.body.classList.add('resizing-v'); };
+
+            window.onmousemove = (e) => {
+                if (isResizingH) {
+                    sidebarWidth = Math.max(200, Math.min(600, e.clientX - 48));
+                    document.getElementById('sidebar-container').style.width = sidebarWidth + 'px';
+                }
+                if (isResizingV) {
+                    terminalHeight = Math.max(40, Math.min(600, window.innerHeight - e.clientY));
+                    document.getElementById('terminal').style.height = terminalHeight + 'px';
+                }
+            };
+
+            window.onmouseup = () => {
+                isResizingH = false; isResizingV = false;
+                document.body.classList.remove('resizing-h', 'resizing-v');
+            };
+        }
+
+        // AI Messaging
+        async function handleSendMessage() {
+            const input = document.getElementById('chat-input');
+            const userPrompt = input.value.trim();
+            if (!userPrompt) return;
+
+            addChatMessage('user', userPrompt);
+            input.value = '';
+            
+            try {
+                // Step 1: Planning
+                const planPayload = {
+                    contents: [{ parts: [{ text: `Create a coding plan for: "${userPrompt}". Format: {"tasks": [{"id": 1, "label": "Description", "file": "index.html"}]}` }] }],
+                    systemInstruction: { parts: [{ text: "Senior Software Architect. Output strict JSON only." }] }
+                };
+
+                const planRes = await fetch(`${BASE_URL}${API_KEY}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(planPayload)
+                });
+
+                const planData = await planRes.json();
+                const rawPlan = planData.candidates[0].content.parts[0].text;
+                const jsonMatch = rawPlan.match(/\{[\s\S]*\}/);
+                const planJson = JSON.parse(jsonMatch ? jsonMatch[0] : rawPlan);
+
+                showTasks(planJson.tasks);
+
+                // Step 2: Code Execution
+                for (const task of planJson.tasks) {
+                    updateTaskStatus(task.id, 'running');
+                    
+                    const codePayload = {
+                        contents: [{ parts: [{ text: `Full file content for "${task.file}" to: "${task.label}". Overall: "${userPrompt}". No markdown.` }] }],
+                        systemInstruction: { parts: [{ text: "Senior Dev. Output source code ONLY. No backticks." }] }
+                    };
+
+                    const codeRes = await fetch(`${BASE_URL}${API_KEY}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(codePayload)
+                    });
+
+                    const codeData = await codeRes.json();
+                    let newCode = codeData.candidates[0].content.parts[0].text;
+                    newCode = newCode.replace(/^```[a-z]*\n/i, "").replace(/\n```$/, "");
+
+                    setActiveFile(task.file);
+                    await simulateTyping(task.file, newCode);
+                    updateTaskStatus(task.id, 'completed');
+                }
+
+                addChatMessage('assistant', 'Updates completed successfully.');
+            } catch (err) {
+                console.error(err);
+                addChatMessage('assistant', 'Sorry, I encountered an error.');
+            }
+        }
+
+        function addChatMessage(role, text) {
+            const container = document.getElementById('chat-messages');
+            const div = document.createElement('div');
+            div.className = `flex ${role === 'user' ? 'justify-end' : 'justify-start'}`;
+            div.innerHTML = `
+                <div class="max-w-[85%] p-3 rounded-2xl ${role === 'user' ? 'bg-[#2563eb] text-white' : 'bg-[#2a2a2a] border border-[#3e3e3e] text-[#ddd]'}">
+                    ${text}
                 </div>
-                {Object.keys(files).map(name => (
-                  <div 
-                    key={name}
-                    onClick={() => setActiveFile(name)}
-                    className={`flex items-center px-4 py-1.5 cursor-pointer text-xs ${activeFile === name ? 'bg-[#37373d] text-white' : 'hover:bg-[#2a2d2e]'}`}
-                  >
-                    <FileCode size={14} className="mr-2 text-blue-400" /> {name}
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="flex-1 flex flex-col bg-[#1e1e1e]">
-                <div className="p-3 border-b border-[#2b2b2b] bg-[#252526] text-xs font-bold uppercase tracking-tight flex items-center">
-                  <Cpu size={14} className="mr-2 text-purple-400" /> Nix Assistant
-                </div>
-                <div className="flex-1 overflow-y-auto p-4 space-y-4 text-xs">
-                  {messages.map((m, i) => (
-                    <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                      <div className={`max-w-[90%] p-2.5 rounded-lg ${m.role === 'user' ? 'bg-[#0e639c]' : 'bg-[#2d2d2d] border border-[#3e3e3e]'}`}>
-                        {m.content}
-                      </div>
+            `;
+            container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function showTasks(tasks) {
+            const container = document.getElementById('task-container');
+            const list = document.getElementById('task-list');
+            container.classList.remove('hidden');
+            list.innerHTML = tasks.map(t => `
+                <div id="task-${t.id}" class="flex items-start space-x-2 p-1.5 rounded bg-[#252525] border border-[#333]">
+                    <div class="status-icon mt-0.5"><i data-lucide="circle" size="12" class="text-gray-600"></i></div>
+                    <div class="flex-1 min-w-0">
+                        <div class="text-[10px] font-medium truncate">${t.label}</div>
+                        <div class="text-[8px] text-gray-500 uppercase">${t.file}</div>
                     </div>
-                  ))}
-                  {aiTasks.map(t => (
-                    <div key={t.id} className="flex items-center space-x-2 text-[10px] opacity-70">
-                      {t.status === 'completed' ? <CheckCircle2 size={10} className="text-green-500" /> : <Loader2 size={10} className="animate-spin" />}
-                      <span>{t.label}</span>
-                    </div>
-                  ))}
                 </div>
-                <div className="p-3 border-t border-[#2b2b2b]">
-                  <div className="relative">
-                    <input 
-                      className="w-full bg-[#3c3c3c] rounded p-2 pr-8 text-xs outline-none border border-transparent focus:border-[#007acc]"
-                      placeholder="Ask Nix to modify code..."
-                      value={prompt}
-                      onChange={e => setPrompt(e.target.value)}
-                      onKeyDown={e => e.key === 'Enter' && prompt.trim() && (setMessages([...messages, {role:'user', content:prompt}]), callNix(prompt), setPrompt(""))}
-                    />
-                    <Send size={14} className="absolute right-2 top-2 text-gray-400 cursor-pointer hover:text-white" onClick={() => prompt.trim() && (setMessages([...messages, {role:'user', content:prompt}]), callNix(prompt), setPrompt(""))} />
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-          <div 
-            onMouseDown={startResizingSidebar}
-            className="w-1 cursor-col-resize hover:bg-[#007acc] active:bg-[#007acc] transition-colors z-50 bg-transparent"
-          />
-        </>
-      )}
+            `).join('');
+            lucide.createIcons();
+        }
 
-      {/* Main Area */}
-      <div className="flex-1 flex flex-col min-w-0">
-        <div className="h-9 flex bg-[#252526] items-center border-b border-[#181818]">
-          <div className={`px-4 h-full flex items-center text-xs cursor-pointer transition-colors ${viewMode === 'editor' ? 'bg-[#1e1e1e] border-t border-t-[#007acc]' : 'hover:bg-[#2d2d2d]'}`} onClick={() => setViewMode('editor')}>Editor</div>
-          <div className={`px-4 h-full flex items-center text-xs cursor-pointer transition-colors ${viewMode === 'preview' ? 'bg-[#1e1e1e] border-t border-t-[#22c55e]' : 'hover:bg-[#2d2d2d]'}`} onClick={() => setViewMode('preview')}>Preview</div>
-          <div className="flex-1"></div>
-          <div className="mr-4 text-[10px] opacity-50 uppercase tracking-widest">{activeFile}</div>
-        </div>
+        function updateTaskStatus(id, status) {
+            const el = document.getElementById(`task-${id}`);
+            const icon = el.querySelector('.status-icon');
+            if (status === 'running') {
+                el.classList.add('border-purple-500/50');
+                icon.innerHTML = `<i data-lucide="loader-2" size="12" class="text-purple-400 animate-spin"></i>`;
+            } else {
+                el.classList.remove('border-purple-500/50');
+                icon.innerHTML = `<i data-lucide="check-circle-2" size="12" class="text-green-500"></i>`;
+            }
+            lucide.createIcons();
+        }
 
-        <div className="flex-1 flex flex-col overflow-hidden bg-[#1e1e1e]">
-          {viewMode === 'editor' ? (
-            <textarea
-              className="flex-1 bg-transparent p-6 outline-none font-mono text-[13px] leading-relaxed resize-none text-[#d4d4d4] caret-white"
-              value={files[activeFile] || ""}
-              onChange={e => setFiles({...files, [activeFile]: e.target.value})}
-              spellCheck="false"
-            />
-          ) : (
-            <iframe title="p" srcDoc={getPreviewContent()} className="w-full h-full bg-white border-none" />
-          )}
-        </div>
+        function simulateTyping(fileName, fullContent) {
+            return new Promise((resolve) => {
+                let index = 0;
+                const editor = document.getElementById('editor');
+                const step = () => {
+                    index += Math.ceil(fullContent.length / 30);
+                    if (index < fullContent.length) {
+                        files[fileName] = fullContent.slice(0, index);
+                        if (activeFile === fileName) editor.value = files[fileName];
+                        requestAnimationFrame(step);
+                    } else {
+                        files[fileName] = fullContent;
+                        if (activeFile === fileName) editor.value = fullContent;
+                        resolve();
+                    }
+                };
+                requestAnimationFrame(step);
+            });
+        }
 
-        {/* Terminal */}
-        {isTerminalVisible && (
-          <>
-            <div 
-              onMouseDown={startResizingTerminal}
-              className="h-1 cursor-row-resize hover:bg-[#007acc] active:bg-[#007acc] transition-colors z-50 bg-transparent"
-            />
-            <div style={{ height: terminalHeight }} className="bg-[#181818] border-t border-[#2b2b2b] flex flex-col overflow-hidden">
-              <div className="h-7 bg-[#252526] flex items-center justify-between px-3 border-b border-[#181818]">
-                <div className="text-[10px] font-bold uppercase tracking-wider flex items-center">
-                  <TerminalIcon size={12} className="mr-2" /> Terminal
-                </div>
-                <Minimize2 size={12} className="cursor-pointer hover:text-white" onClick={() => setIsTerminalVisible(false)} />
-              </div>
-              <div className="flex-1 p-3 font-mono text-[11px] text-gray-500 overflow-y-auto">
-                <div className="text-blue-400">Nix 3.5.0 environment initialized...</div>
-                <div>&gt; Live reload active for all files.</div>
-                {isProcessing && <div className="text-yellow-500 animate-pulse">&gt; AI is processing changes...</div>}
-                <div className="flex items-center">
-                  <span className="text-[#007acc] mr-1">$</span>
-                  <span className="w-1.5 h-3.5 bg-gray-600 animate-pulse"></span>
-                </div>
-              </div>
-            </div>
-          </>
-        )}
-
-        {/* Status Bar */}
-        <div className="h-6 bg-[#007acc] flex items-center justify-between px-3 text-white text-[10px] z-50">
-          <div className="flex items-center space-x-4">
-            <div className="flex items-center cursor-pointer hover:bg-white/10 px-1 rounded transition-colors" onClick={() => setIsTerminalVisible(true)}>
-              <TerminalIcon size={10} className="mr-1" /> Console {isTerminalVisible ? 'On' : 'Off'}
-            </div>
-            <span>Ln 1, Col 1</span>
-          </div>
-          <div className="flex items-center space-x-3">
-            <span>{activeFile.split('.').pop()?.toUpperCase()}</span>
-            <div className="w-2 h-2 rounded-full bg-green-400" title="System Online" />
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
+        function clearTasks() {
+            document.getElementById('task-container').classList.add('hidden');
+            document.getElementById('task-list').innerHTML = '';
+        }
+    </script>
+</body>
+</html>
