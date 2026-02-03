@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Pick and Go: Cyber Heist</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;900&family=Rajdhani:wght@500;700&display=swap');
+        
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #020617;
+            font-family: 'Rajdhani', sans-serif;
+            touch-action: none;
+            user-select: none;
+        }
+        #game-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: #000;
+        }
+        canvas {
+            display: block;
+            box-shadow: 0 0 100px rgba(59, 130, 246, 0.2);
+            border: 1px solid #1e293b;
+        }
+        #ui-layer {
+            position: absolute;
+            top: 24px;
+            left: 24px;
+            right: 24px;
+            display: flex;
+            justify-content: space-between;
+            color: white;
+            pointer-events: none;
+            z-index: 10;
+        }
+        .hud-card {
+            background: rgba(15, 23, 42, 0.8);
+            backdrop-filter: blur(10px);
+            padding: 12px 20px;
+            border-left: 4px solid #3b82f6;
+            border-radius: 4px;
+            min-width: 180px;
+        }
+        .hud-label {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.6rem;
+            letter-spacing: 2px;
+            color: #94a3b8;
+            text-transform: uppercase;
+        }
+        #overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(2, 6, 23, 0.85);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            z-index: 30;
+            backdrop-filter: blur(12px);
+        }
+        .btn {
+            padding: 16px 50px;
+            background: linear-gradient(90deg, #3b82f6 0%, #2563eb 100%);
+            color: white;
+            border: none;
+            border-radius: 2px;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.1rem;
+            font-weight: 900;
+            cursor: pointer;
+            box-shadow: 0 0 20px rgba(59, 130, 246, 0.4);
+            transition: all 0.3s ease;
+            pointer-events: auto;
+            clip-path: polygon(10% 0, 100% 0, 90% 100%, 0 100%);
+        }
+        .btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 0 40px rgba(59, 130, 246, 0.6);
+            letter-spacing: 2px;
+        }
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            background: #475569;
+        }
+        #health-bar-container {
+            width: 100%;
+            height: 8px;
+            background: #1e293b;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 5px;
+        }
+        #health-fill {
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, #10b981, #3b82f6);
+            transition: width 0.3s ease;
+        }
+        #mode-timer {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-family: 'Orbitron', sans-serif;
+            font-size: 2rem;
+            color: #ef4444;
+            text-shadow: 0 0 10px rgba(239, 68, 68, 0.5);
+            display: none;
+        }
+        .buy-alert {
+            animation: pulse 1s infinite;
+            color: #fbbf24;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .shake {
+            animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
+        }
+        @keyframes shake {
+            10%, 90% { transform: translate3d(-1px, 0, 0); }
+            20%, 80% { transform: translate3d(2px, 0, 0); }
+            30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+            40%, 60% { transform: translate3d(4px, 0, 0); }
+        }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <canvas id="gameCanvas"></canvas>
+    <div id="mode-timer">60s</div>
+    
+    <div id="ui-layer">
+        <div class="hud-card">
+            <div class="hud-label">Asset Value</div>
+            <div class="text-3xl font-black italic text-blue-400" style="font-family: 'Orbitron', sans-serif;">$<span id="scoreVal">0</span></div>
+            <div id="health-bar-container">
+                <div id="health-fill"></div>
+            </div>
+            <div id="buy-prompt" class="text-[10px] uppercase font-bold text-gray-400 mt-1">Armor Integrity</div>
+        </div>
+        
+        <div class="text-right">
+            <div class="hud-card border-r-4 border-l-0 border-red-500">
+                <div class="hud-label" id="speedLabel">District: Downtown</div>
+                <div class="text-xl font-bold text-red-500 italic">HEAT LEVEL: <span id="wantedVal">1</span></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="overlay">
+        <div class="mb-10 text-center relative">
+            <h1 class="text-8xl font-black italic tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-blue-400 to-blue-700" style="font-family: 'Orbitron', sans-serif;">
+                PICK&GO
+            </h1>
+            <div class="text-blue-500 font-bold tracking-[0.5em] text-sm mt-2 opacity-50 uppercase">Neural Heist Simulator</div>
+        </div>
+        
+        <div id="stats-display" class="hidden mb-12 text-center">
+            <p class="text-red-400 uppercase tracking-[0.3em] font-bold mb-2">BUSTED! POLICE CUSTODY</p>
+            <div class="bg-blue-900/20 p-6 border border-blue-500/30 rounded">
+                <p id="final-score" class="text-5xl font-black text-white italic mb-1"></p>
+                <p class="text-xs text-blue-400 uppercase">Seized Laundering Profit</p>
+            </div>
+        </div>
+        
+        <button id="startBtn" class="btn">ACCESS NEURAL LINK</button>
+        
+        <div class="mt-16 flex gap-12 text-[11px] text-gray-500 uppercase font-bold tracking-widest border-t border-white/5 pt-8">
+            <div class="flex flex-col items-center"><span class="text-blue-400 text-xl mb-1">↑</span> EVADE / UP</div>
+            <div class="flex flex-col items-center"><span class="text-blue-400 text-xl mb-1">↓</span> DUCK / DOWN</div>
+            <div class="flex flex-col items-center"><span class="text-yellow-400 text-xl mb-1">B</span> BUY CAR ($3K)</div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const scoreVal = document.getElementById('scoreVal');
+    const wantedVal = document.getElementById('wantedVal');
+    const healthFill = document.getElementById('health-fill');
+    const finalScore = document.getElementById('final-score');
+    const startBtn = document.getElementById('startBtn');
+    const overlay = document.getElementById('overlay');
+    const statsDisplay = document.getElementById('stats-display');
+    const modeTimerDisplay = document.getElementById('mode-timer');
+    const buyPrompt = document.getElementById('buy-prompt');
+
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    function playSfx(freq, type, duration, vol = 0.05) {
+        if (audioCtx.state === 'suspended') return;
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(freq/2, audioCtx.currentTime + duration);
+        gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
+        osc.connect(gain); gain.connect(audioCtx.destination);
+        osc.start(); osc.stop(audioCtx.currentTime + duration);
+    }
+
+    const WIDTH = 1000;
+    const HEIGHT = 500;
+    const GROUND_Y = 420;
+    const GRAVITY = 0.65;
+    const MIN_DIST = 350;
+
+    let gameActive = false;
+    let score = 0;
+    let health = 100;
+    let speed = 8;
+    let frame = 0;
+    let entities = [];
+    let pursuers = []; 
+    let isChaseMode = false;
+    let chaseTimeLeft = 0;
+    let animationId = null;
+    let gameEnded = false;
+    let bustedAnimX = 0;
+
+    class Player {
+        constructor() {
+            this.w = 34; this.h = 56;
+            this.x = 220; this.y = GROUND_Y - this.h;
+            this.vy = 0;
+            this.isJumping = false;
+            this.isDucking = false;
+            this.animFrame = 0;
+        }
+        jump() {
+            if (isChaseMode) {
+                this.y = Math.max(GROUND_Y - 140, this.y - 15);
+            } else if (!this.isJumping && !this.isDucking) {
+                this.vy = -14.5; this.isJumping = true;
+                playSfx(440, 'square', 0.1);
+            }
+        }
+        duck(state) {
+            if (isChaseMode) {
+                this.y = Math.min(GROUND_Y - 40, this.y + 15);
+            } else {
+                if (this.isJumping) return;
+                this.isDucking = state;
+                this.h = state ? 28 : 56;
+                this.y = GROUND_Y - this.h;
+            }
+        }
+        update() {
+            if (gameEnded) return;
+            if (!isChaseMode) {
+                if (this.isJumping) {
+                    this.vy += GRAVITY;
+                    this.y += this.vy;
+                    if (this.y >= GROUND_Y - this.h) {
+                        this.y = GROUND_Y - this.h;
+                        this.vy = 0; this.isJumping = false;
+                    }
+                }
+            }
+            this.animFrame += 0.15;
+        }
+        draw() {
+            ctx.save();
+            ctx.fillStyle = 'rgba(0,0,0,0.4)';
+            ctx.beginPath();
+            ctx.ellipse(this.x + (isChaseMode ? 50 : 17), GROUND_Y, isChaseMode ? 60 : 20, 4, 0, 0, Math.PI*2);
+            ctx.fill();
+
+            if (isChaseMode) {
+                ctx.fillStyle = '#1e3a8a';
+                ctx.beginPath();
+                ctx.roundRect(this.x, this.y, 110, 40, 6);
+                ctx.fill();
+                ctx.fillStyle = '#60a5fa';
+                ctx.fillRect(this.x + 75, this.y + 5, 25, 15);
+                ctx.shadowBlur = 15;
+                ctx.shadowColor = '#3b82f6';
+                ctx.strokeStyle = '#3b82f6';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(this.x, this.y, 110, 40);
+            } else {
+                const legMove = Math.sin(this.animFrame) * 10;
+                ctx.fillStyle = gameEnded ? '#475569' : '#1e293b';
+                ctx.fillRect(this.x, this.y, this.w, this.h);
+                ctx.strokeStyle = health < 30 ? '#ef4444' : '#3b82f6';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(this.x, this.y, this.w, this.h);
+                ctx.fillStyle = '#60a5fa';
+                ctx.fillRect(this.x + 20, this.y + 10, 14, 6);
+                if (!this.isJumping && !this.isDucking) {
+                    ctx.fillStyle = '#0f172a';
+                    ctx.fillRect(this.x + 5, this.y + this.h, 8, 5 + legMove);
+                    ctx.fillRect(this.x + 21, this.y + this.h, 8, 5 - legMove);
+                }
+            }
+            ctx.restore();
+        }
+    }
+
+    class Pursuer {
+        constructor(type, xOffset) {
+            this.type = type; 
+            this.xOffset = xOffset;
+            this.w = 34; this.h = 56;
+            this.animFrame = Math.random() * 10;
+            this.currentX = 0;
+        }
+        draw() {
+            this.animFrame += 0.15;
+            const legMove = Math.sin(this.animFrame) * 10;
+            
+            // In Game Over, pursuers move toward player
+            if (gameEnded) {
+                bustedAnimX += 0.01;
+                this.currentX = (50 + this.xOffset) + (bustedAnimX * 150);
+                if (this.currentX > player.x - 40) this.currentX = player.x - 40;
+            } else {
+                this.currentX = 50 + this.xOffset;
+            }
+
+            const y = GROUND_Y - this.h;
+            
+            ctx.save();
+            ctx.fillStyle = this.type === 'police' ? '#1e3a8a' : '#475569';
+            if (this.type === 'civilian_angry') ctx.fillStyle = '#991b1b';
+            
+            ctx.fillRect(this.currentX, y, this.w, this.h);
+            
+            if (this.type === 'police') {
+                ctx.fillStyle = '#fbbf24';
+                ctx.fillRect(this.currentX, y, this.w, 6);
+                ctx.fillStyle = '#000';
+                ctx.fillRect(this.currentX + 22, y + 15, 8, 15); // Baton
+            }
+
+            ctx.fillStyle = '#0f172a';
+            ctx.fillRect(this.currentX + 5, y + this.h, 8, 5 + legMove);
+            ctx.fillRect(this.currentX + 21, y + this.h, 8, 5 - legMove);
+            ctx.restore();
+        }
+    }
+
+    class Entity {
+        constructor(type) {
+            this.type = type; 
+            this.x = WIDTH + 100;
+            this.w = [50, 40, 10, 30, 90][type];
+            this.h = [50, 25, 150, 30, 45][type];
+            this.y = GROUND_Y - this.h;
+            if (type === 1) this.y = GROUND_Y - 110;
+            if (type === 2) this.y = GROUND_Y - 150;
+            if (type === 4) this.y = GROUND_Y - 45 - (Math.random() * 80);
+            
+            this.color = ['#334155', '#475569', '#f43f5e', '#fbbf24', '#991b1b'][type];
+        }
+        update() { 
+            let moveSpeed = speed;
+            if (isChaseMode && this.type === 4) moveSpeed = speed * 0.4;
+            this.x -= moveSpeed; 
+        }
+        draw() {
+            ctx.save();
+            ctx.fillStyle = this.color;
+            if (this.type === 4) {
+                ctx.beginPath(); ctx.roundRect(this.x, this.y, this.w, this.h, 4); ctx.fill();
+                ctx.fillStyle = '#fbbf24'; ctx.fillRect(this.x, this.y + 5, 5, 10);
+            } else if (this.type === 2) {
+                ctx.shadowBlur = 15; ctx.shadowColor = this.color;
+                ctx.fillRect(this.x, this.y, this.w, this.h);
+            } else if (this.type === 3) {
+                ctx.beginPath(); ctx.roundRect(this.x, this.y, this.w, this.h, 5); ctx.fill();
+                ctx.fillStyle = '#000'; ctx.font = 'bold 16px Arial'; ctx.fillText('$', this.x + 10, this.y + 20);
+            } else {
+                ctx.fillRect(this.x, this.y, this.w, this.h);
+            }
+            ctx.restore();
+        }
+    }
+
+    function init() {
+        canvas.width = WIDTH; canvas.height = HEIGHT;
+        player = new Player();
+        entities = [];
+        pursuers = [new Pursuer('police', 0)]; 
+        score = 0; health = 100; speed = 8; frame = 0;
+        isChaseMode = false;
+        gameEnded = false;
+        bustedAnimX = 0;
+        modeTimerDisplay.style.display = 'none';
+        updateHUD();
+        statsDisplay.classList.add('hidden');
+        if (animationId) cancelAnimationFrame(animationId);
+    }
+
+    function updateHUD() {
+        scoreVal.innerText = score.toLocaleString();
+        healthFill.style.width = health + '%';
+        const wanted = Math.floor(score / 1500) + 1;
+        wantedVal.innerText = wanted;
+        
+        if (!isChaseMode) {
+            speed = 8 + (score / 1200);
+            if (score >= 3000) {
+                buyPrompt.innerHTML = '<span class="buy-alert">PRESS [B] TO BUY GETAWAY CAR ($3,000)</span>';
+            } else {
+                buyPrompt.innerText = 'Armor Integrity';
+            }
+        } else {
+            speed = 18;
+            buyPrompt.innerText = 'CHASE MODE ACTIVE';
+        }
+    }
+
+    function startChaseMode() {
+        if (score < 3000 || isChaseMode) return;
+        score -= 3000;
+        isChaseMode = true;
+        chaseTimeLeft = 60;
+        entities = []; 
+        player.w = 110; player.h = 40;
+        player.y = GROUND_Y - 40;
+        modeTimerDisplay.style.display = 'block';
+        playSfx(150, 'sawtooth', 0.5, 0.2);
+        
+        const timerInterval = setInterval(() => {
+            if (!gameActive || gameEnded) { clearInterval(timerInterval); return; }
+            chaseTimeLeft--;
+            modeTimerDisplay.innerText = chaseTimeLeft + 's';
+            if (chaseTimeLeft <= 0) {
+                clearInterval(timerInterval);
+                endChaseMode();
+            }
+        }, 1000);
+    }
+
+    function endChaseMode() {
+        if (!isChaseMode) return;
+        isChaseMode = false;
+        modeTimerDisplay.style.display = 'none';
+        player.w = 34; player.h = 56;
+        player.y = GROUND_Y - 56;
+        playSfx(80, 'sawtooth', 0.5, 0.2);
+    }
+
+    function spawn() {
+        if (entities.length > 0) {
+            const last = entities[entities.length - 1];
+            if (WIDTH + 100 - last.x < (isChaseMode ? 200 : MIN_DIST)) return;
+        }
+
+        if (Math.random() < 0.05) {
+            let type;
+            if (isChaseMode) {
+                type = Math.random() < 0.8 ? 4 : 3;
+            } else {
+                let r = Math.random();
+                if (r < 0.4) type = 0;
+                else if (r < 0.6) type = 1;
+                else if (r < 0.75) type = 2;
+                else type = 3;
+            }
+            entities.push(new Entity(type));
+            
+            // High Heat = More People Pursuing
+            const wanted = Math.floor(score / 1000) + 1;
+            if (!isChaseMode && wanted > pursuers.length && pursuers.length < 15) {
+                const type = Math.random() < 0.3 ? 'police' : (Math.random() < 0.5 ? 'civilian' : 'civilian_angry');
+                pursuers.push(new Pursuer(type, -pursuers.length * 35));
+            }
+        }
+    }
+
+    function drawParallax() {
+        ctx.fillStyle = '#020617'; ctx.fillRect(0, 0, WIDTH, HEIGHT);
+        
+        ctx.fillStyle = '#fff';
+        for(let i=0; i<20; i++) {
+            let x = (i * 150 - (frame * 0.2) % 3000);
+            ctx.fillRect(x % WIDTH, (i * 37) % 300, 2, 2);
+        }
+
+        ctx.fillStyle = '#0f172a';
+        for(let i=0; i<10; i++) {
+            let x = (i * 250 - (frame * (gameEnded ? 0 : speed) * 0.3) % 2500);
+            ctx.fillRect(x, HEIGHT - 300, 150, 300);
+        }
+
+        ctx.fillStyle = '#020617'; ctx.fillRect(0, GROUND_Y, WIDTH, HEIGHT - GROUND_Y);
+        ctx.fillStyle = isChaseMode ? '#3b82f6' : '#1e293b'; 
+        ctx.fillRect(0, GROUND_Y, WIDTH, 4);
+        
+        ctx.fillStyle = 'rgba(59, 130, 246, 0.3)';
+        const drawSpeed = gameEnded ? 0 : speed;
+        for(let i=0; i<20; i++) {
+            ctx.fillRect((i * 80 - (frame * drawSpeed) % 1600), GROUND_Y + 35, 40, 2);
+        }
+
+        if (isChaseMode) {
+            // Police Pursuit Car
+            const policeX = (gameEnded ? player.x - 110 : 20 + Math.sin(frame * 0.05) * 15);
+            const policeY = gameEnded ? player.y : GROUND_Y - 50;
+            ctx.fillStyle = '#000';
+            ctx.beginPath(); ctx.roundRect(policeX, policeY, 110, 45, 6); ctx.fill();
+            ctx.fillStyle = '#fff'; ctx.fillRect(policeX + 30, policeY + 2, 50, 41);
+            ctx.fillStyle = (frame % 10 < 5) ? '#ef4444' : '#3b82f6';
+            ctx.fillRect(policeX + 40, policeY - 10, 30, 10); 
+            ctx.shadowBlur = 20; ctx.shadowColor = ctx.fillStyle;
+            ctx.fillRect(policeX + 40, policeY - 10, 30, 10);
+            ctx.shadowBlur = 0;
+        } else {
+            pursuers.forEach(p => p.draw());
+        }
+    }
+
+    function checkCollision(a, b) {
+        const p = 8;
+        return a.x + p < b.x + b.w - p && a.x + a.w - p > b.x + p && 
+               a.y + p < b.y + b.h - p && a.y + a.h - p > b.y + p;
+    }
+
+    function gameOver() {
+        gameEnded = true;
+        playSfx(50, 'sawtooth', 0.5, 0.2);
+        document.body.classList.add('shake');
+        
+        // Wait for the pursuers to reach the player before showing overlay
+        setTimeout(() => {
+            gameActive = false;
+            document.body.classList.remove('shake');
+            overlay.style.display = 'flex';
+            statsDisplay.classList.remove('hidden');
+            finalScore.innerText = `$${score.toLocaleString()}`;
+            startBtn.innerText = 'RE-ENTER NEURAL LINK';
+        }, 2000);
+    }
+
+    function gameLoop() {
+        if (!gameActive && !gameEnded) return;
+        ctx.clearRect(0,0,WIDTH,HEIGHT);
+        drawParallax();
+        
+        player.update();
+        player.draw();
+        
+        if (!gameEnded) {
+            spawn();
+            for (let i = entities.length - 1; i >= 0; i--) {
+                let e = entities[i];
+                e.update(); e.draw();
+
+                if (checkCollision(player, e)) {
+                    if (e.type === 3) {
+                        score += isChaseMode ? 500 : 250; 
+                        playSfx(880, 'sine', 0.1); 
+                        entities.splice(i, 1);
+                    } else {
+                        health -= isChaseMode ? 15 : 25;
+                        playSfx(60, 'sawtooth', 0.2, 0.2);
+                        entities.splice(i, 1);
+                        if (health <= 0) gameOver();
+                    }
+                }
+                if (e.x + e.w < -100) entities.splice(i, 1);
+            }
+            updateHUD();
+        } else {
+            // Draw frozen obstacles
+            entities.forEach(e => e.draw());
+        }
+
+        frame++;
+        animationId = requestAnimationFrame(gameLoop);
+    }
+
+    startBtn.onclick = () => {
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        overlay.style.display = 'none';
+        gameActive = true;
+        init();
+        gameLoop();
+    };
+
+    window.onkeydown = (e) => {
+        if (!gameActive || gameEnded) return;
+        if (e.code === 'ArrowUp' || e.code === 'Space') player.jump();
+        if (e.code === 'ArrowDown') player.duck(true);
+        if (e.code === 'KeyB') startChaseMode();
+    };
+    window.onkeyup = (e) => { if (e.code === 'ArrowDown') player.duck(false); };
+    
+    canvas.ontouchstart = (e) => {
+        if (!gameActive || gameEnded) return;
+        if (e.touches[0].clientY < window.innerHeight/2) player.jump();
+        else player.duck(true);
+    };
+    canvas.ontouchend = () => player.duck(false);
+
+    init();
+</script>
+</body>
+</html>
