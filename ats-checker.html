@@ -3,14 +3,26 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ATS Scanner | Instant CV Review</title>
+    <title>ATS Scanner | Premium CV Audit</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
         
-        body { font-family: 'Plus Jakarta Sans', sans-serif; background: #0f172a; color: white; min-height: 100vh; }
+        :root {
+            --brand-primary: #6366f1;
+            --brand-dark: #0f172a;
+            --brand-accent: #818cf8;
+        }
+
+        body { 
+            font-family: 'Plus Jakarta Sans', sans-serif; 
+            background: radial-gradient(circle at top right, #1e293b, #0f172a); 
+            color: #f8fafc; 
+            min-height: 100vh; 
+            overflow-x: hidden;
+        }
         
         #loading-screen {
             position: fixed;
@@ -21,45 +33,89 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
+            transition: opacity 0.5s ease-out;
         }
 
         .spinner {
-            width: 40px;
-            height: 40px;
-            border: 4px solid rgba(255,255,255,0.1);
-            border-left-color: #6366f1;
+            width: 48px;
+            height: 48px;
+            border: 3px solid rgba(99, 102, 241, 0.1);
+            border-left-color: var(--brand-primary);
             border-radius: 50%;
-            animation: spin 1s linear infinite;
+            animation: spin 0.8s cubic-bezier(0.4, 0, 0.2, 1) infinite;
         }
 
         @keyframes spin { to { transform: rotate(360deg); } }
 
         .glass-card {
-            background: rgba(30, 41, 59, 0.7);
-            backdrop-filter: blur(12px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: rgba(30, 41, 59, 0.4);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 20px 50px rgba(0,0,0,0.3);
         }
 
         .upload-area {
-            border: 2px dashed rgba(99, 102, 241, 0.3);
-            transition: all 0.3s ease;
+            border: 2px dashed rgba(99, 102, 241, 0.2);
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .upload-area::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(45deg, transparent, rgba(99, 102, 241, 0.03), transparent);
+            transform: translateX(-100%);
+            transition: transform 0.6s;
+        }
+
+        .upload-area:hover::after {
+            transform: translateX(100%);
         }
 
         .upload-area:hover, .upload-area.dragover {
-            border-color: #6366f1;
-            background: rgba(99, 102, 241, 0.05);
+            border-color: var(--brand-primary);
+            background: rgba(99, 102, 241, 0.04);
+            transform: translateY(-2px);
         }
 
         .progress-ring {
-            transition: stroke-dashoffset 0.35s;
+            transition: stroke-dashoffset 0.8s cubic-bezier(0.4, 0, 0.2, 1);
             transform: rotate(-90deg);
             transform-origin: 50% 50%;
         }
 
-        .app-hidden { display: none; }
+        .app-hidden { display: none !important; }
 
-        .improvement-pill {
-            @apply px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider;
+        .btn-primary {
+            background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+            transition: all 0.3s ease;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 10px 20px -5px rgba(79, 70, 229, 0.4);
+        }
+
+        .nav-link {
+            position: relative;
+        }
+        
+        .nav-link::after {
+            content: '';
+            position: absolute;
+            bottom: -4px;
+            left: 50%;
+            width: 0;
+            height: 2px;
+            background: var(--brand-primary);
+            transition: all 0.3s ease;
+            transform: translateX(-50%);
+        }
+
+        .nav-link:hover::after {
+            width: 100%;
         }
     </style>
 </head>
@@ -67,105 +123,144 @@
 
     <!-- Loading Screen -->
     <div id="loading-screen">
-        <div class="spinner mb-4"></div>
-        <p class="text-sm font-medium text-slate-400">Verifying session...</p>
+        <div class="spinner mb-6"></div>
+        <div class="text-center">
+            <p class="text-lg font-semibold text-white mb-1">Authenticating</p>
+            <p class="text-sm text-slate-500">Securing your workspace...</p>
+        </div>
     </div>
 
     <div id="main-content" class="app-hidden">
-        <!-- Header -->
-        <header class="p-6 flex justify-between items-center border-b border-white/5 bg-slate-900/50">
-            <div class="flex items-center gap-4">
-                <a href="portal.html" class="p-2.5 bg-slate-800 rounded-xl text-slate-400 hover:text-indigo-400 transition-all">
-                    <i class="fa-solid fa-house"></i>
-                </a>
-                <div>
-                    <h1 class="text-xl font-bold">ATS Scanner</h1>
-                    <p class="text-[10px] text-indigo-400 font-bold uppercase tracking-wider">Optimize your reach</p>
-                </div>
-            </div>
-            <div class="flex items-center gap-3">
-                <a href="cv-builder.html" class="text-sm font-semibold text-slate-400 hover:text-white px-4">CV Builder</a>
-                <button onclick="handleLogout()" class="p-2.5 bg-red-500/10 text-red-400 rounded-xl hover:bg-red-500/20 transition-all">
-                    <i class="fa-solid fa-right-from-bracket"></i>
-                </button>
-            </div>
-        </header>
-
-        <main class="max-w-4xl mx-auto p-6 md:py-12">
-            <!-- Step 1: Upload -->
-            <div id="upload-view" class="space-y-8">
-                <div class="text-center space-y-3">
-                    <h2 class="text-4xl font-extrabold tracking-tight">ATS Compatibility Check</h2>
-                    <p class="text-slate-400 max-w-lg mx-auto leading-relaxed">Ensure your CV bypasses modern filters. Our tool scans for keyword density, formatting errors, and missing professional sections.</p>
-                </div>
-
-                <div id="drop-zone" class="upload-area glass-card rounded-3xl p-12 text-center cursor-pointer">
-                    <input type="file" id="file-input" class="hidden" accept=".pdf,.doc,.docx">
-                    <div class="w-20 h-20 bg-indigo-600/20 text-indigo-500 rounded-2xl flex items-center justify-center mx-auto mb-6">
-                        <i class="fa-solid fa-cloud-arrow-up text-3xl"></i>
+        <!-- Navigation -->
+        <nav class="sticky top-0 z-50 border-b border-white/5 bg-slate-900/80 backdrop-blur-md">
+            <div class="max-w-7xl mx-auto px-6 h-20 flex justify-between items-center">
+                <div class="flex items-center gap-8">
+                    <div class="flex items-center gap-3 group cursor-pointer">
+                        <div class="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-500/20 group-hover:rotate-12 transition-transform">
+                            <i class="fa-solid fa-bolt-lightning text-white text-xl"></i>
+                        </div>
+                        <div>
+                            <h1 class="text-lg font-extrabold tracking-tight">ATS<span class="text-indigo-400">PRO</span></h1>
+                            <p class="text-[9px] text-slate-500 font-bold uppercase tracking-[0.2em]">Scanner Engine v2.0</p>
+                        </div>
                     </div>
-                    <h3 class="text-xl font-bold mb-2">Upload Resume for Audit</h3>
-                    <p class="text-slate-400 text-sm mb-6">PDF or DOCX supported (Max 5MB)</p>
-                    <button onclick="document.getElementById('file-input').click()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-3 rounded-xl font-bold transition-all shadow-lg shadow-indigo-500/20">
-                        Scan Now
+                    
+                    <div class="hidden md:flex items-center gap-6">
+                        <a href="portal.html" class="nav-link text-sm font-medium text-slate-400 hover:text-white transition-colors">Dashboard</a>
+                        <a href="cv-builder.html" class="nav-link text-sm font-medium text-slate-400 hover:text-white transition-colors">CV Builder</a>
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-4">
+                    <span id="user-badge" class="hidden md:inline-block text-xs font-medium text-slate-500 px-3 py-1.5 bg-white/5 rounded-full border border-white/5">
+                        --
+                    </span>
+                    <button onclick="handleLogout()" class="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-red-400 hover:bg-red-500/10 rounded-lg transition-all">
+                        <i class="fa-solid fa-power-off text-xs"></i>
+                        <span>Sign Out</span>
+                    </button>
+                </div>
+            </div>
+        </nav>
+
+        <main class="max-w-5xl mx-auto px-6 py-12 md:py-20">
+            <!-- Upload Section -->
+            <div id="upload-view" class="max-w-2xl mx-auto space-y-10">
+                <div class="text-center space-y-4">
+                    <span class="px-4 py-1.5 bg-indigo-500/10 text-indigo-400 text-[11px] font-bold uppercase tracking-widest rounded-full border border-indigo-500/20">
+                        AI-Powered Analysis
+                    </span>
+                    <h2 class="text-4xl md:text-5xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-b from-white to-slate-400">
+                        Is your CV invisible?
+                    </h2>
+                    <p class="text-slate-400 text-lg leading-relaxed">
+                        Top companies use Automated Tracking Systems to filter candidates. Our engine ensures your resume hits the high-score bracket.
+                    </p>
+                </div>
+
+                <div id="drop-zone" class="upload-area glass-card rounded-[2.5rem] p-16 text-center cursor-pointer">
+                    <input type="file" id="file-input" class="hidden" accept=".pdf,.doc,.docx">
+                    <div class="w-24 h-24 bg-indigo-600/10 text-indigo-500 rounded-3xl flex items-center justify-center mx-auto mb-8 ring-1 ring-indigo-500/20 shadow-inner">
+                        <i class="fa-solid fa-file-arrow-up text-4xl"></i>
+                    </div>
+                    <h3 class="text-2xl font-bold mb-3">Drop your resume here</h3>
+                    <p class="text-slate-500 text-sm mb-8">Professional Analysis of PDF & DOCX formats</p>
+                    <button onclick="document.getElementById('file-input').click()" class="btn-primary text-white px-10 py-4 rounded-2xl font-bold text-lg shadow-xl">
+                        Select File
                     </button>
                 </div>
             </div>
 
-            <!-- Step 2: Processing -->
-            <div id="processing-view" class="app-hidden py-20 text-center">
-                <div class="spinner mx-auto mb-6 scale-150"></div>
-                <h3 class="text-2xl font-bold mb-2">AI Analysis in Progress</h3>
-                <p id="analysis-step" class="text-slate-400 animate-pulse">Initializing parser...</p>
+            <!-- Processing Animation -->
+            <div id="processing-view" class="app-hidden py-32 text-center">
+                <div class="relative w-24 h-24 mx-auto mb-8">
+                    <div class="spinner w-full h-full border-4"></div>
+                    <div class="absolute inset-0 flex items-center justify-center">
+                        <i class="fa-solid fa-microchip text-indigo-400 animate-pulse"></i>
+                    </div>
+                </div>
+                <h3 class="text-3xl font-bold mb-3 tracking-tight">Analyzing Document</h3>
+                <div class="flex items-center justify-center gap-3 text-slate-400">
+                    <div class="h-1.5 w-1.5 bg-indigo-500 rounded-full animate-bounce"></div>
+                    <p id="analysis-step" class="text-sm font-medium min-w-[180px]">Initializing neural parser...</p>
+                </div>
             </div>
 
-            <!-- Step 3: Results -->
-            <div id="results-view" class="app-hidden space-y-8 animate-in fade-in duration-700">
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <!-- Score Card -->
-                    <div class="glass-card p-8 rounded-3xl text-center flex flex-col items-center justify-center">
-                        <div class="relative w-32 h-32 flex items-center justify-center mb-4">
-                            <svg class="w-full h-full">
-                                <circle class="text-slate-800" stroke-width="8" stroke="currentColor" fill="transparent" r="58" cx="64" cy="64"/>
-                                <circle id="score-circle" class="text-indigo-500 progress-ring" stroke-width="8" stroke-dasharray="364.4" stroke-dashoffset="364.4" stroke-linecap="round" stroke="currentColor" fill="transparent" r="58" cx="64" cy="64"/>
-                            </svg>
-                            <span id="final-score" class="absolute text-3xl font-black">0</span>
+            <!-- Results Section -->
+            <div id="results-view" class="app-hidden space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-700">
+                <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                    <!-- Score Column -->
+                    <div class="lg:col-span-4 space-y-6">
+                        <div class="glass-card p-10 rounded-[2.5rem] text-center">
+                            <div class="relative w-48 h-48 mx-auto mb-6 flex items-center justify-center">
+                                <svg class="w-full h-full drop-shadow-2xl">
+                                    <circle class="text-slate-800/50" stroke-width="12" stroke="currentColor" fill="transparent" r="80" cx="96" cy="96"/>
+                                    <circle id="score-circle" class="text-indigo-500 progress-ring" stroke-width="12" stroke-dasharray="502.6" stroke-dashoffset="502.6" stroke-linecap="round" stroke="currentColor" fill="transparent" r="80" cx="96" cy="96"/>
+                                </svg>
+                                <div class="absolute flex flex-col items-center">
+                                    <span id="final-score" class="text-5xl font-black tracking-tighter">0</span>
+                                    <span class="text-[10px] uppercase font-bold text-slate-500">Global Score</span>
+                                </div>
+                            </div>
+                            <h4 id="score-feedback" class="font-bold text-xl mb-2 text-slate-300">Evaluating...</h4>
+                            <p class="text-xs text-slate-500 leading-relaxed px-4">Based on industry-standard parsing patterns used by Fortune 500 companies.</p>
                         </div>
-                        <h4 class="font-bold text-lg">Match Score</h4>
-                        <p id="score-feedback" class="text-xs text-slate-400 mt-1">Calculating...</p>
                     </div>
 
-                    <!-- Section Audit -->
-                    <div class="md:col-span-2 glass-card p-8 rounded-3xl">
-                        <h3 class="font-bold text-xl mb-6 flex items-center gap-2">
-                            <i class="fa-solid fa-list-check text-indigo-500"></i> Section Analysis
-                        </h3>
-                        <div id="section-breakdown" class="space-y-4">
-                            <!-- Dynamically populated -->
+                    <!-- Breakdown Column -->
+                    <div class="lg:col-span-8">
+                        <div class="glass-card p-10 rounded-[2.5rem] h-full">
+                            <h3 class="font-bold text-2xl mb-8 flex items-center gap-4">
+                                <span class="w-8 h-8 rounded-lg bg-indigo-600/20 text-indigo-400 flex items-center justify-center text-sm">
+                                    <i class="fa-solid fa-magnifying-glass-chart"></i>
+                                </span>
+                                Semantic Breakdown
+                            </h3>
+                            <div id="section-breakdown" class="grid grid-cols-1 gap-4">
+                                <!-- Populated JS -->
+                            </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Improvements -->
-                <div class="glass-card p-8 rounded-3xl">
-                    <h3 class="font-bold text-xl mb-6">Top Improvements Needed</h3>
-                    <div id="improvement-list" class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <!-- Dynamically populated -->
-                    </div>
-                    
-                    <div class="mt-10 pt-8 border-t border-white/5 flex flex-col md:flex-row gap-4 items-center justify-between">
+                <!-- Improvement Strategies -->
+                <div class="glass-card p-10 rounded-[2.5rem]">
+                    <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-10">
                         <div>
-                            <p class="text-sm text-slate-400">Want a 90+ score?</p>
-                            <p class="text-xs text-slate-500 italic">Use our builder to auto-correct these issues.</p>
+                            <h3 class="font-bold text-2xl mb-2">Optimization Strategies</h3>
+                            <p class="text-slate-400 text-sm">Actionable insights to improve your score immediately.</p>
                         </div>
-                        <div class="flex gap-4 w-full md:w-auto">
-                            <button onclick="location.reload()" class="flex-1 md:flex-none px-6 py-3 bg-slate-800 hover:bg-slate-700 rounded-xl font-bold transition-all text-sm">
-                                Re-Scan
+                        <div class="flex gap-3">
+                            <button onclick="location.reload()" class="px-6 py-3 bg-white/5 hover:bg-white/10 border border-white/5 rounded-2xl font-bold transition-all text-sm">
+                                New Scan
                             </button>
-                            <a href="cv-builder.html" class="flex-1 md:flex-none px-8 py-3 bg-indigo-600 hover:bg-indigo-700 text-center rounded-xl font-bold transition-all text-sm">
-                                Launch Builder
+                            <a href="cv-builder.html" class="btn-primary px-8 py-3 text-white rounded-2xl font-bold transition-all text-sm shadow-lg">
+                                Repair Resume
                             </a>
                         </div>
+                    </div>
+                    <div id="improvement-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                        <!-- Populated JS -->
                     </div>
                 </div>
             </div>
@@ -179,27 +274,43 @@
 
         const analysisData = {
             sections: [
-                { name: "Contact Information", status: "Warning", score: 60, detail: "Missing LinkedIn Profile URL" },
-                { name: "Professional Summary", status: "Pass", score: 90, detail: "Clear and concise intro" },
-                { name: "Work Experience", status: "Fail", score: 40, detail: "Low density of action verbs" },
-                { name: "Skills Section", status: "Pass", score: 85, detail: "Good mix of hard/soft skills" },
-                { name: "Education", status: "Pass", score: 100, detail: "Format is ATS friendly" }
+                { name: "Personal Branding", status: "Warning", score: 60, detail: "LinkedIn profile or portfolio link is missing." },
+                { name: "Executive Summary", status: "Pass", score: 92, detail: "Strong value proposition and keyword density." },
+                { name: "Career Trajectory", status: "Fail", score: 35, detail: "Weak action verbs; lacks measurable outcomes." },
+                { name: "Competency Matrix", status: "Pass", score: 88, detail: "Excellent balance of hard and soft skills." },
+                { name: "Academic Credentialing", status: "Pass", score: 100, detail: "Formal layout meets parser requirements." }
             ],
             improvements: [
-                { title: "Use Action Verbs", desc: "Replace passive phrases like 'Responsible for' with 'Orchestrated' or 'Engineered'.", icon: "fa-bolt", color: "text-amber-400" },
-                { title: "Standardize Dates", desc: "ATS systems prefer MM/YYYY or 'Month Year' formats for timeline accuracy.", icon: "fa-calendar", color: "text-indigo-400" },
-                { title: "Add Quantifiable Metrics", desc: "Include percentages or dollar amounts (e.g., 'Increased revenue by 20%').", icon: "fa-chart-line", color: "text-emerald-400" },
-                { title: "Remove Headers/Footers", desc: "Move vital info out of document headers/footers as some ATS skip them.", icon: "fa-file-lines", color: "text-red-400" }
+                { title: "Quantify Impact", desc: "Use metrics (e.g., 'Reduced costs by 15%') to prove your value.", icon: "fa-chart-pie", color: "text-blue-400" },
+                { title: "Verb Strength", desc: "Swap passive verbs for high-impact leadership verbs.", icon: "fa-fire", color: "text-orange-400" },
+                { title: "Keyword Tuning", desc: "Align tech stack mentions with modern industry synonyms.", icon: "fa-key", color: "text-emerald-400" },
+                { title: "Visual Hygiene", desc: "Ensure no text is trapped in non-readable image formats.", icon: "fa-eye", color: "text-purple-400" }
             ]
         };
 
         async function checkAuth() {
-            const { data: { session } } = await supabaseClient.auth.getSession();
-            if (!session) {
+            try {
+                const { data: { session }, error } = await supabaseClient.auth.getSession();
+                
+                if (error || !session) {
+                    window.location.href = 'auth.html';
+                    return;
+                }
+
+                // UI Personalization
+                const userEmail = session.user.email;
+                document.getElementById('user-badge').innerText = userEmail;
+                
+                // Reveal Content
+                document.getElementById('loading-screen').style.opacity = '0';
+                setTimeout(() => {
+                    document.getElementById('loading-screen').classList.add('app-hidden');
+                    document.getElementById('main-content').classList.remove('app-hidden');
+                }, 500);
+
+            } catch (err) {
+                console.error("Auth check failed", err);
                 window.location.href = 'auth.html';
-            } else {
-                document.getElementById('loading-screen').style.display = 'none';
-                document.getElementById('main-content').classList.remove('app-hidden');
             }
         }
 
@@ -208,6 +319,7 @@
             window.location.href = 'auth.html';
         }
 
+        // File Interaction Logic
         const dropZone = document.getElementById('drop-zone');
         const fileInput = document.getElementById('file-input');
 
@@ -221,80 +333,78 @@
         dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
         dropZone.addEventListener('drop', (e) => {
             dropZone.classList.remove('dragover');
-            handleFiles(e.dataTransfer.files[0]);
+            if (e.dataTransfer.files.length) handleFiles(e.dataTransfer.files[0]);
         });
 
-        fileInput.addEventListener('change', (e) => handleFiles(e.target.files[0]));
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length) handleFiles(e.target.files[0]);
+        });
 
         function handleFiles(file) {
-            if (!file) return;
             document.getElementById('upload-view').classList.add('app-hidden');
             document.getElementById('processing-view').classList.remove('app-hidden');
 
             const steps = [
-                "Extracting metadata...",
-                "Running heuristic analysis...",
-                "Searching for keywords...",
-                "Formatting audit...",
-                "Finalizing report..."
+                "Deconstructing document layers...",
+                "Running heuristic NLP scan...",
+                "Cross-referencing industry keywords...",
+                "Auditing visual hierarchy...",
+                "Generating intelligence report..."
             ];
 
             let i = 0;
+            const stepEl = document.getElementById('analysis-step');
             const interval = setInterval(() => {
                 if (i < steps.length) {
-                    document.getElementById('analysis-step').innerText = steps[i];
+                    stepEl.innerText = steps[i];
                     i++;
                 } else {
                     clearInterval(interval);
                     showResults();
                 }
-            }, 700);
+            }, 900);
         }
 
         function showResults() {
             document.getElementById('processing-view').classList.add('app-hidden');
             document.getElementById('results-view').classList.remove('app-hidden');
 
-            // Populate Sections
+            // Render Breakdown
             const breakdown = document.getElementById('section-breakdown');
             breakdown.innerHTML = analysisData.sections.map(s => `
-                <div class="flex flex-col gap-2 p-4 bg-white/5 rounded-2xl border border-white/5">
-                    <div class="flex justify-between items-center">
-                        <div class="flex items-center gap-3">
-                            <i class="fa-solid ${s.status === 'Pass' ? 'fa-circle-check text-emerald-500' : s.status === 'Warning' ? 'fa-circle-exclamation text-amber-500' : 'fa-circle-xmark text-red-500'}"></i>
-                            <span class="text-sm font-bold">${s.name}</span>
+                <div class="group flex items-center justify-between p-5 bg-white/5 rounded-2xl border border-white/5 hover:border-white/20 transition-all">
+                    <div class="flex items-center gap-5">
+                        <div class="w-2 h-2 rounded-full ${s.status === 'Pass' ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]' : s.status === 'Warning' ? 'bg-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.5)]' : 'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.5)]'}"></div>
+                        <div>
+                            <h4 class="text-sm font-bold text-slate-200">${s.name}</h4>
+                            <p class="text-[11px] text-slate-500 mt-0.5">${s.detail}</p>
                         </div>
-                        <span class="text-[10px] font-black uppercase px-2 py-1 rounded ${s.status === 'Pass' ? 'bg-emerald-500/10 text-emerald-500' : s.status === 'Warning' ? 'bg-amber-500/10 text-amber-500' : 'bg-red-500/10 text-red-500'}">
-                            ${s.status}
-                        </span>
                     </div>
-                    <p class="text-xs text-slate-400 pl-7">${s.detail}</p>
+                    <div class="text-right">
+                        <span class="text-xs font-black font-mono ${s.status === 'Pass' ? 'text-emerald-400' : s.status === 'Warning' ? 'text-amber-400' : 'text-red-400'}">${s.score}%</span>
+                    </div>
                 </div>
             `).join('');
 
-            // Populate Improvements
+            // Render Strategies
             const impList = document.getElementById('improvement-list');
             impList.innerHTML = analysisData.improvements.map(imp => `
-                <div class="p-5 bg-white/5 rounded-2xl border border-white/5 hover:border-indigo-500/50 transition-all group">
-                    <div class="flex gap-4">
-                        <div class="w-10 h-10 rounded-xl bg-slate-800 flex items-center justify-center ${imp.color} group-hover:bg-indigo-600 group-hover:text-white transition-all">
-                            <i class="fa-solid ${imp.icon}"></i>
-                        </div>
-                        <div class="flex-1">
-                            <h4 class="font-bold text-sm mb-1">${imp.title}</h4>
-                            <p class="text-xs text-slate-400 leading-relaxed">${imp.desc}</p>
-                        </div>
+                <div class="p-6 bg-white/5 rounded-3xl border border-white/5 hover:bg-white/[0.07] transition-all">
+                    <div class="w-12 h-12 rounded-2xl bg-slate-800 flex items-center justify-center ${imp.color} mb-4 text-xl border border-white/5">
+                        <i class="fa-solid ${imp.icon}"></i>
                     </div>
+                    <h4 class="font-bold text-sm mb-2 text-slate-100">${imp.title}</h4>
+                    <p class="text-[11px] text-slate-500 leading-relaxed">${imp.desc}</p>
                 </div>
             `).join('');
 
-            // Animate Score
-            const targetScore = 68;
+            // Score Animation
+            const targetScore = 74;
             let currentScore = 0;
             const scoreDisplay = document.getElementById('final-score');
             const circle = document.getElementById('score-circle');
             const feedback = document.getElementById('score-feedback');
-            const radius = 58;
+            const radius = 80;
             const circumference = 2 * Math.PI * radius;
 
             const scoreInterval = setInterval(() => {
@@ -305,10 +415,10 @@
                     currentScore++;
                 } else {
                     clearInterval(scoreInterval);
-                    feedback.innerText = targetScore > 70 ? "Good Compatibility" : "Needs Improvement";
-                    feedback.className = `text-xs mt-1 font-bold ${targetScore > 70 ? 'text-emerald-500' : 'text-amber-500'}`;
+                    feedback.innerText = targetScore >= 75 ? "Professional Match" : (targetScore >= 60 ? "Moderate Potential" : "Critical Revision Required");
+                    feedback.className = `font-bold text-xl mb-2 ${targetScore >= 75 ? 'text-emerald-400' : 'text-amber-400'}`;
                 }
-            }, 25);
+            }, 30);
         }
 
         window.onload = checkAuth;
