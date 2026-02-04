@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Advanced Labs | Codenix AI Core</title>
+    <title>Advanced Labs | Codenix Enterprise</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.40.0/dist/umd/supabase.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -20,18 +20,21 @@
                     },
                     colors: {
                         brand: { 
-                            DEFAULT: '#6366f1',
-                            500: '#6366f1', 
-                            600: '#4f46e5' 
+                            50: '#f5f3ff',
+                            100: '#ede9fe',
+                            500: '#8b5cf6', // Vibrant Purple
+                            600: '#7c3aed', 
+                            700: '#6d28d9'
                         },
-                        surface: { 
-                            light: '#F9FAFB', 
-                            dark: '#050505',
-                            card: '#0A0A0A'
+                        dark: {
+                            bg: '#000000',
+                            surface: '#0A0A0A',
+                            border: '#1A1A1A'
                         },
-                        border: { 
-                            light: '#E5E7EB', 
-                            dark: '#1A1A1A' 
+                        light: {
+                            bg: '#FFFFFF',
+                            surface: '#F9FAFB',
+                            border: '#E5E7EB'
                         }
                     }
                 }
@@ -41,326 +44,354 @@
 
     <style>
         .glass { backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); }
-        .sidebar-transition { transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
         
-        .feature-card {
-            background: rgba(10, 10, 10, 0.4);
+        /* Dark Mode Specifics */
+        .dark .feature-card {
+            background: rgba(10, 10, 10, 0.6);
             border: 1px solid rgba(255, 255, 255, 0.03);
-            transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
         }
-        
+        .dark .grid-bg {
+            background-image: linear-gradient(to right, rgba(139, 92, 246, 0.05) 1px, transparent 1px),
+                              linear-gradient(to bottom, rgba(139, 92, 246, 0.05) 1px, transparent 1px);
+            background-size: 40px 40px;
+        }
+
+        /* Light Mode Specifics */
+        .light .feature-card {
+            background: #FFFFFF;
+            border: 1px solid #E5E7EB;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+        }
+        .light .grid-bg {
+            background-image: linear-gradient(to right, rgba(139, 92, 246, 0.03) 1px, transparent 1px),
+                              linear-gradient(to bottom, rgba(139, 92, 246, 0.03) 1px, transparent 1px);
+            background-size: 40px 40px;
+        }
+
         .feature-card:hover {
-            transform: translateY(-10px) scale(1.01);
-            border-color: rgba(99, 102, 241, 0.4);
-            box-shadow: 0 30px 60px -20px rgba(99, 102, 241, 0.25);
-            background: rgba(99, 102, 241, 0.04);
-        }
-
-        .grid-bg {
-            background-image: 
-                linear-gradient(to right, rgba(99, 102, 241, 0.05) 1px, transparent 1px),
-                linear-gradient(to bottom, rgba(99, 102, 241, 0.05) 1px, transparent 1px);
-            background-size: 50px 50px;
-        }
-
-        .glow-text {
-            text-shadow: 0 0 25px rgba(99, 102, 241, 0.4);
+            transform: translateY(-8px);
+            border-color: #8b5cf6 !important;
+            box-shadow: 0 20px 40px -15px rgba(139, 92, 246, 0.2);
         }
 
         #auth-guard {
             position: fixed;
             inset: 0;
-            background: #000;
             z-index: 9999;
             display: flex;
             align-items: center;
             justify-content: center;
-            transition: opacity 0.6s cubic-bezier(0.4, 0, 0.2, 1), visibility 0.6s;
-        }
-        
-        #auth-guard.hidden-guard {
-            opacity: 0;
-            visibility: hidden;
-            pointer-events: none;
+            background: #000;
         }
 
-        .status-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background-color: #10b981;
-            box-shadow: 0 0 10px #10b981;
+        .lang-dropdown {
+            display: none;
         }
-
-        @keyframes pulse-border {
-            0% { border-color: rgba(99, 102, 241, 0.2); }
-            50% { border-color: rgba(99, 102, 241, 0.5); }
-            100% { border-color: rgba(99, 102, 241, 0.2); }
-        }
-
-        .active-pulse {
-            animation: pulse-border 2s infinite ease-in-out;
+        .lang-dropdown.active {
+            display: block;
         }
     </style>
 </head>
-<body class="bg-surface-dark text-white min-h-screen grid-bg font-sans selection:bg-brand/30">
+<body class="bg-light-bg dark:bg-dark-bg text-slate-900 dark:text-white min-h-screen grid-bg font-sans transition-colors duration-300">
 
-    <!-- Auth Guard Loading Screen -->
+    <!-- Auth Guard Loading -->
     <div id="auth-guard">
-        <div class="flex flex-col items-center gap-6">
-            <div class="relative">
-                <div class="w-16 h-16 border-2 border-brand-500/20 rounded-full"></div>
-                <div class="absolute inset-0 border-t-2 border-brand-500 rounded-full animate-spin"></div>
-            </div>
-            <div class="text-center">
-                <p id="guard-text" class="font-mono text-[10px] text-brand-500 tracking-[0.3em] uppercase mb-2">Supabase_Handshake_Initialising</p>
-                <div class="h-1 w-48 bg-white/5 rounded-full overflow-hidden">
-                    <div class="h-full bg-brand-500 w-1/3 animate-[progress_2s_infinite_ease-in-out]" id="progress-bar"></div>
-                </div>
-            </div>
+        <div class="flex flex-col items-center gap-4">
+            <div class="w-12 h-12 border-2 border-brand-500/20 border-t-brand-500 rounded-full animate-spin"></div>
+            <p id="guard-text" class="font-mono text-[10px] text-brand-500 tracking-[0.3em] uppercase">Security_Check</p>
         </div>
     </div>
 
-    <!-- Mobile Sidebar Overlay -->
-    <div id="sidebar-overlay" onclick="toggleSidebar()" class="fixed inset-0 bg-black/80 z-40 hidden lg:hidden glass"></div>
+    <!-- Mobile Overlay -->
+    <div id="sidebar-overlay" onclick="toggleSidebar()" class="fixed inset-0 bg-black/50 z-40 hidden lg:hidden glass"></div>
 
     <!-- Sidebar -->
-    <aside id="sidebar" class="fixed left-0 top-0 h-full w-72 border-r border-white/5 bg-black/40 glass z-50 sidebar-transition -translate-x-full lg:translate-x-0">
-        <div class="flex flex-col h-full">
-            <div class="p-8">
-                <div class="flex items-center gap-4 mb-12">
-                    <div class="w-10 h-10 bg-brand-500 rounded-xl flex items-center justify-center shadow-lg shadow-brand-500/20">
-                        <i class="fa-solid fa-flask-vial text-white"></i>
-                    </div>
-                    <div class="flex flex-col">
-                        <span class="font-bold text-lg leading-tight tracking-tight">Advanced Labs</span>
-                        <span class="text-[10px] text-brand-500 font-mono tracking-widest uppercase">Codenix Core</span>
-                    </div>
+    <aside id="sidebar" class="fixed left-0 top-0 h-full w-72 border-r border-light-border dark:border-dark-border bg-light-surface dark:bg-dark-surface z-50 transition-transform lg:translate-x-0 -translate-x-full">
+        <div class="flex flex-col h-full p-8">
+            <div class="flex items-center gap-3 mb-12">
+                <div class="w-10 h-10 bg-brand-500 rounded-xl flex items-center justify-center text-white shadow-lg shadow-brand-500/30">
+                    <i class="fa-solid fa-atom text-lg"></i>
                 </div>
-
-                <nav class="space-y-2">
-                    <p class="text-[10px] font-bold text-zinc-600 uppercase tracking-[0.2em] mb-4 ml-2">Navigation</p>
-                    <a href="portal.html" class="flex items-center gap-4 px-4 py-3 rounded-xl text-zinc-400 hover:text-white hover:bg-white/5 transition-all group">
-                        <i class="fa-solid fa-house-user w-5 text-sm group-hover:scale-110 transition-transform"></i>
-                        <span class="font-medium text-sm">System Portal</span>
-                    </a>
-                    <a href="#" class="flex items-center gap-4 px-4 py-3 rounded-xl bg-brand-500/10 text-brand-500 border border-brand-500/20 shadow-sm">
-                        <i class="fa-solid fa-layer-group w-5 text-sm"></i>
-                        <span class="font-semibold text-sm">All Modules</span>
-                    </a>
-                    <a href="game.html" class="flex items-center gap-4 px-4 py-3 rounded-xl text-zinc-400 hover:text-white hover:bg-white/5 transition-all group">
-                        <i class="fa-solid fa-ghost w-5 text-sm group-hover:scale-110 transition-transform"></i>
-                        <span class="font-medium text-sm">Game Hub</span>
-                    </a>
-                </nav>
+                <div>
+                    <h1 class="font-extrabold text-lg tracking-tight leading-none">Codenix</h1>
+                    <span class="text-[10px] text-brand-500 font-bold uppercase tracking-widest">Enterprise Labs</span>
+                </div>
             </div>
 
-            <div class="mt-auto p-6 space-y-4">
-                <div class="p-4 bg-white/5 rounded-2xl border border-white/5 active-pulse">
-                    <div class="flex justify-between items-center mb-2">
-                        <p class="text-[10px] text-zinc-500 uppercase tracking-widest font-bold">Session Security</p>
-                        <div class="status-dot"></div>
-                    </div>
-                    <p class="font-mono text-[10px] text-zinc-400 truncate" id="user-display-id">ENC_USER_NULL</p>
+            <nav class="space-y-1.5 flex-1">
+                <p class="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-4 ml-2" data-i18n="nav_title">Core Systems</p>
+                <a href="#" class="flex items-center gap-4 px-4 py-3 rounded-xl bg-brand-500/10 text-brand-500 border border-brand-500/20">
+                    <i class="fa-solid fa-grid-2 w-5"></i>
+                    <span class="font-semibold text-sm" data-i18n="nav_modules">All Modules</span>
+                </a>
+                <a href="portal.html" class="flex items-center gap-4 px-4 py-3 rounded-xl text-slate-500 hover:text-brand-500 hover:bg-brand-500/5 transition-all group">
+                    <i class="fa-solid fa-door-open w-5 group-hover:scale-110 transition-transform"></i>
+                    <span class="font-medium text-sm" data-i18n="nav_portal">System Portal</span>
+                </a>
+                <a href="game.html" class="flex items-center gap-4 px-4 py-3 rounded-xl text-slate-500 hover:text-brand-500 hover:bg-brand-500/5 transition-all group">
+                    <i class="fa-solid fa-gamepad w-5 group-hover:scale-110 transition-transform"></i>
+                    <span class="font-medium text-sm" data-i18n="nav_games">Game Hub</span>
+                </a>
+            </nav>
+
+            <div class="pt-6 border-t border-light-border dark:border-dark-border space-y-4">
+                <div class="flex items-center justify-between px-2">
+                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest" data-i18n="theme">Theme</span>
+                    <button onclick="toggleTheme()" class="w-10 h-10 rounded-lg bg-slate-100 dark:bg-white/5 flex items-center justify-center hover:text-brand-500 transition-colors">
+                        <i class="fa-solid fa-moon dark:hidden"></i>
+                        <i class="fa-solid fa-sun hidden dark:block"></i>
+                    </button>
                 </div>
                 
-                <button onclick="handleSignOut()" class="w-full flex items-center justify-center gap-3 px-4 py-3 rounded-xl border border-white/5 text-zinc-400 hover:bg-red-500/10 hover:text-red-500 hover:border-red-500/20 transition-all font-bold text-xs uppercase tracking-widest">
-                    <i class="fa-solid fa-power-off"></i> Terminate Session
+                <button onclick="handleSignOut()" class="w-full flex items-center justify-center gap-3 px-4 py-3 rounded-xl border border-light-border dark:border-dark-border text-slate-500 hover:bg-red-500/10 hover:text-red-500 hover:border-red-500/20 transition-all font-bold text-[10px] uppercase tracking-widest">
+                    <i class="fa-solid fa-power-off"></i> <span data-i18n="signout">Sign Out</span>
                 </button>
             </div>
         </div>
     </aside>
 
-    <!-- Main Content -->
-    <main class="lg:ml-72 min-h-screen flex flex-col">
-        <!-- Header -->
-        <header class="sticky top-0 z-30 border-b border-white/5 bg-black/40 glass px-6 lg:px-10 py-5 flex items-center justify-between">
-            <button onclick="toggleSidebar()" class="lg:hidden p-2.5 hover:bg-white/5 rounded-xl border border-white/5">
-                <i class="fa-solid fa-bars-staggered"></i>
+    <!-- Main -->
+    <main class="lg:ml-72 min-h-screen">
+        <header class="sticky top-0 z-30 border-b border-light-border dark:border-dark-border bg-light-bg/80 dark:bg-dark-bg/80 glass px-6 lg:px-10 py-4 flex items-center justify-between">
+            <button onclick="toggleSidebar()" class="lg:hidden p-2 text-slate-500">
+                <i class="fa-solid fa-bars-staggered text-xl"></i>
             </button>
 
-            <div class="flex-1 max-w-2xl px-6">
+            <div class="flex-1 max-w-xl px-4 hidden sm:block">
                 <div class="relative group">
-                    <i class="fa-solid fa-magnifying-glass absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500 text-sm group-focus-within:text-brand-500 transition-colors"></i>
-                    <input type="text" placeholder="Access core modules (Ctrl + K)" class="w-full bg-white/5 border border-white/5 focus:border-brand-500/30 rounded-2xl py-3 pl-12 pr-4 outline-none transition-all text-sm font-medium">
+                    <i class="fa-solid fa-search absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-brand-500"></i>
+                    <input type="text" data-i18n-placeholder="search_placeholder" placeholder="Search infrastructure..." class="w-full bg-slate-100 dark:bg-white/5 border border-transparent focus:border-brand-500/30 rounded-xl py-2.5 pl-12 pr-4 outline-none text-sm transition-all">
                 </div>
             </div>
 
-            <div class="flex items-center gap-6">
-                <div class="hidden md:flex flex-col items-end">
-                    <div class="flex items-center gap-2">
-                        <span class="text-[10px] text-emerald-500 font-bold font-mono">LIVE_SYNC</span>
-                        <div class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
+            <div class="flex items-center gap-4">
+                <!-- Language Selector -->
+                <div class="relative">
+                    <button onclick="document.getElementById('lang-menu').classList.toggle('active')" class="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-100 dark:bg-white/5 text-xs font-bold uppercase tracking-widest hover:text-brand-500 transition-colors">
+                        <i class="fa-solid fa-globe"></i> <span id="current-lang-label">EN</span>
+                    </button>
+                    <div id="lang-menu" class="lang-dropdown absolute right-0 mt-2 w-32 bg-white dark:bg-dark-surface border border-light-border dark:border-dark-border rounded-xl shadow-xl overflow-hidden z-50">
+                        <button onclick="setLanguage('en')" class="w-full px-4 py-2.5 text-left text-xs font-semibold hover:bg-brand-500/10 hover:text-brand-500 transition-colors border-b border-light-border dark:border-dark-border">English</button>
+                        <button onclick="setLanguage('es')" class="w-full px-4 py-2.5 text-left text-xs font-semibold hover:bg-brand-500/10 hover:text-brand-500 transition-colors">Español</button>
                     </div>
-                    <p class="text-[10px] font-mono text-zinc-500">AES-256_ACTIVE</p>
                 </div>
-                <div class="h-10 w-[1px] bg-white/5 hidden md:block"></div>
+
+                <div class="h-8 w-px bg-light-border dark:border-dark-border"></div>
+
                 <div class="flex items-center gap-3">
-                    <span id="nav-user-email" class="text-xs font-semibold text-zinc-400 hidden sm:block">guest@codenix</span>
-                    <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-500 to-indigo-600 p-[1px]">
-                        <div class="w-full h-full bg-black rounded-[11px] flex items-center justify-center">
-                            <i class="fa-solid fa-shield-halved text-brand-500 text-sm"></i>
-                        </div>
+                    <div class="text-right hidden sm:block">
+                        <p id="user-email" class="text-xs font-bold leading-none mb-1">loading...</p>
+                        <p class="text-[9px] text-brand-500 font-mono tracking-tighter">PREMIUM_ACCOUNT</p>
+                    </div>
+                    <div class="w-10 h-10 rounded-full bg-brand-500 flex items-center justify-center text-white font-bold shadow-lg shadow-brand-500/20">
+                        <i class="fa-solid fa-user-tie"></i>
                     </div>
                 </div>
             </div>
         </header>
 
-        <!-- Scrollable Content -->
-        <div class="p-6 lg:p-12 flex-1">
-            <section class="mb-16">
+        <div class="p-6 lg:p-12 max-w-7xl mx-auto">
+            <section class="mb-12">
                 <div class="flex items-center gap-3 mb-6">
-                    <span class="px-3 py-1 rounded-full bg-brand-500/10 border border-brand-500/20 text-brand-500 text-[10px] font-bold font-mono tracking-widest">
-                        SECURE_ACCESS_GRANTED
-                    </span>
-                    <span class="text-zinc-600 text-[10px] font-mono">NODE: HQ-01</span>
+                    <div class="h-[1px] w-8 bg-brand-500"></div>
+                    <span class="text-[10px] font-bold text-brand-500 uppercase tracking-[0.3em]" data-i18n="header_tag">Experimental Sector</span>
                 </div>
-                <h1 class="text-5xl lg:text-7xl font-extrabold tracking-tighter mb-6 glow-text">
-                    Next-Gen <br/><span class="text-transparent bg-clip-text bg-gradient-to-r from-brand-400 to-indigo-400">Cognitive Assets</span>
-                </h1>
-                <p class="text-zinc-500 max-w-2xl text-lg leading-relaxed font-medium">
-                    Welcome to the restricted experimental sector. These modules interface directly with our proprietary LLM cluster for ultra-low latency results.
+                <h2 class="text-4xl lg:text-6xl font-black tracking-tighter mb-6">
+                    <span data-i18n="hero_title_1">High Performance</span> <br/>
+                    <span class="text-brand-500 italic" data-i18n="hero_title_2">AI Tooling</span>
+                </h2>
+                <p class="text-slate-500 dark:text-slate-400 text-lg max-w-2xl leading-relaxed" data-i18n="hero_desc">
+                    Welcome to the enterprise-grade laboratory. Access specialized neural models for vision, synthesis, and complex linguistics.
                 </p>
             </section>
 
-            <!-- Tools Grid -->
-            <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-2 gap-8">
-                <!-- Image Card -->
-                <div class="feature-card p-10 rounded-[2.5rem] group relative overflow-hidden">
-                    <div class="absolute top-0 right-0 p-8 opacity-10 group-hover:opacity-20 transition-opacity">
-                        <i class="fa-solid fa-wand-sparkles text-8xl"></i>
-                    </div>
-                    <div class="relative z-10 h-full flex flex-col">
-                        <div class="w-16 h-16 bg-blue-500/10 border border-blue-500/20 rounded-2xl flex items-center justify-center text-blue-400 mb-10 group-hover:scale-110 transition-transform duration-500 shadow-lg shadow-blue-500/5">
-                            <i class="fa-solid fa-image-polaroid text-2xl"></i>
+            <!-- Cards Grid -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <!-- Card 1 -->
+                <div class="feature-card p-10 rounded-[2rem] transition-all duration-500 group">
+                    <div class="flex justify-between items-start mb-10">
+                        <div class="w-14 h-14 bg-brand-500/10 rounded-2xl flex items-center justify-center text-brand-500 group-hover:scale-110 transition-transform">
+                            <i class="fa-solid fa-wand-magic-sparkles text-2xl"></i>
                         </div>
-                        <h3 class="text-3xl font-bold mb-4">Vision Synthesis</h3>
-                        <p class="text-zinc-500 leading-relaxed mb-10 flex-1">
-                            Architect cinematic visuals and precise UI assets using our customized latent diffusion models.
-                        </p>
-                        <a href="image.html" class="inline-flex items-center gap-4 text-sm font-bold text-blue-400 font-mono tracking-widest uppercase group/btn">
-                            Initialize_Visuals 
-                            <i class="fa-solid fa-chevron-right text-[10px] group-hover/btn:translate-x-2 transition-transform"></i>
-                        </a>
+                        <span class="text-[9px] font-bold px-3 py-1 rounded-full bg-slate-100 dark:bg-white/5 border border-light-border dark:border-dark-border uppercase tracking-widest">Model: XL-2</span>
                     </div>
+                    <h3 class="text-2xl font-bold mb-3" data-i18n="card_1_title">Neural Vision</h3>
+                    <p class="text-slate-500 dark:text-slate-400 text-sm leading-relaxed mb-8" data-i18n="card_1_desc">Advanced diffusion models for photorealistic asset generation and texture mapping.</p>
+                    <a href="image.html" class="inline-flex items-center gap-3 text-xs font-black uppercase tracking-widest text-brand-500 group/btn">
+                        <span data-i18n="launch">Launch Module</span>
+                        <i class="fa-solid fa-arrow-right group-hover/btn:translate-x-2 transition-transform"></i>
+                    </a>
                 </div>
 
-                <!-- Voice Card -->
-                <div class="feature-card p-10 rounded-[2.5rem] group relative overflow-hidden">
-                    <div class="absolute top-0 right-0 p-8 opacity-10 group-hover:opacity-20 transition-opacity">
-                        <i class="fa-solid fa-microphone-lines text-8xl"></i>
-                    </div>
-                    <div class="relative z-10 h-full flex flex-col">
-                        <div class="w-16 h-16 bg-purple-500/10 border border-purple-500/20 rounded-2xl flex items-center justify-center text-purple-400 mb-10 group-hover:scale-110 transition-transform duration-500 shadow-lg shadow-purple-500/5">
-                            <i class="fa-solid fa-waveform-lines text-2xl"></i>
+                <!-- Card 2 -->
+                <div class="feature-card p-10 rounded-[2rem] transition-all duration-500 group">
+                    <div class="flex justify-between items-start mb-10">
+                        <div class="w-14 h-14 bg-purple-500/10 rounded-2xl flex items-center justify-center text-purple-500 group-hover:scale-110 transition-transform">
+                            <i class="fa-solid fa-wave-square text-2xl"></i>
                         </div>
-                        <h3 class="text-3xl font-bold mb-4">Prosody Core</h3>
-                        <p class="text-zinc-500 leading-relaxed mb-10 flex-1">
-                            Generate ultra-realistic voice synthesis with granular control over emotional inflection and pacing.
-                        </p>
-                        <a href="voice.html" class="inline-flex items-center gap-4 text-sm font-bold text-purple-400 font-mono tracking-widest uppercase group/btn">
-                            Deploy_Audio_Link 
-                            <i class="fa-solid fa-chevron-right text-[10px] group-hover/btn:translate-x-2 transition-transform"></i>
-                        </a>
+                        <span class="text-[9px] font-bold px-3 py-1 rounded-full bg-slate-100 dark:bg-white/5 border border-light-border dark:border-dark-border uppercase tracking-widest">Latency: 45ms</span>
                     </div>
+                    <h3 class="text-2xl font-bold mb-3" data-i18n="card_2_title">Vocal Synthesis</h3>
+                    <p class="text-slate-500 dark:text-slate-400 text-sm leading-relaxed mb-8" data-i18n="card_2_desc">Human-like speech synthesis with emotional prosody and multi-lingual cloning support.</p>
+                    <a href="voice.html" class="inline-flex items-center gap-3 text-xs font-black uppercase tracking-widest text-purple-500 group/btn">
+                        <span data-i18n="launch">Launch Module</span>
+                        <i class="fa-solid fa-arrow-right group-hover/btn:translate-x-2 transition-transform"></i>
+                    </a>
                 </div>
 
-                <!-- Polyglot Card -->
-                <div class="feature-card p-10 rounded-[2.5rem] group relative overflow-hidden">
-                    <div class="relative z-10 h-full flex flex-col">
-                        <div class="w-16 h-16 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl flex items-center justify-center text-emerald-400 mb-10 group-hover:scale-110 transition-transform duration-500 shadow-lg shadow-emerald-500/5">
+                <!-- Card 3 -->
+                <div class="feature-card p-10 rounded-[2rem] transition-all duration-500 group">
+                    <div class="flex justify-between items-start mb-10">
+                        <div class="w-14 h-14 bg-emerald-500/10 rounded-2xl flex items-center justify-center text-emerald-500 group-hover:scale-110 transition-transform">
                             <i class="fa-solid fa-language text-2xl"></i>
                         </div>
-                        <h3 class="text-3xl font-bold mb-4">Linguistic Bridge</h3>
-                        <p class="text-zinc-500 leading-relaxed mb-10 flex-1">
-                            Semantic translation engine capable of maintaining technical accuracy and cultural nuance across 45 languages.
-                        </p>
-                        <a href="translator.html" class="inline-flex items-center gap-4 text-sm font-bold text-emerald-400 font-mono tracking-widest uppercase group/btn">
-                            Open_Dictionary 
-                            <i class="fa-solid fa-chevron-right text-[10px] group-hover/btn:translate-x-2 transition-transform"></i>
-                        </a>
+                        <span class="text-[9px] font-bold px-3 py-1 rounded-full bg-slate-100 dark:bg-white/5 border border-light-border dark:border-dark-border uppercase tracking-widest">Active: 120+</span>
                     </div>
+                    <h3 class="text-2xl font-bold mb-3" data-i18n="card_3_title">Polyglot Hub</h3>
+                    <p class="text-slate-500 dark:text-slate-400 text-sm leading-relaxed mb-8" data-i18n="card_3_desc">Real-time semantic translation engine with full contextual and cultural awareness.</p>
+                    <a href="translator.html" class="inline-flex items-center gap-3 text-xs font-black uppercase tracking-widest text-emerald-500 group/btn">
+                        <span data-i18n="launch">Launch Module</span>
+                        <i class="fa-solid fa-arrow-right group-hover/btn:translate-x-2 transition-transform"></i>
+                    </a>
                 </div>
 
-                <!-- Logic Card -->
-                <div class="feature-card p-10 rounded-[2.5rem] group relative overflow-hidden">
-                    <div class="relative z-10 h-full flex flex-col">
-                        <div class="w-16 h-16 bg-orange-500/10 border border-orange-500/20 rounded-2xl flex items-center justify-center text-orange-400 mb-10 group-hover:scale-110 transition-transform duration-500 shadow-lg shadow-orange-500/5">
-                            <i class="fa-solid fa-microchip text-2xl"></i>
+                <!-- Card 4 -->
+                <div class="feature-card p-10 rounded-[2rem] transition-all duration-500 group">
+                    <div class="flex justify-between items-start mb-10">
+                        <div class="w-14 h-14 bg-orange-500/10 rounded-2xl flex items-center justify-center text-orange-500 group-hover:scale-110 transition-transform">
+                            <i class="fa-solid fa-bolt text-2xl"></i>
                         </div>
-                        <h3 class="text-3xl font-bold mb-4">Compute Logic</h3>
-                        <p class="text-zinc-500 leading-relaxed mb-10 flex-1">
-                            Access high-precision mathematical solvers and scientific graphing units for engineering tasks.
-                        </p>
-                        <a href="calculator.html" class="inline-flex items-center gap-4 text-sm font-bold text-orange-400 font-mono tracking-widest uppercase group/btn">
-                            Initialize_Solver 
-                            <i class="fa-solid fa-chevron-right text-[10px] group-hover/btn:translate-x-2 transition-transform"></i>
-                        </a>
+                        <span class="text-[9px] font-bold px-3 py-1 rounded-full bg-slate-100 dark:bg-white/5 border border-light-border dark:border-dark-border uppercase tracking-widest">Stat: Stable</span>
                     </div>
+                    <h3 class="text-2xl font-bold mb-3" data-i18n="card_4_title">Quantum Logic</h3>
+                    <p class="text-slate-500 dark:text-slate-400 text-sm leading-relaxed mb-8" data-i18n="card_4_desc">Computational unit for high-complexity mathematical equations and scientific analysis.</p>
+                    <a href="calculator.html" class="inline-flex items-center gap-3 text-xs font-black uppercase tracking-widest text-orange-500 group/btn">
+                        <span data-i18n="launch">Launch Module</span>
+                        <i class="fa-solid fa-arrow-right group-hover/btn:translate-x-2 transition-transform"></i>
+                    </a>
                 </div>
             </div>
         </div>
 
-        <footer class="mt-auto px-6 lg:px-12 py-10 border-t border-white/5 bg-black/20 flex flex-col md:flex-row justify-between items-center gap-8">
-            <div class="flex flex-col gap-2">
-                <div class="flex items-center gap-2">
-                    <div class="w-2 h-2 rounded-full bg-brand-500"></div>
-                    <p class="text-xs font-mono text-zinc-500 uppercase tracking-widest">Global Status: Optimal</p>
-                </div>
-                <p class="text-zinc-600 text-[10px] uppercase font-bold tracking-[0.2em]">© 2026 Codenix AI Studios. Distributed Node Network.</p>
-            </div>
+        <footer class="mt-20 border-t border-light-border dark:border-dark-border p-10 flex flex-col md:flex-row justify-between items-center gap-6">
+            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">© 2026 Codenix Enterprise. Node_Sync: Active</p>
             <div class="flex gap-8">
-                <a href="#" class="text-[10px] font-bold text-zinc-600 hover:text-brand-500 transition-colors uppercase tracking-[0.3em]">Privacy_Protocol</a>
-                <a href="#" class="text-[10px] font-bold text-zinc-600 hover:text-brand-500 transition-colors uppercase tracking-[0.3em]">API_Docs</a>
-                <a href="#" class="text-[10px] font-bold text-zinc-600 hover:text-brand-500 transition-colors uppercase tracking-[0.3em]">Mainframe</a>
+                <a href="#" class="text-[10px] font-bold text-slate-400 hover:text-brand-500 transition-colors uppercase tracking-widest">Documentation</a>
+                <a href="#" class="text-[10px] font-bold text-slate-400 hover:text-brand-500 transition-colors uppercase tracking-widest">Privacy</a>
+                <a href="#" class="text-[10px] font-bold text-slate-400 hover:text-brand-500 transition-colors uppercase tracking-widest">Support</a>
             </div>
         </footer>
     </main>
 
     <script>
-        // Supabase Infrastructure
+        // Supabase Logic
         const supabaseUrl = 'https://rnlwrngfgvznndlekmrz.supabase.co';
         const supabaseKey = 'sb_publishable_mtI0_ZBvU_n5oRuqV58QHg_qJt3Gfyt';
         let supabase;
 
+        // Translation Dictionary
+        const i18n = {
+            en: {
+                nav_title: "Core Systems",
+                nav_modules: "All Modules",
+                nav_portal: "System Portal",
+                nav_games: "Game Hub",
+                theme: "Theme",
+                signout: "Sign Out",
+                header_tag: "Experimental Sector",
+                hero_title_1: "High Performance",
+                hero_title_2: "AI Tooling",
+                hero_desc: "Welcome to the enterprise-grade laboratory. Access specialized neural models for vision, synthesis, and complex linguistics.",
+                card_1_title: "Neural Vision",
+                card_1_desc: "Advanced diffusion models for photorealistic asset generation and texture mapping.",
+                card_2_title: "Vocal Synthesis",
+                card_2_desc: "Human-like speech synthesis with emotional prosody and multi-lingual cloning support.",
+                card_3_title: "Polyglot Hub",
+                card_3_desc: "Real-time semantic translation engine with full contextual and cultural awareness.",
+                card_4_title: "Quantum Logic",
+                card_4_desc: "Computational unit for high-complexity mathematical equations and scientific analysis.",
+                launch: "Launch Module",
+                search_placeholder: "Search infrastructure..."
+            },
+            es: {
+                nav_title: "Sistemas Core",
+                nav_modules: "Todos los Módulos",
+                nav_portal: "Portal del Sistema",
+                nav_games: "Centro de Juegos",
+                theme: "Tema",
+                signout: "Cerrar Sesión",
+                header_tag: "Sector Experimental",
+                hero_title_1: "Alto Rendimiento",
+                hero_title_2: "Herramientas IA",
+                hero_desc: "Bienvenido al laboratorio de grado empresarial. Acceda a modelos neuronales especializados para visión, síntesis y lingüística compleja.",
+                card_1_title: "Visión Neural",
+                card_1_desc: "Modelos de difusión avanzada para la generación de activos fotorrealistas y mapeo de texturas.",
+                card_2_title: "Síntesis Vocal",
+                card_2_desc: "Síntesis de voz similar a la humana con prosodia emocional y soporte de clonación multilingüe.",
+                card_3_title: "Centro Políglota",
+                card_3_desc: "Motor de traducción semántica en tiempo real con plena conciencia contextual y cultural.",
+                card_4_title: "Lógica Cuántica",
+                card_4_desc: "Unidad computacional para ecuaciones matemáticas de alta complejidad y análisis científico.",
+                launch: "Iniciar Módulo",
+                search_placeholder: "Buscar infraestructura..."
+            }
+        };
+
         async function initApp() {
             try {
-                // Initialize Supabase Client
                 supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
-                
-                // Validate Session
                 const { data: { session }, error } = await supabase.auth.getSession();
                 
                 if (error || !session) {
-                    console.warn("No active session detected. Redirecting to authentication...");
-                    // Redirecting after a small delay for UI smoothness
-                    document.getElementById('guard-text').innerText = "REDIRECTING_TO_AUTH";
-                    setTimeout(() => {
-                        window.location.href = 'auth.html';
-                    }, 800);
+                    window.location.replace('auth.html');
                     return;
                 }
 
-                // Session Validated - Setup UI
-                const user = session.user;
-                document.getElementById('nav-user-email').innerText = user.email;
-                document.getElementById('user-display-id').innerText = user.id.substring(0, 16) + "...";
+                document.getElementById('user-email').innerText = session.user.email;
+                document.getElementById('auth-guard').style.display = 'none';
+
+                // Initial UI Settings
+                const savedTheme = localStorage.getItem('theme') || 'dark';
+                document.documentElement.className = savedTheme;
                 
-                // Hide Guard
-                const guard = document.getElementById('auth-guard');
-                guard.classList.add('hidden-guard');
-                
+                const savedLang = localStorage.getItem('lang') || 'en';
+                setLanguage(savedLang);
+
             } catch (err) {
-                console.error("Critical System Error:", err);
-                document.getElementById('guard-text').innerText = "HANDSHAKE_FAILURE_CRITICAL";
-                document.getElementById('progress-bar').classList.add('bg-red-500');
+                console.error("Auth Failure:", err);
+                window.location.replace('auth.html');
             }
         }
 
+        function setLanguage(lang) {
+            localStorage.setItem('lang', lang);
+            document.getElementById('current-lang-label').innerText = lang.toUpperCase();
+            document.getElementById('lang-menu').classList.remove('active');
+            
+            // Translate all elements with data-i18n
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.getAttribute('data-i18n');
+                if (i18n[lang][key]) el.innerText = i18n[lang][key];
+            });
+
+            // Translate placeholders
+            document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+                const key = el.getAttribute('data-i18n-placeholder');
+                if (i18n[lang][key]) el.placeholder = i18n[lang][key];
+            });
+        }
+
+        function toggleTheme() {
+            const isDark = document.documentElement.classList.contains('dark');
+            const newTheme = isDark ? 'light' : 'dark';
+            document.documentElement.className = newTheme;
+            localStorage.setItem('theme', newTheme);
+        }
+
         async function handleSignOut() {
-            if (confirm("Are you sure you want to terminate your current session?")) {
+            if (confirm("Terminate session?")) {
                 await supabase.auth.signOut();
-                window.location.href = 'auth.html';
+                window.location.replace('auth.html');
             }
         }
 
@@ -371,16 +402,14 @@
             overlay.classList.toggle('hidden');
         }
 
-        // Global Event Listeners
-        document.addEventListener('keydown', (e) => {
-            if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
-                e.preventDefault();
-                document.querySelector('input[type="text"]').focus();
+        // Close dropdowns on outside click
+        window.onclick = function(event) {
+            if (!event.target.closest('.relative')) {
+                document.getElementById('lang-menu').classList.remove('active');
             }
-        });
+        }
 
-        // Bootstrap
-        window.onload = initApp;
+        initApp();
     </script>
 </body>
 </html>
