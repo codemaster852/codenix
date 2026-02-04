@@ -1,197 +1,294 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark" id="html-root">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Download the Codenix App</title>
-    <!-- Load Inter Font -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+    <title>Downloads | Codenix Enterprise</title>
+    <!-- Load Inter & Plus Jakarta Sans -->
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
     <!-- Load Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Load Supabase -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.40.0/dist/umd/supabase.min.js"></script>
     <!-- Load Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
 
-    <style>
-        /* Reusing common theme styles for consistency */
-        body {
-            font-family: 'Inter', sans-serif;
-            min-height: 100vh;
-        }
-
-        /* Pure black background for the Nix 1.5 theme */
-        .codenix-bg {
-            background-color: #000000;
-        }
-
-        /* Card base style: Darker background, subtle border */
-        .codenix-card {
-            background-color: #0c0c0c; 
-            border: 1px solid #1f2937;
-            transition: all 0.3s ease-in-out;
-            position: relative;
-            overflow: hidden;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
-        }
-        
-        /* Active Card (Android) Hover Effect */
-        .codenix-card.active-card:hover {
-            transform: translateY(-5px);
-            border-color: #3B82F6; /* Subtle blue highlight on hover */
-            box-shadow: 0 10px 15px -3px rgba(59, 130, 246, 0.1), 0 4px 6px -4px rgba(59, 130, 246, 0.1);
-        }
-
-        /* Disabled Card Style */
-        .disabled-card {
-            opacity: 0.5;
-            filter: grayscale(100%);
-            cursor: not-allowed;
-            pointer-events: none;
-            border-style: dashed; /* Visual cue for unavailability */
-            border-color: #374151;
-        }
-        .disabled-card:hover {
-            transform: none;
-            box-shadow: none;
-        }
-
-        /* Gradient for the Active Download Button */
-        .download-gradient-btn {
-            background: linear-gradient(90deg, #10b981 0%, #3B82F6 100%); /* Green to Blue */
-            transition: all 0.3s ease;
-        }
-        .download-gradient-btn:hover {
-            background: linear-gradient(90deg, #3B82F6 0%, #10b981 100%);
-            box-shadow: 0 5px 15px rgba(59, 130, 246, 0.4);
-        }
-    </style>
-
     <script>
         tailwind.config = {
+            darkMode: 'class',
             theme: {
                 extend: {
-                    colors: {
-                        // Customizing to match the previous Nix theme (blue/green accents)
-                        'primary-accent': '#3B82F6', // Blue
-                        'secondary-accent': '#10b981', // Green
-                        'main-bg': '#000000',
-                        'card-bg': '#0c0c0c',
-                    },
                     fontFamily: {
-                        sans: ['Inter', 'sans-serif'],
+                        sans: ['Plus Jakarta Sans', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        brand: { 
+                            50: '#f5f3ff',
+                            500: '#8b5cf6', // Enterprise Purple
+                            600: '#7c3aed', 
+                        },
+                        dark: {
+                            bg: '#000000',
+                            surface: '#0A0A0A',
+                            border: '#1A1A1A'
+                        },
+                        light: {
+                            bg: '#FFFFFF',
+                            surface: '#F9FAFB',
+                            border: '#E5E7EB'
+                        }
                     }
                 }
             }
         }
-
-        window.onload = () => {
-            // Ensure icons are created after the page loads
-            lucide.createIcons();
-        };
     </script>
+
+    <style>
+        .glass { backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); }
+        
+        /* Theme Grids */
+        .dark .grid-bg {
+            background-image: linear-gradient(to right, rgba(139, 92, 246, 0.05) 1px, transparent 1px),
+                              linear-gradient(to bottom, rgba(139, 92, 246, 0.05) 1px, transparent 1px);
+            background-size: 40px 40px;
+        }
+        .light .grid-bg {
+            background-image: linear-gradient(to right, rgba(139, 92, 246, 0.03) 1px, transparent 1px),
+                              linear-gradient(to bottom, rgba(139, 92, 246, 0.03) 1px, transparent 1px);
+            background-size: 40px 40px;
+        }
+
+        .download-card {
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            border-width: 1px;
+        }
+
+        .active-card:hover {
+            transform: translateY(-8px);
+            border-color: #8b5cf6 !important;
+            box-shadow: 0 20px 40px -15px rgba(139, 92, 246, 0.25);
+        }
+
+        .disabled-card {
+            filter: grayscale(1) opacity(0.5);
+            cursor: not-allowed;
+            border-style: dashed;
+        }
+
+        #auth-guard {
+            position: fixed;
+            inset: 0;
+            z-index: 9999;
+            background: #000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: opacity 0.5s ease;
+        }
+
+        @keyframes pulse-soft {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.05); opacity: 0.8; }
+        }
+        .animate-pulse-soft { animation: pulse-soft 3s infinite ease-in-out; }
+    </style>
 </head>
-<body class="codenix-bg min-h-screen text-gray-100 font-sans">
-    
-    <!-- Header: Sleek Navigation -->
-    <header class="sticky top-0 z-10 bg-black/80 backdrop-blur-md shadow-xl border-b border-gray-900">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
-            <h1 class="text-3xl font-extrabold text-white flex items-center">
-                <span data-lucide="download-cloud" class="w-7 h-7 mr-3 text-primary-accent"></span>
-                Codenix Downloads
-            </h1>
-            <a href="#" class="inline-flex items-center px-4 py-2 border border-primary-accent text-sm font-medium rounded-full shadow-lg text-white bg-transparent hover:bg-primary-accent/20 transition duration-150">
-                <span data-lucide="home" class="w-4 h-4 mr-2"></span>
-                Back to Dashboard
-            </a>
+<body class="bg-light-bg dark:bg-dark-bg text-slate-900 dark:text-white min-h-screen grid-bg font-sans transition-colors duration-300">
+
+    <!-- Auth Guard Loading Screen -->
+    <div id="auth-guard">
+        <div class="flex flex-col items-center gap-6">
+            <div class="w-12 h-12 border-2 border-brand-500/20 border-t-brand-500 rounded-full animate-spin"></div>
+            <p class="font-mono text-[10px] text-brand-500 tracking-[0.3em] uppercase">Securing_Handshake</p>
+        </div>
+    </div>
+
+    <!-- Navigation Header -->
+    <header class="sticky top-0 z-40 border-b border-light-border dark:border-dark-border bg-light-bg/80 dark:bg-dark-bg/80 glass">
+        <div class="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-9 h-9 bg-brand-500 rounded-lg flex items-center justify-center text-white shadow-lg shadow-brand-500/30">
+                    <i data-lucide="shield-check" class="w-5 h-5"></i>
+                </div>
+                <div>
+                    <span class="block font-bold text-sm tracking-tight">Codenix Downloads</span>
+                    <span class="block text-[9px] text-brand-500 font-bold uppercase tracking-widest">Enterprise distribution</span>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-4">
+                <button onclick="toggleTheme()" class="w-10 h-10 rounded-xl bg-slate-100 dark:bg-white/5 border border-light-border dark:border-dark-border flex items-center justify-center hover:text-brand-500 transition-colors">
+                    <i data-lucide="moon" class="w-4 h-4 dark:hidden"></i>
+                    <i data-lucide="sun" class="w-4 h-4 hidden dark:block"></i>
+                </button>
+                <a href="portal.html" class="hidden sm:flex items-center gap-2 px-4 py-2 rounded-xl bg-brand-500/10 text-brand-500 border border-brand-500/20 text-xs font-bold uppercase tracking-widest hover:bg-brand-500/20 transition-all">
+                    <i data-lucide="layout-grid" class="w-4 h-4"></i>
+                    System Portal
+                </a>
+            </div>
         </div>
     </header>
 
-    <!-- Main Content Container -->
-    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        
-        <div class="text-center mb-16">
-            <p class="text-sm font-semibold uppercase tracking-wider text-primary-accent mb-2">Platform Access</p>
-            <h2 class="text-5xl md:text-6xl font-extrabold text-white mb-4 leading-tight">Access the Full Codenix Toolkit</h2>
-            <p class="text-xl text-gray-400 max-w-3xl mx-auto">Seamlessly integrate your development workflow, manage APIs, and utilize our AI services directly on your preferred device.</p>
+    <main class="max-w-7xl mx-auto px-6 py-16 lg:py-24">
+        <!-- Hero Section -->
+        <div class="max-w-3xl mb-20">
+            <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brand-500/10 border border-brand-500/20 text-brand-500 text-[10px] font-bold uppercase tracking-widest mb-6">
+                <span class="w-1.5 h-1.5 rounded-full bg-brand-500 animate-pulse"></span>
+                Authorized Client Distribution
+            </div>
+            <h1 class="text-5xl lg:text-7xl font-black tracking-tighter mb-6 leading-tight">
+                Access your <br/><span class="text-brand-500 italic">Workstation.</span>
+            </h1>
+            <p class="text-slate-500 dark:text-slate-400 text-lg leading-relaxed">
+                Download the official Codenix clients to synchronize your AI workflows across devices. Professional grade security, native performance.
+            </p>
         </div>
 
-        <!-- Download Options Grid -->
-        <section class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 max-w-7xl mx-auto">
-
-            <!-- 1. Android (Available & Enhanced) -->
-            <div class="codenix-card active-card p-8 rounded-2xl shadow-2xl flex flex-col items-center text-center">
-                <div class="p-4 rounded-full bg-secondary-accent/20 mb-6">
-                    <span data-lucide="smartphone" class="w-10 h-10 text-secondary-accent"></span>
+        <!-- Platforms Grid -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <!-- Android (ACTIVE) -->
+            <div class="download-card active-card p-8 rounded-[2rem] bg-light-surface dark:bg-dark-surface border-light-border dark:border-dark-border flex flex-col group">
+                <div class="w-14 h-14 bg-emerald-500/10 rounded-2xl flex items-center justify-center text-emerald-500 mb-8 group-hover:scale-110 transition-transform">
+                    <i data-lucide="smartphone" class="w-7 h-7"></i>
                 </div>
-                <h3 class="text-3xl font-bold text-white mb-2">Android App</h3>
-                <p class="text-gray-400 mb-8 flex-grow">Stable build with full market access, optimized for all modern Android devices.</p>
-                
-                <a href="codenix.apk" target="_blank" 
-                   class="w-full inline-flex items-center justify-center px-6 py-3 border border-transparent text-base font-bold rounded-full shadow-lg text-white download-gradient-btn hover:scale-[1.01] transition-transform duration-200">
-                    <span data-lucide="download-cloud" class="w-5 h-5 mr-2"></span>
-                    Download Now
-                </a>
-                <p class="mt-3 text-xs text-gray-500">Version 2.1.0 | 78MB</p>
+                <h3 class="text-2xl font-bold mb-2">Android</h3>
+                <p class="text-slate-500 dark:text-slate-400 text-sm leading-relaxed mb-8 flex-1">
+                    Native mobile experience with real-time push notifications and biometric security.
+                </p>
+                <div class="space-y-4">
+                    <a href="https://drive.google.com/file/d/1IG6hXDqz1oc7EuuR1Ji1_wea0cNIBn3J/view?usp=sharing" target="_blank" class="w-full py-3 px-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl flex items-center justify-center gap-2 text-xs font-black uppercase tracking-widest transition-all shadow-lg shadow-emerald-600/20">
+                        <i data-lucide="download" class="w-4 h-4"></i>
+                        Get the APK
+                    </a>
+                    <div class="flex justify-between items-center text-[10px] font-mono text-slate-500">
+                        <span>v2.4.0-Stable</span>
+                        <span>SHA-256 Verified</span>
+                    </div>
+                </div>
             </div>
 
-            <!-- 2. iOS (Unavailable) -->
-            <div class="codenix-card disabled-card p-8 rounded-2xl shadow-xl flex flex-col items-center text-center">
-                <div class="p-4 rounded-full bg-gray-700/50 mb-6">
-                    <span data-lucide="apple" class="w-10 h-10 text-gray-600"></span>
+            <!-- iOS (COMING SOON) -->
+            <div class="download-card disabled-card p-8 rounded-[2rem] bg-light-surface dark:bg-dark-surface border-light-border dark:border-dark-border flex flex-col">
+                <div class="w-14 h-14 bg-slate-500/10 rounded-2xl flex items-center justify-center text-slate-500 mb-8">
+                    <i data-lucide="apple" class="w-7 h-7"></i>
                 </div>
-                <h3 class="text-3xl font-bold text-white mb-2">iOS App</h3>
-                <p class="text-gray-500 mb-8 flex-grow">Currently in closed beta. Anticipated release Q2 2024 via the Apple App Store.</p>
-                <button disabled class="w-full inline-flex items-center justify-center px-6 py-3 border border-gray-700 text-base font-medium rounded-full shadow-sm text-gray-600 bg-gray-800 cursor-not-allowed">
-                    <span data-lucide="lock" class="w-5 h-5 mr-2"></span>
+                <h3 class="text-2xl font-bold mb-2">iOS</h3>
+                <p class="text-slate-500 dark:text-slate-400 text-sm leading-relaxed mb-8 flex-1">
+                    App Store release pending review. Secure your spot in the TestFlight beta below.
+                </p>
+                <button disabled class="w-full py-3 px-4 bg-slate-100 dark:bg-white/5 border border-light-border dark:border-dark-border text-slate-400 rounded-xl flex items-center justify-center gap-2 text-xs font-black uppercase tracking-widest">
                     Coming Soon
                 </button>
-                <p class="mt-3 text-xs text-gray-500">Beta sign-ups closed.</p>
             </div>
 
-            <!-- 3. Windows (Unavailable) -->
-            <div class="codenix-card disabled-card p-8 rounded-2xl shadow-xl flex flex-col items-center text-center">
-                <div class="p-4 rounded-full bg-gray-700/50 mb-6">
-                    <span data-lucide="monitor" class="w-10 h-10 text-gray-600"></span>
+            <!-- Windows (DEVELOPMENT) -->
+            <div class="download-card disabled-card p-8 rounded-[2rem] bg-light-surface dark:bg-dark-surface border-light-border dark:border-dark-border flex flex-col">
+                <div class="w-14 h-14 bg-slate-500/10 rounded-2xl flex items-center justify-center text-slate-500 mb-8">
+                    <i data-lucide="monitor" class="w-7 h-7"></i>
                 </div>
-                <h3 class="text-3xl font-bold text-white mb-2">Windows Desktop</h3>
-                <p class="text-gray-500 mb-8 flex-grow">Native desktop client for Windows 10/11. Full system tray integration planned.</p>
-                <button disabled class="w-full inline-flex items-center justify-center px-6 py-3 border border-gray-700 text-base font-medium rounded-full shadow-sm text-gray-600 bg-gray-800 cursor-not-allowed">
-                    <span data-lucide="lock" class="w-5 h-5 mr-2"></span>
-                    In Development
+                <h3 class="text-2xl font-bold mb-2">Windows</h3>
+                <p class="text-slate-500 dark:text-slate-400 text-sm leading-relaxed mb-8 flex-1">
+                    Full desktop integration with taskbar widgets and local GPU acceleration support.
+                </p>
+                <button disabled class="w-full py-3 px-4 bg-slate-100 dark:bg-white/5 border border-light-border dark:border-dark-border text-slate-400 rounded-xl flex items-center justify-center gap-2 text-xs font-black uppercase tracking-widest">
+                    In Dev
                 </button>
-                <p class="mt-3 text-xs text-gray-500">Targeting Q3 2024.</p>
             </div>
 
-            <!-- 4. macOS (Unavailable) -->
-            <div class="codenix-card disabled-card p-8 rounded-2xl shadow-xl flex flex-col items-center text-center">
-                <div class="p-4 rounded-full bg-gray-700/50 mb-6">
-                    <span data-lucide="laptop" class="w-10 h-10 text-gray-600"></span>
+            <!-- macOS (PLANNED) -->
+            <div class="download-card disabled-card p-8 rounded-[2rem] bg-light-surface dark:bg-dark-surface border-light-border dark:border-dark-border flex flex-col">
+                <div class="w-14 h-14 bg-slate-500/10 rounded-2xl flex items-center justify-center text-slate-500 mb-8">
+                    <i data-lucide="laptop" class="w-7 h-7"></i>
                 </div>
-                <h3 class="text-3xl font-bold text-white mb-2">macOS Desktop</h3>
-                <p class="text-gray-500 mb-8 flex-grow">Optimized for Mac systems (Intel and Apple Silicon) with system notifications.</p>
-                <button disabled class="w-full inline-flex items-center justify-center px-6 py-3 border border-gray-700 text-base font-medium rounded-full shadow-sm text-gray-600 bg-gray-800 cursor-not-allowed">
-                    <span data-lucide="lock" class="w-5 h-5 mr-2"></span>
-                    Planned Release
+                <h3 class="text-2xl font-bold mb-2">macOS</h3>
+                <p class="text-slate-500 dark:text-slate-400 text-sm leading-relaxed mb-8 flex-1">
+                    Optimized for Apple Silicon. Seamless integration with macOS Spotlight and Shortcuts.
+                </p>
+                <button disabled class="w-full py-3 px-4 bg-slate-100 dark:bg-white/5 border border-light-border dark:border-dark-border text-slate-400 rounded-xl flex items-center justify-center gap-2 text-xs font-black uppercase tracking-widest">
+                    Planned
                 </button>
-                <p class="mt-3 text-xs text-gray-500">Coming after Windows client.</p>
             </div>
+        </div>
 
-        </section>
-        
-        <!-- Call to Action / Alternative Download Section -->
-        <div class="text-center mt-20 p-8 bg-black border-2 border-primary-accent/50 rounded-2xl max-w-4xl mx-auto shadow-2xl shadow-primary-accent/10">
-            <h4 class="text-2xl font-bold text-white mb-3">Looking for Enterprise or API Access?</h4>
-            <p class="text-gray-300 max-w-2xl mx-auto mb-6">The Codenix Mobile App is primarily for end-users. For programmatic access, SDKs, and enterprise licensing, please visit our developer portal.</p>
-            <div class="flex flex-col sm:flex-row justify-center gap-4">
-                 <a href="https://drive.google.com/file/d/1iJXrR3fRUTPMRieNb77AIy6LVs8PZCa2/view?usp=drive_link" target="_blank" class="inline-flex items-center text-white bg-primary-accent hover:bg-primary-accent/80 transition duration-150 font-bold px-6 py-3 rounded-full shadow-lg">
-                    <span data-lucide="folder-search" class="w-5 h-5 mr-2"></span>
-                    Developer Portal
-                </a>
-                 <a href="#" target="_blank" class="inline-flex items-center text-primary-accent border-2 border-primary-accent hover:bg-primary-accent/10 transition duration-150 font-bold px-6 py-3 rounded-full shadow-lg">
-                    <span data-lucide="mail" class="w-5 h-5 mr-2"></span>
-                    Contact Sales
-                </a>
+        <!-- Enterprise Support Footer Section -->
+        <div class="mt-20 p-10 lg:p-16 rounded-[3rem] bg-brand-500 text-white relative overflow-hidden group">
+            <div class="absolute top-0 right-0 w-96 h-96 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl group-hover:scale-110 transition-transform duration-1000"></div>
+            <div class="relative z-10 flex flex-col lg:flex-row items-center justify-between gap-10">
+                <div class="max-w-xl text-center lg:text-left">
+                    <h2 class="text-3xl lg:text-4xl font-black tracking-tight mb-4">Enterprise Deployments?</h2>
+                    <p class="text-brand-50/80 font-medium">For corporate volume licensing, MDM configuration files, or custom API gateway builds, contact our DevOps squad.</p>
+                </div>
+                <div class="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
+                    <a href="mailto:support@codenix.ai" class="px-8 py-4 bg-white text-brand-500 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl hover:scale-105 transition-transform text-center">
+                        Contact Support
+                    </a>
+                    <a href="portal.html" class="px-8 py-4 bg-brand-600 text-white border border-white/20 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-brand-700 transition-colors text-center">
+                        Back to Portal
+                    </a>
+                </div>
             </div>
         </div>
     </main>
+
+    <footer class="border-t border-light-border dark:border-dark-border py-12 px-6">
+        <div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-8">
+            <div class="flex items-center gap-2 opacity-50">
+                <div class="w-2 h-2 rounded-full bg-brand-500 animate-pulse"></div>
+                <span class="text-[10px] font-bold uppercase tracking-widest">Security Protocol: AES-256 Active</span>
+            </div>
+            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">© 2026 Codenix Enterprise AI. All Rights Reserved.</p>
+        </div>
+    </footer>
+
+    <script>
+        // Supabase Infrastructure
+        const supabaseUrl = 'https://rnlwrngfgvznndlekmrz.supabase.co';
+        const supabaseKey = 'sb_publishable_mtI0_ZBvU_n5oRuqV58QHg_qJt3Gfyt';
+        let supabase;
+
+        async function initApp() {
+            try {
+                // Initialize Supabase Client
+                supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+                
+                // Validate Session
+                const { data: { session }, error } = await supabase.auth.getSession();
+                
+                if (error || !session) {
+                    console.warn("Unauthenticated. Redirecting...");
+                    window.location.replace('auth.html');
+                    return;
+                }
+
+                // UI Finalization
+                lucide.createIcons();
+                
+                // Handle theme persistence
+                const savedTheme = localStorage.getItem('theme') || 'dark';
+                document.documentElement.className = savedTheme;
+
+                // Remove guard screen
+                const guard = document.getElementById('auth-guard');
+                guard.style.opacity = '0';
+                setTimeout(() => guard.style.display = 'none', 500);
+
+            } catch (err) {
+                console.error("Critical Handshake Error:", err);
+                window.location.replace('auth.html');
+            }
+        }
+
+        function toggleTheme() {
+            const isDark = document.documentElement.classList.contains('dark');
+            const newTheme = isDark ? 'light' : 'dark';
+            document.documentElement.className = newTheme;
+            localStorage.setItem('theme', newTheme);
+            lucide.createIcons(); // Refresh icons for theme visibility
+        }
+
+        // Start Auth Guard
+        initApp();
+    </script>
 </body>
 </html>
