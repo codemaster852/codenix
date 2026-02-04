@@ -96,6 +96,17 @@
             -webkit-appearance: none;
             margin: 0;
         }
+
+        #level-up-toast {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0);
+            transition: transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            pointer-events: none;
+            z-index: 100;
+        }
+        #level-up-toast.active { transform: translate(-50%, -50%) scale(1); }
     </style>
 </head>
 <body class="flex items-center justify-center min-h-screen p-2 md:p-4">
@@ -134,6 +145,10 @@
             <div id="combo-tag" class="absolute top-4 right-4 bg-blue-500 text-white px-3 py-1 rounded-lg font-bold scale-0 transition-transform duration-300 shadow-lg border border-blue-300">
                 STREAK: 0
             </div>
+
+            <div id="level-up-toast" class="bg-yellow-400 text-black px-6 py-2 rounded-full font-black text-xl shadow-2xl border-4 border-white">
+                WAVE UP!
+            </div>
         </div>
 
         <!-- Gameplay Control -->
@@ -164,13 +179,13 @@
                 <div class="h-1 w-24 bg-blue-500 mx-auto mt-2 rounded-full"></div>
             </div>
             
-            <p class="text-slate-400 mb-10 max-w-xs leading-relaxed">Defend the village! The game gets harder every 5 points. Reach 100 for Chaos Mode.</p>
+            <p class="text-slate-400 mb-10 max-w-xs leading-relaxed">Defend the village! Every 5 points, the timer shrinks and the math gets harder. Reach 100 for CHAOS MODE.</p>
             
             <button onclick="startGame()" class="group relative px-10 py-5 bg-blue-600 border-b-4 border-blue-800 rounded-xl font-black text-2xl hover:bg-blue-500 transition-all active:translate-y-1 active:border-b-0">
                 START DEFENSE
             </button>
             
-            <p class="mt-12 text-slate-600 text-[10px] font-bold tracking-widest uppercase">V3.0 AUTO-SUBMIT &bull; CODENIX</p>
+            <p class="mt-12 text-slate-600 text-[10px] font-bold tracking-widest uppercase">V4.0 DIFFICULTY SCALING &bull; CODENIX</p>
         </div>
 
         <!-- Game Over -->
@@ -195,7 +210,7 @@
             timerInterval: null,
             combo: 0,
             gameActive: false,
-            baseTime: 6000,
+            baseTime: 7000, // Starting time in ms
             currentMonster: '👾'
         };
 
@@ -217,7 +232,8 @@
             container: document.getElementById('game-container'),
             monster: document.getElementById('monster'),
             spell: document.getElementById('spell'),
-            levelLabel: document.getElementById('level-label')
+            levelLabel: document.getElementById('level-label'),
+            levelToast: document.getElementById('level-up-toast')
         };
 
         function createVillage() {
@@ -265,8 +281,12 @@
         }
 
         function nextProblem() {
-            // Difficulty scaling
-            state.wave = Math.floor(state.score / 5) + 1;
+            // Check for level up every 5 points
+            const newWave = Math.floor(state.score / 5) + 1;
+            if (newWave > state.wave) {
+                state.wave = newWave;
+                showLevelUp();
+            }
             elements.levelLabel.textContent = `WAVE ${state.wave}`;
             
             let problemStr = "";
@@ -274,9 +294,9 @@
 
             if (state.score >= 100) {
                 // CHAOS MODE: 3 parts
-                const n1 = Math.floor(Math.random() * 20) + 1;
-                const n2 = Math.floor(Math.random() * 10) + 1;
-                const n3 = Math.floor(Math.random() * 5) + 1;
+                const n1 = Math.floor(Math.random() * (10 + state.wave)) + 2;
+                const n2 = Math.floor(Math.random() * (10 + Math.floor(state.wave/2))) + 2;
+                const n3 = Math.floor(Math.random() * 10) + 1;
                 const ops = ['+', '-', '*'];
                 const op1 = ops[Math.floor(Math.random() * 3)];
                 const op2 = ops[Math.floor(Math.random() * 3)];
@@ -286,21 +306,27 @@
                 answer = eval(expr);
                 problemStr = expr.replace(/\*/g, '×');
             } else {
-                // Standard scaling
+                // Dynamic Standard Scaling
                 const maxNum = 10 + (state.wave * 2);
-                const n1 = Math.floor(Math.random() * maxNum) + 1;
-                const n2 = Math.floor(Math.random() * maxNum) + 1;
+                const n1 = Math.floor(Math.random() * maxNum) + 2;
+                const n2 = Math.floor(Math.random() * maxNum) + 2;
                 
                 let op = '+';
-                if (state.score > 30) op = Math.random() > 0.5 ? '+' : '-';
-                if (state.score > 60) {
+                if (state.score >= 10) op = Math.random() > 0.5 ? '+' : '-';
+                if (state.score >= 40) {
                     const r = Math.random();
-                    op = r > 0.66 ? '+' : (r > 0.33 ? '-' : '*');
+                    op = r > 0.7 ? '+' : (r > 0.4 ? '-' : '*');
                 }
 
                 if (op === '-' && n1 < n2) {
                     answer = n2 - n1;
                     problemStr = `${n2} - ${n1}`;
+                } else if (op === '*' && state.score < 60) {
+                    // Easier multiplication at first
+                    const m1 = Math.floor(Math.random() * 10) + 2;
+                    const m2 = Math.floor(Math.random() * 10) + 2;
+                    answer = m1 * m2;
+                    problemStr = `${m1} × ${m2}`;
                 } else {
                     answer = eval(`${n1} ${op} ${n2}`);
                     problemStr = `${n1} ${op === '*' ? '×' : op} ${n2}`;
@@ -309,17 +335,25 @@
 
             state.currentAnswer = answer;
             elements.problem.innerHTML = problemStr.split('').map(char => 
-                `<span class="${isNaN(char) ? 'text-blue-500 mx-2' : 'text-white'}">${char}</span>`
+                `<span class="${isNaN(char) && char !== '-' && char !== '(' && char !== ')' ? 'text-blue-500 mx-2' : 'text-white'}">${char}</span>`
             ).join('');
             
             elements.input.value = '';
             startTimer();
         }
 
+        function showLevelUp() {
+            elements.levelToast.classList.add('active');
+            setTimeout(() => elements.levelToast.classList.remove('active'), 1200);
+        }
+
         function startTimer() {
             clearInterval(state.timerInterval);
-            // Speed up as wave increases
-            let currentLimit = Math.max(1500, state.baseTime - (state.wave * 250));
+            
+            // TIME DECREASE LOGIC:
+            // Decrease by 350ms every wave (5 points), minimum 1.2 seconds
+            let currentLimit = Math.max(1200, state.baseTime - ((state.wave - 1) * 350));
+            
             let timeLeft = currentLimit;
             
             state.timerInterval = setInterval(() => {
@@ -336,7 +370,7 @@
         function handleWrong(isTimeout = false) {
             state.combo = 0;
             updateComboUI();
-            damageVillage(isTimeout ? 20 : 10);
+            damageVillage(isTimeout ? 20 : 12);
             
             elements.monster.classList.add('attack-anim');
             setTimeout(() => elements.monster.classList.remove('attack-anim'), 500);
@@ -366,6 +400,7 @@
                 if (state.combo % 3 === 0) spawnMonster();
             }, 150);
 
+            // Heal a bit on every 5 correct answers in a row
             if (state.combo % 5 === 0 && state.health < 100) {
                 state.health = Math.min(100, state.health + 10);
                 updateHealthUI();
@@ -428,7 +463,10 @@
             if (!state.gameActive) return;
             const val = parseInt(elements.input.value);
             
-            // Allow negative answers for chaos mode if applicable
+            // Allow negative answers
+            const rawVal = elements.input.value;
+            if (rawVal === "-" && state.currentAnswer < 0) return; // Allow typing minus sign
+            
             if (!isNaN(val) && val === state.currentAnswer) {
                 handleCorrect();
             }
