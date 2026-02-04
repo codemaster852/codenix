@@ -3,143 +3,253 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nix 2.1 - Advanced Math Calculator</title>
+    <title>Nix 2.1 | Codenix AI Studio</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700&family=Plus+Jakarta+Sans:wght@400;600;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
+        :root {
+            --brand-purple: #9333ea;
+            --brand-black: #09090b;
+        }
+
         body {
-            font-family: 'Inter', sans-serif;
-            background-color: #050505;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: var(--brand-black);
             color: #ffffff;
             margin: 0;
-            display: flex;
-            align-items: center;
-            justify-content: center;
             min-height: 100vh;
+            overflow-x: hidden;
         }
+
+        /* Ambient Glow */
+        .glow-bg {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 80vw;
+            height: 80vw;
+            background: radial-gradient(circle, rgba(147, 51, 234, 0.05) 0%, rgba(0,0,0,0) 70%);
+            z-index: -1;
+            pointer-events: none;
+        }
+
+        .glass-panel {
+            background: rgba(18, 18, 21, 0.7);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(147, 51, 234, 0.1);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6);
+        }
+
         .calc-grid {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
-            gap: 10px;
+            gap: 12px;
         }
-        .glass-panel {
-            background: rgba(20, 20, 25, 0.8);
-            backdrop-filter: blur(15px);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
-        }
+
         .btn-calc {
-            transition: all 0.15s ease;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
             font-family: 'JetBrains Mono', monospace;
-            height: 55px;
+            height: 58px;
             display: flex;
             align-items: center;
             justify-content: center;
-            border-radius: 12px;
+            border-radius: 16px;
             font-size: 1.1rem;
             font-weight: 600;
-            user-select: none;
         }
-        .btn-calc:active { transform: scale(0.92); }
-        .btn-op { background: rgba(99, 102, 241, 0.15); color: #a5b4fc; border: 1px solid rgba(99, 102, 241, 0.1); }
-        .btn-op:hover { background: rgba(99, 102, 241, 0.25); }
-        .btn-num { background: rgba(255, 255, 255, 0.05); color: #f3f4f6; border: 1px solid rgba(255, 255, 255, 0.05); }
-        .btn-num:hover { background: rgba(255, 255, 255, 0.12); }
-        .btn-action { background: #6366f1; color: white; }
-        .btn-action:hover { background: #4f46e5; }
-        .btn-var { background: rgba(168, 85, 247, 0.15); color: #d8b4fe; border: 1px solid rgba(168, 85, 247, 0.1); }
+
+        .btn-calc:active { transform: scale(0.95); }
         
+        .btn-op { background: rgba(147, 51, 234, 0.1); color: #c084fc; border: 1px solid rgba(147, 51, 234, 0.1); }
+        .btn-op:hover { background: rgba(147, 51, 234, 0.2); border-color: rgba(147, 51, 234, 0.3); }
+        
+        .btn-num { background: rgba(255, 255, 255, 0.03); color: #f3f4f6; border: 1px solid rgba(255, 255, 255, 0.05); }
+        .btn-num:hover { background: rgba(255, 255, 255, 0.08); }
+        
+        .btn-action { background: #9333ea; color: white; box-shadow: 0 10px 20px rgba(147, 51, 234, 0.2); }
+        .btn-action:hover { background: #a855f7; box-shadow: 0 15px 30px rgba(147, 51, 234, 0.4); }
+        
+        .btn-var { background: rgba(59, 130, 246, 0.1); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.1); }
+        .btn-var:hover { background: rgba(59, 130, 246, 0.2); }
+
         #main-display {
             font-family: 'JetBrains Mono', monospace;
-            letter-spacing: -1px;
-            min-height: 60px;
+            min-height: 80px;
             word-break: break-all;
-            display: block;
-            color: #ffffff !important;
         }
-        .display-container {
-            background: #000000;
-            border: 1px solid #1f2937;
+
+        /* Auth Guard Overlay */
+        #auth-guard {
+            position: fixed;
+            inset: 0;
+            background: #09090b;
+            z-index: 9999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
+        
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(147, 51, 234, 0.2); border-radius: 10px; }
     </style>
 </head>
-<body>
-
-    <div class="w-full max-w-4xl grid grid-cols-1 lg:grid-cols-3 gap-6 p-4 relative z-10">
-        
-        <!-- Sidebar / History -->
-        <div class="glass-panel rounded-3xl p-6 hidden lg:flex flex-col h-[600px]">
-            <h3 class="font-bold text-xs uppercase tracking-widest text-zinc-500 mb-4">History</h3>
-            <div id="history-list" class="flex-1 overflow-y-auto space-y-3 pr-2">
-                <p class="text-xs text-zinc-600">No calculations yet</p>
-            </div>
-            <button onclick="clearHistory()" class="mt-4 text-[10px] font-bold text-zinc-600 hover:text-red-400 uppercase tracking-widest">Clear Log</button>
-        </div>
-
-        <!-- Main Calculator -->
-        <div class="lg:col-span-2 glass-panel rounded-3xl p-6 flex flex-col h-[600px]">
-            <div class="flex justify-between items-center mb-6">
-                <div class="flex items-center gap-3">
-                    <div class="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white font-bold">∑</div>
-                    <h1 class="text-md font-bold">NIX MATH <span class="text-indigo-500 text-[10px] ml-1">2.1</span></h1>
-                </div>
-                <a href="portal.html" class="px-3 py-1.5 bg-zinc-900 border border-zinc-800 rounded-lg text-[10px] font-bold hover:bg-zinc-800 transition-all">← BACK TO PORTAL</a>
-            </div>
-
-            <!-- Display -->
-            <div class="display-container rounded-2xl p-5 mb-5 flex flex-col items-end justify-center">
-                <div id="prev-expression" class="text-zinc-500 text-xs font-mono h-5 mb-1 opacity-70"></div>
-                <div id="main-display" class="text-4xl font-bold text-right w-full">0</div>
-            </div>
-
-            <!-- Keyboard -->
-            <div class="calc-grid flex-1">
-                <button onclick="append('Math.sqrt(')" class="btn-calc btn-op">√</button>
-                <button onclick="append('**')" class="btn-calc btn-op">^</button>
-                <button onclick="append('Math.PI')" class="btn-calc btn-op">π</button>
-                <button onclick="clearDisplay()" class="btn-calc btn-op text-red-400">C</button>
-
-                <button onclick="append('Math.sin(')" class="btn-calc btn-var text-xs">SIN</button>
-                <button onclick="append('Math.cos(')" class="btn-calc btn-var text-xs">COS</button>
-                <button onclick="append('x')" class="btn-calc btn-var">x</button>
-                <button onclick="append('y')" class="btn-calc btn-var">y</button>
-
-                <button onclick="append('7')" class="btn-calc btn-num">7</button>
-                <button onclick="append('8')" class="btn-calc btn-num">8</button>
-                <button onclick="append('9')" class="btn-calc btn-num">9</button>
-                <button onclick="append('/')" class="btn-calc btn-op">÷</button>
-
-                <button onclick="append('4')" class="btn-calc btn-num">4</button>
-                <button onclick="append('5')" class="btn-calc btn-num">5</button>
-                <button onclick="append('6')" class="btn-calc btn-num">6</button>
-                <button onclick="append('*')" class="btn-calc btn-op">×</button>
-
-                <button onclick="append('1')" class="btn-calc btn-num">1</button>
-                <button onclick="append('2')" class="btn-calc btn-num">2</button>
-                <button onclick="append('3')" class="btn-calc btn-num">3</button>
-                <button onclick="append('-')" class="btn-calc btn-op">−</button>
-
-                <button onclick="append('0')" class="btn-calc btn-num">0</button>
-                <button onclick="append('.')" class="btn-calc btn-num">.</button>
-                <button onclick="calculate()" class="btn-calc btn-action">=</button>
-                <button onclick="append('+')" class="btn-calc btn-op">+</button>
-            </div>
-
-            <!-- Variables -->
-            <div class="mt-5 grid grid-cols-2 gap-4">
-                <div class="bg-zinc-900/50 p-2 rounded-xl border border-zinc-800 flex items-center gap-3">
-                    <span class="text-indigo-400 font-bold text-xs ml-2">X:</span>
-                    <input type="number" id="val-x" value="0" class="bg-transparent w-full text-sm focus:outline-none">
-                </div>
-                <div class="bg-zinc-900/50 p-2 rounded-xl border border-zinc-800 flex items-center gap-3">
-                    <span class="text-purple-400 font-bold text-xs ml-2">Y:</span>
-                    <input type="number" id="val-y" value="0" class="bg-transparent w-full text-sm focus:outline-none">
-                </div>
-            </div>
+<body class="p-4 md:p-8">
+    <!-- Screen for Auth Check -->
+    <div id="auth-guard">
+        <div class="flex flex-col items-center">
+            <i class="fa-solid fa-circle-notch fa-spin text-purple-500 text-3xl mb-4"></i>
+            <p class="text-zinc-500 font-bold tracking-widest text-xs uppercase">Verifying Session</p>
         </div>
     </div>
 
+    <div class="glow-bg"></div>
+
+    <div class="max-w-6xl mx-auto w-full">
+        <!-- Header -->
+        <header class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+            <div class="flex items-center gap-4">
+                <div class="w-12 h-12 bg-purple-600 rounded-2xl flex items-center justify-center shadow-lg shadow-purple-900/20">
+                    <i class="fa-solid fa-microchip text-white text-xl"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-black tracking-tight uppercase">Nix Math Studio <span class="text-purple-500 ml-1">2.1</span></h1>
+                    <p class="text-zinc-500 text-[10px] font-bold uppercase tracking-widest">Enterprise Computational Engine</p>
+                </div>
+            </div>
+            
+            <div class="flex items-center gap-3">
+                <div id="user-pill" class="hidden md:flex items-center gap-3 px-4 py-2 bg-zinc-900/50 border border-zinc-800 rounded-full mr-4">
+                    <div class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                    <span id="user-email" class="text-xs font-bold text-zinc-400">...</span>
+                </div>
+                <a href="portal.html" class="px-5 py-2.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all">
+                    <i class="fa-solid fa-arrow-left mr-2"></i> Portal
+                </a>
+            </div>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+            
+            <!-- Side Panel: History -->
+            <aside class="lg:col-span-3 glass-panel rounded-[2rem] p-6 h-fit lg:max-h-[700px] flex flex-col order-2 lg:order-1">
+                <div class="flex items-center justify-between mb-6">
+                    <h3 class="font-black text-[11px] uppercase tracking-[0.2em] text-zinc-500">Operation Log</h3>
+                    <button onclick="clearHistory()" class="text-[10px] font-black text-purple-500 hover:text-purple-400 uppercase tracking-widest">Wipe</button>
+                </div>
+                <div id="history-list" class="flex-1 overflow-y-auto space-y-3 custom-scrollbar min-h-[100px] max-h-[300px] lg:max-h-none">
+                    <p class="text-center py-10 text-zinc-700 text-xs italic font-medium">Ready for input...</p>
+                </div>
+            </aside>
+
+            <!-- Main Panel: Calculator -->
+            <main class="lg:col-span-9 space-y-6 order-1 lg:order-2">
+                <!-- Display Section -->
+                <div class="glass-panel rounded-[2rem] p-8 overflow-hidden relative">
+                    <div class="absolute top-0 right-0 p-4 opacity-10">
+                        <i class="fa-solid fa-calculator text-6xl rotate-12"></i>
+                    </div>
+                    <div class="flex flex-col items-end">
+                        <div id="prev-expression" class="text-purple-400/50 text-sm font-mono h-6 mb-2 tracking-wider"></div>
+                        <div id="main-display" class="text-5xl md:text-6xl font-black text-right w-full tracking-tighter overflow-x-auto custom-scrollbar">0</div>
+                    </div>
+                </div>
+
+                <!-- Controls & Keyboard -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <!-- Pad -->
+                    <div class="md:col-span-2 glass-panel rounded-[2rem] p-6">
+                        <div class="calc-grid">
+                            <button onclick="append('Math.sqrt(')" class="btn-calc btn-op"><i class="fa-solid fa-square-root-variable"></i></button>
+                            <button onclick="append('**')" class="btn-calc btn-op">xʸ</button>
+                            <button onclick="append('Math.PI')" class="btn-calc btn-op">π</button>
+                            <button onclick="clearDisplay()" class="btn-calc bg-red-500/10 text-red-500 border border-red-500/20 hover:bg-red-500/20">AC</button>
+
+                            <button onclick="append('Math.sin(')" class="btn-calc btn-var text-[10px] font-black">SIN</button>
+                            <button onclick="append('Math.cos(')" class="btn-calc btn-var text-[10px] font-black">COS</button>
+                            <button onclick="append('x')" class="btn-calc btn-var font-bold italic">x</button>
+                            <button onclick="append('y')" class="btn-calc btn-var font-bold italic">y</button>
+
+                            <button onclick="append('7')" class="btn-calc btn-num">7</button>
+                            <button onclick="append('8')" class="btn-calc btn-num">8</button>
+                            <button onclick="append('9')" class="btn-calc btn-num">9</button>
+                            <button onclick="append('/')" class="btn-calc btn-op">÷</button>
+
+                            <button onclick="append('4')" class="btn-calc btn-num">4</button>
+                            <button onclick="append('5')" class="btn-calc btn-num">5</button>
+                            <button onclick="append('6')" class="btn-calc btn-num">6</button>
+                            <button onclick="append('*')" class="btn-calc btn-op">×</button>
+
+                            <button onclick="append('1')" class="btn-calc btn-num">1</button>
+                            <button onclick="append('2')" class="btn-calc btn-num">2</button>
+                            <button onclick="append('3')" class="btn-calc btn-num">3</button>
+                            <button onclick="append('-')" class="btn-calc btn-op">−</button>
+
+                            <button onclick="append('0')" class="btn-calc btn-num">0</button>
+                            <button onclick="append('.')" class="btn-calc btn-num">.</button>
+                            <button onclick="calculate()" class="btn-calc btn-action"><i class="fa-solid fa-equals"></i></button>
+                            <button onclick="append('+')" class="btn-calc btn-op">+</button>
+                        </div>
+                    </div>
+
+                    <!-- Variable Config -->
+                    <div class="glass-panel rounded-[2rem] p-6 flex flex-col justify-between">
+                        <div>
+                            <h4 class="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-4">Variable Definitions</h4>
+                            <div class="space-y-4">
+                                <div class="bg-black/40 p-4 rounded-2xl border border-zinc-800/50">
+                                    <label class="block text-[10px] font-black text-blue-400 mb-2 uppercase">Input X</label>
+                                    <input type="number" id="val-x" value="0" class="bg-transparent w-full text-lg font-bold focus:outline-none">
+                                </div>
+                                <div class="bg-black/40 p-4 rounded-2xl border border-zinc-800/50">
+                                    <label class="block text-[10px] font-black text-purple-400 mb-2 uppercase">Input Y</label>
+                                    <input type="number" id="val-y" value="0" class="bg-transparent w-full text-lg font-bold focus:outline-none">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mt-6 p-4 bg-purple-500/5 rounded-2xl border border-purple-500/10 text-[10px] leading-relaxed text-zinc-500 italic">
+                            Pro Tip: Use "x" and "y" in expressions to process real-time variables.
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+        
+        <footer class="mt-12 pt-8 border-t border-zinc-900 flex flex-col md:flex-row justify-between items-center gap-4">
+            <p class="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-700">Codenix AI Studio &bull; Neural Compute Node</p>
+            <div class="flex gap-6">
+                <span class="text-[10px] font-bold text-zinc-600 uppercase">Latency: <span class="text-green-500">2ms</span></span>
+                <span class="text-[10px] font-bold text-zinc-600 uppercase">Status: <span class="text-purple-500">Operational</span></span>
+            </div>
+        </footer>
+    </div>
+
     <script>
+        const SUPABASE_URL = 'https://rnlwrngfgvznndlekmrz.supabase.co';
+        const SUPABASE_KEY = 'sb_publishable_mtI0_ZBvU_n5oRuqV58QHg_qJt3Gfyt';
+        const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        // Auth Guard Implementation
+        async function checkAuth() {
+            const { data: { session }, error } = await supabaseClient.auth.getSession();
+            
+            if (error || !session) {
+                // Not logged in - Redirect
+                window.location.href = 'auth.html';
+            } else {
+                // Logged in
+                document.getElementById('auth-guard').classList.add('hidden');
+                document.getElementById('user-pill').classList.remove('hidden');
+                document.getElementById('user-email').innerText = session.user.email;
+            }
+        }
+
+        // Initialize Auth Check
+        window.onload = checkAuth;
+
         let currentInput = "";
         let history = [];
 
@@ -159,7 +269,6 @@
             const display = document.getElementById('main-display');
             let text = currentInput;
             
-            // Format for readability
             text = text.replace(/Math\.PI/g, 'π')
                        .replace(/Math\.sqrt\(/g, '√(')
                        .replace(/Math\.sin\(/g, 'sin(')
@@ -176,38 +285,45 @@
             const y = document.getElementById('val-y').value || 0;
             
             try {
-                // Ensure all parenthesis are closed
                 let evalStr = currentInput;
+                if (!evalStr) return;
+
                 const openCount = (evalStr.match(/\(/g) || []).length;
                 const closeCount = (evalStr.match(/\)/g) || []).length;
                 for(let i=0; i < (openCount - closeCount); i++) evalStr += ')';
 
-                // Replace vars
                 let finalStr = evalStr.replace(/x/g, `(${x})`).replace(/y/g, `(${y})`);
-                
                 const result = eval(finalStr);
                 
-                if (currentInput !== "") {
-                    history.unshift({ exp: currentInput, res: result });
-                    if(history.length > 10) history.pop();
-                    renderHistory();
-                }
+                // Add to history
+                history.unshift({ exp: currentInput, res: result });
+                if(history.length > 20) history.pop();
+                renderHistory();
 
                 document.getElementById('prev-expression').innerText = currentInput + " =";
                 currentInput = result.toString();
                 updateDisplay();
             } catch (e) {
-                document.getElementById('main-display').innerText = "ERR";
-                setTimeout(clearDisplay, 1000);
+                const display = document.getElementById('main-display');
+                display.innerText = "SYNTAX ERR";
+                display.classList.add('text-red-500');
+                setTimeout(() => {
+                    display.classList.remove('text-red-500');
+                    clearDisplay();
+                }, 1000);
             }
         }
 
         function renderHistory() {
             const list = document.getElementById('history-list');
+            if (history.length === 0) {
+                list.innerHTML = '<p class="text-center py-10 text-zinc-700 text-xs italic font-medium">Ready for input...</p>';
+                return;
+            }
             list.innerHTML = history.map(h => `
-                <div class="bg-white/5 p-2 rounded-lg border border-white/5 text-[11px]">
-                    <div class="text-zinc-500 truncate">${h.exp}</div>
-                    <div class="text-indigo-400 font-bold">= ${h.res}</div>
+                <div class="bg-black/40 p-3 rounded-2xl border border-zinc-800/40 group hover:border-purple-500/30 transition-all">
+                    <div class="text-[10px] text-zinc-500 truncate font-mono mb-1">${h.exp}</div>
+                    <div class="text-sm text-purple-400 font-black tracking-tight">= ${h.res}</div>
                 </div>
             `).join('');
         }
@@ -217,8 +333,9 @@
             renderHistory();
         }
 
-        // Handle Keyboard
+        // Keyboard support
         document.addEventListener('keydown', (e) => {
+            if (document.activeElement.tagName === 'INPUT') return;
             const key = e.key;
             if (/[0-9]/.test(key)) append(key);
             if (['+', '-', '*', '/'].includes(key)) append(key);
