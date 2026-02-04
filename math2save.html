@@ -179,13 +179,13 @@
                 <div class="h-1 w-24 bg-blue-500 mx-auto mt-2 rounded-full"></div>
             </div>
             
-            <p class="text-slate-400 mb-10 max-w-xs leading-relaxed">Defend the village! Every 5 points, the timer shrinks and the math gets harder. Reach 100 for CHAOS MODE.</p>
+            <p class="text-slate-400 mb-10 max-w-xs leading-relaxed">Defend the village! All operations active (+, -, ×, ÷). Wave up every 5 pts. Chaos at 100.</p>
             
             <button onclick="startGame()" class="group relative px-10 py-5 bg-blue-600 border-b-4 border-blue-800 rounded-xl font-black text-2xl hover:bg-blue-500 transition-all active:translate-y-1 active:border-b-0">
                 START DEFENSE
             </button>
             
-            <p class="mt-12 text-slate-600 text-[10px] font-bold tracking-widest uppercase">V4.0 DIFFICULTY SCALING &bull; CODENIX</p>
+            <p class="mt-12 text-slate-600 text-[10px] font-bold tracking-widest uppercase">V5.0 ALL OPERATIONS &bull; CODENIX</p>
         </div>
 
         <!-- Game Over -->
@@ -210,7 +210,7 @@
             timerInterval: null,
             combo: 0,
             gameActive: false,
-            baseTime: 7000, // Starting time in ms
+            baseTime: 7500, // Slightly more time for division logic
             currentMonster: '👾'
         };
 
@@ -280,8 +280,24 @@
             elements.monster.style.right = '20px';
         }
 
+        function generateTerm(max) {
+            return Math.floor(Math.random() * max) + 1;
+        }
+
+        function generateOperation(n1, n2, op) {
+            switch(op) {
+                case '+': return { str: `${n1} + ${n2}`, val: n1 + n2 };
+                case '-': return n1 >= n2 ? { str: `${n1} - ${n2}`, val: n1 - n2 } : { str: `${n2} - ${n1}`, val: n2 - n1 };
+                case '*': return { str: `${n1} × ${n2}`, val: n1 * n2 };
+                case '/': 
+                    // To ensure whole numbers: result * n2 = product. We show product / n2.
+                    const divisor = Math.max(1, n2 % 12); 
+                    const result = Math.floor(Math.random() * 10) + 1;
+                    return { str: `${result * divisor} ÷ ${divisor}`, val: result };
+            }
+        }
+
         function nextProblem() {
-            // Check for level up every 5 points
             const newWave = Math.floor(state.score / 5) + 1;
             if (newWave > state.wave) {
                 state.wave = newWave;
@@ -291,51 +307,40 @@
             
             let problemStr = "";
             let answer = 0;
+            const ops = ['+', '-', '*', '/'];
 
             if (state.score >= 100) {
-                // CHAOS MODE: 3 parts
-                const n1 = Math.floor(Math.random() * (10 + state.wave)) + 2;
-                const n2 = Math.floor(Math.random() * (10 + Math.floor(state.wave/2))) + 2;
-                const n3 = Math.floor(Math.random() * 10) + 1;
-                const ops = ['+', '-', '*'];
-                const op1 = ops[Math.floor(Math.random() * 3)];
-                const op2 = ops[Math.floor(Math.random() * 3)];
+                // CHAOS MODE: (A op B) op C
+                const op1 = ops[Math.floor(Math.random() * 4)];
+                const op2 = ops[Math.floor(Math.random() * 4)];
                 
-                // Construct safe eval
-                const expr = `(${n1} ${op1} ${n2}) ${op2} ${n3}`;
-                answer = eval(expr);
-                problemStr = expr.replace(/\*/g, '×');
+                // For Chaos Mode, we simplify components to keep it solvable in head
+                const t1 = generateTerm(10 + state.wave);
+                const t2 = generateTerm(10);
+                const firstPart = generateOperation(t1, t2, op1);
+                
+                const t3 = generateTerm(5);
+                const finalPart = generateOperation(firstPart.val, t3, op2);
+                
+                answer = finalPart.val;
+                problemStr = `(${firstPart.str}) ${finalPart.str.split(' ')[1]} ${finalPart.str.split(' ')[2]}`;
             } else {
-                // Dynamic Standard Scaling
+                // NORMAL MODE: Scaled operations
                 const maxNum = 10 + (state.wave * 2);
-                const n1 = Math.floor(Math.random() * maxNum) + 2;
-                const n2 = Math.floor(Math.random() * maxNum) + 2;
+                const n1 = generateTerm(maxNum);
+                const n2 = generateTerm(maxNum);
                 
-                let op = '+';
-                if (state.score >= 10) op = Math.random() > 0.5 ? '+' : '-';
-                if (state.score >= 40) {
-                    const r = Math.random();
-                    op = r > 0.7 ? '+' : (r > 0.4 ? '-' : '*');
-                }
-
-                if (op === '-' && n1 < n2) {
-                    answer = n2 - n1;
-                    problemStr = `${n2} - ${n1}`;
-                } else if (op === '*' && state.score < 60) {
-                    // Easier multiplication at first
-                    const m1 = Math.floor(Math.random() * 10) + 2;
-                    const m2 = Math.floor(Math.random() * 10) + 2;
-                    answer = m1 * m2;
-                    problemStr = `${m1} × ${m2}`;
-                } else {
-                    answer = eval(`${n1} ${op} ${n2}`);
-                    problemStr = `${n1} ${op === '*' ? '×' : op} ${n2}`;
-                }
+                // Randomly pick operation from all 4
+                const op = ops[Math.floor(Math.random() * 4)];
+                const result = generateOperation(n1, n2, op);
+                
+                answer = result.val;
+                problemStr = result.str;
             }
 
             state.currentAnswer = answer;
             elements.problem.innerHTML = problemStr.split('').map(char => 
-                `<span class="${isNaN(char) && char !== '-' && char !== '(' && char !== ')' ? 'text-blue-500 mx-2' : 'text-white'}">${char}</span>`
+                `<span class="${['+', '-', '×', '÷'].includes(char) ? 'text-blue-500 mx-1' : (isNaN(char) ? 'text-slate-400' : 'text-white')}">${char}</span>`
             ).join('');
             
             elements.input.value = '';
@@ -349,11 +354,7 @@
 
         function startTimer() {
             clearInterval(state.timerInterval);
-            
-            // TIME DECREASE LOGIC:
-            // Decrease by 350ms every wave (5 points), minimum 1.2 seconds
             let currentLimit = Math.max(1200, state.baseTime - ((state.wave - 1) * 350));
-            
             let timeLeft = currentLimit;
             
             state.timerInterval = setInterval(() => {
@@ -388,10 +389,8 @@
         function handleCorrect() {
             state.combo++;
             castSpell();
-
             state.score += 1;
             elements.score.textContent = state.score.toString().padStart(4, '0');
-            
             updateComboUI();
             
             elements.monster.style.transform = 'translateX(50px)';
@@ -400,12 +399,10 @@
                 if (state.combo % 3 === 0) spawnMonster();
             }, 150);
 
-            // Heal a bit on every 5 correct answers in a row
             if (state.combo % 5 === 0 && state.health < 100) {
                 state.health = Math.min(100, state.health + 10);
                 updateHealthUI();
             }
-
             nextProblem();
         }
 
@@ -458,21 +455,17 @@
             elements.finalScore.textContent = `DEFENSE SCORE: ${state.score}`;
         }
 
-        // Auto-detect Answer
         elements.input.addEventListener('input', (e) => {
             if (!state.gameActive) return;
             const val = parseInt(elements.input.value);
-            
-            // Allow negative answers
             const rawVal = elements.input.value;
-            if (rawVal === "-" && state.currentAnswer < 0) return; // Allow typing minus sign
+            if (rawVal === "-" && state.currentAnswer < 0) return;
             
             if (!isNaN(val) && val === state.currentAnswer) {
                 handleCorrect();
             }
         });
 
-        // Prevention of zoom on mobile tap
         document.addEventListener('touchstart', (e) => {
             if (e.touches.length > 1) e.preventDefault();
         }, { passive: false });
