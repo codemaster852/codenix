@@ -59,6 +59,11 @@
             background: var(--primary-purple);
             border-color: var(--primary-purple);
         }
+        /* Certificate Modal Styles */
+        #cert-overlay {
+            background: rgba(0,0,0,0.9);
+            backdrop-filter: blur(10px);
+        }
     </style>
 </head>
 <body class="overflow-hidden">
@@ -70,7 +75,6 @@
     <!-- Header -->
     <header class="h-16 border-b border-gray-800 flex items-center justify-between px-6 bg-black/50 backdrop-blur-md">
         <div class="flex items-center gap-4">
-            <!-- Updated home link to point back from Courses folder -->
             <a href="../../index.html" class="hover:text-purple-400"><i class="fas fa-arrow-left"></i></a>
             <h1 class="font-bold text-lg">Introduction to AI <span class="text-gray-500 text-sm ml-2 font-normal">Codenix Academy</span></h1>
         </div>
@@ -80,9 +84,7 @@
     <div class="flex">
         <!-- Sidebar -->
         <aside class="lesson-sidebar w-80 bg-black flex-shrink-0 overflow-y-auto">
-            <div id="lesson-list">
-                <!-- Lessons will be injected here -->
-            </div>
+            <div id="lesson-list"></div>
         </aside>
 
         <!-- Main Content -->
@@ -104,6 +106,7 @@
                     </div>
                 </div>
 
+                <!-- Quiz View -->
                 <div id="quiz-view" class="hidden py-10">
                     <div class="bg-gray-900/50 p-8 rounded-2xl border border-gray-800">
                         <div class="mb-6">
@@ -115,8 +118,33 @@
                         <p id="quiz-feedback" class="mt-4 text-center hidden"></p>
                     </div>
                 </div>
+
+                <!-- Certificate Verification View -->
+                <div id="verification-view" class="hidden py-10">
+                    <div class="max-w-md mx-auto bg-gray-900 border border-purple-500/30 p-8 rounded-2xl text-center">
+                        <i class="fas fa-certificate text-5xl text-yellow-500 mb-6"></i>
+                        <h2 class="text-2xl font-bold mb-2">Claim Your Certificate</h2>
+                        <p class="text-gray-400 mb-6">Please verify the name you want on your official Codenix Academy certificate.</p>
+                        
+                        <div class="space-y-4">
+                            <input type="text" id="user-fullname" placeholder="Enter Full Name" class="w-full bg-black border border-gray-700 p-3 rounded-lg focus:border-purple-500 outline-none">
+                            <button id="generate-cert-btn" class="w-full py-3 btn-purple rounded-lg font-bold">Generate Certificate</button>
+                        </div>
+                    </div>
+                </div>
             </div>
         </main>
+    </div>
+
+    <!-- Certificate Presentation Overlay -->
+    <div id="cert-overlay" class="fixed inset-0 z-[200] hidden flex items-center justify-center p-4">
+        <div class="bg-white p-2 rounded-lg shadow-2xl max-w-4xl w-full">
+            <canvas id="certificate-canvas" class="w-full h-auto rounded border"></canvas>
+            <div class="p-4 flex justify-between bg-black rounded-b-lg">
+                <button onclick="document.getElementById('cert-overlay').classList.add('hidden')" class="text-gray-400 hover:text-white">Close</button>
+                <button id="download-cert" class="px-6 py-2 bg-purple-600 text-white rounded font-bold">Download PNG</button>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -125,45 +153,16 @@
         const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
 
         const lessons = [
-            {
-                id: 1,
-                title: "Lesson 1: Longcat & Models",
-                video: "AI-Part1.mp4",
-                content: "Longcat is a specialized AI architectural pattern used in Codenix systems.",
-                quiz: { question: "What is Longcat in the context of our AI models?", options: ["A pet icon", "An architectural pattern", "A programming language"], answer: 1 }
-            },
-            {
-                id: 2,
-                title: "Lesson 2: Nix 3 Systems",
-                video: "AI-Part2.mp4",
-                content: "Nix 3 is our latest inference engine. <br><br><a href='https://codenix-ai.vercel.app/nix3.html' target='_blank' class='text-purple-400 underline'>Visit Nix 3 Documentation</a>",
-                quiz: { question: "Nix 3 improves latency by how much?", options: ["10%", "25%", "40%"], answer: 2 }
-            },
-            {
-                id: 3,
-                title: "Lesson 3: ChatGPT Integration",
-                video: "AI-Part3.mp4",
-                content: "Exploring how Codenix interfaces with OpenAI's ChatGPT APIs.",
-                quiz: { question: "Who developed the ChatGPT model?", options: ["Google", "OpenAI", "Codenix"], answer: 1 }
-            },
-            {
-                id: 4,
-                title: "Lesson 4: Gemini Multimodality",
-                video: "AI-Part4.mp4",
-                content: "Deep dive into Google's Gemini models and multimodal capabilities.",
-                quiz: { question: "What does 'multimodal' mean?", options: ["Many users", "Many types of data", "Fast processing"], answer: 1 }
-            },
-            {
-                id: 5,
-                title: "Course Summary & Final",
-                video: "AI summary.mp4",
-                content: "Final recap of all AI systems covered.",
-                quiz: { question: "Which model is developed by Codenix specifically?", options: ["Nix 3", "Gemini", "ChatGPT"], answer: 0 }
-            }
+            { id: 1, title: "Lesson 1: Longcat & Models", video: "AI-Part1.mp4", content: "Longcat is a specialized AI architectural pattern used in Codenix systems.", quiz: { question: "What is Longcat in the context of our AI models?", options: ["A pet icon", "An architectural pattern", "A programming language"], answer: 1 } },
+            { id: 2, title: "Lesson 2: Nix 3 Systems", video: "AI-Part2.mp4", content: "Nix 3 is our latest inference engine.", quiz: { question: "Nix 3 improves latency by how much?", options: ["10%", "25%", "40%"], answer: 2 } },
+            { id: 3, title: "Lesson 3: ChatGPT Integration", video: "AI-Part3.mp4", content: "Exploring how Codenix interfaces with OpenAI's ChatGPT APIs.", quiz: { question: "Who developed the ChatGPT model?", options: ["Google", "OpenAI", "Codenix"], answer: 1 } },
+            { id: 4, title: "Lesson 4: Gemini Multimodality", video: "AI-Part4.mp4", content: "Deep dive into Google's Gemini models.", quiz: { question: "What does 'multimodal' mean?", options: ["Many users", "Many types of data", "Fast processing"], answer: 1 } },
+            { id: 5, title: "Course Summary & Final", video: "AI summary.mp4", content: "Final recap of all AI systems covered.", quiz: { question: "Which model is developed by Codenix specifically?", options: ["Nix 3", "Gemini", "ChatGPT"], answer: 0 } }
         ];
 
         let currentLessonIndex = 0;
         let progress = JSON.parse(localStorage.getItem('codenix_ai_progress')) || { completed: [] };
+        let currentUser = null;
 
         async function init() {
             const { data: { session } } = await supabaseClient.auth.getSession();
@@ -171,6 +170,7 @@
                 window.location.href = '../../auth.html';
                 return;
             }
+            currentUser = session.user;
             document.getElementById('auth-shield').style.display = 'none';
             renderSidebar();
             loadLesson(0);
@@ -185,14 +185,7 @@
                 const div = document.createElement('div');
                 div.className = `lesson-card p-4 cursor-pointer border-b border-gray-900 flex items-center gap-3 ${index === currentLessonIndex ? 'active' : ''} ${isLocked ? 'locked' : ''}`;
                 div.onclick = () => !isLocked && loadLesson(index);
-                div.innerHTML = `
-                    <div class="w-8 h-8 rounded-full flex items-center justify-center text-xs ${isCompleted ? 'bg-green-500/20 text-green-500' : 'bg-gray-800'}">
-                        ${isCompleted ? '<i class="fas fa-check"></i>' : index + 1}
-                    </div>
-                    <div class="flex-grow">
-                        <p class="text-sm font-semibold">${lesson.title}</p>
-                    </div>
-                `;
+                div.innerHTML = `<div class="w-8 h-8 rounded-full flex items-center justify-center text-xs ${isCompleted ? 'bg-green-500/20 text-green-500' : 'bg-gray-800'}">${isCompleted ? '<i class="fas fa-check"></i>' : index + 1}</div><div><p class="text-sm font-semibold">${lesson.title}</p></div>`;
                 list.appendChild(div);
             });
             const percent = Math.round((progress.completed.length / lessons.length) * 100);
@@ -201,9 +194,10 @@
 
         function loadLesson(index) {
             currentLessonIndex = index;
-            const lesson = lessons[index];
             document.getElementById('main-content-view').classList.remove('hidden');
             document.getElementById('quiz-view').classList.add('hidden');
+            document.getElementById('verification-view').classList.add('hidden');
+            const lesson = lessons[index];
             document.getElementById('content-title').innerText = lesson.title;
             document.getElementById('content-body').innerHTML = lesson.content;
             const video = document.getElementById('lesson-video');
@@ -232,10 +226,7 @@
             });
         }
 
-        document.getElementById('complete-lesson-btn').onclick = showQuiz;
-        document.getElementById('skip-to-test').onclick = showQuiz;
-
-        document.getElementById('submit-quiz').onclick = () => {
+        document.getElementById('submit-quiz').onclick = async () => {
             const selected = document.querySelector('.quiz-option.selected');
             if (!selected) return;
             const answer = parseInt(selected.dataset.index);
@@ -244,13 +235,105 @@
                     progress.completed.push(lessons[currentLessonIndex].id);
                     localStorage.setItem('codenix_ai_progress', JSON.stringify(progress));
                 }
-                setTimeout(() => {
-                    if (currentLessonIndex < lessons.length - 1) loadLesson(currentLessonIndex + 1);
-                    else window.location.href = '../../index.html';
-                }, 500);
+                
+                if (currentLessonIndex < lessons.length - 1) {
+                    setTimeout(() => loadLesson(currentLessonIndex + 1), 500);
+                } else {
+                    handleCourseCompletion();
+                }
             }
         };
 
+        async function handleCourseCompletion() {
+            document.getElementById('quiz-view').classList.add('hidden');
+            document.getElementById('verification-view').classList.remove('hidden');
+            
+            // Check Supabase for Name
+            const { data, error } = await supabaseClient
+                .from('profiles')
+                .select('full_name')
+                .eq('id', currentUser.id)
+                .single();
+            
+            if (data && data.full_name) {
+                document.getElementById('user-fullname').value = data.full_name;
+            }
+        }
+
+        document.getElementById('generate-cert-btn').onclick = async () => {
+            const name = document.getElementById('user-fullname').value.trim();
+            if (!name) return alert("Please enter your name for the certificate.");
+
+            // Update profile in Supabase
+            await supabaseClient.from('profiles').upsert({ id: currentUser.id, full_name: name });
+
+            drawCertificate(name);
+        };
+
+        function drawCertificate(name) {
+            const canvas = document.getElementById('certificate-canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = 1600;
+            canvas.height = 1130;
+
+            // Background
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Gold Border
+            ctx.strokeStyle = '#D4AF37';
+            ctx.lineWidth = 40;
+            ctx.strokeRect(40, 40, canvas.width - 80, canvas.height - 80);
+            
+            ctx.strokeStyle = '#000000';
+            ctx.lineWidth = 5;
+            ctx.strokeRect(70, 70, canvas.width - 140, canvas.height - 140);
+
+            // Content
+            ctx.textAlign = 'center';
+            ctx.fillStyle = '#000000';
+            
+            // Header
+            ctx.font = 'italic 40px Inter, sans-serif';
+            ctx.fillText('Codenix Academy Certificate of Achievement', canvas.width/2, 250);
+
+            ctx.font = 'bold 80px serif';
+            ctx.fillText('CERTIFICATE OF COMPLETION', canvas.width/2, 400);
+
+            ctx.font = 'italic 40px serif';
+            ctx.fillText('This is to certify that', canvas.width/2, 500);
+
+            // Name
+            ctx.fillStyle = '#8b5cf6';
+            ctx.font = 'bold 100px serif';
+            ctx.fillText(name.toUpperCase(), canvas.width/2, 650);
+
+            // Course Name
+            ctx.fillStyle = '#000000';
+            ctx.font = 'italic 40px serif';
+            ctx.fillText('has successfully completed the course', canvas.width/2, 750);
+            
+            ctx.font = 'bold 60px serif';
+            ctx.fillText('INTRODUCTION TO ARTIFICIAL INTELLIGENCE', canvas.width/2, 850);
+
+            // Footer info
+            const date = new Date().toLocaleDateString();
+            ctx.font = '30px serif';
+            ctx.fillText(`Date: ${date}`, 400, 1000);
+            ctx.fillText('Authorized by Codenix AI Studio', 1200, 1000);
+
+            document.getElementById('cert-overlay').classList.remove('hidden');
+        }
+
+        document.getElementById('download-cert').onclick = () => {
+            const link = document.createElement('a');
+            link.download = 'Codenix_AI_Certificate.png';
+            link.href = document.getElementById('certificate-canvas').toDataURL();
+            link.click();
+        };
+
+        document.getElementById('complete-lesson-btn').onclick = showQuiz;
+        document.getElementById('skip-to-test').onclick = showQuiz;
         window.onload = init;
     </script>
 </body>
