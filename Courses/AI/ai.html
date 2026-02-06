@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Introduction to AI | Codenix Academy</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary-purple: #8b5cf6;
+            --bg-dark: #000000;
+            --card-dark: #0a0a0a;
+            --border-dark: #1e293b;
+        }
+        body {
+            background-color: var(--bg-dark);
+            color: #f8fafc;
+            font-family: 'Inter', sans-serif;
+        }
+        .lesson-sidebar {
+            height: calc(100vh - 64px);
+            border-right: 1px solid var(--border-dark);
+        }
+        .lesson-card.active {
+            background: rgba(139, 92, 246, 0.1);
+            border-left: 4px solid var(--primary-purple);
+        }
+        .lesson-card.locked {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .video-container {
+            aspect-ratio: 16/9;
+            background: #111;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+        }
+        .btn-purple {
+            background: var(--primary-purple);
+            transition: all 0.3s ease;
+        }
+        .btn-purple:hover:not(:disabled) {
+            transform: translateY(-2px);
+            filter: brightness(1.1);
+        }
+        .quiz-option {
+            border: 1px solid var(--border-dark);
+            transition: all 0.2s;
+            cursor: pointer;
+        }
+        .quiz-option:hover {
+            border-color: var(--primary-purple);
+            background: rgba(139, 92, 246, 0.05);
+        }
+        .quiz-option.selected {
+            background: var(--primary-purple);
+            border-color: var(--primary-purple);
+        }
+    </style>
+</head>
+<body class="overflow-hidden">
+    <!-- Auth Shield -->
+    <div id="auth-shield" class="fixed inset-0 bg-black z-[100] flex items-center justify-center">
+        <div class="animate-spin rounded-full h-12 w-12 border-t-2 border-purple-500"></div>
+    </div>
+
+    <!-- Header -->
+    <header class="h-16 border-b border-gray-800 flex items-center justify-between px-6 bg-black/50 backdrop-blur-md">
+        <div class="flex items-center gap-4">
+            <a href="../../index.html" class="hover:text-purple-400"><i class="fas fa-arrow-left"></i></a>
+            <h1 class="font-bold text-lg">Introduction to AI <span class="text-gray-500 text-sm ml-2 font-normal">Codenix Academy</span></h1>
+        </div>
+        <div id="progress-text" class="text-sm font-medium text-purple-400">Progress: 0%</div>
+    </header>
+
+    <div class="flex">
+        <!-- Sidebar -->
+        <aside class="lesson-sidebar w-80 bg-black flex-shrink-0 overflow-y-auto">
+            <div id="lesson-list">
+                <!-- Lessons will be injected here -->
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="flex-grow h-[calc(100vh-64px)] overflow-y-auto p-8">
+            <div id="content-area" class="max-w-4xl mx-auto">
+                <!-- Video/Content section -->
+                <div id="main-content-view">
+                    <div class="video-container mb-8">
+                        <video id="lesson-video" controls class="w-full h-full">
+                            <source src="" type="video/mp4">
+                        </video>
+                    </div>
+                    <div class="mb-12">
+                        <h2 id="content-title" class="text-3xl font-bold mb-4"></h2>
+                        <div id="content-body" class="prose prose-invert max-w-none text-gray-300"></div>
+                    </div>
+                    <div class="flex justify-between items-center border-t border-gray-800 pt-8">
+                        <button id="skip-to-test" class="px-6 py-3 border border-gray-700 rounded-lg text-sm font-medium hover:bg-gray-800">Skip to Quiz</button>
+                        <button id="complete-lesson-btn" class="px-8 py-3 btn-purple rounded-lg font-bold">Mark as Finished</button>
+                    </div>
+                </div>
+
+                <!-- Quiz View -->
+                <div id="quiz-view" class="hidden py-10">
+                    <div class="bg-gray-900/50 p-8 rounded-2xl border border-gray-800">
+                        <div class="mb-6">
+                            <span class="text-xs uppercase tracking-widest text-purple-400 font-bold">Knowledge Check</span>
+                            <h2 id="quiz-question" class="text-2xl font-bold mt-2"></h2>
+                        </div>
+                        <div id="quiz-options" class="space-y-4 mb-8"></div>
+                        <button id="submit-quiz" class="w-full py-4 btn-purple rounded-xl font-bold">Submit Answer</button>
+                        <p id="quiz-feedback" class="mt-4 text-center hidden"></p>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        const supabaseUrl = 'https://rnlwrngfgvznndlekmrz.supabase.co';
+        const supabaseKey = 'sb_publishable_mtI0_ZBvU_n5oRuqV58QHg_qJt3Gfyt';
+        const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
+
+        const lessons = [
+            {
+                id: 1,
+                title: "Lesson 1: Longcat & Models",
+                video: "AI-Part1.mp4",
+                content: "Longcat is a specialized AI architectural pattern used in Codenix systems. Learn how AI models process sequence data using this unique structural logic.",
+                quiz: {
+                    question: "What is Longcat in the context of our AI models?",
+                    options: ["A pet icon", "An architectural pattern", "A programming language"],
+                    answer: 1
+                }
+            },
+            {
+                id: 2,
+                title: "Lesson 2: Nix 3 Systems",
+                video: "AI-Part2.mp4",
+                content: "Nix 3 is our latest inference engine. It optimizes latency by 40% compared to previous generations. <br><br><a href='https://codenix-ai.vercel.app/nix3.html' target='_blank' class='text-purple-400 underline'>Visit Nix 3 Documentation</a>",
+                quiz: {
+                    question: "Nix 3 improves latency by how much?",
+                    options: ["10%", "25%", "40%"],
+                    answer: 2
+                }
+            },
+            {
+                id: 3,
+                title: "Lesson 3: ChatGPT Integration",
+                video: "AI-Part3.mp4",
+                content: "Exploring how Codenix interfaces with OpenAI's ChatGPT APIs to provide high-level reasoning capabilities alongside our local models.",
+                quiz: {
+                    question: "Who developed the ChatGPT model?",
+                    options: ["Google", "OpenAI", "Codenix"],
+                    answer: 1
+                }
+            },
+            {
+                id: 4,
+                title: "Lesson 4: Gemini Multimodality",
+                video: "AI-Part4.mp4",
+                content: "Deep dive into Google's Gemini models and how multimodal capabilities (text, image, audio) are integrated into the Studio.",
+                quiz: {
+                    question: "What does 'multimodal' mean?",
+                    options: ["Many users", "Many types of data (text, image, etc)", "Fast processing"],
+                    answer: 1
+                }
+            },
+            {
+                id: 5,
+                title: "Course Summary & Final",
+                video: "AI summary.mp4",
+                content: "Final recap of all AI systems covered. Congratulations on reaching the end!",
+                quiz: {
+                    question: "Which model is developed by Codenix specifically?",
+                    options: ["Nix 3", "Gemini", "ChatGPT"],
+                    answer: 0
+                }
+            }
+        ];
+
+        let currentLessonIndex = 0;
+        let progress = JSON.parse(localStorage.getItem('codenix_ai_progress')) || { completed: [] };
+
+        async function init() {
+            // Check Auth
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session) {
+                window.location.href = '../../auth.html';
+                return;
+            }
+            document.getElementById('auth-shield').style.display = 'none';
+
+            renderSidebar();
+            loadLesson(0);
+        }
+
+        function renderSidebar() {
+            const list = document.getElementById('lesson-list');
+            list.innerHTML = '';
+            
+            lessons.forEach((lesson, index) => {
+                const isLocked = index > 0 && !progress.completed.includes(lessons[index-1].id);
+                const isCompleted = progress.completed.includes(lesson.id);
+                
+                const div = document.createElement('div');
+                div.className = `lesson-card p-4 cursor-pointer border-b border-gray-900 flex items-center gap-3 ${index === currentLessonIndex ? 'active' : ''} ${isLocked ? 'locked' : ''}`;
+                div.onclick = () => !isLocked && loadLesson(index);
+                
+                div.innerHTML = `
+                    <div class="w-8 h-8 rounded-full flex items-center justify-center text-xs ${isCompleted ? 'bg-green-500/20 text-green-500' : 'bg-gray-800'}">
+                        ${isCompleted ? '<i class="fas fa-check"></i>' : index + 1}
+                    </div>
+                    <div class="flex-grow">
+                        <p class="text-sm font-semibold">${lesson.title}</p>
+                        <p class="text-xs opacity-50">${isLocked ? 'Locked' : 'Available'}</p>
+                    </div>
+                    ${isLocked ? '<i class="fas fa-lock text-gray-600"></i>' : ''}
+                `;
+                list.appendChild(div);
+            });
+
+            const percent = Math.round((progress.completed.length / lessons.length) * 100);
+            document.getElementById('progress-text').innerText = `Progress: ${percent}%`;
+        }
+
+        function loadLesson(index) {
+            currentLessonIndex = index;
+            const lesson = lessons[index];
+            
+            document.getElementById('main-content-view').classList.remove('hidden');
+            document.getElementById('quiz-view').classList.add('hidden');
+            
+            document.getElementById('content-title').innerText = lesson.title;
+            document.getElementById('content-body').innerHTML = lesson.content;
+            
+            const video = document.getElementById('lesson-video');
+            video.src = lesson.video;
+            video.load();
+
+            renderSidebar();
+        }
+
+        document.getElementById('complete-lesson-btn').onclick = () => showQuiz();
+        document.getElementById('skip-to-test').onclick = () => showQuiz();
+
+        function showQuiz() {
+            const lesson = lessons[currentLessonIndex];
+            document.getElementById('main-content-view').classList.add('hidden');
+            document.getElementById('quiz-view').classList.remove('hidden');
+            
+            document.getElementById('quiz-question').innerText = lesson.quiz.question;
+            const optionsBox = document.getElementById('quiz-options');
+            optionsBox.innerHTML = '';
+            
+            lesson.quiz.options.forEach((opt, idx) => {
+                const btn = document.createElement('div');
+                btn.className = 'quiz-option p-4 rounded-xl text-left font-medium';
+                btn.innerText = opt;
+                btn.onclick = () => {
+                    document.querySelectorAll('.quiz-option').forEach(b => b.classList.remove('selected'));
+                    btn.classList.add('selected');
+                    btn.dataset.index = idx;
+                };
+                optionsBox.appendChild(btn);
+            });
+
+            document.getElementById('quiz-feedback').classList.add('hidden');
+        }
+
+        document.getElementById('submit-quiz').onclick = () => {
+            const selected = document.querySelector('.quiz-option.selected');
+            if (!selected) return;
+
+            const answer = parseInt(selected.dataset.index);
+            const feedback = document.getElementById('quiz-feedback');
+            feedback.classList.remove('hidden');
+
+            if (answer === lessons[currentLessonIndex].quiz.answer) {
+                feedback.innerText = "Correct! Progressing...";
+                feedback.className = "mt-4 text-center text-green-500 font-bold";
+                
+                // Save Progress
+                if (!progress.completed.includes(lessons[currentLessonIndex].id)) {
+                    progress.completed.push(lessons[currentLessonIndex].id);
+                    localStorage.setItem('codenix_ai_progress', JSON.stringify(progress));
+                }
+
+                setTimeout(() => {
+                    if (currentLessonIndex < lessons.length - 1) {
+                        loadLesson(currentLessonIndex + 1);
+                    } else {
+                        alert("Congratulations! You've finished the course.");
+                        window.location.href = '../../index.html';
+                    }
+                }, 1500);
+            } else {
+                feedback.innerText = "Incorrect. Please try again.";
+                feedback.className = "mt-4 text-center text-red-500 font-bold";
+            }
+        };
+
+        window.onload = init;
+    </script>
+</body>
+</html>
