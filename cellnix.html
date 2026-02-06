@@ -63,15 +63,17 @@
             outline: none; border-right: 1px solid var(--border-color); border-bottom: 1px solid var(--border-color);
             padding: 0 4px; font-size: 13px; white-space: nowrap; overflow: hidden; cursor: cell;
             background-color: var(--bg-app); color: var(--text-primary);
+            position: relative;
         }
 
         .cell:focus { border: 2px solid var(--cell-selected-border); z-index: 10; position: relative; }
-        .cell.selected { background-color: var(--cell-selected-bg); border: 2px solid var(--cell-selected-border); z-index: 10; }
+        .cell.selected { background-color: var(--cell-selected-bg); border: 1px solid var(--cell-selected-border); z-index: 5; }
+        .cell.active-cell { border: 2px solid var(--cell-selected-border) !important; z-index: 10; }
 
         .header-col, .header-row, .header-corner {
             background-color: var(--bg-header); font-weight: 600; color: var(--text-secondary);
             text-align: center; border-right: 1px solid var(--border-color); border-bottom: 1px solid var(--border-color);
-            user-select: none; position: sticky; z-index: 20;
+            user-select: none; position: sticky; z-index: 20; font-size: 12px;
         }
         
         .header-col { top: 0; }
@@ -91,7 +93,6 @@
             z-index: 100; transition: opacity 0.5s;
         }
 
-        /* Dropdown Menu Styles */
         .export-dropdown {
             display: none;
             position: absolute;
@@ -105,21 +106,13 @@
             min-width: 160px;
             margin-top: 0.5rem;
         }
-
         .export-dropdown.active { display: block; }
         
         .export-item {
-            width: 100%;
-            padding: 8px 16px;
-            text-align: left;
-            font-size: 13px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            transition: background 0.2s;
+            width: 100%; padding: 8px 16px; text-align: left; font-size: 13px;
+            display: flex; align-items: center; gap: 10px; transition: background 0.2s;
             color: var(--text-primary);
         }
-
         .export-item:hover { background: var(--bg-toolbar); }
     </style>
 </head>
@@ -143,7 +136,6 @@
                 <i class="fa-solid fa-moon" id="theme-icon"></i>
             </button>
 
-            <!-- Export Dropdown -->
             <div class="relative">
                 <button onclick="toggleExportMenu()" id="export-btn" class="text-sm font-medium theme-text-secondary hover:text-purple-500 transition flex items-center gap-2 px-3 py-1.5 rounded bg-gray-100 dark:bg-zinc-800">
                     <i class="fa-solid fa-file-export"></i> Export <i class="fa-solid fa-chevron-down text-[10px]"></i>
@@ -213,7 +205,7 @@
     </div>
 
     <div class="theme-accent-bg text-white text-xs px-4 py-1 flex justify-between items-center select-none">
-        <div class="flex gap-4"><span>Ready</span><span id="status-selection">Mode: Standard</span></div>
+        <div class="flex gap-4"><span>Ready</span><span id="status-selection">Cell: A1</span></div>
         <div>Powered by <span class="font-bold">CellNix</span></div>
     </div>
 
@@ -232,18 +224,15 @@
                 setTimeout(() => { document.getElementById('loading-screen').style.display = 'none'; }, 500);
             }
         }
-
-        async function signOut() {
-            await supabaseClient.auth.signOut();
-            window.location.href = 'auth.html';
-        }
-
         checkAuth();
 
         const COLS = 26; 
         const ROWS = 100;
         let cellData = {};
-        let selectedCellId = null;
+        let activeCellId = "A1";
+        let isEditing = false;
+        let isMouseDown = false;
+        let selectionStart = null;
 
         const gridBody = document.getElementById('grid-body');
         const headerRow = document.getElementById('header-row');
@@ -278,32 +267,130 @@
                     td.id = cellId;
                     td.contentEditable = true;
                     td.spellcheck = false;
-                    td.addEventListener('focus', () => selectCell(cellId));
-                    td.addEventListener('input', (e) => handleInput(e, cellId));
-                    td.addEventListener('blur', () => handleBlur(cellId));
+
+                    td.addEventListener('mousedown', (e) => handleCellMouseDown(e, cellId));
+                    td.addEventListener('mouseenter', () => handleCellMouseEnter(cellId));
+                    td.addEventListener('focus', () => handleCellFocus(cellId));
+                    td.addEventListener('input', (e) => handleCellInput(e, cellId));
+                    td.addEventListener('keydown', (e) => handleCellKeydown(e, cellId));
+                    td.addEventListener('blur', () => handleCellBlur(cellId));
+                    
                     tr.appendChild(td);
                 }
                 gridBody.appendChild(tr);
             }
+            window.addEventListener('mouseup', () => isMouseDown = false);
             selectCell("A1");
         }
 
+        // --- Selection Logic ---
+        function handleCellMouseDown(e, cellId) {
+            isMouseDown = true;
+            selectionStart = cellId;
+            
+            // Reference Mode Logic
+            const activeCell = document.getElementById(activeCellId);
+            const currentVal = formulaInput.value;
+            
+            if (activeCellId !== cellId && currentVal.startsWith('=') && document.activeElement === activeCell) {
+                e.preventDefault();
+                const lastChar = currentVal.slice(-1);
+                const separator = /^[A-Z0-9]$/i.test(lastChar) ? "+" : "";
+                formulaInput.value = currentVal + separator + cellId;
+                return;
+            }
+            
+            selectCell(cellId);
+        }
+
+        function handleCellMouseEnter(cellId) {
+            if (isMouseDown && selectionStart) {
+                clearSelection();
+                applyRangeSelection(selectionStart, cellId);
+            }
+        }
+
+        function clearSelection() {
+            document.querySelectorAll('.cell.selected').forEach(c => c.classList.remove('selected'));
+        }
+
+        function applyRangeSelection(startId, endId) {
+            const startCol = startId.match(/[A-Z]+/)[0].charCodeAt(0);
+            const startRow = parseInt(startId.match(/\d+/)[0]);
+            const endCol = endId.match(/[A-Z]+/)[0].charCodeAt(0);
+            const endRow = parseInt(endId.match(/\d+/)[0]);
+
+            const minCol = Math.min(startCol, endCol);
+            const maxCol = Math.max(startCol, endCol);
+            const minRow = Math.min(startRow, endRow);
+            const maxRow = Math.max(startRow, endRow);
+
+            for (let c = minCol; c <= maxCol; c++) {
+                for (let r = minRow; r <= maxRow; r++) {
+                    const id = `${String.fromCharCode(c)}${r}`;
+                    document.getElementById(id).classList.add('selected');
+                }
+            }
+        }
+
         function selectCell(cellId) {
-            if (selectedCellId) document.getElementById(selectedCellId).classList.remove('selected');
-            selectedCellId = cellId;
+            document.querySelectorAll('.active-cell').forEach(c => c.classList.remove('active-cell'));
+            clearSelection();
+            
+            activeCellId = cellId;
             const cell = document.getElementById(cellId);
+            cell.classList.add('active-cell');
             cell.classList.add('selected');
             selectedCellIndicator.innerText = cellId;
+            document.getElementById('status-selection').innerText = `Cell: ${cellId}`;
+            
             formulaInput.value = (cellData[cellId] && cellData[cellId].formula) ? cellData[cellId].formula : cell.innerText;
         }
 
-        function handleInput(e, cellId) {
-            if (!cellData[cellId]) cellData[cellId] = {};
-            if (!e.target.innerText.startsWith('=')) cellData[cellId].formula = '';
+        // --- Input & Formula Logic ---
+        function handleCellFocus(cellId) {
+            isEditing = true;
+            const cell = document.getElementById(cellId);
+            if (cellData[cellId] && cellData[cellId].formula) {
+                cell.innerText = cellData[cellId].formula;
+            }
         }
 
-        function handleBlur(cellId) {
+        function handleCellInput(e, cellId) {
+            formulaInput.value = e.target.innerText;
+        }
+
+        function handleCellBlur(cellId) {
+            isEditing = false;
             updateCellData(cellId, document.getElementById(cellId).innerText);
+        }
+
+        function handleCellKeydown(e, cellId) {
+            const row = parseInt(cellId.match(/\d+/)[0]);
+            const col = cellId.match(/[A-Z]+/)[0].charCodeAt(0);
+
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                moveSelection(col, row + 1);
+            } else if (e.key === 'Tab') {
+                e.preventDefault();
+                moveSelection(col + 1, row);
+            } else if (!isEditing) {
+                if (e.key === 'ArrowDown') moveSelection(col, row + 1);
+                else if (e.key === 'ArrowUp') moveSelection(col, row - 1);
+                else if (e.key === 'ArrowRight') moveSelection(col + 1, row);
+                else if (e.key === 'ArrowLeft') moveSelection(col - 1, row);
+            }
+        }
+
+        function moveSelection(c, r) {
+            if (c < 65 || c >= 65 + COLS || r < 1 || r > ROWS) return;
+            const nextId = `${String.fromCharCode(c)}${r}`;
+            const nextCell = document.getElementById(nextId);
+            if (nextCell) {
+                nextCell.focus();
+                selectCell(nextId);
+            }
         }
 
         function updateCellData(cellId, input) {
@@ -321,21 +408,28 @@
 
         function evaluateFormula(expression) {
             try {
+                // SUM Range Logic
                 const sumRegex = /SUM\(([A-Z]+)(\d+):([A-Z]+)(\d+)\)/i;
                 const sumMatch = expression.match(sumRegex);
                 if (sumMatch) {
-                    const startCol = sumMatch[1], startRow = parseInt(sumMatch[2]), endRow = parseInt(sumMatch[4]);
+                    const sCol = sumMatch[1], sRow = parseInt(sumMatch[2]);
+                    const eCol = sumMatch[3], eRow = parseInt(sumMatch[4]);
                     let total = 0;
-                    for (let r = startRow; r <= endRow; r++) {
-                        let val = cellData[`${startCol}${r}`]?.value;
+                    for (let r = sRow; r <= eRow; r++) {
+                        let val = cellData[`${sCol}${r}`]?.value;
                         total += isNaN(Number(val)) ? 0 : Number(val);
                     }
                     return total;
                 }
+                
+                // Direct Reference Logic
                 const parsedExpr = expression.replace(/[A-Z]+[0-9]+/g, (m) => {
                     let v = cellData[m]?.value;
                     return isNaN(Number(v)) ? 0 : Number(v);
                 });
+                
+                // Basic Sanitization
+                if (!/^[0-9+\-*/().\s]*$/.test(parsedExpr)) return "#NAME?";
                 return eval(parsedExpr);
             } catch { return "#ERR"; }
         }
@@ -356,54 +450,50 @@
             });
         }
 
-        // --- Export Feature ---
-        function toggleExportMenu() {
-            document.getElementById('export-menu').classList.toggle('active');
-        }
+        formulaInput.addEventListener('input', (e) => {
+            const cell = document.getElementById(activeCellId);
+            cell.innerText = e.target.value;
+        });
 
-        window.onclick = function(event) {
-            if (!event.target.closest('#export-btn')) {
-                document.getElementById('export-menu').classList.remove('active');
+        formulaInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                const cell = document.getElementById(activeCellId);
+                updateCellData(activeCellId, e.target.value);
+                cell.blur();
             }
-        }
+        });
+
+        // --- UI & Utilities ---
+        function toggleExportMenu() { document.getElementById('export-menu').classList.toggle('active'); }
+        window.onclick = (e) => { if (!e.target.closest('#export-btn')) document.getElementById('export-menu').classList.remove('active'); }
 
         function exportData(format) {
-            // Prepare Data Array
             let dataRows = [];
             for(let r=1; r<=ROWS; r++) {
-                let row = {};
-                let hasData = false;
+                let row = {}, hasData = false;
                 for(let c=0; c<COLS; c++) {
-                    let colLetter = String.fromCharCode(65+c);
-                    let id = `${colLetter}${r}`;
+                    let id = `${String.fromCharCode(65+c)}${r}`;
                     let val = cellData[id] ? cellData[id].value : "";
                     if(val !== "") hasData = true;
-                    row[colLetter] = val;
+                    row[String.fromCharCode(65+c)] = val;
                 }
                 if(hasData) dataRows.push(row);
             }
-
             if(format === 'json') {
                 const blob = new Blob([JSON.stringify(cellData, null, 2)], {type: 'application/json'});
                 const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url; a.download = 'cellnix_data.json'; a.click();
+                const a = document.createElement('a'); a.href = url; a.download = 'cellnix.json'; a.click();
                 return;
             }
-
-            // SheetJS Export
-            const worksheet = XLSX.utils.json_to_sheet(dataRows);
-            const workbook = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(workbook, worksheet, "Sheet1");
-
-            if (format === 'xlsx') XLSX.writeFile(workbook, "CellNix_Export.xlsx");
-            else if (format === 'ods') XLSX.writeFile(workbook, "CellNix_Export.ods");
-            else if (format === 'csv') XLSX.writeFile(workbook, "CellNix_Export.csv", { bookType: 'csv' });
+            const ws = XLSX.utils.json_to_sheet(dataRows);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
+            XLSX.writeFile(wb, `CellNix_Export.${format}`, { bookType: format === 'ods' ? 'ods' : format });
         }
 
         function execStyle(cmd) { document.execCommand(cmd, false, null); }
         function execColor(type, color) {
-            const cell = document.getElementById(selectedCellId);
+            const cell = document.getElementById(activeCellId);
             if(type === 'backColor') cell.style.backgroundColor = color;
             else cell.style.color = color;
         }
@@ -416,9 +506,8 @@
             document.getElementById('theme-icon').className = target === 'dark' ? 'fa-solid fa-sun' : 'fa-solid fa-moon';
         }
 
-        function resetGrid() {
-            if(confirm("Reset all data?")) { location.reload(); }
-        }
+        async function signOut() { await supabaseClient.auth.signOut(); window.location.href = 'auth.html'; }
+        function resetGrid() { if(confirm("Reset all data?")) location.reload(); }
 
         initGrid();
     </script>
