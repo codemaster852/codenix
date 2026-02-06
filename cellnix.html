@@ -10,99 +10,139 @@
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
     
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
+
         :root {
             --bg-app: #ffffff;
             --border-color: #e2e8f0;
-            --accent-primary: #7c3aed;
-            --selection-bg: rgba(124, 58, 237, 0.1);
+            --accent-primary: #107c10; /* Excel/Sheets Green */
+            --selection-bg: rgba(16, 124, 16, 0.1);
         }
 
-        [data-theme="dark"] {
-            --bg-app: #09090b;
-            --border-color: #27272a;
-            --accent-primary: #a78bfa;
-            --selection-bg: rgba(167, 139, 250, 0.15);
-        }
+        body { font-family: 'Inter', sans-serif; background-color: #f9fbfd; overflow: hidden; }
 
-        body { font-family: 'Inter', sans-serif; background-color: var(--bg-app); overflow: hidden; }
-
+        /* Spreadsheet Grid Styles */
         .cell {
-            min-width: 100px; width: 100px; height: 30px;
+            min-width: 100px; width: 100px; height: 28px;
             outline: none; border-right: 1px solid var(--border-color); border-bottom: 1px solid var(--border-color);
-            padding: 4px 8px; font-size: 13px; white-space: nowrap; overflow: hidden; cursor: cell;
-            position: relative; transition: background 0.1s;
+            padding: 2px 6px; font-size: 13px; white-space: nowrap; overflow: hidden; cursor: cell;
+            position: relative; background: white;
         }
 
         .cell.selected { background-color: var(--selection-bg); }
         .cell.active-cell { box-shadow: inset 0 0 0 2px var(--accent-primary); z-index: 10; }
 
         .fill-handle {
-            position: absolute; width: 8px; height: 8px; background-color: var(--accent-primary);
-            bottom: -4.5px; right: -4.5px; cursor: crosshair; z-index: 40; border: 1px solid white;
+            position: absolute; width: 6px; height: 6px; background-color: var(--accent-primary);
+            bottom: -3px; right: -3px; cursor: crosshair; z-index: 40; border: 1px solid white;
             display: none;
         }
         .active-cell .fill-handle { display: block; }
 
         .header-col, .header-row {
-            background-color: #f8fafc; font-size: 11px; font-weight: 600; color: #64748b;
+            background-color: #f1f3f4; font-size: 11px; font-weight: 500; color: #5f6368;
             text-align: center; border-right: 1px solid var(--border-color); border-bottom: 1px solid var(--border-color);
-            position: sticky; z-index: 20;
+            position: sticky; z-index: 20; line-height: 28px;
         }
-        [data-theme="dark"] .header-col, [data-theme="dark"] .header-row { background-color: #18181b; }
+        .header-col { top: 0; }
+        .header-row { left: 0; width: 45px; }
 
-        .drag-fill-preview { background-color: rgba(124, 58, 237, 0.2) !important; border: 1px dashed var(--accent-primary) !important; }
+        .drag-fill-preview { background-color: rgba(16, 124, 16, 0.2) !important; border: 1px dashed var(--accent-primary) !important; }
         
-        #loading-overlay { backdrop-filter: blur(4px); }
+        #loading-overlay { backdrop-filter: blur(8px); transition: opacity 0.3s; }
+        
+        .custom-scroll::-webkit-scrollbar { width: 12px; height: 12px; }
+        .custom-scroll::-webkit-scrollbar-track { background: #f1f1f1; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: #ccc; border: 3px solid #f1f1f1; border-radius: 10px; }
     </style>
 </head>
 <body class="h-screen flex flex-col">
 
-    <div id="loading-overlay" class="fixed inset-0 z-[100] bg-white dark:bg-zinc-950 flex items-center justify-center">
+    <!-- Auth Overlay -->
+    <div id="loading-overlay" class="fixed inset-0 z-[100] bg-white flex items-center justify-center">
         <div class="flex flex-col items-center gap-4">
-            <div class="animate-spin rounded-full h-12 w-12 border-t-2 border-purple-600"></div>
-            <p class="text-sm font-medium animate-pulse">Authenticating...</p>
+            <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-green-600"></div>
+            <p class="text-sm font-medium text-zinc-600">Verifying Session...</p>
         </div>
     </div>
 
-    <!-- Header -->
-    <header class="bg-white dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-800 px-4 py-2 flex items-center justify-between">
-        <div class="flex items-center gap-6">
-            <div class="flex items-center gap-2">
-                <div class="w-8 h-8 bg-purple-600 rounded flex items-center justify-center text-white font-bold">C</div>
-                <input type="text" id="sheet-title" class="bg-transparent font-bold text-lg outline-none w-48" value="Untitled Spreadsheet">
+    <!-- Top Navigation / File Menu -->
+    <header class="bg-white border-b border-zinc-200 px-4 py-2 flex items-center justify-between shadow-sm">
+        <div class="flex items-center gap-4">
+            <div class="bg-green-600 p-2 rounded shadow-inner">
+                <i class="fa-solid fa-table text-white text-lg"></i>
             </div>
-            <nav class="flex gap-4 text-sm text-zinc-500">
-                <button class="hover:text-zinc-900 dark:hover:text-white" onclick="saveData()">File</button>
-                <button class="hover:text-zinc-900 dark:hover:text-white">Edit</button>
-                <button class="hover:text-zinc-900 dark:hover:text-white" onclick="exportData('xlsx')">Export</button>
-            </nav>
+            <div class="flex flex-col">
+                <div class="flex items-center gap-2">
+                    <input type="text" id="sheet-title" class="font-medium text-lg outline-none hover:bg-zinc-100 px-1 rounded transition w-64" value="Untitled Spreadsheet">
+                    <i class="fa-regular fa-star text-zinc-400 cursor-pointer hover:text-yellow-500"></i>
+                </div>
+                <div class="flex gap-4 text-xs text-zinc-500 mt-0.5">
+                    <button class="hover:bg-zinc-100 px-2 py-0.5 rounded" onclick="saveToBrowser()">File</button>
+                    <button class="hover:bg-zinc-100 px-2 py-0.5 rounded">Edit</button>
+                    <button class="hover:bg-zinc-100 px-2 py-0.5 rounded" onclick="document.getElementById('file-modal').classList.remove('hidden')">Open</button>
+                    <button class="hover:bg-zinc-100 px-2 py-0.5 rounded" onclick="exportData('xlsx')">Download</button>
+                </div>
+            </div>
         </div>
-        <div class="flex items-center gap-3">
-            <span id="user-email" class="text-xs font-medium opacity-60"></span>
-            <button onclick="handleSignOut()" class="text-sm text-red-500 font-medium hover:underline">Sign Out</button>
+        <div class="flex items-center gap-4">
+            <div class="flex -space-x-2">
+                <div class="w-8 h-8 rounded-full border-2 border-white bg-blue-500 flex items-center justify-center text-white text-xs font-bold">U</div>
+            </div>
+            <button onclick="handleSignOut()" class="text-xs bg-zinc-100 hover:bg-zinc-200 px-3 py-1.5 rounded-full font-medium transition">Sign Out</button>
         </div>
     </header>
 
     <!-- Toolbar -->
-    <div class="bg-zinc-50 dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-800 p-2 flex items-center gap-2">
-        <div class="flex bg-white dark:bg-zinc-800 rounded border border-zinc-200 dark:border-zinc-700">
-            <button onclick="applyStyle('bold')" class="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-700"><i class="fa-solid fa-bold"></i></button>
-            <button onclick="applyStyle('italic')" class="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-700"><i class="fa-solid fa-italic"></i></button>
+    <div class="bg-white border-b border-zinc-200 p-1.5 flex items-center gap-2 overflow-x-auto no-scrollbar">
+        <div class="flex items-center px-2 gap-1 border-r border-zinc-200">
+            <button onclick="applyStyle('bold')" class="w-8 h-8 rounded hover:bg-zinc-100 flex items-center justify-center" title="Bold"><i class="fa-solid fa-bold text-zinc-600"></i></button>
+            <button onclick="applyStyle('italic')" class="w-8 h-8 rounded hover:bg-zinc-100 flex items-center justify-center" title="Italic"><i class="fa-solid fa-italic text-zinc-600"></i></button>
         </div>
-        <div class="h-6 w-px bg-zinc-300 dark:bg-zinc-700 mx-2"></div>
-        <div id="cell-id" class="w-12 text-center font-bold text-purple-600">A1</div>
-        <div class="flex-1 flex items-center bg-white dark:bg-zinc-800 rounded border border-zinc-200 dark:border-zinc-700 px-3">
-            <span class="italic text-zinc-400 mr-2">fx</span>
-            <input type="text" id="formula-bar" class="w-full bg-transparent outline-none py-1 text-sm" placeholder="Type here...">
+        
+        <div class="flex items-center px-2 gap-1 border-r border-zinc-200">
+            <input type="color" onchange="applyColor('text', this.value)" class="w-6 h-6 p-0 border-none cursor-pointer bg-transparent" title="Text Color">
+            <input type="color" onchange="applyColor('bg', this.value)" class="w-6 h-6 p-0 border-none cursor-pointer bg-transparent" title="Fill Color" value="#ffffff">
+        </div>
+
+        <div id="cell-address" class="w-16 text-center text-sm font-bold text-zinc-500 border-r border-zinc-200">A1</div>
+        
+        <div class="flex-1 flex items-center px-3 bg-zinc-50 border border-zinc-200 rounded-full">
+            <span class="italic text-zinc-400 font-serif mr-2 text-sm">fx</span>
+            <input type="text" id="formula-bar" class="w-full bg-transparent outline-none py-1 text-sm font-medium" placeholder="Enter formula or value">
         </div>
     </div>
 
-    <!-- Grid Container -->
-    <div class="flex-1 overflow-auto bg-zinc-100 dark:bg-zinc-950" id="scroll-box">
-        <table class="border-collapse table-fixed" id="main-table">
+    <!-- Main Grid -->
+    <div class="flex-1 overflow-auto custom-scroll" id="grid-container">
+        <table class="border-collapse table-fixed bg-white" id="main-table">
             <thead id="grid-head"></thead>
             <tbody id="grid-body"></tbody>
         </table>
+    </div>
+
+    <!-- Status Bar -->
+    <footer class="bg-white border-t border-zinc-200 px-4 py-1 flex justify-between items-center text-[11px] text-zinc-500 font-medium">
+        <div class="flex items-center gap-4">
+            <span id="status-msg"><i class="fa-solid fa-check-circle text-green-600 mr-1"></i> All changes saved to browser</span>
+        </div>
+        <div id="selection-stats" class="flex gap-4"></div>
+    </footer>
+
+    <!-- File Explorer Modal -->
+    <div id="file-modal" class="fixed inset-0 z-[110] bg-black/50 hidden flex items-center justify-center">
+        <div class="bg-white rounded-xl shadow-2xl w-[500px] max-h-[80vh] flex flex-col overflow-hidden">
+            <div class="p-4 border-b border-zinc-100 flex justify-between items-center bg-zinc-50">
+                <h3 class="font-bold text-zinc-800">Your Spreadsheets</h3>
+                <button onclick="document.getElementById('file-modal').classList.add('hidden')" class="text-zinc-400 hover:text-zinc-600"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div id="file-list" class="flex-1 overflow-y-auto p-2 space-y-1">
+                <!-- Files injected here -->
+            </div>
+            <div class="p-4 bg-zinc-50 border-t border-zinc-100 flex justify-end">
+                <button onclick="createNewSheet()" class="bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-green-700 transition">Create New</button>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -110,22 +150,25 @@
         const SUPABASE_KEY = 'sb_publishable_mtI0_ZBvU_n5oRuqV58QHg_qJt3Gfyt';
         const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-        const ROWS = 100, COLS = 26;
+        const ROWS = 50, COLS = 26;
         let cellData = {};
         let activeId = 'A1';
         let isSelecting = false, isFilling = false;
         let startId = null, currentId = null;
+        let currentFileId = null;
 
-        // --- AUTH GUARD ---
-        async function initAuth() {
+        // --- AUTH & INITIALIZATION ---
+        async function init() {
             const { data: { session } } = await sb.auth.getSession();
             if (!session) {
                 window.location.href = 'auth.html';
                 return;
             }
-            document.getElementById('user-email').innerText = session.user.email;
-            document.getElementById('loading-overlay').classList.add('hidden');
+            document.getElementById('loading-overlay').style.opacity = '0';
+            setTimeout(() => document.getElementById('loading-overlay').classList.add('hidden'), 300);
+            
             renderGrid();
+            loadFiles();
         }
 
         async function handleSignOut() {
@@ -133,27 +176,28 @@
             window.location.href = 'auth.html';
         }
 
-        // --- GRID RENDERING ---
         function renderGrid() {
             const head = document.getElementById('grid-head');
             const body = document.getElementById('grid-body');
+            head.innerHTML = ''; body.innerHTML = '';
             
             let trH = document.createElement('tr');
-            trH.innerHTML = `<th class="header-col w-[45px] h-[30px] sticky left-0 top-0 z-30"></th>`;
+            trH.innerHTML = `<th class="header-col w-[45px] h-[28px] sticky left-0 top-0 z-30 border-l border-t"></th>`;
             for(let c=0; c<COLS; c++) {
-                trH.innerHTML += `<th class="header-col w-[100px] top-0 sticky">${String.fromCharCode(65+c)}</th>`;
+                trH.innerHTML += `<th class="header-col w-[100px] top-0 sticky border-t">${String.fromCharCode(65+c)}</th>`;
             }
             head.appendChild(trH);
 
             for(let r=1; r<=ROWS; r++) {
                 let trB = document.createElement('tr');
-                trB.innerHTML = `<td class="header-row h-[30px] sticky left-0 z-20">${r}</td>`;
+                trB.innerHTML = `<td class="header-row h-[28px] sticky left-0 z-20 border-l">${r}</td>`;
                 for(let c=0; c<COLS; c++) {
                     const id = `${String.fromCharCode(65+c)}${r}`;
                     const td = document.createElement('td');
                     td.className = 'cell';
                     td.id = id;
                     td.contentEditable = true;
+                    td.spellcheck = false;
                     
                     const handle = document.createElement('div');
                     handle.className = 'fill-handle';
@@ -164,8 +208,8 @@
                     td.onmouseenter = () => onCellEnter(id);
                     td.onfocus = () => onCellFocus(id);
                     td.onblur = () => onCellBlur(id);
-                    td.oninput = (e) => onCellInput(id, e.target.innerText);
-                    td.onkeydown = onCellKey;
+                    td.oninput = (e) => { document.getElementById('formula-bar').value = e.target.innerText; };
+                    td.onkeydown = (e) => { if(e.key === 'Enter') { e.preventDefault(); e.target.blur(); } };
 
                     trB.appendChild(td);
                 }
@@ -174,9 +218,8 @@
             selectCell('A1');
         }
 
-        // --- LOGIC: Interaction & Formulas ---
+        // --- CORE INTERACTION ---
         function onCellDown(e, id) {
-            // Click-to-reference feature: If currently editing a formula, clicking another cell appends its name
             const activeEl = document.getElementById(activeId);
             if (activeEl && activeEl.innerText.startsWith('=') && id !== activeId) {
                 e.preventDefault();
@@ -184,7 +227,6 @@
                 document.getElementById('formula-bar').value = activeEl.innerText;
                 return;
             }
-
             isSelecting = true;
             startId = id;
             selectCell(id);
@@ -201,6 +243,7 @@
             isSelecting = false;
             isFilling = false;
             document.querySelectorAll('.drag-fill-preview').forEach(el => el.classList.remove('drag-fill-preview'));
+            updateStats();
         };
 
         function selectCell(id) {
@@ -208,14 +251,16 @@
             document.querySelectorAll('.selected').forEach(c => c.classList.remove('selected'));
             activeId = id;
             const el = document.getElementById(id);
+            if(!el) return;
             el.classList.add('active-cell', 'selected');
-            document.getElementById('cell-id').innerText = id;
-            document.getElementById('formula-bar').value = (cellData[id]?.formula || cellData[id]?.val || "");
+            document.getElementById('cell-address').innerText = id;
+            document.getElementById('formula-bar').value = (cellData[id]?.formula || cellData[id]?.val !== undefined ? cellData[id].val : "");
         }
 
         function onCellFocus(id) {
             const el = document.getElementById(id);
-            el.innerText = cellData[id]?.formula || cellData[id]?.val || "";
+            const data = cellData[id];
+            el.innerText = data?.formula || (data?.val !== undefined ? data.val : "");
         }
 
         function onCellBlur(id) {
@@ -231,7 +276,7 @@
                 cellData[id].val = solve(input.substring(1));
             } else {
                 cellData[id].formula = null;
-                cellData[id].val = input;
+                cellData[id].val = input === "" ? undefined : input;
             }
             recalcAll();
         }
@@ -240,23 +285,31 @@
             try {
                 const clean = expr.replace(/[A-Z]\d+/g, m => {
                     const v = cellData[m]?.val;
-                    return (v && !isNaN(v)) ? v : 0;
+                    return (v !== undefined && !isNaN(v) && v !== "") ? v : 0;
                 });
-                return eval(clean) || 0;
+                const res = eval(clean);
+                // Correctly handle 0 result
+                return res === undefined ? "" : res;
             } catch { return "#ERR"; }
         }
 
         function renderDisplay(id) {
             const el = document.getElementById(id);
             if (!el) return;
+            const data = cellData[id];
             const handle = el.querySelector('.fill-handle');
-            el.innerText = cellData[id]?.val || "";
+            
+            // Critical Fix: Show 0 if result is 0
+            let displayVal = data?.val !== undefined ? data.val : "";
+            el.innerText = displayVal;
+            
             if (handle) el.appendChild(handle);
             
-            const style = cellData[id]?.style;
-            if (style) {
-                el.style.fontWeight = style.bold ? 'bold' : 'normal';
-                el.style.fontStyle = style.italic ? 'italic' : 'normal';
+            if (data?.style) {
+                el.style.fontWeight = data.style.bold ? 'bold' : 'normal';
+                el.style.fontStyle = data.style.italic ? 'italic' : 'normal';
+                el.style.color = data.style.color || 'inherit';
+                el.style.backgroundColor = data.style.bg || 'white';
             }
         }
 
@@ -269,25 +322,22 @@
             });
         }
 
-        // --- AUTOFILL ENGINE ---
+        // --- AUTOFILL ---
         function completeFill(srcId, targetId) {
             const range = getLinearRange(srcId, targetId);
-            const source = cellData[srcId] || { val: "" };
+            const source = cellData[srcId] || { val: undefined };
             
             range.forEach((id, idx) => {
                 if (id === srcId) return;
                 let newVal = source.val;
                 let newFormula = source.formula;
 
-                // 1. If formula, increment cell names (relative reference)
                 if (newFormula) {
                     const offset = idx;
                     newFormula = newFormula.replace(/([A-Z])(\d+)/g, (match, col, row) => {
                         return `${col}${parseInt(row) + offset}`;
                     });
-                } 
-                // 2. If number, increment values
-                else if (!isNaN(parseFloat(newVal))) {
+                } else if (newVal !== undefined && !isNaN(parseFloat(newVal))) {
                     newVal = (parseFloat(newVal) + idx).toString();
                 }
 
@@ -295,6 +345,88 @@
                 renderDisplay(id);
             });
             recalcAll();
+        }
+
+        // --- FILE SYSTEM ---
+        function saveToBrowser() {
+            const title = document.getElementById('sheet-title').value;
+            const id = currentFileId || 'file_' + Date.now();
+            const files = JSON.parse(localStorage.getItem('cellnix_files') || '{}');
+            
+            files[id] = {
+                id,
+                title,
+                data: cellData,
+                updated: new Date().toISOString()
+            };
+            
+            localStorage.setItem('cellnix_files', JSON.stringify(files));
+            currentFileId = id;
+            loadFiles();
+            showStatus("Saved locally");
+        }
+
+        function loadFiles() {
+            const list = document.getElementById('file-list');
+            const files = JSON.parse(localStorage.getItem('cellnix_files') || '{}');
+            list.innerHTML = '';
+            
+            Object.values(files).sort((a,b) => new Date(b.updated) - new Date(a.updated)).forEach(file => {
+                const item = document.createElement('div');
+                item.className = "group flex items-center justify-between p-3 rounded-lg hover:bg-zinc-100 cursor-pointer transition";
+                item.innerHTML = `
+                    <div class="flex items-center gap-3 flex-1" onclick="openFile('${file.id}')">
+                        <i class="fa-solid fa-file-lines text-green-600"></i>
+                        <div>
+                            <p class="text-sm font-semibold text-zinc-800">${file.title}</p>
+                            <p class="text-[10px] text-zinc-400">Modified: ${new Date(file.updated).toLocaleString()}</p>
+                        </div>
+                    </div>
+                    <button onclick="deleteFile('${file.id}')" class="opacity-0 group-hover:opacity-100 p-2 text-zinc-300 hover:text-red-500 transition">
+                        <i class="fa-solid fa-trash-can"></i>
+                    </button>
+                `;
+                list.appendChild(item);
+            });
+        }
+
+        function openFile(id) {
+            const files = JSON.parse(localStorage.getItem('cellnix_files') || '{}');
+            const file = files[id];
+            if(!file) return;
+            
+            currentFileId = id;
+            cellData = file.data || {};
+            document.getElementById('sheet-title').value = file.title;
+            
+            // Clear Grid UI before rendering new data
+            document.querySelectorAll('.cell').forEach(c => {
+                c.innerText = "";
+                c.style = "";
+                const h = document.createElement('div');
+                h.className = 'fill-handle';
+                h.onmousedown = (e) => { e.stopPropagation(); isFilling = true; startId = activeId; };
+                c.appendChild(h);
+            });
+
+            Object.keys(cellData).forEach(renderDisplay);
+            document.getElementById('file-modal').classList.add('hidden');
+            selectCell('A1');
+        }
+
+        function deleteFile(id) {
+            const files = JSON.parse(localStorage.getItem('cellnix_files') || '{}');
+            delete files[id];
+            localStorage.setItem('cellnix_files', JSON.stringify(files));
+            loadFiles();
+        }
+
+        function createNewSheet() {
+            currentFileId = null;
+            cellData = {};
+            document.getElementById('sheet-title').value = "Untitled Spreadsheet";
+            renderGrid();
+            document.getElementById('file-modal').classList.add('hidden');
         }
 
         // --- HELPERS ---
@@ -328,10 +460,6 @@
             getLinearRange(s, e).forEach(id => document.getElementById(id)?.classList.add('drag-fill-preview'));
         }
 
-        function onCellKey(e) {
-            if (e.key === 'Enter') { e.preventDefault(); e.target.blur(); }
-        }
-
         function applyStyle(type) {
             document.querySelectorAll('.selected').forEach(el => {
                 if (!cellData[el.id]) cellData[el.id] = {};
@@ -343,7 +471,52 @@
             });
         }
 
-        window.onload = initAuth;
+        function applyColor(type, color) {
+            document.querySelectorAll('.selected').forEach(el => {
+                if (!cellData[el.id]) cellData[el.id] = {};
+                if (!cellData[el.id].style) cellData[el.id].style = {};
+                if (type === 'text') cellData[el.id].style.color = color;
+                else cellData[el.id].style.bg = color;
+                renderDisplay(el.id);
+            });
+        }
+
+        function updateStats() {
+            const selected = document.querySelectorAll('.selected');
+            const stats = document.getElementById('selection-stats');
+            if(selected.length <= 1) { stats.innerHTML = ""; return; }
+            
+            let sum = 0, count = 0;
+            selected.forEach(el => {
+                const v = parseFloat(cellData[el.id]?.val);
+                if(!isNaN(v)) { sum += v; count++; }
+            });
+            stats.innerHTML = `<span>Count: ${selected.length}</span>${count > 0 ? `<span>Sum: ${sum.toFixed(2)}</span>` : ''}`;
+        }
+
+        function showStatus(msg) {
+            const el = document.getElementById('status-msg');
+            el.innerHTML = `<i class="fa-solid fa-cloud-arrow-up mr-1"></i> ${msg}`;
+            setTimeout(() => el.innerHTML = `<i class="fa-solid fa-check-circle text-green-600 mr-1"></i> All changes saved to browser`, 3000);
+        }
+
+        function exportData() {
+            const rows = [];
+            for(let r=1; r<=ROWS; r++) {
+                const row = [];
+                for(let c=0; c<COLS; c++) {
+                    const id = `${String.fromCharCode(65+c)}${r}`;
+                    row.push(cellData[id]?.val || "");
+                }
+                rows.push(row);
+            }
+            const ws = XLSX.utils.aoa_to_sheet(rows);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
+            XLSX.writeFile(wb, `${document.getElementById('sheet-title').value}.xlsx`);
+        }
+
+        window.onload = init;
     </script>
 </body>
 </html>
