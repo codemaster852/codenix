@@ -1,190 +1,240 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dots & Lines: Neural Link</title>
+    <title>Dots & Lines: Neural Link v3.0</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#a855f7', // Purple
+                        'primary-dark': '#7e22ce',
+                    }
+                }
+            }
+        }
+    </script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;500;700&family=JetBrains+Mono:wght@400;700&display=swap');
         
-        body {
-            background-color: #050505;
-            font-family: 'JetBrains+Mono', monospace;
-            color: #e4e4e7;
-            overflow: hidden;
-            margin: 0;
+        :root {
+            --bg-color: #ffffff;
+            --text-color: #0f172a;
+            --grid-line: #e2e8f0;
+            --dot-color: #cbd5e1;
         }
 
+        .dark {
+            --bg-color: #050505;
+            --text-color: #f8fafc;
+            --grid-line: #1e1b4b;
+            --dot-color: #312e81;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: 'Space+Grotesk', sans-serif;
+            transition: background-color 0.4s ease, color 0.4s ease;
+            overflow-x: hidden;
+        }
+
+        .mono { font-family: 'JetBrains Mono', monospace; }
+
+        /* Game Board Elements */
         .dot {
-            width: 8px;
-            height: 8px;
-            background: #27272a;
+            width: 10px;
+            height: 10px;
+            background: var(--dot-color);
             border-radius: 50%;
-            transition: all 0.3s ease;
-            z-index: 10;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: 20;
         }
 
         .dot.active {
-            background: #10b981;
-            box-shadow: 0 0 15px #10b981;
-            transform: scale(1.5);
+            background: #a855f7;
+            box-shadow: 0 0 15px rgba(168, 85, 247, 0.6);
+            transform: scale(1.4);
         }
 
         .line {
             position: absolute;
-            background: #18181b;
-            transition: all 0.4s ease;
-            z-index: 5;
+            background: var(--grid-line);
+            transition: all 0.3s ease;
+            z-index: 10;
         }
 
-        .line.claimed-p1 { background: #10b981; box-shadow: 0 0 10px #10b981; }
-        .line.claimed-p2 { background: #3b82f6; box-shadow: 0 0 10px #3b82f6; }
+        .line:not(.claimed):hover {
+            background: #a855f7;
+            opacity: 0.5;
+        }
+
+        .line.claimed {
+            z-index: 11;
+        }
+
+        .line.p1 { background: #a855f7; box-shadow: 0 0 12px rgba(168, 85, 247, 0.4); }
+        .line.p2 { background: #6366f1; box-shadow: 0 0 12px rgba(99, 102, 241, 0.4); }
 
         .box {
             position: absolute;
-            transition: all 0.5s ease;
+            transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
             display: flex;
             align-items: center;
             justify-content: center;
-            font-weight: 900;
-            font-size: 1.5rem;
+            font-weight: 800;
+            font-size: 1.25rem;
             opacity: 0;
-            transform: scale(0.5);
+            transform: scale(0.8);
+            border-radius: 4px;
         }
 
-        .box.claimed { opacity: 0.2; transform: scale(1); }
-        .box-p1 { background: #10b981; color: #000; }
-        .box-p2 { background: #3b82f6; color: #000; }
-
-        /* Auth Blocking Overlay */
-        #auth-guard {
-            display: flex; /* Default to visible */
-            position: fixed;
-            inset: 0;
-            background: rgba(5, 5, 5, 0.98);
-            backdrop-filter: blur(12px);
-            z-index: 9999;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            text-align: center;
-            padding: 2rem;
-        }
+        .box.claimed { opacity: 0.15; transform: scale(1); }
+        .box-p1 { background: #a855f7; color: white; }
+        .box-p2 { background: #6366f1; color: white; }
 
         .scanline {
             width: 100%; height: 100%;
-            background: linear-gradient(to bottom, transparent 50%, rgba(0,0,0,0.05) 51%);
+            background: linear-gradient(to bottom, transparent 50%, rgba(168, 85, 247, 0.02) 51%);
             background-size: 100% 4px;
-            position: fixed; top: 0; left: 0; pointer-events: none; z-index: 100;
+            position: fixed; top: 0; left: 0; pointer-events: none; z-index: 50;
+        }
+
+        #auth-loading {
+            position: fixed; inset: 0; background: var(--bg-color);
+            z-index: 10000; display: flex; align-items: center; justify-content: center;
         }
     </style>
 </head>
-<body class="flex flex-col min-h-screen p-4 md:p-8">
+<body class="min-h-screen selection:bg-purple-500/30">
+    <div id="auth-loading">
+        <div class="flex flex-col items-center">
+            <div class="w-12 h-12 border-4 border-purple-500 border-t-transparent rounded-full animate-spin"></div>
+            <p class="mt-4 mono text-xs uppercase tracking-widest opacity-50">Handshaking_Neural_Link...</p>
+        </div>
+    </div>
+
     <div class="scanline"></div>
 
-    <!-- Auth Guard Overlay -->
-    <div id="auth-guard">
-        <div class="max-w-md border border-zinc-800 p-8 rounded-lg bg-zinc-900/50 shadow-2xl">
-            <div class="text-red-500 mb-6">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 mx-auto animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m0 0v2m0-2h2m-2 0H10m11-3V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2h14a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                </svg>
+    <nav class="border-b border-purple-500/20 backdrop-blur-md sticky top-0 z-40 bg-opacity-70">
+        <div class="max-w-6xl mx-auto px-6 py-4 flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <div class="w-8 h-8 bg-purple-600 rounded flex items-center justify-center font-black text-white">NL</div>
+                <div>
+                    <h1 class="text-lg font-bold tracking-tight uppercase leading-none">Neural_Link <span class="text-purple-500">v3</span></h1>
+                    <span class="text-[9px] mono opacity-50 uppercase">Secure_Environment_Active</span>
+                </div>
             </div>
-            <h2 class="text-xl font-bold uppercase tracking-tighter mb-2">Access_Denied</h2>
-            <p class="text-zinc-400 text-sm mb-8 leading-relaxed">Neural Link connection detected. Authentication required to initialize Game Logic. Guest access is prohibited.</p>
-            <a href="auth.html" class="inline-block w-full py-4 bg-emerald-500 text-black font-black uppercase tracking-widest hover:bg-emerald-400 transition-colors">
-                Proceed_to_Auth
-            </a>
+            
+            <div class="flex items-center gap-4">
+                <button onclick="toggleTheme()" class="p-2 rounded-lg border border-purple-500/20 hover:bg-purple-500/10 transition-all">
+                    <svg id="sun-icon" class="w-5 h-5 hidden dark:block" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m12.728 0l-.707-.707M6.343 6.343l-.707-.707M12 8a4 4 0 100 8 4 4 0 000-8z" /></svg>
+                    <svg id="moon-icon" class="w-5 h-5 block dark:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" /></svg>
+                </button>
+                <div id="user-display" class="hidden md:flex flex-col items-end mr-2">
+                    <span id="user-email" class="text-[10px] mono opacity-70 italic">guest@local</span>
+                    <button onclick="handleLogout()" class="text-[9px] text-red-500 uppercase font-bold hover:underline">Disconnect</button>
+                </div>
+            </div>
         </div>
-    </div>
+    </nav>
 
-    <div class="max-w-4xl mx-auto w-full flex-1 flex flex-col">
-        <header class="mb-8 border-b border-zinc-800 pb-4 flex justify-between items-end">
-            <div>
-                <h1 class="text-2xl font-black tracking-tighter uppercase">Dots_&_Lines<span class="text-emerald-500">.exe</span></h1>
-                <p class="text-[10px] text-zinc-500 font-mono tracking-widest uppercase">Grid_Capture_Protocol_v2.0</p>
+    <main class="max-w-6xl mx-auto p-6 md:py-12 flex flex-col lg:flex-row gap-12 items-center justify-center min-h-[calc(100vh-80px)]">
+        
+        <!-- Game Stats Side -->
+        <div class="w-full lg:w-64 space-y-6 order-2 lg:order-1">
+            <div class="p-6 rounded-2xl border border-purple-500/20 bg-purple-500/5 backdrop-blur-sm relative overflow-hidden group">
+                <div class="absolute top-0 right-0 p-2 opacity-10 group-hover:opacity-30 transition-opacity">
+                    <svg class="w-12 h-12" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                </div>
+                <h3 class="text-[10px] mono uppercase tracking-widest mb-4 flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full bg-purple-500"></span> Current_Turn
+                </h3>
+                <div id="turn-indicator" class="text-xl font-bold uppercase tracking-tighter text-purple-500">Player 1</div>
             </div>
-            <div id="turn-indicator" class="text-[10px] font-bold px-3 py-1 bg-emerald-500 text-black rounded uppercase">
-                Player_1_Turn
-            </div>
-        </header>
 
-        <div class="flex-1 flex flex-col lg:flex-row gap-8 items-center justify-center">
-            <div id="game-container" class="relative bg-zinc-900/20 border border-zinc-800 rounded-xl p-8">
+            <div class="grid grid-cols-2 lg:grid-cols-1 gap-4">
+                <div class="p-5 rounded-xl border border-purple-500/20 bg-white dark:bg-zinc-900/50">
+                    <span class="text-[10px] mono uppercase opacity-50 block mb-1">P1 Score</span>
+                    <div id="score-p1" class="text-4xl font-bold text-purple-500">0</div>
+                </div>
+                <div class="p-5 rounded-xl border border-indigo-500/20 bg-white dark:bg-zinc-900/50">
+                    <span class="text-[10px] mono uppercase opacity-50 block mb-1">P2 Score</span>
+                    <div id="score-p2" class="text-4xl font-bold text-indigo-500">0</div>
+                </div>
+            </div>
+
+            <button onclick="resetGame()" class="w-full py-4 rounded-xl border border-purple-500/40 hover:bg-purple-500 hover:text-white font-bold uppercase text-xs tracking-widest transition-all active:scale-95">
+                Reboot_Session
+            </button>
+        </div>
+
+        <!-- Game Area -->
+        <div class="flex-1 flex items-center justify-center order-1 lg:order-2">
+            <div class="relative p-10 bg-purple-500/5 rounded-[40px] border border-purple-500/10 shadow-2xl">
                 <div id="grid" class="relative"></div>
             </div>
-
-            <div class="w-full lg:w-48 space-y-4">
-                <div class="p-4 rounded border border-zinc-800 bg-zinc-900/50">
-                    <span class="text-[10px] text-zinc-500 uppercase block mb-2">P1_Captures</span>
-                    <div id="score-p1" class="text-3xl font-black text-emerald-500">0</div>
-                </div>
-                <div class="p-4 rounded border border-zinc-800 bg-zinc-900/50">
-                    <span class="text-[10px] text-zinc-500 uppercase block mb-2">P2_Captures</span>
-                    <div id="score-p2" class="text-3xl font-black text-blue-500">0</div>
-                </div>
-                <button onclick="resetGame()" class="w-full py-3 border border-zinc-800 hover:border-white text-[10px] font-bold uppercase transition-all">
-                    Reset_Session
-                </button>
-                <button id="logout-btn" class="hidden w-full py-3 border border-red-900/50 hover:border-red-500 text-[10px] font-bold uppercase transition-all text-red-500">
-                    Disconnect
-                </button>
-            </div>
         </div>
-    </div>
+
+    </main>
 
     <script>
-        // Supabase Configuration - Fixed SyntaxError by renaming local variable
+        // --- Supabase Config ---
         const SUPABASE_URL = "https://rnlwrngfgvznndlekmrz.supabase.co";
         const SUPABASE_KEY = "sb_publishable_mtI0_ZBvU_n5oRuqV58QHg_qJt3Gfyt";
-        
-        // The CDN script exposes a global 'supabase' object with a 'createClient' method
-        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-        const guard = document.getElementById('auth-guard');
-        const logoutBtn = document.getElementById('logout-btn');
-
-        // Check Session & Auth
-        async function checkUser() {
+        // --- Auth Guard ---
+        async function checkAuth() {
+            const loading = document.getElementById('auth-loading');
             try {
-                const { data: { session } } = await supabaseClient.auth.getSession();
-                if (session && session.user) {
-                    guard.style.display = 'none';
-                    logoutBtn.classList.remove('hidden');
+                const { data: { session } } = await sb.auth.getSession();
+                if (!session) {
+                    // Not signed in
+                    localStorage.setItem('redirectAfterAuth', window.location.href);
+                    window.location.href = 'auth.html';
                 } else {
-                    guard.style.display = 'flex';
-                    logoutBtn.classList.add('hidden');
+                    // Signed in
+                    document.getElementById('user-email').innerText = session.user.email;
+                    document.getElementById('user-display').classList.remove('hidden');
+                    loading.style.opacity = '0';
+                    setTimeout(() => loading.style.display = 'none', 500);
                 }
-            } catch (error) {
-                console.error("Auth check failed:", error);
-                guard.style.display = 'flex';
+            } catch (e) {
+                console.error("Auth Error", e);
             }
         }
 
-        // Listen for Auth Changes
-        supabaseClient.auth.onAuthStateChange((event, session) => {
-            if (event === 'SIGNED_IN' || session) {
-                guard.style.display = 'none';
-                logoutBtn.classList.remove('hidden');
-            } else {
-                guard.style.display = 'flex';
-                logoutBtn.classList.add('hidden');
-            }
-        });
-
-        logoutBtn.addEventListener('click', async () => {
-            await supabaseClient.auth.signOut();
+        async function handleLogout() {
+            await sb.auth.signOut();
             window.location.reload();
-        });
+        }
 
-        // Initialize check
-        checkUser();
+        // --- Theme Engine ---
+        function toggleTheme() {
+            const html = document.documentElement;
+            if (html.classList.contains('dark')) {
+                html.classList.remove('dark');
+                localStorage.setItem('theme', 'light');
+            } else {
+                html.classList.add('dark');
+                localStorage.setItem('theme', 'dark');
+            }
+        }
+
+        // Apply saved theme
+        if (localStorage.getItem('theme') === 'light') {
+            document.documentElement.classList.remove('dark');
+        }
 
         // --- Game Logic ---
-        const GRID_SIZE = 5; 
-        const DOT_SPACING = 60;
+        const GRID_SIZE = 6; 
+        const DOT_SPACING = window.innerWidth < 768 ? 50 : 70;
         let currentPlayer = 1;
         let scores = { 1: 0, 2: 0 };
         let lines = new Set();
@@ -197,6 +247,7 @@
             grid.innerHTML = '';
 
             boxes = [];
+            // Generate Boxes
             for (let r = 0; r < GRID_SIZE - 1; r++) {
                 for (let c = 0; c < GRID_SIZE - 1; c++) {
                     const boxEl = document.createElement('div');
@@ -210,20 +261,23 @@
                 }
             }
 
+            // Generate Horizontal Lines
             for (let r = 0; r < GRID_SIZE; r++) {
                 for (let c = 0; c < GRID_SIZE - 1; c++) createLine(r, c, r, c + 1, 'h');
             }
 
+            // Generate Vertical Lines
             for (let r = 0; r < GRID_SIZE - 1; r++) {
                 for (let c = 0; c < GRID_SIZE; c++) createLine(r, c, r + 1, c, 'v');
             }
 
+            // Generate Dots
             for (let r = 0; r < GRID_SIZE; r++) {
                 for (let c = 0; c < GRID_SIZE; c++) {
                     const dot = document.createElement('div');
                     dot.className = 'dot absolute';
-                    dot.style.left = `${c * DOT_SPACING - 4}px`;
-                    dot.style.top = `${r * DOT_SPACING - 4}px`;
+                    dot.style.left = `${c * DOT_SPACING - 5}px`;
+                    dot.style.top = `${r * DOT_SPACING - 5}px`;
                     grid.appendChild(dot);
                 }
             }
@@ -233,18 +287,19 @@
             const grid = document.getElementById('grid');
             const line = document.createElement('div');
             const id = `${r1},${c1}-${r2},${c2}`;
-            line.className = 'line cursor-pointer hover:bg-zinc-700';
+            line.className = 'line cursor-pointer rounded-full';
             
+            const thickness = 6;
             if (type === 'h') {
-                line.style.width = `${DOT_SPACING}px`;
-                line.style.height = `4px`;
-                line.style.left = `${c1 * DOT_SPACING}px`;
-                line.style.top = `${r1 * DOT_SPACING - 2}px`;
+                line.style.width = `${DOT_SPACING - 10}px`;
+                line.style.height = `${thickness}px`;
+                line.style.left = `${c1 * DOT_SPACING + 5}px`;
+                line.style.top = `${r1 * DOT_SPACING - (thickness/2)}px`;
             } else {
-                line.style.width = `4px`;
-                line.style.height = `${DOT_SPACING}px`;
-                line.style.left = `${c1 * DOT_SPACING - 2}px`;
-                line.style.top = `${r1 * DOT_SPACING}px`;
+                line.style.width = `${thickness}px`;
+                line.style.height = `${DOT_SPACING - 10}px`;
+                line.style.left = `${c1 * DOT_SPACING - (thickness/2)}px`;
+                line.style.top = `${r1 * DOT_SPACING + 5}px`;
             }
 
             line.onclick = () => handleMove(line, id, r1, c1, r2, c2, type);
@@ -255,8 +310,7 @@
             if (lines.has(id)) return;
 
             lines.add(id);
-            el.classList.add(`claimed-p${currentPlayer}`);
-            el.classList.remove('hover:bg-zinc-700');
+            el.classList.add('claimed', currentPlayer === 1 ? 'p1' : 'p2');
 
             let boxCaptured = false;
             boxes.forEach(box => {
@@ -272,7 +326,7 @@
                     if (box.sides === 4) {
                         box.owner = currentPlayer;
                         box.element.classList.add('claimed', `box-p${currentPlayer}`);
-                        box.element.innerText = currentPlayer === 1 ? '01' : '02';
+                        box.element.innerText = currentPlayer === 1 ? 'P1' : 'P2';
                         scores[currentPlayer]++;
                         boxCaptured = true;
                     }
@@ -281,6 +335,11 @@
 
             if (!boxCaptured) {
                 currentPlayer = currentPlayer === 1 ? 2 : 1;
+            } else {
+                // Add a small haptic-like scale effect to scores
+                const scoreEl = document.getElementById(`score-p${currentPlayer}`);
+                scoreEl.style.transform = 'scale(1.2)';
+                setTimeout(() => scoreEl.style.transform = 'scale(1)', 200);
             }
             updateUI();
         }
@@ -289,8 +348,8 @@
             document.getElementById('score-p1').innerText = scores[1];
             document.getElementById('score-p2').innerText = scores[2];
             const indicator = document.getElementById('turn-indicator');
-            indicator.innerText = `Player_${currentPlayer}_Turn`;
-            indicator.className = `text-[10px] font-bold px-3 py-1 rounded uppercase ${currentPlayer === 1 ? 'bg-emerald-500 text-black' : 'bg-blue-500 text-white'}`;
+            indicator.innerText = `Player ${currentPlayer}`;
+            indicator.className = `text-xl font-bold uppercase tracking-tighter transition-colors ${currentPlayer === 1 ? 'text-purple-500' : 'text-indigo-500'}`;
         }
 
         function resetGame() {
@@ -301,7 +360,10 @@
             updateUI();
         }
 
-        window.onload = initGame;
+        window.onload = () => {
+            checkAuth();
+            initGame();
+        };
     </script>
 </body>
 </html>
