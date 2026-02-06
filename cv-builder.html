@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Live CV Studio | Advanced Editor</title>
+    <title>Live CV Studio | Pro Editor</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
@@ -11,151 +11,179 @@
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
         
-        body { font-family: 'Plus Jakarta Sans', sans-serif; height: 100vh; overflow: hidden; margin: 0; background: #0f172a; }
-        
-        #loading-screen {
-            position: fixed; inset: 0; background: #0f172a; z-index: 9999;
-            display: flex; flex-direction: column; align-items: center; justify-content: center; color: white;
+        :root {
+            --primary: #7c3aed;
+            --primary-hover: #6d28d9;
         }
 
+        body { font-family: 'Plus Jakarta Sans', sans-serif; height: 100vh; overflow: hidden; margin: 0; transition: background 0.3s ease; }
+        
+        /* Theme Specifics */
+        .light { background: #f8fafc; color: #1e293b; }
+        .dark { background: #050505; color: #f8fafc; }
+
+        #loading-screen {
+            position: fixed; inset: 0; z-index: 9999;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+        }
+        .light #loading-screen { background: white; color: #1e293b; }
+        .dark #loading-screen { background: #0a0a0a; color: white; }
+
         .spinner {
-            width: 40px; height: 40px; border: 4px solid rgba(255,255,255,0.1);
-            border-left-color: #6366f1; border-radius: 50%; animation: spin 1s linear infinite;
+            width: 40px; height: 40px; border: 4px solid rgba(124, 58, 237, 0.1);
+            border-left-color: var(--primary); border-radius: 50%; animation: spin 1s linear infinite;
         }
         @keyframes spin { to { transform: rotate(360deg); } }
 
         .app-container { display: flex; height: 100vh; width: 100vw; visibility: hidden; }
 
+        /* Editor Panes */
         #editor-pane {
             min-width: 380px; width: 45%; height: 100%;
-            background: #ffffff; z-index: 10; display: flex; flex-direction: column;
+            z-index: 10; display: flex; flex-direction: column;
+            transition: background 0.3s, border 0.3s;
         }
+        .light #editor-pane { background: #ffffff; border-right: 1px solid #e2e8f0; }
+        .dark #editor-pane { background: #0a0a0a; border-right: 1px solid #1a1a1a; }
 
-        #resizer {
-            width: 6px; cursor: col-resize; background: #e2e8f0;
-            transition: background 0.2s; z-index: 20; position: relative;
-        }
-        #resizer:hover, .resizing #resizer { background: #6366f1; }
+        #resizer { width: 4px; cursor: col-resize; transition: background 0.2s; z-index: 20; }
+        .light #resizer { background: #e2e8f0; }
+        .dark #resizer { background: #1a1a1a; }
+        #resizer:hover, .resizing #resizer { background: var(--primary); }
 
         #preview-pane {
-            flex: 1; height: 100%; background: #f1f5f9; overflow: auto;
-            display: flex; justify-content: center; padding: 40px 20px;
+            flex: 1; height: 100%; overflow: auto;
+            display: flex; justify-content: center; padding: 60px 20px;
+            transition: background 0.3s;
         }
+        .light #preview-pane { background: #f1f5f9; }
+        .dark #preview-pane { background: #000000; }
 
-        .dark #editor-pane { background: #0f172a; border-right: 1px solid #1e293b; }
-        .dark #preview-pane { background: #020617; }
-        .dark #resizer { background: #1e293b; }
-
+        /* Form Controls */
         .form-input {
             width: 100%; padding: 0.75rem 1rem; border-radius: 0.75rem;
-            border: 1px solid #e2e8f0; background: #f8fafc; font-size: 0.875rem; transition: all 0.2s;
+            border: 1px solid transparent; font-size: 0.875rem; transition: all 0.2s;
         }
-        .dark .form-input { background: #1e293b; border-color: #334155; color: #f1f5f9; }
-        .form-input:focus { border-color: #6366f1; outline: none; ring: 2px; ring-color: #6366f1; }
+        .light .form-input { background: #f1f5f9; border-color: #e2e8f0; color: #1e293b; }
+        .dark .form-input { background: #141414; border-color: #262626; color: #f8fafc; }
+        .form-input:focus { border-color: var(--primary); outline: none; box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.15); }
 
+        /* CV Sheet (Always White for Print) */
         .a4-wrapper { transform-origin: top center; transition: transform 0.1s ease-out; }
         .a4-page {
             width: 210mm; min-height: 297mm; background: white;
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); padding: 15mm; color: #1e293b;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.3); padding: 18mm; color: #1e293b;
         }
 
         .preview-hidden #preview-pane, .preview-hidden #resizer { display: none; }
         .preview-hidden #editor-pane { width: 100% !important; }
         .resizing { cursor: col-resize; user-select: none; }
-        .preserve-case { text-transform: none !important; }
-
-        /* Custom Scrollbar */
-        ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
     </style>
 </head>
 <body class="dark">
 
     <div id="loading-screen">
         <div class="spinner mb-4"></div>
-        <p class="text-sm font-medium text-slate-400">Verifying Professional Session...</p>
+        <p class="text-sm font-bold tracking-widest uppercase opacity-50">Initializing Studio</p>
     </div>
 
     <div class="app-container" id="main-layout">
         <div id="editor-pane">
-            <header class="p-4 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center sticky top-0 bg-white dark:bg-[#0f172a] z-30">
+            <header class="p-5 border-b flex justify-between items-center sticky top-0 z-30 light:bg-white dark:bg-[#0a0a0a]">
                 <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-indigo-500/20">
-                        <i class="fa-solid fa-wand-magic-sparkles"></i>
+                    <div class="w-10 h-10 bg-purple-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-purple-500/30">
+                        <i class="fa-solid fa-feather-pointed text-lg"></i>
                     </div>
                     <div>
-                        <h1 class="font-bold dark:text-white leading-none tracking-tight">CV Studio Pro</h1>
-                        <p id="user-display" class="text-[10px] text-indigo-400 font-bold uppercase mt-1">Loading profile...</p>
+                        <h1 class="font-bold leading-none tracking-tight text-lg">Studio Pro</h1>
+                        <p id="user-display" class="text-[10px] text-purple-500 font-black uppercase mt-1">Session Active</p>
                     </div>
                 </div>
                 <div class="flex gap-2">
-                    <button onclick="togglePreview()" class="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-indigo-400 transition-all" title="Toggle Preview">
-                        <i class="fa-solid fa-eye-slash"></i>
+                    <button onclick="toggleTheme()" class="p-2.5 rounded-xl bg-gray-500/10 hover:bg-purple-500/20 text-gray-500 hover:text-purple-500 transition-all">
+                        <i id="theme-icon" class="fa-solid fa-moon"></i>
                     </button>
-                    <button onclick="downloadPDF()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all active:scale-95">
-                        <i class="fa-solid fa-file-export"></i> <span>Export PDF</span>
+                    <button onclick="togglePreview()" class="p-2.5 rounded-xl bg-gray-500/10 hover:bg-purple-500/20 text-gray-500 hover:text-purple-500 transition-all">
+                        <i class="fa-solid fa-maximize"></i>
                     </button>
-                    <button onclick="handleLogout()" class="p-2.5 rounded-xl bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white transition-all" title="Secure Logout">
-                        <i class="fa-solid fa-power-off"></i>
+                    <button onclick="downloadPDF()" class="bg-purple-600 hover:bg-purple-700 text-white px-5 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 transition-all active:scale-95 shadow-lg shadow-purple-600/20">
+                        <i class="fa-solid fa-file-arrow-down"></i> <span>Export</span>
+                    </button>
+                    <button onclick="handleLogout()" class="p-2.5 rounded-xl bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white transition-all">
+                        <i class="fa-solid fa-right-from-bracket"></i>
                     </button>
                 </div>
             </header>
 
-            <div class="p-6 space-y-8 overflow-y-auto pb-20">
-                <!-- Personal Details -->
+            <div class="p-8 space-y-10 overflow-y-auto pb-32">
+                <!-- Profile Section -->
                 <section>
-                    <div class="flex items-center gap-2 mb-4">
-                        <i class="fa-solid fa-user text-indigo-500 text-xs"></i>
-                        <h3 class="text-xs font-black uppercase tracking-widest text-slate-400">Personal Identity</h3>
+                    <div class="flex items-center gap-2 mb-6">
+                        <div class="w-1.5 h-4 bg-purple-500 rounded-full"></div>
+                        <h3 class="text-[11px] font-black uppercase tracking-[0.2em] opacity-60">Personal Identity</h3>
                     </div>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        <input type="text" id="in-name" oninput="sync()" placeholder="Full Name" class="form-input">
-                        <input type="text" id="in-tailored-title" oninput="sync()" placeholder="Target Job Title" class="form-input">
-                        <input type="email" id="in-email" oninput="sync()" placeholder="Professional Email" class="form-input">
-                        <input type="text" id="in-phone" oninput="sync()" placeholder="Phone Number" class="form-input">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="space-y-1">
+                            <label class="text-[10px] font-bold opacity-40 uppercase ml-1">Legal Name</label>
+                            <input type="text" id="in-name" oninput="sync()" placeholder="John Doe" class="form-input">
+                        </div>
+                        <div class="space-y-1">
+                            <label class="text-[10px] font-bold opacity-40 uppercase ml-1">Target Position</label>
+                            <input type="text" id="in-tailored-title" oninput="sync()" placeholder="Senior Product Designer" class="form-input">
+                        </div>
+                        <div class="space-y-1">
+                            <label class="text-[10px] font-bold opacity-40 uppercase ml-1">Email</label>
+                            <input type="email" id="in-email" oninput="sync()" placeholder="john@example.com" class="form-input">
+                        </div>
+                        <div class="space-y-1">
+                            <label class="text-[10px] font-bold opacity-40 uppercase ml-1">Phone</label>
+                            <input type="text" id="in-phone" oninput="sync()" placeholder="+1 234 567 890" class="form-input">
+                        </div>
                     </div>
-                    <textarea id="in-summary" oninput="sync()" placeholder="Executive summary or professional profile..." class="form-input h-28 mt-3 resize-none"></textarea>
+                    <div class="mt-4 space-y-1">
+                        <label class="text-[10px] font-bold opacity-40 uppercase ml-1">Executive Summary</label>
+                        <textarea id="in-summary" oninput="sync()" placeholder="Driven professional with..." class="form-input h-32 resize-none"></textarea>
+                    </div>
                 </section>
 
                 <!-- Skills -->
                 <section>
-                    <div class="flex items-center gap-2 mb-4">
-                        <i class="fa-solid fa-layer-group text-indigo-500 text-xs"></i>
-                        <h3 class="text-xs font-black uppercase tracking-widest text-slate-400">Expertise & Skills</h3>
+                    <div class="flex items-center gap-2 mb-6">
+                        <div class="w-1.5 h-4 bg-purple-500 rounded-full"></div>
+                        <h3 class="text-[11px] font-black uppercase tracking-[0.2em] opacity-60">Expertise</h3>
                     </div>
-                    <div class="space-y-3">
-                        <div class="group">
-                            <label class="text-[10px] font-bold text-slate-500 ml-1 mb-1 block">CORE COMPETENCIES (COMMA SEPARATED)</label>
-                            <input type="text" id="in-hard-skills" oninput="sync()" placeholder="e.g. Project Management, React, AWS" class="form-input">
+                    <div class="grid grid-cols-1 gap-5">
+                        <div class="space-y-1">
+                            <label class="text-[10px] font-bold opacity-40 uppercase ml-1">Hard Skills (Comma separated)</label>
+                            <input type="text" id="in-hard-skills" oninput="sync()" placeholder="React, Python, Figma, SQL" class="form-input">
                         </div>
-                        <div class="group">
-                            <label class="text-[10px] font-bold text-slate-500 ml-1 mb-1 block">SOFT SKILLS</label>
-                            <input type="text" id="in-soft-skills" oninput="sync()" placeholder="e.g. Leadership, Communication" class="form-input">
+                        <div class="space-y-1">
+                            <label class="text-[10px] font-bold opacity-40 uppercase ml-1">Soft Skills</label>
+                            <input type="text" id="in-soft-skills" oninput="sync()" placeholder="Leadership, Agile, Communication" class="form-input">
                         </div>
                     </div>
                 </section>
 
-                <!-- Experience -->
+                <!-- Work History -->
                 <section>
-                    <div class="flex justify-between items-center mb-4">
+                    <div class="flex justify-between items-center mb-6">
                         <div class="flex items-center gap-2">
-                            <i class="fa-solid fa-briefcase text-indigo-500 text-xs"></i>
-                            <h3 class="text-xs font-black uppercase tracking-widest text-slate-400">Work History</h3>
+                            <div class="w-1.5 h-4 bg-purple-500 rounded-full"></div>
+                            <h3 class="text-[11px] font-black uppercase tracking-[0.2em] opacity-60">Experience</h3>
                         </div>
-                        <button onclick="addExp()" class="text-[10px] font-bold bg-indigo-500/10 text-indigo-500 px-3 py-1 rounded-full hover:bg-indigo-500 hover:text-white transition-all">+ ADD EXPERIENCE</button>
+                        <button onclick="addExp()" class="text-[10px] font-bold bg-purple-500/10 text-purple-500 px-4 py-1.5 rounded-lg hover:bg-purple-500 hover:text-white transition-all">ADD JOB</button>
                     </div>
                     <div id="exp-inputs" class="space-y-4"></div>
                 </section>
 
                 <!-- Education -->
                 <section>
-                    <div class="flex justify-between items-center mb-4">
+                    <div class="flex justify-between items-center mb-6">
                         <div class="flex items-center gap-2">
-                            <i class="fa-solid fa-graduation-cap text-indigo-500 text-xs"></i>
-                            <h3 class="text-xs font-black uppercase tracking-widest text-slate-400">Education</h3>
+                            <div class="w-1.5 h-4 bg-purple-500 rounded-full"></div>
+                            <h3 class="text-[11px] font-black uppercase tracking-[0.2em] opacity-60">Education</h3>
                         </div>
-                        <button onclick="addEdu()" class="text-[10px] font-bold bg-indigo-500/10 text-indigo-500 px-3 py-1 rounded-full hover:bg-indigo-500 hover:text-white transition-all">+ ADD EDUCATION</button>
+                        <button onclick="addEdu()" class="text-[10px] font-bold bg-purple-500/10 text-purple-500 px-4 py-1.5 rounded-lg hover:bg-purple-500 hover:text-white transition-all">ADD SCHOOL</button>
                     </div>
                     <div id="edu-inputs" class="space-y-4"></div>
                 </section>
@@ -166,41 +194,41 @@
 
         <div id="preview-pane">
             <div class="a4-wrapper" id="zoom-container">
-                <div class="a4-page" id="pdf-content">
-                    <div class="border-b-4 border-slate-900 pb-6 mb-6 flex justify-between items-end">
+                <div class="a4-page shadow-2xl" id="pdf-content">
+                    <div class="border-b-4 border-slate-900 pb-6 mb-8 flex justify-between items-end">
                         <div>
-                            <h1 id="pv-name" class="text-4xl font-extrabold text-slate-900 tracking-tighter preserve-case mb-1 uppercase">YOUR NAME</h1>
-                            <p id="pv-tailored-title" class="text-lg font-bold text-indigo-600 preserve-case tracking-tight">Professional Title</p>
+                            <h1 id="pv-name" class="text-4xl font-extrabold text-slate-900 tracking-tighter uppercase mb-1">YOUR NAME</h1>
+                            <p id="pv-tailored-title" class="text-lg font-bold text-purple-600 tracking-tight">Professional Role</p>
                         </div>
-                        <div class="text-right text-[11px] font-semibold text-slate-500 leading-tight">
+                        <div class="text-right text-[11px] font-bold text-slate-400 leading-tight">
                             <p id="pv-email">email@domain.com</p>
                             <p id="pv-phone">000.000.0000</p>
                         </div>
                     </div>
 
-                    <div class="grid grid-cols-12 gap-8">
-                        <div class="col-span-8 space-y-8">
+                    <div class="grid grid-cols-12 gap-10">
+                        <div class="col-span-8 space-y-10">
                             <section>
-                                <h2 class="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400 border-b-2 border-slate-100 pb-1 mb-3">Executive Summary</h2>
-                                <p id="pv-summary" class="text-[12px] leading-relaxed text-slate-700 preserve-case text-justify">High-impact professional with a proven track record...</p>
+                                <h2 class="text-[10px] font-black uppercase tracking-[0.25em] text-slate-300 border-b border-slate-100 pb-1 mb-3">Executive Summary</h2>
+                                <p id="pv-summary" class="text-[12px] leading-relaxed text-slate-600 text-justify">Type in the editor to populate your summary...</p>
                             </section>
                             <section>
-                                <h2 class="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400 border-b-2 border-slate-100 pb-1 mb-4">Professional Experience</h2>
-                                <div id="pv-exp-list" class="space-y-6"></div>
+                                <h2 class="text-[10px] font-black uppercase tracking-[0.25em] text-slate-300 border-b border-slate-100 pb-1 mb-5">Experience</h2>
+                                <div id="pv-exp-list" class="space-y-8"></div>
                             </section>
                         </div>
-                        <div class="col-span-4 space-y-8">
+                        <div class="col-span-4 space-y-10">
                             <section>
-                                <h2 class="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400 mb-3">Core Expertise</h2>
-                                <div id="pv-hard-skills" class="flex flex-wrap gap-1.5"></div>
+                                <h2 class="text-[10px] font-black uppercase tracking-[0.25em] text-slate-300 mb-4">Core Skills</h2>
+                                <div id="pv-hard-skills" class="flex flex-wrap gap-2"></div>
                             </section>
                             <section>
-                                <h2 class="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400 mb-3">Soft Skills</h2>
-                                <div id="pv-soft-skills" class="flex flex-wrap gap-1.5"></div>
+                                <h2 class="text-[10px] font-black uppercase tracking-[0.25em] text-slate-300 mb-4">Competencies</h2>
+                                <div id="pv-soft-skills" class="flex flex-wrap gap-2"></div>
                             </section>
                             <section>
-                                <h2 class="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400 mb-3">Academic Background</h2>
-                                <div id="pv-edu-list" class="space-y-4"></div>
+                                <h2 class="text-[10px] font-black uppercase tracking-[0.25em] text-slate-300 mb-4">Education</h2>
+                                <div id="pv-edu-list" class="space-y-5"></div>
                             </section>
                         </div>
                     </div>
@@ -210,38 +238,50 @@
     </div>
 
     <script>
-        // Supabase Initialization
         const SUPABASE_URL = "https://rnlwrngfgvznndlekmrz.supabase.co";
         const SUPABASE_ANON_KEY = "sb_publishable_mtI0_ZBvU_n5oRuqV58QHg_qJt3Gfyt";
         const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+        // Theme Management
+        function setTheme(theme) {
+            document.body.className = theme;
+            const icon = document.getElementById('theme-icon');
+            icon.className = theme === 'dark' ? 'fa-solid fa-sun' : 'fa-solid fa-moon';
+            localStorage.setItem('cv-theme', theme);
+        }
+
+        function toggleTheme() {
+            const current = document.body.classList.contains('dark') ? 'light' : 'dark';
+            setTheme(current);
+        }
+
+        // Initialize theme from storage
+        const savedTheme = localStorage.getItem('cv-theme') || 'dark';
+        setTheme(savedTheme);
+
         async function checkAuth() {
-            const { data: { session }, error } = await supabaseClient.auth.getSession();
-            
+            const { data: { session } } = await supabaseClient.auth.getSession();
             if (!session) {
-                // If not signed in, redirect to auth.html
                 window.location.href = 'auth.html';
             } else {
-                // User is authenticated
                 document.getElementById('loading-screen').style.opacity = '0';
                 setTimeout(() => {
                     document.getElementById('loading-screen').style.display = 'none';
                     document.getElementById('main-layout').style.visibility = 'visible';
-                }, 300);
-                
-                document.getElementById('user-display').innerText = `Active: ${session.user.email}`;
+                }, 400);
+                document.getElementById('user-display').innerText = `Pro Account: ${session.user.email.split('@')[0]}`;
                 adjustZoom();
             }
         }
 
         async function handleLogout() {
-            if (confirm("Are you sure you want to sign out?")) {
+            if (confirm("Sign out of your professional session?")) {
                 await supabaseClient.auth.signOut();
                 window.location.href = 'auth.html';
             }
         }
 
-        // Resizing Logic
+        // Layout Resizer
         const resizer = document.getElementById('resizer');
         const leftSide = document.getElementById('editor-pane');
         const layout = document.getElementById('main-layout');
@@ -251,7 +291,7 @@
         document.addEventListener('mousemove', (e) => {
             if (!isResizing) return;
             let newWidth = (e.clientX / layout.offsetWidth) * 100;
-            newWidth = Math.max(30, Math.min(newWidth, 70));
+            newWidth = Math.max(30, Math.min(newWidth, 65));
             leftSide.style.width = `${newWidth}%`;
             adjustZoom();
         });
@@ -266,25 +306,23 @@
             const container = document.getElementById('preview-pane');
             const wrapper = document.getElementById('zoom-container');
             if (!container || !wrapper) return;
-            // Target A4 width is ~794px
             const scale = (container.offsetWidth - 80) / 794;
-            wrapper.style.transform = `scale(${Math.max(0.4, Math.min(scale, 1.1))})`;
+            wrapper.style.transform = `scale(${Math.max(0.45, Math.min(scale, 1.1))})`;
         }
 
         window.addEventListener('resize', adjustZoom);
 
-        // Form Logic
         function addExp() {
             const id = 'exp-' + Date.now();
             const html = `
-                <div id="${id}" class="p-4 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 rounded-xl relative group hover:border-indigo-500/50 transition-all">
+                <div id="${id}" class="p-5 light:bg-gray-50 dark:bg-white/5 border light:border-gray-200 dark:border-white/10 rounded-2xl relative group hover:border-purple-500/50 transition-all">
                     <button onclick="document.getElementById('${id}').remove(); sync();" class="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"><i class="fa-solid fa-xmark text-[10px]"></i></button>
-                    <div class="grid grid-cols-2 gap-2 mb-2">
-                        <input type="text" placeholder="Company" class="form-input exp-comp" oninput="sync()">
-                        <input type="text" placeholder="Dates (e.g. 2021 - Present)" class="form-input exp-date" oninput="sync()">
+                    <div class="grid grid-cols-2 gap-3 mb-3">
+                        <input type="text" placeholder="Organization" class="form-input exp-comp" oninput="sync()">
+                        <input type="text" placeholder="Period (e.g. 2022 - Now)" class="form-input exp-date" oninput="sync()">
                     </div>
-                    <input type="text" placeholder="Job Title" class="form-input exp-role mb-2" oninput="sync()">
-                    <textarea placeholder="Key accomplishments (use bullet points)..." class="form-input exp-desc h-24 resize-none" oninput="sync()"></textarea>
+                    <input type="text" placeholder="Title" class="form-input exp-role mb-3 font-bold" oninput="sync()">
+                    <textarea placeholder="Achievements & responsibilities..." class="form-input exp-desc h-24 resize-none" oninput="sync()"></textarea>
                 </div>
             `;
             document.getElementById('exp-inputs').insertAdjacentHTML('beforeend', html);
@@ -293,12 +331,12 @@
         function addEdu() {
             const id = 'edu-' + Date.now();
             const html = `
-                <div id="${id}" class="p-4 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 rounded-xl relative group hover:border-indigo-500/50 transition-all">
+                <div id="${id}" class="p-5 light:bg-gray-50 dark:bg-white/5 border light:border-gray-200 dark:border-white/10 rounded-2xl relative group hover:border-purple-500/50 transition-all">
                     <button onclick="document.getElementById('${id}').remove(); sync();" class="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"><i class="fa-solid fa-xmark text-[10px]"></i></button>
-                    <input type="text" placeholder="Institution Name" class="form-input edu-inst mb-2" oninput="sync()">
-                    <div class="grid grid-cols-2 gap-2">
-                        <input type="text" placeholder="Degree / Course" class="form-input edu-deg" oninput="sync()">
-                        <input type="text" placeholder="Year" class="form-input edu-year" oninput="sync()">
+                    <input type="text" placeholder="University Name" class="form-input edu-inst mb-3 font-bold" oninput="sync()">
+                    <div class="grid grid-cols-2 gap-3">
+                        <input type="text" placeholder="Degree" class="form-input edu-deg" oninput="sync()">
+                        <input type="text" placeholder="Class of" class="form-input edu-year" oninput="sync()">
                     </div>
                 </div>
             `;
@@ -308,24 +346,21 @@
         function sync() {
             const getVal = (id) => document.getElementById(id).value;
             
-            // Basic Info
             document.getElementById('pv-name').innerText = getVal('in-name') || "YOUR NAME";
-            document.getElementById('pv-tailored-title').innerText = getVal('in-tailored-title') || "PROFESSIONAL TITLE";
+            document.getElementById('pv-tailored-title').innerText = (getVal('in-tailored-title') || "PROFESSIONAL ROLE").toUpperCase();
             document.getElementById('pv-email').innerText = getVal('in-email') || "email@domain.com";
             document.getElementById('pv-phone').innerText = getVal('in-phone') || "000.000.0000";
-            document.getElementById('pv-summary').innerText = getVal('in-summary') || "Enter your summary in the editor to see it update live here...";
+            document.getElementById('pv-summary').innerText = getVal('in-summary') || "Summary text here...";
 
-            // Skills
-            const syncSkills = (inputId, outputId, isDark) => {
+            const syncSkills = (inputId, outputId, isPrimary) => {
                 const list = getVal(inputId).split(',').filter(s => s.trim());
                 document.getElementById(outputId).innerHTML = list.map(s => `
-                    <span class="px-2 py-1 ${isDark ? 'bg-slate-900 text-white' : 'bg-white text-slate-700 border border-slate-200'} text-[10px] font-bold rounded uppercase tracking-tighter">${s.trim()}</span>
+                    <span class="px-2.5 py-1.5 ${isPrimary ? 'bg-slate-900 text-white' : 'bg-white text-slate-700 border border-slate-200'} text-[10px] font-bold rounded-lg uppercase tracking-tight">${s.trim()}</span>
                 `).join('');
             };
             syncSkills('in-hard-skills', 'pv-hard-skills', true);
             syncSkills('in-soft-skills', 'pv-soft-skills', false);
 
-            // Experiences
             const expList = document.getElementById('pv-exp-list');
             expList.innerHTML = '';
             document.querySelectorAll('#exp-inputs > div').forEach(card => {
@@ -335,19 +370,18 @@
                 const desc = card.querySelector('.exp-desc').value;
                 if(comp || role) {
                     expList.innerHTML += `
-                        <div class="preserve-case">
+                        <div>
                             <div class="flex justify-between items-baseline mb-1">
-                                <h4 class="font-extrabold text-[14px] text-slate-900 uppercase tracking-tight">${role}</h4>
-                                <span class="text-[10px] font-bold text-slate-500">${date}</span>
+                                <h4 class="font-extrabold text-[15px] text-slate-900 uppercase tracking-tight">${role}</h4>
+                                <span class="text-[10px] font-black text-slate-300 uppercase">${date}</span>
                             </div>
-                            <p class="text-[11px] font-bold text-indigo-600 mb-2">${comp}</p>
-                            <p class="text-[12px] text-slate-600 leading-relaxed whitespace-pre-line">${desc}</p>
+                            <p class="text-[12px] font-bold text-purple-600 mb-2">${comp}</p>
+                            <p class="text-[12px] text-slate-500 leading-relaxed whitespace-pre-line">${desc}</p>
                         </div>
                     `;
                 }
             });
 
-            // Education
             const eduList = document.getElementById('pv-edu-list');
             eduList.innerHTML = '';
             document.querySelectorAll('#edu-inputs > div').forEach(card => {
@@ -356,9 +390,9 @@
                 const year = card.querySelector('.edu-year').value;
                 if(inst) {
                     eduList.innerHTML += `
-                        <div class="preserve-case">
-                            <h4 class="font-bold text-[12px] text-slate-900">${inst}</h4>
-                            <p class="text-[11px] text-slate-500 font-medium">${deg} | ${year}</p>
+                        <div>
+                            <h4 class="font-bold text-[13px] text-slate-900">${inst}</h4>
+                            <p class="text-[11px] text-slate-400 font-bold uppercase tracking-tight">${deg} · ${year}</p>
                         </div>
                     `;
                 }
@@ -367,29 +401,24 @@
 
         async function downloadPDF() {
             const btn = event.currentTarget;
-            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Processing...';
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
             btn.disabled = true;
-
             const element = document.getElementById('pdf-content');
             const opt = { 
                 margin: 0, 
-                filename: `CV_${document.getElementById('in-name').value || 'Export'}.pdf`,
-                image: { type: 'jpeg', quality: 0.98 },
-                html2canvas: { scale: 3, useCORS: true },
+                filename: `CV_Pro.pdf`,
+                html2canvas: { scale: 3 },
                 jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
             };
-
-            try {
-                await html2pdf().set(opt).from(element).save();
-            } finally {
-                btn.innerHTML = '<i class="fa-solid fa-file-export"></i> <span>Export PDF</span>';
+            try { await html2pdf().set(opt).from(element).save(); } 
+            finally {
+                btn.innerHTML = '<i class="fa-solid fa-file-arrow-down"></i> <span>Export</span>';
                 btn.disabled = false;
             }
         }
 
         window.onload = () => {
             checkAuth();
-            // Start with one empty experience
             addExp();
             sync();
         };
