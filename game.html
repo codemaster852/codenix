@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Neural Arcade | Codenix AI</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.40.0/dist/umd/supabase.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
     
@@ -19,10 +19,18 @@
                         mono: ['Space Mono', 'monospace'],
                     },
                     colors: {
-                        background: { light: '#FFFFFF', dark: '#000000' },
-                        surface: { light: '#F9FAFB', dark: '#0A0A0A' },
-                        border: { light: '#E5E7EB', dark: '#1A1A1A' },
-                        brand: { 500: '#10b981', 600: '#059669' }
+                        brand: {
+                            50: '#f5f3ff',
+                            100: '#ede9fe',
+                            200: '#ddd6fe',
+                            300: '#c4b5fd',
+                            400: '#a78bfa',
+                            500: '#8b5cf6', // Primary Purple
+                            600: '#7c3aed',
+                            700: '#6d28d9',
+                        },
+                        darkBg: '#020617',
+                        darkSurface: '#0f172a',
                     }
                 }
             }
@@ -35,33 +43,37 @@
         .glass { backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
         
         .game-card {
-            background: rgba(10, 10, 10, 0.6);
-            border: 1px solid #1A1A1A;
+            background: rgba(15, 23, 42, 0.4);
+            border: 1px solid rgba(139, 92, 246, 0.1);
             transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
             display: flex;
             flex-direction: column;
             cursor: pointer;
             position: relative;
-            z-index: 10; /* Ensure cards are above grid bg */
+            z-index: 10;
         }
         
+        .light .game-card {
+            background: rgba(255, 255, 255, 0.8);
+            border-color: rgba(139, 92, 246, 0.1);
+        }
+
         .game-card:hover {
             transform: translateY(-8px);
-            border-color: #10b981;
-            box-shadow: 0 20px 40px -20px rgba(16, 185, 129, 0.2);
-            background: rgba(16, 185, 129, 0.05);
+            border-color: #8b5cf6;
+            box-shadow: 0 20px 40px -20px rgba(139, 92, 246, 0.3);
+            background: rgba(139, 92, 246, 0.05);
         }
 
         .grid-bg {
-            background-image: radial-gradient(circle at 2px 2px, rgba(255,255,255,0.03) 1px, transparent 0);
+            background-image: radial-gradient(circle at 2px 2px, rgba(139, 92, 246, 0.05) 1px, transparent 0);
             background-size: 32px 32px;
         }
 
-        /* Fixed the blocking issue by using pointer-events: none when hidden */
         #auth-guard {
             position: fixed;
             inset: 0;
-            background: black;
+            background: #020617;
             z-index: 9999;
             display: flex;
             align-items: center;
@@ -69,163 +81,190 @@
             transition: opacity 0.4s ease, visibility 0.4s ease;
         }
         
+        .light #auth-guard { background: #ffffff; }
+
         #auth-guard.hidden-guard {
             opacity: 0;
             visibility: hidden;
-            pointer-events: none; /* Crucial: This allows clicks to pass through */
+            pointer-events: none;
+        }
+
+        .purple-gradient-text {
+            background: linear-gradient(135deg, #a78bfa 0%, #7c3aed 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
         }
     </style>
 </head>
-<body class="bg-white dark:bg-black text-slate-900 dark:text-white min-h-screen transition-colors duration-300 grid-bg">
+<body class="bg-slate-50 dark:bg-darkBg text-slate-900 dark:text-slate-100 min-h-screen transition-colors duration-300 grid-bg">
 
     <!-- Auth Guard Loading Screen -->
     <div id="auth-guard">
-        <div class="flex flex-col items-center gap-4">
-            <div class="w-12 h-12 border-4 border-brand-500 border-t-transparent rounded-full animate-spin"></div>
-            <p id="guard-text" class="font-mono text-xs text-brand-500 tracking-widest uppercase">Verifying_Neural_Handshake</p>
+        <div class="flex flex-col items-center gap-6">
+            <div class="relative">
+                <div class="w-16 h-16 border-4 border-brand-500/20 rounded-full"></div>
+                <div class="w-16 h-16 border-4 border-brand-500 border-t-transparent rounded-full animate-spin absolute top-0"></div>
+            </div>
+            <div class="text-center">
+                <p id="guard-text" class="font-mono text-[10px] text-brand-500 tracking-[0.3em] uppercase mb-2">Syncing_Neural_Interface</p>
+                <div class="h-1 w-32 bg-brand-500/10 rounded-full overflow-hidden">
+                    <div class="h-full bg-brand-500 animate-[loading_2s_infinite]"></div>
+                </div>
+            </div>
         </div>
     </div>
+
+    <style>
+        @keyframes loading {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+        }
+    </style>
 
     <!-- Mobile Sidebar Overlay -->
     <div id="sidebar-overlay" onclick="toggleSidebar()" class="fixed inset-0 bg-black/60 z-40 hidden lg:hidden glass"></div>
 
     <!-- Sidebar -->
-    <aside id="sidebar" class="fixed left-0 top-0 h-full w-64 border-r border-gray-200 dark:border-border-dark bg-white dark:bg-surface-dark z-50 sidebar-transition -translate-x-full lg:translate-x-0">
-        <div class="p-6">
-            <div class="flex items-center gap-3 mb-10">
-                <div class="w-8 h-8 bg-brand-500 rounded-lg flex items-center justify-center">
-                    <i class="fa-solid fa-gamepad text-black text-sm"></i>
+    <aside id="sidebar" class="fixed left-0 top-0 h-full w-72 border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-darkSurface z-50 sidebar-transition -translate-x-full lg:translate-x-0">
+        <div class="p-8">
+            <div class="flex items-center gap-3 mb-12">
+                <div class="w-10 h-10 bg-brand-600 rounded-xl flex items-center justify-center shadow-lg shadow-brand-500/20">
+                    <i class="fa-solid fa-brain text-white text-lg"></i>
                 </div>
-                <span class="font-bold text-lg tracking-tight">Neural Arcade</span>
+                <div>
+                    <span class="font-extrabold text-xl tracking-tighter block leading-none">NEURAL</span>
+                    <span class="text-[10px] font-mono tracking-widest text-brand-500 uppercase">Arcade_OS</span>
+                </div>
             </div>
 
-            <nav class="space-y-1">
-                <a href="portal.html" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-500 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-white/5 transition-all">
-                    <i class="fa-solid fa-arrow-left w-5 text-sm"></i> Back to Portal
+            <nav class="space-y-2">
+                <a href="#" class="group flex items-center gap-3 px-4 py-3 rounded-xl bg-brand-500 text-white font-semibold transition-all shadow-lg shadow-brand-500/20">
+                    <i class="fa-solid fa-layer-group w-5"></i> All Modules
                 </a>
-                <div class="h-px bg-gray-100 dark:bg-white/10 my-4"></div>
-                <a href="#" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl bg-brand-500/10 text-brand-500 font-medium transition-all">
-                    <i class="fa-solid fa-house w-5 text-sm"></i> All Games
+                <a href="portal.html" class="group flex items-center gap-3 px-4 py-3 rounded-xl text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-white/5 transition-all">
+                    <i class="fa-solid fa-door-open w-5"></i> System Portal
                 </a>
+                <div class="h-px bg-slate-200 dark:bg-slate-800 my-6"></div>
+                <p class="px-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Preferences</p>
+                <button onclick="toggleTheme()" class="w-full flex items-center justify-between px-4 py-3 rounded-xl hover:bg-slate-100 dark:hover:bg-white/5 transition-all">
+                    <div class="flex items-center gap-3">
+                        <i id="theme-icon-main" class="fa-solid fa-moon text-brand-500"></i>
+                        <span class="text-sm font-medium">Toggle UI Mode</span>
+                    </div>
+                </button>
             </nav>
         </div>
 
-        <div class="absolute bottom-6 left-6 right-6">
-            <div class="p-4 bg-gray-50 dark:bg-white/5 rounded-2xl border border-gray-200 dark:border-border-dark">
-                <p class="text-[10px] text-slate-500 uppercase tracking-widest font-bold mb-1">Active Users</p>
-                <div class="flex items-center gap-2">
-                    <span class="relative flex h-2 w-2">
-                        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                        <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                    </span>
-                    <p class="font-mono text-xs">1,402 ONLINE</p>
-                </div>
-            </div>
+        <div class="absolute bottom-8 left-8 right-8">
+            <button onclick="handleSignOut()" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-rose-500 hover:bg-rose-500/5 transition-all font-semibold">
+                <i class="fa-solid fa-power-off"></i> Terminate Session
+            </button>
         </div>
     </aside>
 
     <!-- Main Content -->
-    <main class="lg:ml-64 min-h-screen">
-        <header class="sticky top-0 z-30 border-b border-gray-200 dark:border-border-dark bg-white/80 dark:bg-black/80 glass px-4 lg:px-8 py-4 flex items-center justify-between">
-            <button onclick="toggleSidebar()" class="lg:hidden p-2 hover:bg-gray-100 dark:hover:bg-white/5 rounded-lg">
-                <i class="fa-solid fa-bars-staggered"></i>
-            </button>
-
-            <div class="flex-1 px-4 max-w-xl">
-                <div class="relative group">
-                    <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm"></i>
-                    <input type="text" id="game-search" onkeyup="filterGames()" placeholder="Search neural modules..." class="w-full bg-gray-100 dark:bg-white/5 border border-transparent focus:border-brand-500/50 rounded-xl py-2 pl-10 pr-4 outline-none transition-all text-sm font-medium">
+    <main class="lg:ml-72 min-h-screen">
+        <header class="sticky top-0 z-30 border-b border-slate-200 dark:border-slate-800 bg-white/70 dark:bg-darkBg/70 glass px-6 lg:px-12 py-5 flex items-center justify-between">
+            <div class="flex items-center gap-4">
+                <button onclick="toggleSidebar()" class="lg:hidden p-2 hover:bg-slate-100 dark:hover:bg-white/5 rounded-lg">
+                    <i class="fa-solid fa-bars-staggered"></i>
+                </button>
+                <div class="hidden md:block">
+                    <h2 class="text-xs font-mono text-brand-500 font-bold uppercase tracking-tighter">System_Status: <span class="animate-pulse">ONLINE</span></h2>
                 </div>
             </div>
 
-            <div class="flex items-center gap-2">
-                <button onclick="toggleTheme()" class="p-2.5 hover:bg-gray-100 dark:hover:bg-white/5 rounded-xl transition-all">
-                    <i id="theme-icon-dark" class="fa-solid fa-moon"></i>
-                    <i id="theme-icon-light" class="fa-solid fa-sun hidden"></i>
-                </button>
+            <div class="flex-1 px-8 max-w-2xl">
+                <div class="relative group">
+                    <i class="fa-solid fa-terminal absolute left-4 top-1/2 -translate-y-1/2 text-brand-500 text-xs"></i>
+                    <input type="text" id="game-search" onkeyup="filterGames()" placeholder="Search modules..." class="w-full bg-slate-100 dark:bg-white/5 border border-transparent focus:border-brand-500/50 rounded-2xl py-2.5 pl-10 pr-4 outline-none transition-all text-sm font-medium">
+                </div>
+            </div>
+
+            <div class="flex items-center gap-4">
+                <div id="user-display" class="hidden sm:flex items-center gap-3 px-4 py-2 bg-brand-500/10 rounded-full border border-brand-500/20">
+                    <div class="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
+                    <span id="user-email" class="text-xs font-mono font-bold text-brand-500">USER_UNKNOWN</span>
+                </div>
             </div>
         </header>
 
-        <div class="p-6 lg:p-10 max-w-7xl mx-auto">
-            <section class="mb-12">
-                <div class="inline-flex items-center gap-4 mb-4">
-                    <a href="portal.html" class="flex items-center gap-2 text-xs font-bold text-slate-500 hover:text-brand-500 transition-colors">
-                        <i class="fa-solid fa-arrow-left"></i> PORTAL_ROOT
-                    </a>
-                    <div class="h-4 w-px bg-white/10"></div>
-                    <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 text-[10px] font-bold font-mono tracking-tighter">
-                        NEURAL_ARCADE v4.2 // SECURE_SESSION
-                    </div>
+        <div class="p-8 lg:p-12 max-w-7xl mx-auto">
+            <section class="mb-16">
+                <div class="inline-flex items-center gap-3 px-4 py-1.5 rounded-full border border-brand-500/30 bg-brand-500/10 text-brand-500 text-[10px] font-bold font-mono tracking-widest uppercase mb-6">
+                    Codenix_AI // Generative_Arcade
                 </div>
-                <h1 class="text-4xl lg:text-6xl font-extrabold tracking-tighter mb-4">
-                    Infinite <span class="text-emerald-500 italic">Intelligence</span>
+                <h1 class="text-5xl lg:text-7xl font-extrabold tracking-tighter mb-6 leading-tight">
+                    Select Your <span class="purple-gradient-text italic">Simulation</span>
                 </h1>
-                <p class="text-slate-500 dark:text-slate-400 max-w-2xl text-lg">
-                    Select a generative module to begin.
+                <p class="text-slate-500 dark:text-slate-400 max-w-2xl text-lg font-medium leading-relaxed">
+                    Access our secure cluster of generative games and cognitive trainers. Optimized for high-fidelity intelligence testing.
                 </p>
             </section>
 
-            <div id="games-grid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+            <div id="games-grid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
                 <!-- Grid items populated by JS -->
             </div>
         </div>
     </main>
 
     <script>
-        const supabaseUrl = 'https://rnlwrngfgvznndlekmrz.supabase.co';
-        const supabaseKey = 'sb_publishable_mtI0_ZBvU_n5oRuqV58QHg_qJt3Gfyt';
+        const SUPABASE_URL = "https://rnlwrngfgvznndlekmrz.supabase.co";
+        const SUPABASE_KEY = "sb_publishable_mtI0_ZBvU_n5oRuqV58QHg_qJt3Gfyt";
         
-        let supabaseClient;
+        // Initialize Supabase instance as 'db'
+        const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
         const games = [
-            { title: "Go Gravity", path: "gravitygo.html", icon: "fa-arrows-to-circle", color: "text-emerald-500", category: "Physics Engine", desc: "Strategic Go-variant utilizing simulated gravitational fields." },
-            { title: "Type2Save", path: "type2save.html", icon: "fa-keyboard", color: "text-blue-500", category: "Linguistic Speed", desc: "High-stakes typing gauntlet where speed prevents system failure." },
-            { title: "GeoQuest Pro", path: "map.html", icon: "fa-earth-americas", color: "text-cyan-500", category: "Geospatial", desc: "Test your geographic knowledge on a dynamic global scale." },
-            { title: "Chess Gen", path: "chessgen.html", icon: "fa-chess-knight", color: "text-orange-500", category: "Grandmaster AI", desc: "Neural-net powered chess engine for grandmaster-level play." },
-            { title: "Checkers Gen", path: "checkersgen.html", icon: "fa-circle-dot", color: "text-amber-500", category: "Heuristic Logic", desc: "A refined variant of classic jumping game with AI heuristics." },
-            { title: "Tic Tac Toe", path: "tictactoe.html", icon: "fa-xmark", color: "text-red-500", category: "Mathematical Engine", desc: "Unbeatable perfect-play algorithm for logic testing." },
-            { title: "Connect 4", path: "connect4.html", icon: "fa-grip-vertical", color: "text-purple-500", category: "Pattern Analysis", desc: "Vertical strategy combat against sequence recognizers." },
-            { title: "NNM Gen", path: "ninemen.html", icon: "fa-shapes", color: "text-indigo-500", category: "Ancient Tactics", desc: "Modern reconstruction of the classic Nine Men's Morris." },
-            { title: "Reversi Gen", path: "reversi.html", icon: "fa-circle-half-stroke", color: "text-teal-500", category: "Flip Mechanics", desc: "Dynamic grid capture game with complex AI depth." },
-            { title: "Dots and Blocks", path: "dots.html", icon: "fa-border-none", color: "text-pink-500", category: "Spatial Control", desc: "Territory capture game featuring predictive AI pathfinding." },
-            { title: "StarWar", path: "starwar.html", icon: "fa-jet-fighter-up", color: "text-yellow-500", category: "Combat Simulation", desc: "Engage in neural-driven orbital dogfights and defense." },
-            { title: "Guess Flag", path: "flags.html", icon: "fa-flag", color: "text-rose-500", category: "Recognition Module", desc: "Visual data identification against a global database." }
+            { title: "Guess Flag", path: "flags.html", icon: "fa-flag", color: "text-rose-500", cat: "Visual Logic", desc: "Identify world flags in an accelerated recognition loop." },
+            { title: "Dots & Lines", path: "dots.html", icon: "fa-draw-polygon", color: "text-blue-500", cat: "Spatial", desc: "Classic territory capture against a predictive AI engine." },
+            { title: "Math2Save", path: "math2save.html", icon: "fa-calculator", color: "text-emerald-500", cat: "Arithmetic", desc: "Rapid-fire computation to prevent system decompression." },
+            { title: "CheckerGen", path: "checkersgen.html", icon: "fa-chess-board", color: "text-amber-500", cat: "Tactics", desc: "Generative checkers variant with heuristic depth." },
+            { title: "ChessGen", path: "chessgen.html", icon: "fa-chess-knight", color: "text-brand-500", cat: "Strategy", desc: "Grandmaster-level chess engine with neural evaluation." },
+            { title: "Geography Master", path: "map.html", icon: "fa-map-location-dot", color: "text-cyan-500", cat: "Global", desc: "Global geospatial mapping and identification training." },
+            { title: "Nine Men's Morris", path: "ninemen.html", icon: "fa-shapes", color: "text-indigo-500", cat: "Classical", desc: "Modern reconstruction of the ancient strategic board game." },
+            { title: "Pick & Go", path: "pick&go.html", icon: "fa-hand-pointer", color: "text-pink-500", cat: "Reflex", desc: "Dynamic coordination test under variable latency simulations." },
+            { title: "Reversi", path: "reversi.html", icon: "fa-circle-half-stroke", color: "text-teal-500", cat: "Strategy", desc: "Complexity through simplicity. Outflank the CPU." },
+            { title: "StarWarnix", path: "starwar.html", icon: "fa-shuttle-space", color: "text-yellow-500", cat: "Combat", desc: "Physics-based orbital defense and deep space maneuvers." },
+            { title: "TicTacToe", path: "tictactoe.html", icon: "fa-xmark", color: "text-red-500", cat: "Logic", desc: "Perfect-play algorithm testing for basic neural nodes." },
+            { title: "Type2Save", path: "type2save.html", icon: "fa-keyboard", color: "text-purple-500", cat: "Typing", desc: "Linguistic velocity trainer with destructive feedback loops." },
+            { title: "World War", path: "worldwar.html", icon: "fa-shield-halved", color: "text-slate-500", cat: "Tactical", desc: "Grand strategy simulation on a global kinetic scale." },
+            { title: "WheelNix", path: "wheelnix.html", icon: "fa-dharmachakra", color: "text-orange-500", cat: "Probability", desc: "Risk assessment module with random variable generators." }
         ];
 
-        async function checkUser() {
-            try {
-                // Initialize Supabase only once
-                if (!supabaseClient) {
-                    supabaseClient = window.supabase.createClient(supabaseUrl, supabaseKey);
-                }
-
-                const { data: { session }, error } = await supabaseClient.auth.getSession();
-                if (error || !session) {
-                    window.location.href = 'auth.html';
-                } else {
-                    // Success: Remove guard and render content
-                    const guard = document.getElementById('auth-guard');
-                    guard.classList.add('hidden-guard');
-                    renderGames();
-                }
-            } catch (err) {
-                console.error("Auth check error:", err);
-                document.getElementById('guard-text').innerText = "SYSTEM_LOAD_ERROR";
+        async function checkAuth() {
+            const { data: { session }, error } = await db.auth.getSession();
+            
+            if (error || !session) {
+                // Redirect to auth and tell it where to return
+                const currentPath = encodeURIComponent(window.location.href);
+                window.location.href = `auth.html?redirect=${currentPath}`;
+                return;
             }
+
+            // User is signed in
+            document.getElementById('user-email').innerText = session.user.email.split('@')[0].toUpperCase();
+            document.getElementById('auth-guard').classList.add('hidden-guard');
+            renderGames();
+        }
+
+        async function handleSignOut() {
+            await db.auth.signOut();
+            window.location.reload();
         }
 
         function renderGames() {
             const grid = document.getElementById('games-grid');
-            if (!grid) return;
             grid.innerHTML = games.map(game => `
-                <div onclick="window.location.href='${game.path}'" class="game-card group p-6 rounded-3xl" data-title="${game.title.toLowerCase()}">
-                    <div class="mb-6 w-12 h-12 bg-white/5 border border-white/10 rounded-xl flex items-center justify-center ${game.color} group-hover:scale-110 transition-transform">
-                        <i class="fa-solid ${game.icon} text-2xl"></i>
+                <div onclick="window.location.href='${game.path}'" class="game-card group p-8 rounded-[2rem]" data-title="${game.title.toLowerCase()}">
+                    <div class="mb-8 w-14 h-14 bg-brand-500/5 border border-brand-500/10 rounded-2xl flex items-center justify-center ${game.color} group-hover:scale-110 transition-transform">
+                        <i class="fa-solid ${game.icon} text-3xl"></i>
                     </div>
-                    <span class="text-[10px] font-extrabold uppercase tracking-widest text-slate-500 mb-1">${game.category}</span>
-                    <h3 class="text-xl font-bold mb-2">${game.title}</h3>
-                    <p class="text-sm text-slate-500 flex-grow mb-6 leading-relaxed">${game.desc}</p>
-                    <div class="flex items-center text-xs font-bold ${game.color} font-mono uppercase">
-                        INITIALIZE_MODULE <i class="fa-solid fa-arrow-right ml-2 group-hover:translate-x-1 transition-transform"></i>
+                    <span class="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-2">${game.cat}</span>
+                    <h3 class="text-2xl font-bold mb-3 tracking-tight group-hover:text-brand-500 transition-colors">${game.title}</h3>
+                    <p class="text-sm text-slate-500 dark:text-slate-400 flex-grow mb-8 leading-relaxed font-medium">${game.desc}</p>
+                    <div class="flex items-center text-[10px] font-bold text-brand-500 font-mono uppercase tracking-widest">
+                        INITIALIZE_MODULE <i class="fa-solid fa-chevron-right ml-3 group-hover:translate-x-2 transition-transform"></i>
                     </div>
                 </div>
             `).join('');
@@ -242,14 +281,16 @@
 
         function toggleTheme() {
             const html = document.getElementById('html-root');
+            const icon = document.getElementById('theme-icon-main');
             const isDark = html.classList.toggle('dark');
-            localStorage.setItem('theme', isDark ? 'dark' : 'light');
-            updateThemeIcons(isDark);
+            
+            localStorage.setItem('arcade_theme', isDark ? 'dark' : 'light');
+            updateThemeUI(isDark);
         }
 
-        function updateThemeIcons(isDark) {
-            document.getElementById('theme-icon-dark').classList.toggle('hidden', isDark);
-            document.getElementById('theme-icon-light').classList.toggle('hidden', !isDark);
+        function updateThemeUI(isDark) {
+            const icon = document.getElementById('theme-icon-main');
+            icon.className = isDark ? 'fa-solid fa-moon text-brand-500' : 'fa-solid fa-sun text-brand-500';
         }
 
         function toggleSidebar() {
@@ -257,17 +298,14 @@
             document.getElementById('sidebar-overlay').classList.toggle('hidden');
         }
 
-        // Run as soon as page is interactive
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', () => {
-                checkUser();
-                const savedTheme = localStorage.getItem('theme') || 'dark';
-                document.getElementById('html-root').classList.toggle('dark', savedTheme === 'dark');
-                updateThemeIcons(savedTheme === 'dark');
-            });
-        } else {
-            checkUser();
-        }
+        // Initialize
+        window.addEventListener('DOMContentLoaded', () => {
+            const savedTheme = localStorage.getItem('arcade_theme') || 'dark';
+            document.getElementById('html-root').classList.toggle('dark', savedTheme === 'dark');
+            updateThemeUI(savedTheme === 'dark');
+            
+            checkAuth();
+        });
     </script>
 </body>
 </html>
