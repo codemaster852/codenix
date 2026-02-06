@@ -10,19 +10,20 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <!-- Supabase JS -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- SheetJS for Excel/XLSX Export -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
     
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap');
 
         :root {
-            /* Light Mode (White & Purple) */
             --bg-app: #ffffff;
             --bg-header: #f8fafc;
             --bg-toolbar: #f1f5f9;
             --border-color: #e2e8f0;
             --text-primary: #1e293b;
             --text-secondary: #64748b;
-            --accent-primary: #9333ea; /* Purple 600 */
+            --accent-primary: #9333ea;
             --accent-hover: #7e22ce;
             --accent-light: #f3e8ff;
             --focus-ring: #c084fc;
@@ -31,14 +32,13 @@
         }
 
         [data-theme="dark"] {
-            /* Dark Mode (Black & Purple) */
-            --bg-app: #0f0f0f; /* Near Black */
-            --bg-header: #18181b; /* Zinc 900 */
-            --bg-toolbar: #27272a; /* Zinc 800 */
-            --border-color: #3f3f46; /* Zinc 700 */
+            --bg-app: #0f0f0f;
+            --bg-header: #18181b;
+            --bg-toolbar: #27272a;
+            --border-color: #3f3f46;
             --text-primary: #f1f5f9;
             --text-secondary: #94a3b8;
-            --accent-primary: #a855f7; /* Purple 500 */
+            --accent-primary: #a855f7;
             --accent-hover: #c084fc;
             --accent-light: #2e1065;
             --focus-ring: #a855f7;
@@ -54,192 +54,155 @@
             transition: background-color 0.3s, color 0.3s;
         }
 
-        /* Custom Scrollbar */
-        .spreadsheet-container::-webkit-scrollbar {
-            width: 10px;
-            height: 10px;
-        }
-        .spreadsheet-container::-webkit-scrollbar-track {
-            background: var(--bg-app);
-        }
-        .spreadsheet-container::-webkit-scrollbar-thumb {
-            background: var(--border-color);
-            border-radius: 5px;
-        }
-        .spreadsheet-container::-webkit-scrollbar-thumb:hover {
-            background: var(--text-secondary);
-        }
+        .spreadsheet-container::-webkit-scrollbar { width: 10px; height: 10px; }
+        .spreadsheet-container::-webkit-scrollbar-track { background: var(--bg-app); }
+        .spreadsheet-container::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 5px; }
 
-        /* Cell Styling */
         .cell {
-            min-width: 100px;
-            max-width: 100px;
-            height: 28px;
-            outline: none;
-            border-right: 1px solid var(--border-color);
-            border-bottom: 1px solid var(--border-color);
-            padding: 0 4px;
-            font-size: 13px;
-            white-space: nowrap;
-            overflow: hidden;
-            cursor: cell;
-            background-color: var(--bg-app);
-            color: var(--text-primary);
+            min-width: 100px; max-width: 100px; height: 28px;
+            outline: none; border-right: 1px solid var(--border-color); border-bottom: 1px solid var(--border-color);
+            padding: 0 4px; font-size: 13px; white-space: nowrap; overflow: hidden; cursor: cell;
+            background-color: var(--bg-app); color: var(--text-primary);
         }
 
-        .cell:focus {
-            border: 2px solid var(--cell-selected-border);
-            z-index: 10;
-            position: relative;
-        }
+        .cell:focus { border: 2px solid var(--cell-selected-border); z-index: 10; position: relative; }
+        .cell.selected { background-color: var(--cell-selected-bg); border: 2px solid var(--cell-selected-border); z-index: 10; }
 
-        .cell.selected {
-            background-color: var(--cell-selected-bg);
-            border: 2px solid var(--cell-selected-border);
-            z-index: 10;
-        }
-
-        /* Header Styling */
         .header-col, .header-row, .header-corner {
-            background-color: var(--bg-header);
-            font-weight: 600;
-            color: var(--text-secondary);
-            text-align: center;
-            border-right: 1px solid var(--border-color);
-            border-bottom: 1px solid var(--border-color);
-            user-select: none;
-            position: sticky;
-            z-index: 20;
+            background-color: var(--bg-header); font-weight: 600; color: var(--text-secondary);
+            text-align: center; border-right: 1px solid var(--border-color); border-bottom: 1px solid var(--border-color);
+            user-select: none; position: sticky; z-index: 20;
         }
         
         .header-col { top: 0; }
         .header-row { left: 0; min-width: 40px; }
         .header-corner { top: 0; left: 0; z-index: 30; }
 
-        /* Component Overrides for Theme */
         .theme-border { border-color: var(--border-color) !important; }
         .theme-bg-header { background-color: var(--bg-header) !important; }
         .theme-bg-toolbar { background-color: var(--bg-toolbar) !important; }
         .theme-text-primary { color: var(--text-primary) !important; }
         .theme-text-secondary { color: var(--text-secondary) !important; }
-        .theme-accent-text { color: var(--accent-primary) !important; }
         .theme-accent-bg { background-color: var(--accent-primary) !important; }
         
-        input:focus { outline: none; }
-        
-        /* Loader */
         #loading-screen {
-            position: fixed;
-            inset: 0;
-            background: var(--bg-app);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            z-index: 100;
-            transition: opacity 0.5s;
+            position: fixed; inset: 0; background: var(--bg-app);
+            display: flex; justify-content: center; align-items: center;
+            z-index: 100; transition: opacity 0.5s;
         }
+
+        /* Dropdown Menu Styles */
+        .export-dropdown {
+            display: none;
+            position: absolute;
+            top: 100%;
+            right: 0;
+            background: var(--bg-header);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            z-index: 50;
+            min-width: 160px;
+            margin-top: 0.5rem;
+        }
+
+        .export-dropdown.active { display: block; }
+        
+        .export-item {
+            width: 100%;
+            padding: 8px 16px;
+            text-align: left;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            transition: background 0.2s;
+            color: var(--text-primary);
+        }
+
+        .export-item:hover { background: var(--bg-toolbar); }
     </style>
 </head>
 <body class="h-screen flex flex-col">
 
-    <!-- Loading Screen -->
     <div id="loading-screen">
-        <div class="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 theme-accent-border" style="border-color: var(--accent-primary)"></div>
+        <div class="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2" style="border-color: var(--accent-primary)"></div>
     </div>
 
-    <!-- Top Navigation / Branding -->
-    <header class="theme-bg-header theme-border border-b flex items-center justify-between px-4 py-2 shadow-sm z-40 transition-colors duration-300">
+    <header class="theme-bg-header theme-border border-b flex items-center justify-between px-4 py-2 shadow-sm z-40">
         <div class="flex items-center gap-3">
-            <div class="w-8 h-8 theme-accent-bg rounded-lg flex items-center justify-center text-white font-bold text-lg shadow-lg" style="box-shadow: 0 4px 6px -1px var(--accent-light);">
-                C
-            </div>
+            <div class="w-8 h-8 theme-accent-bg rounded-lg flex items-center justify-center text-white font-bold text-lg shadow-lg">C</div>
             <div>
-                <h1 class="font-bold text-lg leading-tight tracking-tight theme-text-primary">CellNix</h1>
+                <h1 class="font-bold text-lg theme-text-primary">CellNix</h1>
                 <p class="text-[10px] theme-text-secondary font-medium tracking-wider uppercase">by Codenix</p>
             </div>
         </div>
         
         <div class="flex items-center gap-4">
-            <!-- Theme Toggle -->
             <button onclick="toggleTheme()" class="w-8 h-8 rounded-full flex items-center justify-center theme-text-secondary hover:bg-gray-100 dark:hover:bg-gray-800 transition">
                 <i class="fa-solid fa-moon" id="theme-icon"></i>
             </button>
 
-            <button onclick="downloadCSV()" class="text-sm font-medium theme-text-secondary hover:theme-accent-text transition flex items-center gap-2 px-3 py-1.5 rounded hover:bg-opacity-10 hover:bg-gray-500">
-                <i class="fa-solid fa-download"></i> Export
-            </button>
+            <!-- Export Dropdown -->
+            <div class="relative">
+                <button onclick="toggleExportMenu()" id="export-btn" class="text-sm font-medium theme-text-secondary hover:text-purple-500 transition flex items-center gap-2 px-3 py-1.5 rounded bg-gray-100 dark:bg-zinc-800">
+                    <i class="fa-solid fa-file-export"></i> Export <i class="fa-solid fa-chevron-down text-[10px]"></i>
+                </button>
+                <div id="export-menu" class="export-dropdown">
+                    <button onclick="exportData('xlsx')" class="export-item"><i class="fa-solid fa-file-excel text-green-600"></i> Excel (.xlsx)</button>
+                    <button onclick="exportData('csv')" class="export-item"><i class="fa-solid fa-file-csv text-blue-500"></i> CSV (.csv)</button>
+                    <button onclick="exportData('ods')" class="export-item"><i class="fa-solid fa-file-lines text-orange-500"></i> OpenDoc (.ods)</button>
+                    <button onclick="exportData('json')" class="export-item"><i class="fa-solid fa-code text-yellow-500"></i> JSON (.json)</button>
+                </div>
+            </div>
             
-            <!-- User Profile / Sign Out -->
             <div class="flex items-center gap-2">
                 <span id="user-email" class="text-xs theme-text-secondary hidden md:block"></span>
-                <button onclick="signOut()" class="h-8 w-8 rounded-full theme-bg-toolbar flex items-center justify-center theme-text-secondary theme-border border hover:theme-accent-text transition" title="Sign Out">
+                <button onclick="signOut()" class="h-8 w-8 rounded-full theme-bg-toolbar flex items-center justify-center theme-text-secondary theme-border border hover:text-purple-500 transition">
                     <i class="fa-solid fa-right-from-bracket"></i>
                 </button>
             </div>
         </div>
     </header>
 
-    <!-- Toolbar -->
-    <div class="theme-bg-toolbar theme-border border-b px-4 py-2 flex items-center gap-4 overflow-x-auto transition-colors duration-300">
-        <!-- Text Formatting -->
+    <div class="theme-bg-toolbar theme-border border-b px-4 py-2 flex items-center gap-4 overflow-x-auto">
         <div class="flex items-center theme-bg-header theme-border border rounded-md shadow-sm">
-            <button onclick="execStyle('bold')" class="p-2 hover:bg-opacity-5 hover:bg-black theme-text-secondary w-9 h-9 flex items-center justify-center theme-border border-r" title="Bold">
-                <i class="fa-solid fa-bold"></i>
-            </button>
-            <button onclick="execStyle('italic')" class="p-2 hover:bg-opacity-5 hover:bg-black theme-text-secondary w-9 h-9 flex items-center justify-center theme-border border-r" title="Italic">
-                <i class="fa-solid fa-italic"></i>
-            </button>
-            <button onclick="execStyle('underline')" class="p-2 hover:bg-opacity-5 hover:bg-black theme-text-secondary w-9 h-9 flex items-center justify-center" title="Underline">
-                <i class="fa-solid fa-underline"></i>
-            </button>
+            <button onclick="execStyle('bold')" class="p-2 hover:bg-black/5 theme-text-secondary w-9 h-9 flex items-center justify-center border-r theme-border"><i class="fa-solid fa-bold"></i></button>
+            <button onclick="execStyle('italic')" class="p-2 hover:bg-black/5 theme-text-secondary w-9 h-9 flex items-center justify-center border-r theme-border"><i class="fa-solid fa-italic"></i></button>
+            <button onclick="execStyle('underline')" class="p-2 hover:bg-black/5 theme-text-secondary w-9 h-9 flex items-center justify-center"><i class="fa-solid fa-underline"></i></button>
         </div>
 
-        <!-- Alignment -->
         <div class="flex items-center theme-bg-header theme-border border rounded-md shadow-sm">
-            <button onclick="execStyle('justifyLeft')" class="p-2 hover:bg-opacity-5 hover:bg-black theme-text-secondary w-9 h-9 flex items-center justify-center theme-border border-r">
-                <i class="fa-solid fa-align-left"></i>
-            </button>
-            <button onclick="execStyle('justifyCenter')" class="p-2 hover:bg-opacity-5 hover:bg-black theme-text-secondary w-9 h-9 flex items-center justify-center theme-border border-r">
-                <i class="fa-solid fa-align-center"></i>
-            </button>
-            <button onclick="execStyle('justifyRight')" class="p-2 hover:bg-opacity-5 hover:bg-black theme-text-secondary w-9 h-9 flex items-center justify-center">
-                <i class="fa-solid fa-align-right"></i>
-            </button>
+            <button onclick="execStyle('justifyLeft')" class="p-2 hover:bg-black/5 theme-text-secondary w-9 h-9 flex items-center justify-center border-r theme-border"><i class="fa-solid fa-align-left"></i></button>
+            <button onclick="execStyle('justifyCenter')" class="p-2 hover:bg-black/5 theme-text-secondary w-9 h-9 flex items-center justify-center border-r theme-border"><i class="fa-solid fa-align-center"></i></button>
+            <button onclick="execStyle('justifyRight')" class="p-2 hover:bg-black/5 theme-text-secondary w-9 h-9 flex items-center justify-center"><i class="fa-solid fa-align-right"></i></button>
         </div>
 
-        <!-- Colors -->
         <div class="flex items-center gap-2">
             <div class="relative group">
-                <button class="p-2 theme-bg-header theme-border border rounded-md shadow-sm hover:bg-opacity-5 hover:bg-black theme-text-secondary w-9 h-9 flex items-center justify-center">
-                    <i class="fa-solid fa-fill-drip group-hover:theme-accent-text"></i>
+                <button class="p-2 theme-bg-header theme-border border rounded-md shadow-sm w-9 h-9 flex items-center justify-center theme-text-secondary">
+                    <i class="fa-solid fa-fill-drip"></i>
                 </button>
-                <input type="color" onchange="execColor('backColor', this.value)" class="absolute inset-0 opacity-0 cursor-pointer w-full h-full" title="Background Color">
+                <input type="color" onchange="execColor('backColor', this.value)" class="absolute inset-0 opacity-0 cursor-pointer w-full h-full">
             </div>
             <div class="relative group">
-                <button class="p-2 theme-bg-header theme-border border rounded-md shadow-sm hover:bg-opacity-5 hover:bg-black theme-text-secondary w-9 h-9 flex items-center justify-center">
-                    <i class="fa-solid fa-font group-hover:theme-accent-text"></i>
+                <button class="p-2 theme-bg-header theme-border border rounded-md shadow-sm w-9 h-9 flex items-center justify-center theme-text-secondary">
+                    <i class="fa-solid fa-font"></i>
                 </button>
-                <input type="color" onchange="execColor('foreColor', this.value)" class="absolute inset-0 opacity-0 cursor-pointer w-full h-full" title="Text Color">
+                <input type="color" onchange="execColor('foreColor', this.value)" class="absolute inset-0 opacity-0 cursor-pointer w-full h-full">
             </div>
         </div>
 
-        <div class="h-6 w-px theme-bg-header border-l theme-border mx-2"></div>
-        
-        <button onclick="resetGrid()" class="text-xs font-semibold text-red-500 hover:text-red-600 bg-red-50 hover:bg-red-100 dark:bg-red-900/20 dark:hover:bg-red-900/40 px-3 py-1.5 rounded transition">
-            Reset
-        </button>
+        <div class="h-6 w-px theme-border border-l mx-2"></div>
+        <button onclick="resetGrid()" class="text-xs font-semibold text-red-500 px-3 py-1.5 rounded hover:bg-red-100 dark:hover:bg-red-900/20 transition">Reset</button>
     </div>
 
-    <!-- Formula Bar -->
-    <div class="flex items-center px-4 py-2 theme-border border-b theme-bg-header gap-2 transition-colors duration-300">
+    <div class="flex items-center px-4 py-2 theme-border border-b theme-bg-header gap-2">
         <div class="theme-text-secondary font-serif italic font-bold w-8 text-center theme-bg-toolbar rounded theme-border border select-none">fx</div>
-        <div id="selected-cell-indicator" class="w-16 text-center text-xs font-bold theme-text-primary theme-border border rounded theme-bg-toolbar py-1.5">
-            A1
-        </div>
-        <input type="text" id="formula-input" class="flex-1 theme-border border rounded px-3 py-1 text-sm theme-bg-toolbar theme-text-primary focus:ring-1 transition shadow-inner" style="--tw-ring-color: var(--focus-ring); --tw-ring-opacity: 1;" placeholder="Enter value or formula (e.g., =SUM(A1:A5))">
+        <div id="selected-cell-indicator" class="w-16 text-center text-xs font-bold theme-text-primary theme-border border rounded theme-bg-toolbar py-1.5">A1</div>
+        <input type="text" id="formula-input" class="flex-1 theme-border border rounded px-3 py-1 text-sm theme-bg-toolbar theme-text-primary focus:ring-1 transition" placeholder="Enter value or formula (e.g., =SUM(A1:A5))">
     </div>
 
-    <!-- Main Spreadsheet Area -->
     <div class="flex-1 overflow-hidden relative">
         <div class="spreadsheet-container w-full h-full overflow-auto" id="grid-container" style="background-color: var(--bg-app);">
             <table class="border-collapse" id="spreadsheet">
@@ -249,37 +212,24 @@
         </div>
     </div>
 
-    <!-- Footer Status Bar -->
     <div class="theme-accent-bg text-white text-xs px-4 py-1 flex justify-between items-center select-none">
-        <div class="flex gap-4">
-            <span>Ready</span>
-            <span id="status-selection">Mode: Standard</span>
-        </div>
-        <div class="flex gap-4 opacity-90">
-            <span>Powered by <span class="font-bold">CellNix</span></span>
-        </div>
+        <div class="flex gap-4"><span>Ready</span><span id="status-selection">Mode: Standard</span></div>
+        <div>Powered by <span class="font-bold">CellNix</span></div>
     </div>
 
     <script>
-        // --- Supabase Configuration ---
         const SUPABASE_URL = 'https://rnlwrngfgvznndlekmrz.supabase.co';
         const SUPABASE_KEY = 'sb_publishable_mtI0_ZBvU_n5oRuqV58QHg_qJt3Gfyt';
-        
-        // Changed variable name from 'supabase' to 'supabaseClient' to avoid conflict with the library namespace
         const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-        // --- Auth Check ---
         async function checkAuth() {
             const { data: { session } } = await supabaseClient.auth.getSession();
-            
             if (!session) {
                 window.location.href = 'auth.html';
             } else {
                 document.getElementById('user-email').innerText = session.user.email;
                 document.getElementById('loading-screen').style.opacity = '0';
-                setTimeout(() => {
-                    document.getElementById('loading-screen').style.display = 'none';
-                }, 500);
+                setTimeout(() => { document.getElementById('loading-screen').style.display = 'none'; }, 500);
             }
         }
 
@@ -290,13 +240,11 @@
 
         checkAuth();
 
-        // --- Configuration ---
-        const COLS = 26; // A to Z
+        const COLS = 26; 
         const ROWS = 100;
         let cellData = {};
         let selectedCellId = null;
 
-        // --- Initialization ---
         const gridBody = document.getElementById('grid-body');
         const headerRow = document.getElementById('header-row');
         const formulaInput = document.getElementById('formula-input');
@@ -324,20 +272,15 @@
                 tr.appendChild(thRow);
 
                 for (let c = 0; c < COLS; c++) {
-                    let colLetter = String.fromCharCode(65 + c);
-                    let cellId = `${colLetter}${r}`;
-                    
+                    let cellId = `${String.fromCharCode(65 + c)}${r}`;
                     let td = document.createElement('td');
                     td.className = 'cell';
                     td.id = cellId;
                     td.contentEditable = true;
                     td.spellcheck = false;
-                    
                     td.addEventListener('focus', () => selectCell(cellId));
                     td.addEventListener('input', (e) => handleInput(e, cellId));
                     td.addEventListener('blur', () => handleBlur(cellId));
-                    td.addEventListener('keydown', (e) => handleKeyDown(e, cellId));
-
                     tr.appendChild(td);
                 }
                 gridBody.appendChild(tr);
@@ -345,64 +288,26 @@
             selectCell("A1");
         }
 
-        // --- Core Logic ---
         function selectCell(cellId) {
-            if (selectedCellId) {
-                document.getElementById(selectedCellId).classList.remove('selected');
-            }
+            if (selectedCellId) document.getElementById(selectedCellId).classList.remove('selected');
             selectedCellId = cellId;
             const cell = document.getElementById(cellId);
             cell.classList.add('selected');
             selectedCellIndicator.innerText = cellId;
-            
-            const data = cellData[cellId];
-            if (data && data.formula) {
-                formulaInput.value = data.formula;
-            } else {
-                formulaInput.value = cell.innerText;
-            }
+            formulaInput.value = (cellData[cellId] && cellData[cellId].formula) ? cellData[cellId].formula : cell.innerText;
         }
 
         function handleInput(e, cellId) {
-            const value = e.target.innerText;
             if (!cellData[cellId]) cellData[cellId] = {};
-            if (!value.startsWith('=')) {
-                cellData[cellId].formula = '';
-            }
+            if (!e.target.innerText.startsWith('=')) cellData[cellId].formula = '';
         }
 
         function handleBlur(cellId) {
-            const cell = document.getElementById(cellId);
-            const rawValue = cell.innerText;
-            updateCellData(cellId, rawValue);
+            updateCellData(cellId, document.getElementById(cellId).innerText);
         }
 
-        function handleKeyDown(e, cellId) {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                const col = cellId.match(/[A-Z]+/)[0];
-                const row = parseInt(cellId.match(/\d+/)[0]);
-                const nextId = `${col}${row + 1}`;
-                const nextCell = document.getElementById(nextId);
-                if (nextCell) nextCell.focus();
-                else document.getElementById(cellId).blur();
-            }
-        }
-
-        formulaInput.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
-                const value = formulaInput.value;
-                const cell = document.getElementById(selectedCellId);
-                cell.innerText = value;
-                updateCellData(selectedCellId, value);
-                cell.focus();
-            }
-        });
-
-        // --- Calculation Engine ---
         function updateCellData(cellId, input) {
             if (!cellData[cellId]) cellData[cellId] = {};
-            
             if (input.startsWith('=')) {
                 cellData[cellId].formula = input;
                 cellData[cellId].value = evaluateFormula(input.substring(1));
@@ -414,145 +319,105 @@
             recalculateAll();
         }
 
-        function getCellValue(cellId) {
-            if (!cellData[cellId]) return 0;
-            const val = cellData[cellId].value;
-            return isNaN(Number(val)) ? 0 : Number(val);
-        }
-
         function evaluateFormula(expression) {
             try {
-                // SUM(A1:A5) logic
                 const sumRegex = /SUM\(([A-Z]+)(\d+):([A-Z]+)(\d+)\)/i;
                 const sumMatch = expression.match(sumRegex);
-
                 if (sumMatch) {
-                    const startCol = sumMatch[1];
-                    const startRow = parseInt(sumMatch[2]);
-                    const endCol = sumMatch[3];
-                    const endRow = parseInt(sumMatch[4]);
-                    if (startCol !== endCol) return "#ERR-COL";
+                    const startCol = sumMatch[1], startRow = parseInt(sumMatch[2]), endRow = parseInt(sumMatch[4]);
                     let total = 0;
                     for (let r = startRow; r <= endRow; r++) {
-                        total += getCellValue(`${startCol}${r}`);
+                        let val = cellData[`${startCol}${r}`]?.value;
+                        total += isNaN(Number(val)) ? 0 : Number(val);
                     }
                     return total;
                 }
-
-                // Variable substitution
-                const parsedExpr = expression.replace(/[A-Z]+[0-9]+/g, (match) => getCellValue(match));
-
-                // Safety check
-                if (/^[0-9+\-*/().\s]*$/.test(parsedExpr)) {
-                    // eslint-disable-next-line no-eval
-                    return eval(parsedExpr);
-                } else {
-                    return "#ERR";
-                }
-            } catch (e) {
-                console.error(e);
-                return "#ERR";
-            }
-        }
-
-        function recalculateAll() {
-            for (let i = 0; i < 2; i++) {
-                Object.keys(cellData).forEach(id => {
-                    if (cellData[id].formula) {
-                        cellData[id].value = evaluateFormula(cellData[id].formula.substring(1));
-                        renderCell(id);
-                    }
+                const parsedExpr = expression.replace(/[A-Z]+[0-9]+/g, (m) => {
+                    let v = cellData[m]?.value;
+                    return isNaN(Number(v)) ? 0 : Number(v);
                 });
-            }
+                return eval(parsedExpr);
+            } catch { return "#ERR"; }
         }
 
         function renderCell(cellId) {
             const cell = document.getElementById(cellId);
-            const data = cellData[cellId];
-            if (data && document.activeElement !== cell) {
-                cell.innerText = data.value;
+            if (cellData[cellId] && document.activeElement !== cell) {
+                cell.innerText = cellData[cellId].value;
             }
         }
 
-        // --- Toolbar ---
-        function execStyle(command, value = null) {
-            if (!selectedCellId) return;
-            document.execCommand(command, false, value);
-            document.getElementById(selectedCellId).focus();
+        function recalculateAll() {
+            Object.keys(cellData).forEach(id => {
+                if (cellData[id].formula) {
+                    cellData[id].value = evaluateFormula(cellData[id].formula.substring(1));
+                    renderCell(id);
+                }
+            });
         }
 
+        // --- Export Feature ---
+        function toggleExportMenu() {
+            document.getElementById('export-menu').classList.toggle('active');
+        }
+
+        window.onclick = function(event) {
+            if (!event.target.closest('#export-btn')) {
+                document.getElementById('export-menu').classList.remove('active');
+            }
+        }
+
+        function exportData(format) {
+            // Prepare Data Array
+            let dataRows = [];
+            for(let r=1; r<=ROWS; r++) {
+                let row = {};
+                let hasData = false;
+                for(let c=0; c<COLS; c++) {
+                    let colLetter = String.fromCharCode(65+c);
+                    let id = `${colLetter}${r}`;
+                    let val = cellData[id] ? cellData[id].value : "";
+                    if(val !== "") hasData = true;
+                    row[colLetter] = val;
+                }
+                if(hasData) dataRows.push(row);
+            }
+
+            if(format === 'json') {
+                const blob = new Blob([JSON.stringify(cellData, null, 2)], {type: 'application/json'});
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url; a.download = 'cellnix_data.json'; a.click();
+                return;
+            }
+
+            // SheetJS Export
+            const worksheet = XLSX.utils.json_to_sheet(dataRows);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "Sheet1");
+
+            if (format === 'xlsx') XLSX.writeFile(workbook, "CellNix_Export.xlsx");
+            else if (format === 'ods') XLSX.writeFile(workbook, "CellNix_Export.ods");
+            else if (format === 'csv') XLSX.writeFile(workbook, "CellNix_Export.csv", { bookType: 'csv' });
+        }
+
+        function execStyle(cmd) { document.execCommand(cmd, false, null); }
         function execColor(type, color) {
-            if (!selectedCellId) return;
             const cell = document.getElementById(selectedCellId);
-            if (type === 'backColor') cell.style.backgroundColor = color;
-            else if (type === 'foreColor') cell.style.color = color;
+            if(type === 'backColor') cell.style.backgroundColor = color;
+            else cell.style.color = color;
+        }
+
+        function toggleTheme() {
+            const current = document.documentElement.getAttribute('data-theme');
+            const target = current === 'dark' ? 'light' : 'dark';
+            document.documentElement.setAttribute('data-theme', target);
+            localStorage.setItem('cellnix-theme', target);
+            document.getElementById('theme-icon').className = target === 'dark' ? 'fa-solid fa-sun' : 'fa-solid fa-moon';
         }
 
         function resetGrid() {
-            if(confirm("Clear entire sheet?")) {
-                cellData = {};
-                document.querySelectorAll('.cell').forEach(cell => {
-                    cell.innerText = '';
-                    cell.style.backgroundColor = ''; 
-                    cell.style.color = '';
-                    // We don't reset font styles as easily without removing tags, but clearing text helps
-                });
-                formulaInput.value = '';
-                selectCell("A1");
-            }
-        }
-
-        function downloadCSV() {
-            let csv = [];
-            let header = ["Row"];
-            for(let c=0; c<COLS; c++) header.push(String.fromCharCode(65+c));
-            csv.push(header.join(","));
-
-            for(let r=1; r<=ROWS; r++) {
-                let row = [r];
-                for(let c=0; c<COLS; c++) {
-                    let id = `${String.fromCharCode(65+c)}${r}`;
-                    let val = cellData[id] ? cellData[id].value : "";
-                    row.push(val);
-                }
-                csv.push(row.join(","));
-            }
-
-            let csvFile = new Blob([csv.join("\n")], {type: "text/csv"});
-            let downloadLink = document.createElement("a");
-            downloadLink.download = "cellnix_sheet.csv";
-            downloadLink.href = window.URL.createObjectURL(csvFile);
-            downloadLink.style.display = "none";
-            document.body.appendChild(downloadLink);
-            downloadLink.click();
-            document.body.removeChild(downloadLink);
-        }
-
-        // --- Theme Management ---
-        const themeIcon = document.getElementById('theme-icon');
-        
-        // Check local storage or system preference
-        const savedTheme = localStorage.getItem('cellnix-theme') || 'light';
-        document.documentElement.setAttribute('data-theme', savedTheme);
-        updateThemeIcon(savedTheme);
-
-        function toggleTheme() {
-            const currentTheme = document.documentElement.getAttribute('data-theme');
-            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
-            
-            document.documentElement.setAttribute('data-theme', newTheme);
-            localStorage.setItem('cellnix-theme', newTheme);
-            updateThemeIcon(newTheme);
-        }
-
-        function updateThemeIcon(theme) {
-            if (theme === 'dark') {
-                themeIcon.classList.remove('fa-moon');
-                themeIcon.classList.add('fa-sun');
-            } else {
-                themeIcon.classList.remove('fa-sun');
-                themeIcon.classList.add('fa-moon');
-            }
+            if(confirm("Reset all data?")) { location.reload(); }
         }
 
         initGrid();
