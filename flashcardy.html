@@ -1,463 +1,835 @@
 <!DOCTYPE html>
+
 <html lang="en">
+
 <head>
+
     <meta charset="UTF-8">
+
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
     <title>Flashcardy Pro | AI Learning</title>
+
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=Fira+Code&display=swap');
+
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
+
+
 
         :root {
-            --bg-base: #020617;
-            --bg-surface: #0f172a;
-            --primary: #a855f7; /* Purple */
-            --primary-hover: #9333ea;
-            --text-main: #f8fafc;
-            --text-dim: #94a3b8;
-            --border: rgba(255, 255, 255, 0.08);
-            --card-glass: rgba(15, 23, 42, 0.6);
+
+            --primary: #6366f1;
+
+            --bg: #0f172a;
+
         }
 
-        .light-theme {
-            --bg-base: #f8fafc;
-            --bg-surface: #ffffff;
-            --primary: #7e22ce;
-            --primary-hover: #6b21a8;
-            --text-main: #0f172a;
-            --text-dim: #64748b;
-            --border: rgba(0, 0, 0, 0.08);
-            --card-glass: rgba(255, 255, 255, 0.8);
-        }
+
 
         body {
-            font-family: 'Plus Jakarta Sans', sans-serif;
-            background-color: var(--bg-base);
-            color: var(--text-main);
+
+            font-family: 'Inter', sans-serif;
+
+            background: radial-gradient(circle at top left, #1e293b, #0f172a);
+
+            color: #f8fafc;
+
             min-height: 100vh;
-            transition: background-color 0.3s ease, color 0.3s ease;
+
+            margin: 0;
+
+            padding: 0;
+
+            overflow-x: hidden;
+
         }
 
-        .glass {
-            background: var(--card-glass);
-            backdrop-filter: blur(12px);
-            border: 1px solid var(--border);
-            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
-        }
 
-        #auth-gate {
+
+        /* Fixed Loader Logic */
+
+        #loader {
+
             position: fixed;
+
             inset: 0;
-            background: var(--bg-base);
-            z-index: 9999;
+
+            background: #0f172a;
+
             display: flex;
-            align-items: center;
+
+            flex-direction: column;
+
             justify-content: center;
+
+            align-items: center;
+
+            z-index: 9999;
+
             transition: opacity 0.5s ease;
+
+            pointer-events: none; /* Critical: allow clicks through during fade */
+
         }
+
+
+
+        .loader-spinner {
+
+            width: 50px;
+
+            height: 50px;
+
+            border: 5px solid #1e293b;
+
+            border-top: 5px solid var(--primary);
+
+            border-radius: 50%;
+
+            animation: spin 1s linear infinite;
+
+        }
+
+
+
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+
+
+        /* The Grid and Cards */
 
         .card-wrapper {
-            perspective: 1200px;
-            height: 14rem;
+
+            perspective: 1000px;
+
+            position: relative;
+
+            height: 16rem;
+
+            z-index: 1;
+
         }
 
+
+
         .card-inner {
-            transition: transform 0.6s cubic-bezier(0.23, 1, 0.32, 1);
+
+            transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+
             transform-style: preserve-3d;
+
             cursor: pointer;
+
             height: 100%;
+
             width: 100%;
+
             position: relative;
+
         }
+
+
 
         .card-flipped { transform: rotateY(180deg); }
 
+
+
         .card-front, .card-back {
+
             backface-visibility: hidden;
+
             position: absolute;
+
             inset: 0;
+
             display: flex;
+
+            flex-direction: column;
+
             align-items: center;
+
             justify-content: center;
+
             padding: 1.5rem;
+
             text-align: center;
-            border-radius: 1.25rem;
+
+            border-radius: 1rem;
+
+            overflow: hidden;
+
         }
 
-        .card-back { 
-            transform: rotateY(180deg);
-            background: linear-gradient(135deg, var(--primary), #6366f1);
-            color: white;
+
+
+        .card-back { transform: rotateY(180deg); }
+
+
+
+        .glass {
+
+            background: rgba(255, 255, 255, 0.03);
+
+            backdrop-filter: blur(12px);
+
+            border: 1px solid rgba(255, 255, 255, 0.1);
+
         }
 
-        .mastery-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--border); transition: all 0.3s; }
-        .mastery-active { background: var(--primary); box-shadow: 0 0 8px var(--primary); }
 
-        .btn-action {
-            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-        .btn-action:hover { transform: translateY(-2px); }
-        .btn-action:active { transform: translateY(0) scale(0.95); }
 
-        .custom-scroll::-webkit-scrollbar { width: 5px; }
-        .custom-scroll::-webkit-scrollbar-track { background: transparent; }
-        .custom-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 5px; }
+        .mastery-dot { width: 8px; height: 8px; border-radius: 50%; }
+
+        .mastery-2 { background: #4ade80; }
+
+
+
+        .ai-loading { animation: pulse 1.5s infinite; opacity: 0.6; pointer-events: none; }
+
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+
+
+        header { position: relative; z-index: 50; }
+
+
 
         .modal-overlay {
-            background: rgba(0, 0, 0, 0.4);
-            backdrop-filter: blur(4px);
-            z-index: 1000;
-        }
-    </style>
-</head>
-<body class="p-4 md:p-8 opacity-0 transition-opacity duration-500" id="app-body">
 
-    <!-- Auth / Loading Gate -->
-    <div id="auth-gate">
-        <div class="text-center">
-            <div class="w-10 h-10 border-4 border-purple-500/20 border-t-purple-500 rounded-full animate-spin mx-auto mb-4"></div>
-            <p class="text-[10px] font-mono tracking-widest text-zinc-500 uppercase">Synchronizing Neural Link...</p>
-        </div>
+            position: fixed;
+
+            inset: 0;
+
+            background: rgba(0,0,0,0.85);
+
+            backdrop-filter: blur(8px);
+
+            z-index: 1000;
+
+            display: flex;
+
+            align-items: center;
+
+            justify-content: center;
+
+            padding: 1rem;
+
+        }
+
+
+
+        .hidden { display: none !important; }
+
+        
+
+        button { cursor: pointer; }
+
+    </style>
+
+</head>
+
+<body class="p-4 md:p-8">
+
+
+
+    <div id="loader">
+
+        <div class="loader-spinner mb-4"></div>
+
+        <h1 class="text-2xl font-bold text-white">Flashcardy Pro</h1>
+
     </div>
 
-    <div class="max-w-6xl mx-auto">
-        <!-- Header -->
-        <header class="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-12">
+
+
+    <div class="max-w-5xl mx-auto">
+
+        <header class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-10">
+
             <div>
-                <div class="flex items-center gap-2 mb-1">
-                    <div class="w-8 h-8 bg-purple-600 rounded-lg flex items-center justify-center text-white shadow-lg shadow-purple-500/20">
-                        <i class="fas fa-brain text-xs"></i>
-                    </div>
-                    <h1 class="text-2xl font-bold tracking-tight">Flashcardy<span class="text-purple-500">Pro</span></h1>
-                </div>
-                <p id="user-welcome" class="text-xs font-medium text-dim">Cloud synchronization active</p>
+
+                <h1 class="text-3xl font-extrabold bg-gradient-to-r from-indigo-400 to-cyan-400 bg-clip-text text-transparent">Flashcardy</h1>
+
+                <p class="text-slate-400 text-sm">Spaced Repetition & AI Assistant</p>
+
             </div>
 
-            <div class="flex items-center gap-3">
-                <button onclick="toggleTheme()" class="glass w-10 h-10 rounded-full flex items-center justify-center btn-action">
-                    <i id="theme-icon" class="fas fa-moon"></i>
+            <div class="flex flex-wrap gap-2">
+
+                <button id="btn-review" class="bg-emerald-600 hover:bg-emerald-500 px-4 py-2 rounded-lg font-semibold flex items-center gap-2 transition-all active:scale-95 shadow-lg">
+
+                    <i class="fas fa-play"></i> Review Due
+
                 </button>
-                <div class="h-6 w-[1px] bg-zinc-800 mx-2"></div>
-                <button onclick="openModal('modal-single')" class="bg-purple-600 hover:bg-purple-700 text-white px-5 py-2.5 rounded-xl font-semibold text-sm btn-action flex items-center gap-2 shadow-lg shadow-purple-500/20">
+
+                <button id="btn-add" class="bg-indigo-600 hover:bg-indigo-500 px-4 py-2 rounded-lg font-semibold flex items-center gap-2 transition-all active:scale-95 shadow-lg">
+
                     <i class="fas fa-plus"></i> Add Card
+
                 </button>
-                <button onclick="handleSignOut()" class="glass w-10 h-10 rounded-full flex items-center justify-center text-red-500 btn-action" title="Sign Out">
-                    <i class="fas fa-sign-out-alt"></i>
+
+                <button id="btn-bulk" class="bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded-lg font-semibold flex items-center gap-2 transition-all active:scale-95 shadow-lg">
+
+                    <i class="fas fa-robot"></i> AI Bulk
+
                 </button>
+
             </div>
+
         </header>
 
-        <!-- Stats Grid -->
-        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
-            <div class="glass p-5 rounded-2xl">
-                <p class="text-[10px] font-bold text-dim uppercase tracking-wider mb-1">Collection</p>
-                <p id="stat-total" class="text-2xl font-bold">0</p>
+
+
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+
+            <div class="glass p-4 rounded-xl text-center">
+
+                <p class="text-slate-500 text-xs font-bold uppercase">Total</p>
+
+                <p id="stat-total" class="text-xl font-bold">0</p>
+
             </div>
-            <div class="glass p-5 rounded-2xl">
-                <p class="text-[10px] font-bold text-dim uppercase tracking-wider mb-1">Pending Review</p>
-                <p id="stat-due" class="text-2xl font-bold text-amber-500">0</p>
+
+            <div class="glass p-4 rounded-xl text-center">
+
+                <p class="text-slate-500 text-xs font-bold uppercase">Due Now</p>
+
+                <p id="stat-due" class="text-xl font-bold text-amber-400">0</p>
+
             </div>
-            <div class="glass p-5 rounded-2xl">
-                <p class="text-[10px] font-bold text-dim uppercase tracking-wider mb-1">Mastery Rank</p>
-                <p id="stat-mastered" class="text-2xl font-bold text-purple-500">0</p>
+
+            <div class="glass p-4 rounded-xl text-center">
+
+                <p class="text-slate-500 text-xs font-bold uppercase">Mastered</p>
+
+                <p id="stat-mastered" class="text-xl font-bold text-cyan-400">0</p>
+
             </div>
-            <div class="glass p-5 rounded-2xl flex items-center justify-between">
-                <div>
-                    <p class="text-[10px] font-bold text-dim uppercase tracking-wider mb-1">Status</p>
-                    <p class="text-xs font-bold text-emerald-500 flex items-center gap-1">
-                        <span class="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></span> READY
-                    </p>
-                </div>
-                <button onclick="startReview()" class="bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-500 p-3 rounded-xl transition-colors">
-                    <i class="fas fa-play"></i>
-                </button>
+
+            <div class="glass p-4 rounded-xl text-center">
+
+                <p class="text-slate-500 text-xs font-bold uppercase">Next</p>
+
+                <p id="stat-next" class="text-sm font-semibold text-slate-300">N/A</p>
+
             </div>
+
         </div>
 
-        <!-- Main Content -->
-        <div id="cards-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-20"></div>
 
-        <div id="empty-state" class="hidden flex flex-col items-center justify-center py-32 text-center">
-            <div class="w-20 h-20 bg-purple-500/5 rounded-full flex items-center justify-center mb-6">
-                <i class="fas fa-layer-group text-3xl text-purple-500/20"></i>
-            </div>
-            <h3 class="text-lg font-semibold mb-1">Your vault is empty</h3>
-            <p class="text-dim text-sm max-w-xs">Start your learning journey by adding your first flashcard or using the AI Bulk generator.</p>
+
+        <div id="cards-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+
+
+
+        <div id="empty-state" class="hidden flex flex-col items-center justify-center py-20 text-slate-500">
+
+            <i class="fas fa-brain text-6xl mb-4 opacity-20"></i>
+
+            <p>Ready to learn? Add a card to start.</p>
+
         </div>
+
     </div>
+
+
 
     <!-- Modals -->
-    <div id="modal-single" class="modal-overlay fixed inset-0 hidden flex items-center justify-center p-4">
-        <div class="glass w-full max-w-lg p-8 rounded-3xl shadow-2xl">
-            <div class="flex justify-between items-center mb-8">
-                <h2 class="text-xl font-bold">New Knowledge Node</h2>
-                <button onclick="closeModal('modal-single')" class="text-dim hover:text-white"><i class="fas fa-times"></i></button>
+
+    <div id="modal-single" class="modal-overlay hidden">
+
+        <div class="glass bg-slate-900 w-full max-w-lg p-6 rounded-2xl border border-white/10 shadow-2xl">
+
+            <div class="flex justify-between items-center mb-6">
+
+                <h2 class="text-xl font-bold">New Flashcard</h2>
+
+                <button class="close-modal text-slate-400 hover:text-white text-xl p-1"><i class="fas fa-times"></i></button>
+
             </div>
-            <div class="space-y-6">
-                <div class="space-y-2">
-                    <label class="text-[10px] font-bold text-dim uppercase tracking-widest">Inquiry / Front</label>
-                    <div class="relative">
-                        <textarea id="inp-front" class="w-full bg-black/20 border border-white/5 rounded-2xl p-4 text-sm focus:outline-none focus:border-purple-500 transition-colors h-24" placeholder="Enter term or question..."></textarea>
-                        <button onclick="aiAutoAnswer()" id="ai-btn" class="absolute bottom-3 right-3 bg-purple-600 hover:bg-purple-700 text-white w-8 h-8 rounded-lg flex items-center justify-center transition-all shadow-lg">
-                            <i class="fas fa-magic text-xs"></i>
+
+            <div class="space-y-4">
+
+                <div class="relative">
+
+                    <label class="block text-xs font-bold text-slate-500 mb-2 uppercase">Front (Term/Question)</label>
+
+                    <div class="flex gap-2">
+
+                        <textarea id="inp-front" class="flex-1 bg-slate-800 border border-slate-700 rounded-lg p-3 text-white h-24 focus:outline-none focus:border-indigo-500 transition-colors" placeholder="e.g. Photosynthesis"></textarea>
+
+                        <button id="ai-answer-btn" title="AI Auto-Answer" class="bg-indigo-600 hover:bg-indigo-500 text-white w-12 rounded-lg flex items-center justify-center transition-all">
+
+                            <i class="fas fa-magic"></i>
+
                         </button>
+
                     </div>
+
                 </div>
-                <div class="space-y-2">
-                    <label class="text-[10px] font-bold text-dim uppercase tracking-widest">Resolution / Back</label>
-                    <textarea id="inp-back" class="w-full bg-black/20 border border-white/5 rounded-2xl p-4 text-sm focus:outline-none focus:border-purple-500 transition-colors h-24" placeholder="Enter answer or details..."></textarea>
+
+                <div>
+
+                    <label class="block text-xs font-bold text-slate-500 mb-2 uppercase">Back (Definition/Answer)</label>
+
+                    <textarea id="inp-back" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 text-white h-24 focus:outline-none focus:border-indigo-500 transition-colors" placeholder="Click magic wand for AI help..."></textarea>
+
                 </div>
-                <button onclick="saveCard()" class="w-full bg-purple-600 hover:bg-purple-700 py-4 rounded-2xl font-bold text-sm uppercase tracking-widest shadow-xl shadow-purple-500/20 btn-action">Commit to Memory</button>
+
+                <button id="save-card-btn" class="w-full bg-indigo-600 hover:bg-indigo-500 py-3 rounded-xl font-bold text-lg active:scale-95 transition-all shadow-lg">Save Flashcard</button>
+
             </div>
+
         </div>
+
     </div>
 
-    <!-- Review Overlay -->
-    <div id="review-overlay" class="fixed inset-0 bg-black hidden z-[5000] p-6 flex flex-col items-center justify-center">
-        <div class="w-full max-w-2xl flex flex-col h-full">
-            <div class="flex justify-between items-center mb-12">
-                <span id="review-progress" class="text-[10px] font-mono text-zinc-500 uppercase tracking-widest">Card 0 of 0</span>
-                <button onclick="closeReview()" class="text-zinc-500 hover:text-white"><i class="fas fa-times text-xl"></i></button>
+
+
+    <div id="modal-bulk" class="modal-overlay hidden">
+
+        <div class="glass bg-slate-900 w-full max-w-2xl p-6 rounded-2xl border border-white/10 shadow-2xl">
+
+            <div class="flex justify-between items-center mb-6">
+
+                <h2 class="text-xl font-bold">AI Bulk Create</h2>
+
+                <button class="close-modal text-slate-400 hover:text-white text-xl p-1"><i class="fas fa-times"></i></button>
+
             </div>
-            
-            <div class="flex-1 flex flex-col items-center justify-center w-full">
-                <div id="review-card-container" class="w-full h-80 mb-12"></div>
-                
-                <div id="review-controls" class="flex gap-4 w-full max-w-md opacity-0 pointer-events-none transition-all duration-500 transform translate-y-4">
-                    <button onclick="processReview(false)" class="flex-1 bg-zinc-900 border border-zinc-800 hover:bg-red-500/10 hover:border-red-500/50 py-5 rounded-2xl font-bold text-xs uppercase tracking-widest transition-all">Forgot</button>
-                    <button onclick="processReview(true)" class="flex-1 bg-purple-600 hover:bg-purple-700 py-5 rounded-2xl font-bold text-xs uppercase tracking-widest transition-all shadow-xl shadow-purple-500/20">Remembered</button>
-                </div>
-            </div>
+
+            <textarea id="bulk-text" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-4 text-white h-60 mb-4 focus:outline-none focus:border-indigo-500" placeholder="Paste your notes here..."></textarea>
+
+            <button id="run-bulk-ai" class="w-full bg-indigo-600 hover:bg-indigo-500 py-3 rounded-xl font-bold text-lg active:scale-95 transition-all shadow-lg">Generate Cards</button>
+
         </div>
+
     </div>
+
+
+
+    <div id="review-overlay" class="fixed inset-0 bg-slate-950 hidden z-[2000] p-4 flex flex-col items-center justify-center">
+
+        <div class="w-full max-w-xl">
+
+            <div class="flex justify-between items-center mb-8">
+
+                <span id="review-progress" class="text-slate-400 font-mono">Card 1/1</span>
+
+                <button id="btn-close-review" class="text-slate-400 hover:text-white text-2xl p-2"><i class="fas fa-times"></i></button>
+
+            </div>
+
+            <div id="review-card-container" class="h-80 w-full mb-10"></div>
+
+            <div id="review-controls" class="flex gap-4 opacity-0 pointer-events-none transition-opacity">
+
+                <button id="btn-forgot" class="flex-1 bg-red-600 hover:bg-red-500 py-4 rounded-xl font-bold text-white shadow-lg">Forgot</button>
+
+                <button id="btn-remembered" class="flex-1 bg-emerald-600 hover:bg-emerald-500 py-4 rounded-xl font-bold text-white shadow-lg">Got it!</button>
+
+            </div>
+
+        </div>
+
+    </div>
+
+
 
     <script>
-        const SUPABASE_URL = "https://rnlwrngfgvznndlekmrz.supabase.co";
-        const SUPABASE_KEY = "sb_publishable_mtI0_ZBvU_n5oRuqV58QHg_qJt3Gfyt";
-        const AI_API_KEY = "ak_2Q14Wb6iZ0DI72b1Im4pv1jo3iO9X";
-        const AI_ENDPOINT = "https://api.longcat.chat/openai/v1/chat/completions";
 
-        /** * FIX: Identifier 'supabase' has already been declared.
-         * The Supabase CDN script provides the 'supabase' object globally. 
-         * We initialize our client instance into a variable 'db' to avoid naming collisions.
-         */
-        const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-        
-        let state = {
-            cards: [],
-            user: null,
-            reviewQueue: [],
-            currentIndex: 0,
-            intervals: [0, 4, 24, 72, 168, 720]
-        };
+        const API_KEY = "ak_2Q14Wb6iZ0DI72b1Im4pv1jo3iO9X";
 
-        // --- AUTH & INIT ---
-        async function checkAuth() {
-            const { data: { user } } = await db.auth.getUser();
-            if (!user) {
-                localStorage.setItem('returnPath', window.location.href);
-                window.location.href = 'auth.html';
-                return;
-            }
-            state.user = user;
-            document.getElementById('user-welcome').innerText = `Welcome, ${user.email.split('@')[0]}`;
-            await loadCards();
-            document.getElementById('auth-gate').style.opacity = '0';
-            setTimeout(() => {
-                document.getElementById('auth-gate').style.display = 'none';
-                document.getElementById('app-body').classList.remove('opacity-0');
-            }, 500);
-        }
+        const ENDPOINT = "https://api.longcat.chat/openai/v1/chat/completions";
 
-        async function handleSignOut() {
-            await db.auth.signOut();
-            window.location.href = 'auth.html';
-        }
 
-        // --- DATA LAYER ---
-        async function loadCards() {
-            const { data, error } = await db
-                .from('flashcards')
-                .select('*')
-                .eq('user_id', state.user.id)
-                .order('created_at', { ascending: false });
 
-            if (error) console.error("Load error:", error);
-            state.cards = data || [];
+        let cards = [];
+
+        let reviewQueue = [];
+
+        let currentReviewIndex = 0;
+
+        const INTERVALS = [0, 4, 24, 72, 168, 720];
+
+
+
+        window.addEventListener('DOMContentLoaded', () => {
+
+            const saved = localStorage.getItem('flashcardy_v5');
+
+            cards = saved ? JSON.parse(saved) : [];
+
             renderUI();
-        }
 
-        async function saveCard() {
-            const front = document.getElementById('inp-front').value.trim();
-            const back = document.getElementById('inp-back').value.trim();
-            if (!front || !back) return;
-
-            const { data, error } = await db
-                .from('flashcards')
-                .insert([{
-                    user_id: state.user.id,
-                    front,
-                    back,
-                    level: 0,
-                    next_review: new Date().toISOString()
-                }]);
-
-            if (!error) {
-                closeModal('modal-single');
-                document.getElementById('inp-front').value = '';
-                document.getElementById('inp-back').value = '';
-                await loadCards();
-            }
-        }
-
-        async function deleteCard(id) {
-            const { error } = await db.from('flashcards').delete().eq('id', id);
-            if (!error) await loadCards();
-        }
-
-        // --- AI ENGINE ---
-        async function aiAutoAnswer() {
-            const question = document.getElementById('inp-front').value.trim();
-            if (!question) return;
             
-            const btn = document.getElementById('ai-btn');
-            const back = document.getElementById('inp-back');
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
-            back.placeholder = "AI generating resolution...";
 
-            try {
-                const response = await fetch(AI_ENDPOINT, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${AI_API_KEY}` },
-                    body: JSON.stringify({
-                        model: "LongCat-Flash-Chat",
-                        messages: [{ role: "user", content: `Flashcard answer for: "${question}". Concise, 1-2 sentences.` }],
-                        temperature: 0.7
-                    })
-                });
-                const data = await response.json();
-                back.value = data.choices[0].message.content.trim();
-            } catch (e) {
-                console.error("AI error", e);
-            } finally {
-                btn.innerHTML = '<i class="fas fa-magic text-xs"></i>';
-                back.placeholder = "Enter answer or details...";
-            }
-        }
+            const loader = document.getElementById('loader');
 
-        // --- REVIEW ENGINE ---
-        function startReview() {
-            const now = new Date();
-            state.reviewQueue = state.cards.filter(c => new Date(c.next_review) <= now);
-            if (!state.reviewQueue.length) return alert("All cards mastered for now!");
+            setTimeout(() => {
+
+                loader.style.opacity = '0';
+
+                setTimeout(() => loader.style.display = 'none', 500);
+
+            }, 800);
+
             
-            state.currentIndex = 0;
-            document.getElementById('review-overlay').classList.remove('hidden');
-            showReviewCard();
-        }
 
-        function showReviewCard() {
-            const card = state.reviewQueue[state.currentIndex];
-            const container = document.getElementById('review-card-container');
-            const controls = document.getElementById('review-controls');
+            setupEvents();
+
+        });
+
+
+
+        function setupEvents() {
+
+            document.getElementById('btn-add').onclick = () => document.getElementById('modal-single').classList.remove('hidden');
+
+            document.getElementById('btn-bulk').onclick = () => document.getElementById('modal-bulk').classList.remove('hidden');
+
+            document.getElementById('btn-review').onclick = startReview;
+
             
-            document.getElementById('review-progress').innerText = `Card ${state.currentIndex + 1} of ${state.reviewQueue.length}`;
-            controls.classList.add('opacity-0', 'translate-y-4', 'pointer-events-none');
-            
-            container.innerHTML = `
-                <div class="card-inner w-full h-full" onclick="this.classList.add('card-flipped'); document.getElementById('review-controls').classList.remove('opacity-0', 'translate-y-4', 'pointer-events-none');">
-                    <div class="card-front glass border-purple-500/20">
-                        <p class="text-2xl font-bold px-8">${card.front}</p>
-                        <p class="absolute bottom-8 text-[10px] font-mono text-dim tracking-widest animate-pulse">Click to Reveal</p>
-                    </div>
-                    <div class="card-back shadow-2xl shadow-purple-500/20">
-                        <p class="text-xl font-medium px-8 leading-relaxed">${card.back}</p>
-                    </div>
-                </div>
-            `;
-        }
 
-        async function processReview(success) {
-            const card = state.reviewQueue[state.currentIndex];
-            const newLevel = success ? Math.min(card.level + 1, 5) : 0;
-            const nextReview = new Date(Date.now() + (state.intervals[newLevel] * 3600000)).toISOString();
+            document.querySelectorAll('.close-modal').forEach(b => {
 
-            await db
-                .from('flashcards')
-                .update({ level: newLevel, next_review: nextReview })
-                .eq('id', card.id);
+                b.onclick = () => {
 
-            state.currentIndex++;
-            if (state.currentIndex < state.reviewQueue.length) {
-                showReviewCard();
-            } else {
-                closeReview();
-                await loadCards();
-            }
-        }
+                    document.getElementById('modal-single').classList.add('hidden');
 
-        function closeReview() {
-            document.getElementById('review-overlay').classList.add('hidden');
-        }
+                    document.getElementById('modal-bulk').classList.add('hidden');
 
-        // --- UI UTILS ---
-        function renderUI() {
-            const cont = document.getElementById('cards-container');
-            cont.innerHTML = '';
-            
-            let dueCount = 0;
-            let masteryCount = 0;
-            const now = new Date();
+                };
 
-            state.cards.forEach(c => {
-                if (new Date(c.next_review) <= now) dueCount++;
-                if (c.level >= 4) masteryCount++;
-
-                const wrap = document.createElement('div');
-                wrap.className = 'card-wrapper group';
-                wrap.innerHTML = `
-                    <div class="card-inner" onclick="this.classList.toggle('card-flipped')">
-                        <div class="card-front glass">
-                             <div class="absolute top-4 left-4 flex gap-1">
-                                ${Array(5).fill().map((_, i) => `<div class="mastery-dot ${i < c.level ? 'mastery-active' : ''}"></div>`).join('')}
-                            </div>
-                            <p class="font-bold px-6 line-clamp-3">${c.front}</p>
-                        </div>
-                        <div class="card-back shadow-lg">
-                            <p class="text-sm px-6 line-clamp-6 font-medium">${c.back}</p>
-                        </div>
-                    </div>
-                    <button onclick="event.stopPropagation(); deleteCard(${c.id})" class="absolute top-3 right-3 opacity-0 group-hover:opacity-100 bg-black/40 text-white w-8 h-8 rounded-full flex items-center justify-center transition-all hover:bg-red-500">
-                        <i class="fas fa-trash text-[10px]"></i>
-                    </button>
-                `;
-                cont.appendChild(wrap);
             });
 
-            document.getElementById('stat-total').innerText = state.cards.length;
-            document.getElementById('stat-due').innerText = dueCount;
-            document.getElementById('stat-mastered').innerText = masteryCount;
-            document.getElementById('empty-state').classList.toggle('hidden', state.cards.length > 0);
+
+
+            document.getElementById('ai-answer-btn').onclick = aiAutoAnswer;
+
+            document.getElementById('save-card-btn').onclick = saveCard;
+
+            document.getElementById('run-bulk-ai').onclick = runBulkAI;
+
+            document.getElementById('btn-close-review').onclick = () => document.getElementById('review-overlay').classList.add('hidden');
+
+            document.getElementById('btn-forgot').onclick = () => processReview(false);
+
+            document.getElementById('btn-remembered').onclick = () => processReview(true);
+
         }
 
-        function toggleTheme() {
-            const body = document.querySelector('body');
-            const icon = document.getElementById('theme-icon');
-            const isLight = body.classList.toggle('light-theme');
-            icon.className = isLight ? 'fas fa-sun' : 'fas fa-moon';
-            localStorage.setItem('f_theme', isLight ? 'light' : 'dark');
+
+
+        async function callAI(prompt) {
+
+            const response = await fetch(ENDPOINT, {
+
+                method: 'POST',
+
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${API_KEY}` },
+
+                body: JSON.stringify({
+
+                    model: "LongCat-Flash-Chat",
+
+                    messages: [{ role: "user", content: prompt }],
+
+                    temperature: 0.7
+
+                })
+
+            });
+
+            const data = await response.json();
+
+            return data.choices[0].message.content.trim();
+
         }
 
-        function openModal(id) { document.getElementById(id).classList.remove('hidden'); }
-        function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
 
-        // Initial Load
-        window.onload = () => {
-            if (localStorage.getItem('f_theme') === 'light') toggleTheme();
-            checkAuth();
+
+        async function aiAutoAnswer() {
+
+            const question = document.getElementById('inp-front').value.trim();
+
+            if (!question) return alert("Please enter a question or term on the front first!");
+
+            
+
+            const btn = document.getElementById('ai-answer-btn');
+
+            const backArea = document.getElementById('inp-back');
+
+            
+
+            btn.classList.add('ai-loading');
+
+            backArea.placeholder = "AI is thinking...";
+
+            
+
+            try {
+
+                const answer = await callAI(`Provide a clear, concise flashcard answer for the following question or term: "${question}". Keep it under 2 sentences.`);
+
+                backArea.value = answer;
+
+            } catch (e) {
+
+                alert("AI failed to respond. Check your connection.");
+
+            } finally {
+
+                btn.classList.remove('ai-loading');
+
+                backArea.placeholder = "Click magic wand for AI help...";
+
+            }
+
+        }
+
+
+
+        async function runBulkAI() {
+
+            const text = document.getElementById('bulk-text').value.trim();
+
+            if (!text) return;
+
+            const btn = document.getElementById('run-bulk-ai');
+
+            btn.disabled = true; 
+
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Generating...';
+
+            try {
+
+                const response = await callAI(`Based on this text, create exactly 3 flashcards. Output ONLY as a JSON array of objects with "front" and "back" keys. Text: ${text}`);
+
+                const match = response.match(/\[.*\]/s);
+
+                if (match) {
+
+                    const newCards = JSON.parse(match[0]);
+
+                    newCards.forEach(c => cards.unshift({ ...c, id: Date.now() + Math.random(), level: 0, nextReview: Date.now() }));
+
+                    saveToStorage();
+
+                    document.getElementById('modal-bulk').classList.add('hidden');
+
+                    document.getElementById('bulk-text').value = '';
+
+                }
+
+            } catch (e) { alert("AI error parsing data."); }
+
+            finally { 
+
+                btn.disabled = false; 
+
+                btn.innerHTML = 'Generate Cards'; 
+
+            }
+
+        }
+
+
+
+        function saveCard() {
+
+            const front = document.getElementById('inp-front').value.trim();
+
+            const back = document.getElementById('inp-back').value.trim();
+
+            if (!front || !back) return alert("Both sides are required.");
+
+            cards.unshift({ id: Date.now(), front, back, level: 0, nextReview: Date.now() });
+
+            saveToStorage();
+
+            document.getElementById('modal-single').classList.add('hidden');
+
+            document.getElementById('inp-front').value = '';
+
+            document.getElementById('inp-back').value = '';
+
+        }
+
+
+
+        window.deleteCard = (id) => {
+
+            cards = cards.filter(c => c.id !== id);
+
+            saveToStorage();
+
         };
+
+
+
+        function saveToStorage() {
+
+            localStorage.setItem('flashcardy_v5', JSON.stringify(cards));
+
+            renderUI();
+
+        }
+
+
+
+        function startReview() {
+
+            const now = Date.now();
+
+            reviewQueue = cards.filter(c => c.nextReview <= now);
+
+            if (!reviewQueue.length) return alert("Nothing to review right now!");
+
+            currentReviewIndex = 0;
+
+            document.getElementById('review-overlay').classList.remove('hidden');
+
+            showReviewCard();
+
+        }
+
+
+
+        function showReviewCard() {
+
+            const card = reviewQueue[currentReviewIndex];
+
+            const cont = document.getElementById('review-card-container');
+
+            document.getElementById('review-progress').innerText = `Card ${currentReviewIndex + 1}/${reviewQueue.length}`;
+
+            document.getElementById('review-controls').classList.add('opacity-0', 'pointer-events-none');
+
+            cont.innerHTML = `
+
+                <div class="card-inner w-full h-full" onclick="this.classList.add('card-flipped'); document.getElementById('review-controls').classList.remove('opacity-0', 'pointer-events-none');">
+
+                    <div class="card-front glass border-indigo-500/30">
+
+                        <p class="text-2xl font-bold">${card.front}</p>
+
+                        <p class="text-slate-500 mt-8 text-sm animate-bounce">Click to flip</p>
+
+                    </div>
+
+                    <div class="card-back glass bg-indigo-900/20 border-indigo-500/50">
+
+                        <p class="text-xl px-6">${card.back}</p>
+
+                    </div>
+
+                </div>
+
+            `;
+
+        }
+
+
+
+        function processReview(remembered) {
+
+            const card = reviewQueue[currentReviewIndex];
+
+            const idx = cards.findIndex(c => c.id === card.id);
+
+            cards[idx].level = remembered ? Math.min(cards[idx].level + 1, 5) : 0;
+
+            cards[idx].nextReview = Date.now() + (INTERVALS[cards[idx].level] * 3600000);
+
+            currentReviewIndex++;
+
+            if (currentReviewIndex < reviewQueue.length) showReviewCard();
+
+            else {
+
+                saveToStorage();
+
+                document.getElementById('review-overlay').classList.add('hidden');
+
+            }
+
+        }
+
+
+
+        function renderUI() {
+
+            const cont = document.getElementById('cards-container');
+
+            cont.innerHTML = '';
+
+            let due = 0, mastered = 0, now = Date.now();
+
+            cards.forEach(c => {
+
+                if (c.nextReview <= now) due++;
+
+                if (c.level >= 4) mastered++;
+
+                const div = document.createElement('div');
+
+                div.className = 'card-wrapper group';
+
+                div.innerHTML = `
+
+                    <div class="card-inner" onclick="this.classList.toggle('card-flipped')">
+
+                        <div class="card-front glass">
+
+                             <div class="absolute top-3 left-3 flex gap-1">
+
+                                ${Array(5).fill().map((_, i) => `<div class="mastery-dot ${i < c.level ? 'mastery-2' : 'bg-slate-700'}"></div>`).join('')}
+
+                            </div>
+
+                            <p class="font-bold px-4 line-clamp-3">${c.front}</p>
+
+                        </div>
+
+                        <div class="card-back glass bg-slate-800">
+
+                            <p class="text-sm px-4 text-slate-300 line-clamp-6">${c.back}</p>
+
+                        </div>
+
+                    </div>
+
+                    <button onclick="event.stopPropagation(); deleteCard(${c.id})" class="absolute top-2 right-2 opacity-0 group-hover:opacity-100 bg-red-500/20 text-red-500 p-2 rounded-full z-10 transition-all hover:bg-red-600 hover:text-white">
+
+                        <i class="fas fa-trash text-xs"></i>
+
+                    </button>
+
+                `;
+
+                cont.appendChild(div);
+
+            });
+
+            document.getElementById('stat-total').innerText = cards.length;
+
+            document.getElementById('stat-due').innerText = due;
+
+            document.getElementById('stat-mastered').innerText = mastered;
+
+            document.getElementById('empty-state').classList.toggle('hidden', cards.length > 0);
+
+        }
+
     </script>
+
 </body>
+
 </html>
