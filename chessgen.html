@@ -2,7 +2,7 @@
 <html lang="en" class="dark">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>ChessGen Pro | Nix AI Studio</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
@@ -28,7 +28,7 @@
             background-color: var(--bg-dark);
             color: #fafafa;
             margin: 0;
-            overflow-x: hidden;
+            overflow: hidden; /* Lock scroll for app-like feel */
         }
 
         .dot-grid { 
@@ -44,10 +44,29 @@
 
         #board { 
             width: 100%; 
-            max-width: 520px; 
-            border: 8px solid #18181b; 
-            border-radius: 12px;
-            box-shadow: 0 20px 50px -12px rgba(0, 0, 0, 0.8);
+            max-width: 680px; /* Increased board size */
+            border: 4px solid #18181b; 
+            border-radius: 8px;
+            box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.9);
+            transition: transform 0.2s ease;
+        }
+
+        /* Fullscreen Mode Styles */
+        .fullscreen-active {
+            position: fixed !important;
+            top: 0; left: 0; right: 0; bottom: 0;
+            z-index: 9999;
+            background: #000;
+            display: flex !important;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .fullscreen-active #board {
+            max-width: 90vh !important;
+            width: 90vh !important;
+            border: none;
         }
 
         /* Legal Move Indicator */
@@ -57,23 +76,24 @@
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            width: 16px;
-            height: 16px;
-            background: rgba(16, 185, 129, 0.4);
+            width: 30%;
+            height: 30%;
+            background: rgba(16, 185, 129, 0.45);
             border-radius: 50%;
             pointer-events: none;
         }
 
         .highlight-selected {
-            background-color: rgba(16, 185, 129, 0.2) !important;
-            box-shadow: inset 0 0 0 3px rgba(16, 185, 129, 0.5) !important;
+            background-color: rgba(16, 185, 129, 0.25) !important;
+            box-shadow: inset 0 0 0 4px rgba(16, 185, 129, 0.5) !important;
         }
 
         .eval-bar-container { 
-            width: 12px; 
-            height: 520px; 
+            width: 14px; 
+            height: 100%; 
+            min-height: 400px;
             background: #18181b; 
-            border-radius: 6px; 
+            border-radius: 4px; 
             overflow: hidden; 
             position: relative; 
             border: 1px solid #27272a;
@@ -88,33 +108,62 @@
         }
 
         /* Board Colors Overrides */
-        .white-1e1d7 { background-color: #27272a !important; }
-        .black-3c85d { background-color: #09090b !important; }
+        .white-1e1d7 { background-color: #3b3b3b !important; }
+        .black-3c85d { background-color: #1a1a1a !important; }
 
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #27272a; border-radius: 10px; }
         
         @keyframes slideIn { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: translateX(0); } }
         .move-anim { animation: slideIn 0.3s ease forwards; }
+
+        @media (max-width: 1024px) {
+            body { overflow-y: auto; }
+            #board { max-width: 92vw; }
+            .eval-bar-container { height: 92vw; min-height: auto; }
+        }
     </style>
 </head>
 <body class="min-h-screen selection:bg-emerald-500/30">
-    <div class="flex h-screen w-full overflow-hidden">
-        <!-- Sidebar -->
-        <aside class="w-80 border-r border-zinc-800 bg-zinc-950 flex flex-col hidden lg:flex">
-            <div class="p-6 border-b border-zinc-800 flex items-center gap-3">
-                <div class="w-10 h-10 bg-emerald-600 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-600/20">
-                    <i data-lucide="shield-check" class="text-white w-6 h-6"></i>
+    <!-- Fullscreen Exit UI -->
+    <div id="fs-ui" class="fixed top-6 right-6 z-[10000] hidden flex gap-3">
+        <button onclick="exitFullscreen()" class="p-3 bg-red-500/80 backdrop-blur rounded-full hover:bg-red-600 transition-all shadow-xl">
+            <i data-lucide="x" class="w-6 h-6 text-white"></i>
+        </button>
+    </div>
+
+    <div class="flex h-screen w-full overflow-hidden flex-col lg:flex-row">
+        
+        <!-- Mobile Header (Visible only on small screens) -->
+        <header class="lg:hidden h-16 border-b border-zinc-800 bg-zinc-950 flex items-center justify-between px-6 z-50">
+            <div class="flex items-center gap-3">
+                <i data-lucide="shield-check" class="text-emerald-500 w-6 h-6"></i>
+                <h1 class="font-bold text-sm tracking-tight text-white">ChessGen Pro</h1>
+            </div>
+            <button onclick="toggleSidebar()" class="p-2 text-zinc-400">
+                <i data-lucide="menu" class="w-6 h-6"></i>
+            </button>
+        </header>
+
+        <!-- Sidebar (Professional Studio Panel) -->
+        <aside id="sidebar" class="w-full lg:w-80 border-r border-zinc-800 bg-zinc-950 flex-col hidden lg:flex fixed inset-0 lg:relative z-[60]">
+            <div class="p-6 border-b border-zinc-800 flex items-center justify-between lg:justify-start gap-3">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-emerald-600 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-600/20">
+                        <i data-lucide="shield-check" class="text-white w-6 h-6"></i>
+                    </div>
+                    <div>
+                        <h1 class="font-bold text-sm tracking-tight text-white leading-tight">ChessGen Pro</h1>
+                        <p class="text-[10px] text-zinc-500 font-medium tracking-wider uppercase">Neural Studio</p>
+                    </div>
                 </div>
-                <div>
-                    <h1 class="font-bold text-sm tracking-tight text-white leading-tight">ChessGen Pro</h1>
-                    <p class="text-[10px] text-zinc-500 font-medium tracking-wider uppercase">Advanced Neural Studio</p>
-                </div>
+                <button onclick="toggleSidebar()" class="lg:hidden p-2 text-zinc-400">
+                    <i data-lucide="x" class="w-6 h-6"></i>
+                </button>
             </div>
 
             <div class="flex-1 p-6 space-y-8 overflow-y-auto custom-scrollbar">
-                <!-- User Profile Section -->
+                <!-- Profile -->
                 <div class="space-y-4">
                     <header class="flex items-center gap-2 mb-2">
                         <i data-lucide="user" class="w-3.5 h-3.5 text-zinc-500"></i>
@@ -124,93 +173,96 @@
                         <div class="flex items-center gap-3">
                             <div id="user-initial" class="w-10 h-10 rounded-lg bg-zinc-800 flex items-center justify-center text-sm font-bold text-emerald-400">?</div>
                             <div class="flex-1 overflow-hidden">
-                                <div id="user-name" class="text-xs font-bold truncate">Guest Analyst</div>
+                                <div id="user-name" class="text-xs font-bold truncate text-white">Analyst</div>
                                 <div id="user-elo" class="text-xs font-mono text-emerald-500 font-bold">ELO: 1200</div>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Engine Config -->
+                <!-- Engine Depth -->
                 <div>
                     <header class="flex items-center gap-2 mb-4">
                         <i data-lucide="cpu" class="w-3.5 h-3.5 text-zinc-500"></i>
-                        <label class="text-[10px] uppercase tracking-[0.15em] text-zinc-500 font-bold">Neural Engine Depth</label>
+                        <label class="text-[10px] uppercase tracking-[0.15em] text-zinc-500 font-bold">Engine Configuration</label>
                     </header>
-                    <div class="grid grid-cols-1 gap-2">
-                        <select id="level-select" class="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-xs font-semibold focus:ring-1 focus:ring-emerald-500 outline-none transition-all">
-                            <option value="1">Level 1 - Novice (Depth 1)</option>
-                            <option value="2">Level 2 - Casual (Depth 2)</option>
-                            <option value="3" selected>Level 3 - Intermediate (Depth 3)</option>
-                            <option value="4">Level 4 - Expert (Depth 4)</option>
-                            <option value="5">Level 5 - Master (Depth 5)</option>
-                            <option value="6">Level 6 - Grandmaster (Depth 6)</option>
-                        </select>
-                    </div>
+                    <select id="level-select" class="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-xs font-semibold focus:ring-1 focus:ring-emerald-500 outline-none transition-all">
+                        <option value="1">Lvl 1 - Depth 1</option>
+                        <option value="2">Lvl 2 - Depth 2</option>
+                        <option value="3" selected>Lvl 3 - Depth 3</option>
+                        <option value="4">Lvl 4 - Depth 4</option>
+                        <option value="5">Lvl 5 - Depth 5</option>
+                        <option value="6">Lvl 6 - Depth 6</option>
+                    </select>
                 </div>
 
                 <!-- History -->
-                <div class="flex-1 flex flex-col min-h-0">
+                <div class="flex-1 flex flex-col min-h-[200px]">
                     <header class="flex items-center gap-2 mb-4">
                         <i data-lucide="list" class="w-3.5 h-3.5 text-zinc-500"></i>
-                        <label class="text-[10px] uppercase tracking-[0.15em] text-zinc-500 font-bold">Analysis Log</label>
+                        <label class="text-[10px] uppercase tracking-[0.15em] text-zinc-500 font-bold">Move History</label>
                     </header>
-                    <div id="move-history" class="space-y-2 font-mono text-[11px] overflow-y-auto pr-2 custom-scrollbar">
-                        <!-- Moves injected here -->
-                    </div>
+                    <div id="move-history" class="space-y-2 font-mono text-[11px] overflow-y-auto pr-2 custom-scrollbar"></div>
                 </div>
             </div>
 
             <div class="p-6 border-t border-zinc-800">
                 <button onclick="handleLogout()" class="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-zinc-900 border border-zinc-800 text-xs font-bold text-zinc-400 hover:text-white hover:bg-zinc-800 transition-all">
                     <i data-lucide="log-out" class="w-4 h-4"></i>
-                    Sign Out Studio
+                    Sign Out
                 </button>
             </div>
         </aside>
 
         <!-- Main Workspace -->
-        <main class="flex-1 flex flex-col relative dot-grid bg-zinc-950 overflow-y-auto">
-            <header class="h-16 border-b border-zinc-800/50 flex items-center justify-between px-8 bg-zinc-950/80 backdrop-blur-md sticky top-0 z-50">
+        <main id="main-content" class="flex-1 flex flex-col relative dot-grid bg-zinc-950 overflow-y-auto lg:overflow-hidden">
+            <header class="h-16 border-b border-zinc-800/50 flex items-center justify-between px-6 lg:px-8 bg-zinc-950/80 backdrop-blur-md sticky top-0 z-50">
                 <div class="flex items-center gap-4">
                     <div class="flex items-center gap-2 px-3 py-1.5 rounded-full bg-zinc-900 border border-zinc-800">
                         <span class="relative flex h-2 w-2">
                             <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                             <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
                         </span>
-                        <span class="text-[10px] font-bold text-zinc-300 uppercase tracking-widest" id="turn-indicator">System Booting</span>
+                        <span class="text-[10px] font-bold text-zinc-300 uppercase tracking-widest" id="turn-indicator">Your Turn</span>
                     </div>
                 </div>
 
-                <div class="flex gap-3">
-                    <button onclick="resetGame()" class="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest bg-zinc-900 border border-zinc-800 px-5 py-2.5 rounded-lg hover:bg-zinc-800 transition-all">
-                        <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
-                        Reset Session
+                <div class="flex gap-2">
+                    <button onclick="resetGame()" class="p-2.5 bg-zinc-900 border border-zinc-800 rounded-lg text-zinc-400 hover:text-white transition-all" title="Reset Game">
+                        <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
                     </button>
-                    <button onclick="window.location.href='portal.html'" class="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest bg-emerald-600 px-5 py-2.5 rounded-lg hover:bg-emerald-500 shadow-lg shadow-emerald-600/20 transition-all">
-                        <i data-lucide="grid" class="w-3.5 h-3.5"></i>
-                        Portal
+                    <button onclick="toggleFullscreen()" class="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest bg-emerald-600 px-4 py-2.5 rounded-lg hover:bg-emerald-500 shadow-lg shadow-emerald-600/20 transition-all">
+                        <i data-lucide="maximize" class="w-3.5 h-3.5"></i>
+                        <span class="hidden sm:inline">Fullscreen</span>
                     </button>
                 </div>
             </header>
 
-            <div class="flex-1 flex flex-col items-center justify-center p-8 space-y-8">
-                <div class="flex gap-6 items-center">
-                    <div class="eval-bar-container hidden md:block">
+            <div class="flex-1 flex flex-col items-center justify-center p-4 lg:p-8 space-y-6 lg:space-y-8">
+                <!-- Board and Eval Bar Area -->
+                <div id="board-container" class="flex gap-4 lg:gap-8 items-stretch justify-center w-full max-w-4xl">
+                    <div class="eval-bar-container">
                         <div id="eval-bar-fill" style="height: 50%;"></div>
                     </div>
-                    <div id="board"></div>
+                    
+                    <div id="board-wrapper" class="flex-1 max-w-[680px]">
+                        <div id="board"></div>
+                        <div class="mt-4 text-center">
+                            <p class="text-[10px] text-zinc-600 uppercase font-bold tracking-[0.2em]">Double click board to expand</p>
+                        </div>
+                    </div>
                 </div>
 
-                <div class="w-full max-w-[520px] glass-card p-6 rounded-2xl border border-zinc-800 flex justify-between items-center">
+                <!-- Info Card -->
+                <div class="w-full max-w-[680px] glass-card p-5 lg:p-6 rounded-2xl border border-zinc-800 flex justify-between items-center shadow-2xl">
                     <div class="space-y-1">
-                        <div class="text-[10px] uppercase tracking-widest text-zinc-500 font-bold">Position Eval</div>
-                        <div id="eval-score-text" class="text-2xl font-bold font-mono text-emerald-500">0.0</div>
+                        <div class="text-[10px] uppercase tracking-widest text-zinc-500 font-bold">Position Evaluation</div>
+                        <div id="eval-score-text" class="text-xl lg:text-3xl font-bold font-mono text-emerald-500">+0.0</div>
                     </div>
-                    <div class="h-8 w-px bg-zinc-800"></div>
-                    <div class="text-right space-y-1">
-                        <div class="text-[10px] uppercase tracking-widest text-zinc-500 font-bold">Game Status</div>
-                        <div id="game-status" class="text-sm font-bold uppercase text-white">READY</div>
+                    <div class="h-10 w-px bg-zinc-800 mx-4"></div>
+                    <div class="text-right space-y-1 flex-1">
+                        <div class="text-[10px] uppercase tracking-widest text-zinc-500 font-bold">Match Status</div>
+                        <div id="game-status" class="text-xs lg:text-sm font-bold uppercase text-white truncate">Ready to Play</div>
                     </div>
                 </div>
             </div>
@@ -218,55 +270,75 @@
     </div>
 
     <script>
-        // Supabase Init
         const SUPABASE_URL = "https://rnlwrngfgvznndlekmrz.supabase.co";
         const SUPABASE_KEY = "sb_publishable_mtI0_ZBvU_n5oRuqV58QHg_qJt3Gfyt";
         const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-        // State Management
         let board = null;
         let game = new Chess();
         let selectedSquare = null;
         let userElo = 1200;
+        let isFullscreen = false;
 
-        // Elo Logic
+        // ELO Persistence
         function updateElo(result) {
-            // result: 1 (win), 0 (draw), -1 (loss)
             const K = 32;
             const engineElo = [800, 1000, 1400, 1800, 2200, 2600][parseInt(document.getElementById('level-select').value) - 1];
             const expectedScore = 1 / (1 + Math.pow(10, (engineElo - userElo) / 400));
             const actualScore = result === 1 ? 1 : (result === 0 ? 0.5 : 0);
-            
             userElo = Math.round(userElo + K * (actualScore - expectedScore));
             document.getElementById('user-elo').innerText = `ELO: ${userElo}`;
             localStorage.setItem('chessgen_elo', userElo);
         }
 
         async function checkAuth() {
-            const { data: { session }, error } = await client.auth.getSession();
-            if (error || !session) {
-                // Not logged in, redirect to auth.html with current page as callback
+            const { data: { session } } = await client.auth.getSession();
+            if (!session) {
                 const currentUrl = window.location.href;
                 window.location.href = `auth.html?redirect=${encodeURIComponent(currentUrl)}`;
                 return;
             }
-
             const user = session.user;
             document.getElementById('user-name').innerText = user.email.split('@')[0];
             document.getElementById('user-initial').innerText = user.email[0].toUpperCase();
             
-            // Load ELO from local storage or set default
             const savedElo = localStorage.getItem('chessgen_elo');
             if (savedElo) userElo = parseInt(savedElo);
             document.getElementById('user-elo').innerText = `ELO: ${userElo}`;
 
             setupBoard();
-            document.getElementById('turn-indicator').innerText = 'Your Move';
         }
 
         async function handleLogout() {
             await client.auth.signOut();
             window.location.href = 'auth.html';
+        }
+
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            sidebar.classList.toggle('hidden');
+            sidebar.classList.toggle('flex');
+        }
+
+        function toggleFullscreen() {
+            isFullscreen = !isFullscreen;
+            const container = document.getElementById('board-container');
+            const fsUI = document.getElementById('fs-ui');
+            
+            if (isFullscreen) {
+                container.classList.add('fullscreen-active');
+                fsUI.classList.remove('hidden');
+                document.body.style.overflow = 'hidden';
+            } else {
+                container.classList.remove('fullscreen-active');
+                fsUI.classList.add('hidden');
+                document.body.style.overflow = '';
+            }
+            board.resize();
+        }
+
+        window.exitFullscreen = () => {
+            if (isFullscreen) toggleFullscreen();
         }
 
         function setupBoard() {
@@ -286,19 +358,22 @@
                     if (move === null) return 'snapback';
                     
                     updateUI();
-                    checkGameEnd();
                     if (!game.game_over()) makeEngineMove();
+                    else checkGameEnd();
                 },
                 onSnapEnd: () => board.position(game.fen()),
                 pieceTheme: 'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png'
             };
+            
             board = Chessboard('board', config);
             
-            // Handle Square Clicks for Touch/Mobile
+            // Interaction Handlers
             $(document).on('click', '#board .square-55d63', function() {
-                const square = $(this).attr('data-square');
-                onSquareClick(square);
+                onSquareClick($(this).attr('data-square'));
             });
+
+            // DOUBLE CLICK FULLSCREEN
+            $(document).on('dblclick', '#board', toggleFullscreen);
 
             window.addEventListener('resize', () => board.resize());
         }
@@ -314,8 +389,8 @@
                     removeHighlights();
                     board.position(game.fen());
                     updateUI();
-                    checkGameEnd();
                     if(!game.game_over()) makeEngineMove();
+                    else checkGameEnd();
                     return;
                 }
             }
@@ -350,54 +425,51 @@
             if (game.game_over()) {
                 let status = "Game Over";
                 if (game.in_checkmate()) {
-                    status = game.turn() === 'w' ? "AI WON BY MATE" : "YOU WON BY MATE";
+                    status = game.turn() === 'w' ? "CHECKMATE: AI WON" : "CHECKMATE: YOU WON";
                     updateElo(game.turn() === 'w' ? -1 : 1);
                 } else if (game.in_draw()) {
-                    status = "DRAW";
+                    status = "DRAWN POSITION";
                     updateElo(0);
                 }
                 document.getElementById('game-status').innerText = status;
-                document.getElementById('turn-indicator').innerText = 'Match Finished';
+                document.getElementById('turn-indicator').innerText = 'Finished';
             }
         }
 
         function makeEngineMove() {
-            document.getElementById('game-status').innerText = 'AI ANALYZING...';
+            document.getElementById('game-status').innerText = 'AI Thinking...';
             document.getElementById('turn-indicator').innerText = 'Engine Computing';
             
             setTimeout(() => {
+                const moves = game.moves();
+                if (moves.length === 0) return;
+                
                 const bestMove = getBestMove(game);
                 if (bestMove) {
                     game.move(bestMove);
                     board.position(game.fen());
                     updateUI();
-                    checkGameEnd();
-                    if (!game.game_over()) {
-                        document.getElementById('game-status').innerText = 'YOUR TURN';
+                    if (game.game_over()) checkGameEnd();
+                    else {
+                        document.getElementById('game-status').innerText = 'Your Move';
                         document.getElementById('turn-indicator').innerText = 'Your Move';
                     }
                 }
-            }, 500);
+            }, 600);
         }
 
-        // MiniMax Engine with Alpha-Beta Pruning
+        // MiniMax + AlphaBeta Engine
         const weights = { p: 100, n: 320, b: 330, r: 500, q: 900, k: 20000 };
-        
         function evaluateBoard(game) {
             let total = 0;
-            game.board().forEach(row => { 
-                row.forEach(piece => {
-                    if (piece) { 
-                        total += (piece.color === 'w' ? weights[piece.type] : -weights[piece.type]); 
-                    }
-                }); 
-            });
+            game.board().forEach(row => { row.forEach(piece => {
+                if (piece) total += (piece.color === 'w' ? weights[piece.type] : -weights[piece.type]);
+            })});
             return total;
         }
 
         function minimax(game, depth, alpha, beta, isMaximizing) {
             if (depth === 0) return -evaluateBoard(game);
-            
             const moves = game.moves();
             if (isMaximizing) {
                 let best = -99999;
@@ -427,17 +499,12 @@
             let bestMove = null;
             let bestVal = -99999;
             const depth = parseInt(document.getElementById('level-select').value);
-
-            moves.sort(() => Math.random() - 0.5); // Add slight variety
-
+            moves.sort(() => Math.random() - 0.5);
             for (let move of moves) {
                 game.move(move);
                 const val = minimax(game, depth - 1, -100000, 100000, false);
                 game.undo();
-                if (val > bestVal) {
-                    bestVal = val;
-                    bestMove = move;
-                }
+                if (val > bestVal) { bestVal = val; bestMove = move; }
             }
             return bestMove;
         }
@@ -453,10 +520,7 @@
             `).reverse().join('');
 
             const score = (evaluateBoard(game) / 100).toFixed(1);
-            const scoreEl = document.getElementById('eval-score-text');
-            scoreEl.innerText = score;
-            
-            // Update Bar: score 0 is 50%. +10 is 0%. -10 is 100%
+            document.getElementById('eval-score-text').innerText = (score > 0 ? "+" : "") + score;
             const percentage = Math.min(100, Math.max(0, 50 - (score * 5)));
             document.getElementById('eval-bar-fill').style.height = `${percentage}%`;
         }
@@ -467,11 +531,10 @@
             selectedSquare = null;
             removeHighlights();
             updateUI();
-            document.getElementById('game-status').innerText = 'READY';
+            document.getElementById('game-status').innerText = 'Ready to Play';
             document.getElementById('turn-indicator').innerText = 'Your Move';
         };
 
-        // Initialize
         window.addEventListener('DOMContentLoaded', () => {
             checkAuth();
             if (window.lucide) window.lucide.createIcons();
