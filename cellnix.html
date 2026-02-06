@@ -3,643 +3,347 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CellNix by Codenix</title>
+    <title>CellNix Ultimate</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <!-- Supabase JS Library -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
     
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap');
-
         :root {
             --bg-app: #ffffff;
-            --bg-header: #f8fafc;
-            --bg-toolbar: #f1f5f9;
             --border-color: #e2e8f0;
-            --text-primary: #1e293b;
-            --text-secondary: #64748b;
-            --accent-primary: #9333ea;
-            --cell-selected-bg: rgba(147, 51, 234, 0.08);
-            --cell-active-border: #9333ea;
+            --accent-primary: #7c3aed;
+            --selection-bg: rgba(124, 58, 237, 0.1);
         }
 
         [data-theme="dark"] {
-            --bg-app: #0f0f0f;
-            --bg-header: #18181b;
-            --bg-toolbar: #27272a;
-            --border-color: #3f3f46;
-            --text-primary: #f1f5f9;
-            --text-secondary: #94a3b8;
-            --accent-primary: #a855f7;
-            --cell-selected-bg: rgba(168, 85, 247, 0.15);
-            --cell-active-border: #a855f7;
+            --bg-app: #09090b;
+            --border-color: #27272a;
+            --accent-primary: #a78bfa;
+            --selection-bg: rgba(167, 139, 250, 0.15);
         }
 
-        body { font-family: 'Inter', sans-serif; background-color: var(--bg-app); color: var(--text-primary); transition: background-color 0.3s; }
+        body { font-family: 'Inter', sans-serif; background-color: var(--bg-app); overflow: hidden; }
 
         .cell {
-            min-width: 100px; max-width: 100px; height: 26px;
+            min-width: 100px; width: 100px; height: 30px;
             outline: none; border-right: 1px solid var(--border-color); border-bottom: 1px solid var(--border-color);
-            padding: 0 4px; font-size: 13px; white-space: nowrap; overflow: hidden; cursor: cell;
-            background-color: transparent; position: relative;
+            padding: 4px 8px; font-size: 13px; white-space: nowrap; overflow: hidden; cursor: cell;
+            position: relative; transition: background 0.1s;
         }
 
-        .cell.selected { background-color: var(--cell-selected-bg); }
-        .cell.active-cell { box-shadow: inset 0 0 0 2px var(--cell-active-border); z-index: 10; position: relative; }
+        .cell.selected { background-color: var(--selection-bg); }
+        .cell.active-cell { box-shadow: inset 0 0 0 2px var(--accent-primary); z-index: 10; }
 
-        /* Fill Handle */
         .fill-handle {
             position: absolute; width: 8px; height: 8px; background-color: var(--accent-primary);
-            bottom: -4px; right: -4px; cursor: crosshair; z-index: 40; border: 1.5px solid white;
-            display: none; border-radius: 1px;
+            bottom: -4.5px; right: -4.5px; cursor: crosshair; z-index: 40; border: 1px solid white;
+            display: none;
         }
         .active-cell .fill-handle { display: block; }
 
-        .header-col, .header-row, .header-corner {
-            background-color: var(--bg-header); font-weight: 600; color: var(--text-secondary);
+        .header-col, .header-row {
+            background-color: #f8fafc; font-size: 11px; font-weight: 600; color: #64748b;
             text-align: center; border-right: 1px solid var(--border-color); border-bottom: 1px solid var(--border-color);
-            user-select: none; position: sticky; z-index: 20; font-size: 11px;
+            position: sticky; z-index: 20;
         }
-        .header-col { top: 0; }
-        .header-row { left: 0; min-width: 40px; }
-        .header-corner { top: 0; left: 0; z-index: 30; }
+        [data-theme="dark"] .header-col, [data-theme="dark"] .header-row { background-color: #18181b; }
 
-        .spreadsheet-container::-webkit-scrollbar { width: 8px; height: 8px; }
-        .spreadsheet-container::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 4px; }
-
-        #sidebar { transition: transform 0.3s ease; z-index: 50; }
-        .export-dropdown { display: none; }
-        .export-dropdown.active { display: block; }
+        .drag-fill-preview { background-color: rgba(124, 58, 237, 0.2) !important; border: 1px dashed var(--accent-primary) !important; }
         
-        .drag-fill-preview { background-color: rgba(147, 51, 234, 0.2) !important; border: 1px dashed var(--accent-primary) !important; }
+        #loading-overlay { backdrop-filter: blur(4px); }
     </style>
 </head>
-<body class="h-screen flex flex-col overflow-hidden">
+<body class="h-screen flex flex-col">
 
-    <div id="loading-screen" class="fixed inset-0 bg-white dark:bg-zinc-950 flex items-center justify-center z-[100]">
-        <div class="animate-spin rounded-full h-12 w-12 border-t-2 border-purple-600"></div>
-    </div>
-
-    <!-- Sidebar -->
-    <div id="sidebar" class="fixed left-0 top-0 h-full w-64 bg-zinc-50 dark:bg-zinc-900 border-r border-zinc-200 dark:border-zinc-800 -translate-x-full shadow-2xl">
-        <div class="p-4 flex flex-col h-full">
-            <div class="flex items-center justify-between mb-6">
-                <h2 class="font-bold text-zinc-800 dark:text-zinc-100">My Sheets</h2>
-                <button onclick="toggleSidebar()" class="text-zinc-400 hover:text-red-500"><i class="fa-solid fa-xmark"></i></button>
-            </div>
-            <button onclick="createNewSheet()" class="w-full py-2 bg-purple-600 text-white rounded-md text-sm font-medium mb-4 hover:bg-purple-700 transition">
-                <i class="fa-solid fa-plus mr-2"></i> New Sheet
-            </button>
-            <div id="file-list" class="flex-1 overflow-y-auto space-y-1"></div>
+    <div id="loading-overlay" class="fixed inset-0 z-[100] bg-white dark:bg-zinc-950 flex items-center justify-center">
+        <div class="flex flex-col items-center gap-4">
+            <div class="animate-spin rounded-full h-12 w-12 border-t-2 border-purple-600"></div>
+            <p class="text-sm font-medium animate-pulse">Authenticating...</p>
         </div>
     </div>
 
     <!-- Header -->
-    <header class="bg-zinc-50 dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between px-4 py-2 z-40">
-        <div class="flex items-center gap-4">
-            <button onclick="toggleSidebar()" class="w-8 h-8 rounded-md hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-500 transition">
-                <i class="fa-solid fa-bars"></i>
-            </button>
-            <div class="flex items-center gap-3">
-                <div class="w-7 h-7 bg-purple-600 rounded flex items-center justify-center text-white font-bold text-sm shadow">C</div>
-                <input type="text" id="sheet-title" class="bg-transparent font-semibold text-zinc-800 dark:text-zinc-100 outline-none focus:border-b border-purple-500 px-1" value="Untitled Sheet">
+    <header class="bg-white dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-800 px-4 py-2 flex items-center justify-between">
+        <div class="flex items-center gap-6">
+            <div class="flex items-center gap-2">
+                <div class="w-8 h-8 bg-purple-600 rounded flex items-center justify-center text-white font-bold">C</div>
+                <input type="text" id="sheet-title" class="bg-transparent font-bold text-lg outline-none w-48" value="Untitled Spreadsheet">
             </div>
+            <nav class="flex gap-4 text-sm text-zinc-500">
+                <button class="hover:text-zinc-900 dark:hover:text-white" onclick="saveData()">File</button>
+                <button class="hover:text-zinc-900 dark:hover:text-white">Edit</button>
+                <button class="hover:text-zinc-900 dark:hover:text-white" onclick="exportData('xlsx')">Export</button>
+            </nav>
         </div>
-        
         <div class="flex items-center gap-3">
-            <button onclick="saveToBrowser()" class="text-sm px-3 py-1.5 bg-zinc-200 dark:bg-zinc-800 rounded font-medium hover:bg-zinc-300 dark:hover:bg-zinc-700 transition">
-                <i class="fa-solid fa-cloud-arrow-up mr-2"></i> Save
-            </button>
-            <div class="relative">
-                <button onclick="toggleExportMenu()" id="export-btn" class="text-sm px-3 py-1.5 bg-zinc-200 dark:bg-zinc-800 rounded font-medium hover:bg-zinc-300 dark:hover:bg-zinc-700 transition">
-                    <i class="fa-solid fa-download mr-2"></i> Export
-                </button>
-                <div id="export-menu" class="export-dropdown absolute right-0 top-full mt-2 w-48 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-xl overflow-hidden">
-                    <button onclick="exportData('xlsx')" class="w-full px-4 py-2 text-left text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800 flex items-center gap-2"><i class="fa-solid fa-file-excel text-green-600"></i> Excel (.xlsx)</button>
-                    <button onclick="exportData('csv')" class="w-full px-4 py-2 text-left text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800 flex items-center gap-2"><i class="fa-solid fa-file-csv text-blue-500"></i> CSV (.csv)</button>
-                </div>
-            </div>
-            <button onclick="toggleTheme()" class="w-8 h-8 rounded-full flex items-center justify-center text-zinc-500 hover:bg-zinc-200 dark:hover:bg-zinc-800 transition">
-                <i class="fa-solid fa-moon" id="theme-icon"></i>
-            </button>
-            <div class="flex items-center gap-2 ml-2 border-l border-zinc-200 dark:border-zinc-800 pl-4">
-                <span id="user-display" class="text-xs text-zinc-500 hidden md:block"></span>
-                <button onclick="handleSignOut()" class="w-8 h-8 rounded-md hover:bg-red-100 hover:text-red-500 text-zinc-500 transition">
-                    <i class="fa-solid fa-power-off"></i>
-                </button>
-            </div>
+            <span id="user-email" class="text-xs font-medium opacity-60"></span>
+            <button onclick="handleSignOut()" class="text-sm text-red-500 font-medium hover:underline">Sign Out</button>
         </div>
     </header>
 
     <!-- Toolbar -->
-    <div class="bg-zinc-100 dark:bg-zinc-900/50 border-b border-zinc-200 dark:border-zinc-800 px-4 py-1.5 flex items-center gap-2 overflow-x-auto">
-        <div class="flex items-center bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded px-1">
-            <button onclick="execStyle('bold')" class="p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded text-zinc-600 dark:text-zinc-400" title="Bold"><i class="fa-solid fa-bold"></i></button>
-            <button onclick="execStyle('italic')" class="p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded text-zinc-600 dark:text-zinc-400" title="Italic"><i class="fa-solid fa-italic"></i></button>
-            <button onclick="execStyle('underline')" class="p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded text-zinc-600 dark:text-zinc-400" title="Underline"><i class="fa-solid fa-underline"></i></button>
+    <div class="bg-zinc-50 dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-800 p-2 flex items-center gap-2">
+        <div class="flex bg-white dark:bg-zinc-800 rounded border border-zinc-200 dark:border-zinc-700">
+            <button onclick="applyStyle('bold')" class="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-700"><i class="fa-solid fa-bold"></i></button>
+            <button onclick="applyStyle('italic')" class="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-700"><i class="fa-solid fa-italic"></i></button>
         </div>
-        <div class="flex items-center bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded px-1">
-            <button onclick="setAlignment('left')" class="p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded text-zinc-600 dark:text-zinc-400"><i class="fa-solid fa-align-left"></i></button>
-            <button onclick="setAlignment('center')" class="p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded text-zinc-600 dark:text-zinc-400"><i class="fa-solid fa-align-center"></i></button>
-            <button onclick="setAlignment('right')" class="p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded text-zinc-600 dark:text-zinc-400"><i class="fa-solid fa-align-right"></i></button>
-        </div>
-        <div class="flex items-center bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded px-1 gap-1 py-1">
-            <input type="color" onchange="setCellColor('background', this.value)" class="w-6 h-6 p-0 border-0 bg-transparent cursor-pointer" title="Fill Color">
-            <input type="color" onchange="setCellColor('text', this.value)" class="w-6 h-6 p-0 border-0 bg-transparent cursor-pointer" title="Text Color" value="#000000">
-        </div>
-        <div class="h-4 w-px bg-zinc-300 dark:bg-zinc-700"></div>
-        <div id="selected-cell-indicator" class="min-w-[40px] text-center text-xs font-bold text-purple-600 dark:text-purple-400">A1</div>
-        <div class="flex-1 flex items-center bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded px-2">
-            <span class="text-zinc-400 font-serif italic text-xs mr-2">fx</span>
-            <input type="text" id="formula-input" class="w-full bg-transparent outline-none py-1 text-sm text-zinc-800 dark:text-zinc-100" placeholder="Enter value or formula...">
+        <div class="h-6 w-px bg-zinc-300 dark:bg-zinc-700 mx-2"></div>
+        <div id="cell-id" class="w-12 text-center font-bold text-purple-600">A1</div>
+        <div class="flex-1 flex items-center bg-white dark:bg-zinc-800 rounded border border-zinc-200 dark:border-zinc-700 px-3">
+            <span class="italic text-zinc-400 mr-2">fx</span>
+            <input type="text" id="formula-bar" class="w-full bg-transparent outline-none py-1 text-sm" placeholder="Type here...">
         </div>
     </div>
 
-    <!-- Main Grid -->
-    <div class="flex-1 relative overflow-hidden">
-        <div class="spreadsheet-container w-full h-full overflow-auto" id="grid-container">
-            <table class="border-collapse table-fixed" id="spreadsheet">
-                <thead id="header-row"></thead>
-                <tbody id="grid-body"></tbody>
-            </table>
-        </div>
-    </div>
-
-    <div class="bg-purple-600 text-white text-[10px] px-4 py-0.5 flex justify-between uppercase tracking-wider font-semibold">
-        <div>Status: <span id="status-text">Ready</span></div>
-        <div id="selection-summary"></div>
-        <div>CellNix v2.0</div>
+    <!-- Grid Container -->
+    <div class="flex-1 overflow-auto bg-zinc-100 dark:bg-zinc-950" id="scroll-box">
+        <table class="border-collapse table-fixed" id="main-table">
+            <thead id="grid-head"></thead>
+            <tbody id="grid-body"></tbody>
+        </table>
     </div>
 
     <script>
         const SUPABASE_URL = 'https://rnlwrngfgvznndlekmrz.supabase.co';
         const SUPABASE_KEY = 'sb_publishable_mtI0_ZBvU_n5oRuqV58QHg_qJt3Gfyt';
-        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-        const COLS = 26; 
-        const ROWS = 100;
-        let cellData = {}; 
-        let activeCellId = "A1";
-        let isMouseDown = false;
-        let isDraggingFill = false;
-        let fillStartId = null;
-        let fillCurrentId = null;
-        let selectionStart = null;
-        let currentSheetId = null;
+        const ROWS = 100, COLS = 26;
+        let cellData = {};
+        let activeId = 'A1';
+        let isSelecting = false, isFilling = false;
+        let startId = null, currentId = null;
 
-        const gridBody = document.getElementById('grid-body');
-        const headerRow = document.getElementById('header-row');
-        const formulaInput = document.getElementById('formula-input');
-        const selectedCellIndicator = document.getElementById('selected-cell-indicator');
-
-        async function checkSession() {
-            const { data: { session }, error } = await supabaseClient.auth.getSession();
-            if (error || !session) { window.location.href = 'auth.html'; } 
-            else { 
-                document.getElementById('user-display').innerText = session.user.email;
-                initGrid(); 
+        // --- AUTH GUARD ---
+        async function initAuth() {
+            const { data: { session } } = await sb.auth.getSession();
+            if (!session) {
+                window.location.href = 'auth.html';
+                return;
             }
+            document.getElementById('user-email').innerText = session.user.email;
+            document.getElementById('loading-overlay').classList.add('hidden');
+            renderGrid();
         }
 
         async function handleSignOut() {
-            await supabaseClient.auth.signOut();
+            await sb.auth.signOut();
             window.location.href = 'auth.html';
         }
 
-        function initGrid() {
-            headerRow.innerHTML = '';
-            gridBody.innerHTML = '';
-
-            let trHead = document.createElement('tr');
-            let thCorner = document.createElement('th');
-            thCorner.className = 'header-corner h-[26px] w-[40px]';
-            trHead.appendChild(thCorner);
-
-            for (let c = 0; c < COLS; c++) {
-                let th = document.createElement('th');
-                th.className = 'header-col';
-                th.innerText = String.fromCharCode(65 + c); 
-                trHead.appendChild(th);
+        // --- GRID RENDERING ---
+        function renderGrid() {
+            const head = document.getElementById('grid-head');
+            const body = document.getElementById('grid-body');
+            
+            let trH = document.createElement('tr');
+            trH.innerHTML = `<th class="header-col w-[45px] h-[30px] sticky left-0 top-0 z-30"></th>`;
+            for(let c=0; c<COLS; c++) {
+                trH.innerHTML += `<th class="header-col w-[100px] top-0 sticky">${String.fromCharCode(65+c)}</th>`;
             }
-            headerRow.appendChild(trHead);
+            head.appendChild(trH);
 
-            for (let r = 1; r <= ROWS; r++) {
-                let tr = document.createElement('tr');
-                let thRow = document.createElement('td');
-                thRow.className = 'header-row';
-                thRow.innerText = r;
-                tr.appendChild(thRow);
-
-                for (let c = 0; c < COLS; c++) {
-                    let cellId = `${String.fromCharCode(65 + c)}${r}`;
-                    let td = document.createElement('td');
+            for(let r=1; r<=ROWS; r++) {
+                let trB = document.createElement('tr');
+                trB.innerHTML = `<td class="header-row h-[30px] sticky left-0 z-20">${r}</td>`;
+                for(let c=0; c<COLS; c++) {
+                    const id = `${String.fromCharCode(65+c)}${r}`;
+                    const td = document.createElement('td');
                     td.className = 'cell';
-                    td.id = cellId;
+                    td.id = id;
                     td.contentEditable = true;
-                    td.spellcheck = false;
-
+                    
                     const handle = document.createElement('div');
                     handle.className = 'fill-handle';
-                    handle.addEventListener('mousedown', (e) => {
-                        e.stopPropagation();
-                        e.preventDefault();
-                        isDraggingFill = true;
-                        fillStartId = activeCellId;
-                        fillCurrentId = activeCellId;
-                    });
+                    handle.onmousedown = (e) => { e.stopPropagation(); isFilling = true; startId = activeId; };
                     td.appendChild(handle);
 
-                    td.addEventListener('mousedown', (e) => handleCellMouseDown(e, cellId));
-                    td.addEventListener('mouseenter', () => handleCellMouseEnter(cellId));
-                    td.addEventListener('focus', () => handleCellFocus(cellId));
-                    td.addEventListener('blur', () => handleCellBlur(cellId));
-                    td.addEventListener('input', (e) => handleCellInput(e, cellId));
-                    td.addEventListener('keydown', (e) => handleCellKeydown(e, cellId));
-                    
-                    tr.appendChild(td);
+                    td.onmousedown = (e) => onCellDown(e, id);
+                    td.onmouseenter = () => onCellEnter(id);
+                    td.onfocus = () => onCellFocus(id);
+                    td.onblur = () => onCellBlur(id);
+                    td.oninput = (e) => onCellInput(id, e.target.innerText);
+                    td.onkeydown = onCellKey;
+
+                    trB.appendChild(td);
                 }
-                gridBody.appendChild(tr);
+                body.appendChild(trB);
             }
-
-            window.addEventListener('mouseup', handleGlobalMouseUp);
-            selectCell("A1");
-            loadFileList();
-            document.getElementById('loading-screen').classList.add('hidden');
+            selectCell('A1');
         }
 
-        function handleGlobalMouseUp() {
-            if (isDraggingFill && fillStartId && fillCurrentId) {
-                completeFill(fillStartId, fillCurrentId);
+        // --- LOGIC: Interaction & Formulas ---
+        function onCellDown(e, id) {
+            // Click-to-reference feature: If currently editing a formula, clicking another cell appends its name
+            const activeEl = document.getElementById(activeId);
+            if (activeEl && activeEl.innerText.startsWith('=') && id !== activeId) {
+                e.preventDefault();
+                activeEl.innerText += id;
+                document.getElementById('formula-bar').value = activeEl.innerText;
+                return;
             }
-            isMouseDown = false;
-            isDraggingFill = false;
-            fillStartId = null;
-            fillCurrentId = null;
+
+            isSelecting = true;
+            startId = id;
+            selectCell(id);
+        }
+
+        function onCellEnter(id) {
+            currentId = id;
+            if (isSelecting) applyRange(startId, id);
+            if (isFilling) applyFillPreview(startId, id);
+        }
+
+        window.onmouseup = () => {
+            if (isFilling && startId && currentId) completeFill(startId, currentId);
+            isSelecting = false;
+            isFilling = false;
             document.querySelectorAll('.drag-fill-preview').forEach(el => el.classList.remove('drag-fill-preview'));
-        }
+        };
 
-        function selectCell(cellId) {
+        function selectCell(id) {
             document.querySelectorAll('.active-cell').forEach(c => c.classList.remove('active-cell'));
             document.querySelectorAll('.selected').forEach(c => c.classList.remove('selected'));
-            
-            activeCellId = cellId;
-            const cell = document.getElementById(cellId);
-            if (!cell) return;
-            cell.classList.add('active-cell');
-            cell.classList.add('selected');
-            selectedCellIndicator.innerText = cellId;
-            
-            formulaInput.value = (cellData[cellId] && cellData[cellId].formula) ? cellData[cellId].formula : (cellData[cellId]?.value ?? "");
-            updateSelectionSummary();
+            activeId = id;
+            const el = document.getElementById(id);
+            el.classList.add('active-cell', 'selected');
+            document.getElementById('cell-id').innerText = id;
+            document.getElementById('formula-bar').value = (cellData[id]?.formula || cellData[id]?.val || "");
         }
 
-        function handleCellMouseDown(e, cellId) {
-            if (isDraggingFill) return;
-            isMouseDown = true;
-            selectionStart = cellId;
-            selectCell(cellId);
+        function onCellFocus(id) {
+            const el = document.getElementById(id);
+            el.innerText = cellData[id]?.formula || cellData[id]?.val || "";
         }
 
-        function handleCellMouseEnter(cellId) {
-            if (isMouseDown && selectionStart) {
-                applyRangeSelection(selectionStart, cellId);
-            } else if (isDraggingFill && fillStartId) {
-                fillCurrentId = cellId;
-                applyFillPreview(fillStartId, cellId);
-            }
+        function onCellBlur(id) {
+            const val = document.getElementById(id).innerText;
+            updateData(id, val);
+            renderDisplay(id);
         }
 
-        function applyRangeSelection(startId, endId) {
-            document.querySelectorAll('.cell.selected').forEach(c => c.classList.remove('selected'));
-            const range = getRange(startId, endId);
-            range.forEach(id => {
-                const el = document.getElementById(id);
-                if(el) el.classList.add('selected');
-            });
-            updateSelectionSummary();
-        }
-
-        function applyFillPreview(startId, endId) {
-            document.querySelectorAll('.drag-fill-preview').forEach(el => el.classList.remove('drag-fill-preview'));
-            const range = getLinearRange(startId, endId);
-            range.forEach(id => {
-                const el = document.getElementById(id);
-                if(el) el.classList.add('drag-fill-preview');
-            });
-        }
-
-        function getRange(startId, endId) {
-            const s = parseId(startId), e = parseId(endId);
-            const res = [];
-            for (let c = Math.min(s.c, e.c); c <= Math.max(s.c, e.c); c++) {
-                for (let r = Math.min(s.r, e.r); r <= Math.max(s.r, e.r); r++) {
-                    res.push(`${String.fromCharCode(c)}${r}`);
-                }
-            }
-            return res;
-        }
-
-        function getLinearRange(startId, endId) {
-            const s = parseId(startId), e = parseId(endId);
-            const res = [];
-            if (Math.abs(e.r - s.r) >= Math.abs(e.c - s.c)) {
-                const step = e.r >= s.r ? 1 : -1;
-                for (let r = s.r; r !== e.r + step; r += step) res.push(`${String.fromCharCode(s.c)}${r}`);
-            } else {
-                const step = e.c >= s.c ? 1 : -1;
-                for (let c = s.c; c !== e.c + step; c += step) res.push(`${String.fromCharCode(c)}${s.r}`);
-            }
-            return res;
-        }
-
-        function completeFill(startId, endId) {
-            if (startId === endId) return;
-            const source = cellData[startId] || { value: "" };
-            const range = getLinearRange(startId, endId);
-            
-            range.forEach((id, index) => {
-                if (id === startId) return;
-                
-                let newVal = source.value;
-                let newFormula = source.formula;
-
-                if (!newFormula && newVal !== "" && !isNaN(parseFloat(newVal))) {
-                    const step = (parseId(endId).r < parseId(startId).r || parseId(endId).c < parseId(startId).c) ? -1 : 1;
-                    newVal = (parseFloat(newVal) + (index * step)).toString();
-                }
-
-                if (!cellData[id]) cellData[id] = {};
-                cellData[id].value = newVal;
-                cellData[id].formula = newFormula;
-                if (source.style) cellData[id].style = { ...source.style };
-                
-                renderCell(id);
-            });
-            recalculateAll();
-        }
-
-        function parseId(id) {
-            const colPart = id.match(/[A-Z]+/)[0];
-            const rowPart = id.match(/\d+/)[0];
-            return { c: colPart.charCodeAt(0), r: parseInt(rowPart) };
-        }
-
-        function handleCellFocus(cellId) {
-            const cell = document.getElementById(cellId);
-            const data = cellData[cellId];
-            if (data?.formula) {
-                cell.innerText = data.formula;
-            } else {
-                cell.innerText = data?.value ?? "";
-            }
-        }
-
-        function handleCellBlur(cellId) {
-            const cell = document.getElementById(cellId);
-            updateCellValue(cellId, cell.innerText);
-        }
-
-        function handleCellInput(e, cellId) {
-            formulaInput.value = e.target.innerText;
-        }
-
-        function updateCellValue(cellId, input) {
-            if (!cellData[cellId]) cellData[cellId] = {};
-            
+        function updateData(id, input) {
+            if (!cellData[id]) cellData[id] = {};
             if (input.startsWith('=')) {
-                cellData[cellId].formula = input;
-                cellData[cellId].value = evaluateFormula(input.substring(1));
+                cellData[id].formula = input.toUpperCase();
+                cellData[id].val = solve(input.substring(1));
             } else {
-                cellData[cellId].formula = '';
-                cellData[cellId].value = input;
+                cellData[id].formula = null;
+                cellData[id].val = input;
             }
-            
-            renderCell(cellId);
-            recalculateAll();
+            recalcAll();
         }
 
-        function evaluateFormula(expr) {
+        function solve(expr) {
             try {
-                const sumRange = expr.match(/SUM\(([A-Z]\d+):([A-Z]\d+)\)/i);
-                if (sumRange) {
-                    const range = getRange(sumRange[1].toUpperCase(), sumRange[2].toUpperCase());
-                    let sum = 0;
-                    range.forEach(id => {
-                        const val = parseFloat(cellData[id]?.value);
-                        if (!isNaN(val)) sum += val;
-                    });
-                    return sum;
-                }
-
-                const cleanExpr = expr.replace(/[A-Z]+\d+/g, (match) => {
-                    const val = cellData[match.toUpperCase()]?.value;
-                    return (val === undefined || val === "" || isNaN(Number(val))) ? 0 : Number(val);
+                const clean = expr.replace(/[A-Z]\d+/g, m => {
+                    const v = cellData[m]?.val;
+                    return (v && !isNaN(v)) ? v : 0;
                 });
-                const result = eval(cleanExpr);
-                return result === undefined ? "" : result;
+                return eval(clean) || 0;
             } catch { return "#ERR"; }
         }
 
-        function renderCell(id) {
-            const cell = document.getElementById(id);
-            if (!cell) return;
+        function renderDisplay(id) {
+            const el = document.getElementById(id);
+            if (!el) return;
+            const handle = el.querySelector('.fill-handle');
+            el.innerText = cellData[id]?.val || "";
+            if (handle) el.appendChild(handle);
             
-            const data = cellData[id] || {};
-            const displayVal = (data.value !== undefined && data.value !== null && data.value !== "") ? data.value : "";
-            
-            if (document.activeElement !== cell) {
-                // Preserve the fill-handle if it exists
-                const handle = cell.querySelector('.fill-handle');
-                cell.innerText = displayVal;
-                if (handle) cell.appendChild(handle);
-            }
-
-            if (data.style) {
-                cell.style.fontWeight = data.style.bold ? 'bold' : 'normal';
-                cell.style.fontStyle = data.style.italic ? 'italic' : 'normal';
-                cell.style.textDecoration = data.style.underline ? 'underline' : 'none';
-                cell.style.textAlign = data.style.align || 'left';
-                cell.style.backgroundColor = data.style.bg || 'transparent';
-                cell.style.color = data.style.color || 'inherit';
+            const style = cellData[id]?.style;
+            if (style) {
+                el.style.fontWeight = style.bold ? 'bold' : 'normal';
+                el.style.fontStyle = style.italic ? 'italic' : 'normal';
             }
         }
 
-        function recalculateAll() {
+        function recalcAll() {
             Object.keys(cellData).forEach(id => {
                 if (cellData[id].formula) {
-                    cellData[id].value = evaluateFormula(cellData[id].formula.substring(1));
-                    renderCell(id);
+                    cellData[id].val = solve(cellData[id].formula.substring(1));
+                    renderDisplay(id);
                 }
             });
-            updateSelectionSummary();
         }
 
-        function execStyle(type) {
-            const selected = document.querySelectorAll('.cell.selected');
-            selected.forEach(cell => {
-                const id = cell.id;
-                if (!cellData[id]) cellData[id] = { value: "" };
-                if (!cellData[id].style) cellData[id].style = {};
-                
-                if (type === 'bold') cellData[id].style.bold = !cellData[id].style.bold;
-                if (type === 'italic') cellData[id].style.italic = !cellData[id].style.italic;
-                if (type === 'underline') cellData[id].style.underline = !cellData[id].style.underline;
-                
-                renderCell(id);
+        // --- AUTOFILL ENGINE ---
+        function completeFill(srcId, targetId) {
+            const range = getLinearRange(srcId, targetId);
+            const source = cellData[srcId] || { val: "" };
+            
+            range.forEach((id, idx) => {
+                if (id === srcId) return;
+                let newVal = source.val;
+                let newFormula = source.formula;
+
+                // 1. If formula, increment cell names (relative reference)
+                if (newFormula) {
+                    const offset = idx;
+                    newFormula = newFormula.replace(/([A-Z])(\d+)/g, (match, col, row) => {
+                        return `${col}${parseInt(row) + offset}`;
+                    });
+                } 
+                // 2. If number, increment values
+                else if (!isNaN(parseFloat(newVal))) {
+                    newVal = (parseFloat(newVal) + idx).toString();
+                }
+
+                cellData[id] = { ...cellData[id], val: newVal, formula: newFormula };
+                renderDisplay(id);
             });
+            recalcAll();
         }
 
-        function setAlignment(align) {
-            const selected = document.querySelectorAll('.cell.selected');
-            selected.forEach(cell => {
-                const id = cell.id;
-                if (!cellData[id]) cellData[id] = { value: "" };
-                if (!cellData[id].style) cellData[id].style = {};
-                cellData[id].style.align = align;
-                renderCell(id);
-            });
-        }
-
-        function setCellColor(type, value) {
-            const selected = document.querySelectorAll('.cell.selected');
-            selected.forEach(cell => {
-                const id = cell.id;
-                if (!cellData[id]) cellData[id] = { value: "" };
-                if (!cellData[id].style) cellData[id].style = {};
-                if (type === 'background') cellData[id].style.bg = value;
-                if (type === 'text') cellData[id].style.color = value;
-                renderCell(id);
-            });
-        }
-
-        function updateSelectionSummary() {
-            const selected = document.querySelectorAll('.cell.selected');
-            if (selected.length <= 1) {
-                document.getElementById('selection-summary').innerText = "";
-                return;
+        // --- HELPERS ---
+        function getLinearRange(s, e) {
+            const parse = (id) => ({ c: id.charCodeAt(0), r: parseInt(id.slice(1)) });
+            const pS = parse(s), pE = parse(e);
+            const res = [];
+            if (Math.abs(pE.r - pS.r) >= Math.abs(pE.c - pS.c)) {
+                const dir = pE.r >= pS.r ? 1 : -1;
+                for(let r=pS.r; r !== pE.r + dir; r += dir) res.push(`${String.fromCharCode(pS.c)}${r}`);
+            } else {
+                const dir = pE.c >= pS.c ? 1 : -1;
+                for(let c=pS.c; c !== pE.c + dir; c += dir) res.push(`${String.fromCharCode(c)}${pS.r}`);
             }
-            let sum = 0, count = 0;
-            selected.forEach(cell => {
-                const val = parseFloat(cellData[cell.id]?.value);
-                if (!isNaN(val)) {
-                    sum += val;
-                    count++;
-                }
-            });
-            document.getElementById('selection-summary').innerText = `Count: ${selected.length} | Sum: ${sum}`;
+            return res;
         }
 
-        function handleCellKeydown(e, cellId) {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                document.getElementById(cellId).blur();
-                const nextRow = parseInt(cellId.match(/\d+/)[0]) + 1;
-                if (nextRow <= ROWS) selectCell(`${cellId.match(/[A-Z]+/)[0]}${nextRow}`);
+        function applyRange(s, e) {
+            document.querySelectorAll('.selected').forEach(c => c.classList.remove('selected'));
+            const parse = (id) => ({ c: id.charCodeAt(0), r: parseInt(id.slice(1)) });
+            const pS = parse(s), pE = parse(e);
+            for(let c = Math.min(pS.c, pE.c); c <= Math.max(pS.c, pE.c); c++) {
+                for(let r = Math.min(pS.r, pE.r); r <= Math.max(pS.r, pE.r); r++) {
+                    document.getElementById(`${String.fromCharCode(c)}${r}`)?.classList.add('selected');
+                }
             }
         }
 
-        function toggleSidebar() {
-            const sb = document.getElementById('sidebar');
-            sb.style.transform = sb.style.transform === 'translateX(0px)' ? 'translateX(-100%)' : 'translateX(0px)';
+        function applyFillPreview(s, e) {
+            document.querySelectorAll('.drag-fill-preview').forEach(el => el.classList.remove('drag-fill-preview'));
+            getLinearRange(s, e).forEach(id => document.getElementById(id)?.classList.add('drag-fill-preview'));
         }
 
-        function saveToBrowser() {
-            const title = document.getElementById('sheet-title').value || "Untitled Sheet";
-            const id = currentSheetId || Date.now().toString();
-            const sheets = JSON.parse(localStorage.getItem('cellnix_sheets') || '{}');
-            sheets[id] = { id, title, data: cellData, updated: new Date().toISOString() };
-            localStorage.setItem('cellnix_sheets', JSON.stringify(sheets));
-            currentSheetId = id;
-            loadFileList();
-            showStatus("Saved Locally");
+        function onCellKey(e) {
+            if (e.key === 'Enter') { e.preventDefault(); e.target.blur(); }
         }
 
-        function loadFileList() {
-            const list = document.getElementById('file-list');
-            const sheets = JSON.parse(localStorage.getItem('cellnix_sheets') || '{}');
-            list.innerHTML = "";
-            Object.values(sheets).sort((a,b) => new Date(b.updated) - new Date(a.updated)).forEach(sheet => {
-                const btn = document.createElement('div');
-                btn.className = "flex items-center justify-between group p-2 hover:bg-zinc-200 dark:hover:bg-zinc-800 rounded cursor-pointer transition";
-                btn.innerHTML = `<div class="flex-1 truncate text-sm" onclick="openSheet('${sheet.id}')"><i class="fa-solid fa-file-lines mr-2 opacity-50"></i>${sheet.title}</div>
-                    <button onclick="deleteSheet('${sheet.id}')" class="opacity-0 group-hover:opacity-100 text-zinc-400 hover:text-red-500 p-1"><i class="fa-solid fa-trash-can text-xs"></i></button>`;
-                list.appendChild(btn);
+        function applyStyle(type) {
+            document.querySelectorAll('.selected').forEach(el => {
+                if (!cellData[el.id]) cellData[el.id] = {};
+                if (!cellData[el.id].style) cellData[el.id].style = {};
+                const s = cellData[el.id].style;
+                if (type === 'bold') s.bold = !s.bold;
+                if (type === 'italic') s.italic = !s.italic;
+                renderDisplay(el.id);
             });
         }
 
-        function openSheet(id) {
-            const sheets = JSON.parse(localStorage.getItem('cellnix_sheets') || '{}');
-            const sheet = sheets[id];
-            if (!sheet) return;
-            currentSheetId = id;
-            cellData = sheet.data || {};
-            document.getElementById('sheet-title').value = sheet.title;
-            document.querySelectorAll('.cell').forEach(c => {
-                c.innerText = "";
-                c.removeAttribute('style');
-            });
-            Object.keys(cellData).forEach(cellId => renderCell(cellId));
-            toggleSidebar();
-            selectCell("A1");
-        }
-
-        function createNewSheet() {
-            currentSheetId = null;
-            cellData = {};
-            document.getElementById('sheet-title').value = "Untitled Sheet";
-            document.querySelectorAll('.cell').forEach(c => { 
-                c.innerText = ""; 
-                c.removeAttribute('style'); 
-                const handle = c.querySelector('.fill-handle');
-                if (handle) c.appendChild(handle);
-            });
-            toggleSidebar();
-            selectCell("A1");
-        }
-
-        function deleteSheet(id) {
-            if (!confirm("Delete this sheet?")) return;
-            const sheets = JSON.parse(localStorage.getItem('cellnix_sheets') || '{}');
-            delete sheets[id];
-            localStorage.setItem('cellnix_sheets', JSON.stringify(sheets));
-            if (currentSheetId === id) createNewSheet();
-            loadFileList();
-        }
-
-        function toggleTheme() {
-            const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-            document.documentElement.setAttribute('data-theme', isDark ? 'light' : 'dark');
-            document.getElementById('theme-icon').className = isDark ? 'fa-solid fa-moon' : 'fa-solid fa-sun';
-        }
-
-        function toggleExportMenu() { document.getElementById('export-menu').classList.toggle('active'); }
-        function showStatus(msg) {
-            const el = document.getElementById('status-text');
-            el.innerText = msg;
-            setTimeout(() => el.innerText = "Ready", 3000);
-        }
-
-        function exportData(format) {
-            let dataRows = [];
-            for(let r=1; r<=ROWS; r++) {
-                let row = {}, hasData = false;
-                for(let c=0; c<COLS; c++) {
-                    let id = `${String.fromCharCode(65+c)}${r}`;
-                    let val = cellData[id]?.value || "";
-                    if(val !== "") hasData = true;
-                    row[String.fromCharCode(65+c)] = val;
-                }
-                if(hasData) dataRows.push(row);
-            }
-            const ws = XLSX.utils.json_to_sheet(dataRows);
-            const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
-            XLSX.writeFile(wb, `${document.getElementById('sheet-title').value}.${format}`);
-        }
-
-        checkSession();
+        window.onload = initAuth;
     </script>
 </body>
 </html>
