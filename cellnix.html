@@ -43,11 +43,19 @@
             min-width: 100px; max-width: 100px; height: 26px;
             outline: none; border-right: 1px solid var(--border-color); border-bottom: 1px solid var(--border-color);
             padding: 0 4px; font-size: 13px; white-space: nowrap; overflow: hidden; cursor: cell;
-            background-color: transparent;
+            background-color: transparent; position: relative;
         }
 
         .cell.selected { background-color: var(--cell-selected-bg); }
         .cell.active-cell { box-shadow: inset 0 0 0 2px var(--cell-active-border); z-index: 10; position: relative; }
+
+        /* Fill Handle */
+        .fill-handle {
+            position: absolute; width: 6px; height: 6px; background-color: var(--accent-primary);
+            bottom: -3px; right: -3px; cursor: crosshair; z-index: 40; border: 1px solid white;
+            display: none;
+        }
+        .active-cell .fill-handle { display: block; }
 
         .header-col, .header-row, .header-corner {
             background-color: var(--bg-header); font-weight: 600; color: var(--text-secondary);
@@ -64,6 +72,8 @@
         #sidebar { transition: transform 0.3s ease; z-index: 50; }
         .export-dropdown { display: none; }
         .export-dropdown.active { display: block; }
+        
+        .drag-fill-preview { background-color: rgba(147, 51, 234, 0.2) !important; border: 1px dashed var(--accent-primary) !important; }
     </style>
 </head>
 <body class="h-screen flex flex-col overflow-hidden">
@@ -72,7 +82,7 @@
         <div class="animate-spin rounded-full h-12 w-12 border-t-2 border-purple-600"></div>
     </div>
 
-    <!-- Sidebar for Files -->
+    <!-- Sidebar -->
     <div id="sidebar" class="fixed left-0 top-0 h-full w-64 bg-zinc-50 dark:bg-zinc-900 border-r border-zinc-200 dark:border-zinc-800 -translate-x-full shadow-2xl">
         <div class="p-4 flex flex-col h-full">
             <div class="flex items-center justify-between mb-6">
@@ -82,12 +92,11 @@
             <button onclick="createNewSheet()" class="w-full py-2 bg-purple-600 text-white rounded-md text-sm font-medium mb-4 hover:bg-purple-700 transition">
                 <i class="fa-solid fa-plus mr-2"></i> New Sheet
             </button>
-            <div id="file-list" class="flex-1 overflow-y-auto space-y-1">
-                <!-- Files populated here -->
-            </div>
+            <div id="file-list" class="flex-1 overflow-y-auto space-y-1"></div>
         </div>
     </div>
 
+    <!-- Header -->
     <header class="bg-zinc-50 dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between px-4 py-2 z-40">
         <div class="flex items-center gap-4">
             <button onclick="toggleSidebar()" class="w-8 h-8 rounded-md hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-500 transition">
@@ -115,7 +124,6 @@
             <button onclick="toggleTheme()" class="w-8 h-8 rounded-full flex items-center justify-center text-zinc-500 hover:bg-zinc-200 dark:hover:bg-zinc-800 transition">
                 <i class="fa-solid fa-moon" id="theme-icon"></i>
             </button>
-            <!-- User Profile / Logout -->
             <div class="flex items-center gap-2 ml-2 border-l border-zinc-200 dark:border-zinc-800 pl-4">
                 <span id="user-display" class="text-xs text-zinc-500 hidden md:block"></span>
                 <button onclick="handleSignOut()" class="w-8 h-8 rounded-md hover:bg-red-100 hover:text-red-500 text-zinc-500 transition">
@@ -125,10 +133,21 @@
         </div>
     </header>
 
-    <div class="bg-zinc-100 dark:bg-zinc-900/50 border-b border-zinc-200 dark:border-zinc-800 px-4 py-1.5 flex items-center gap-3 overflow-x-auto">
+    <!-- Toolbar -->
+    <div class="bg-zinc-100 dark:bg-zinc-900/50 border-b border-zinc-200 dark:border-zinc-800 px-4 py-1.5 flex items-center gap-2 overflow-x-auto">
         <div class="flex items-center bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded px-1">
-            <button onclick="execStyle('bold')" class="p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded text-zinc-600 dark:text-zinc-400"><i class="fa-solid fa-bold"></i></button>
-            <button onclick="execStyle('italic')" class="p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded text-zinc-600 dark:text-zinc-400"><i class="fa-solid fa-italic"></i></button>
+            <button onclick="execStyle('bold')" class="p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded text-zinc-600 dark:text-zinc-400" title="Bold"><i class="fa-solid fa-bold"></i></button>
+            <button onclick="execStyle('italic')" class="p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded text-zinc-600 dark:text-zinc-400" title="Italic"><i class="fa-solid fa-italic"></i></button>
+            <button onclick="execStyle('underline')" class="p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded text-zinc-600 dark:text-zinc-400" title="Underline"><i class="fa-solid fa-underline"></i></button>
+        </div>
+        <div class="flex items-center bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded px-1">
+            <button onclick="setAlignment('left')" class="p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded text-zinc-600 dark:text-zinc-400"><i class="fa-solid fa-align-left"></i></button>
+            <button onclick="setAlignment('center')" class="p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded text-zinc-600 dark:text-zinc-400"><i class="fa-solid fa-align-center"></i></button>
+            <button onclick="setAlignment('right')" class="p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded text-zinc-600 dark:text-zinc-400"><i class="fa-solid fa-align-right"></i></button>
+        </div>
+        <div class="flex items-center bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded px-1 gap-1 py-1">
+            <input type="color" onchange="setCellColor('background', this.value)" class="w-6 h-6 p-0 border-0 bg-transparent cursor-pointer" title="Fill Color">
+            <input type="color" onchange="setCellColor('text', this.value)" class="w-6 h-6 p-0 border-0 bg-transparent cursor-pointer" title="Text Color" value="#000000">
         </div>
         <div class="h-4 w-px bg-zinc-300 dark:bg-zinc-700"></div>
         <div id="selected-cell-indicator" class="min-w-[40px] text-center text-xs font-bold text-purple-600 dark:text-purple-400">A1</div>
@@ -138,6 +157,7 @@
         </div>
     </div>
 
+    <!-- Main Grid -->
     <div class="flex-1 relative overflow-hidden">
         <div class="spreadsheet-container w-full h-full overflow-auto" id="grid-container">
             <table class="border-collapse table-fixed" id="spreadsheet">
@@ -149,22 +169,21 @@
 
     <div class="bg-purple-600 text-white text-[10px] px-4 py-0.5 flex justify-between uppercase tracking-wider font-semibold">
         <div>Status: <span id="status-text">Ready</span></div>
+        <div id="selection-summary"></div>
         <div>CellNix v2.0</div>
     </div>
 
     <script>
-        // Supabase Initialization
         const SUPABASE_URL = 'https://rnlwrngfgvznndlekmrz.supabase.co';
         const SUPABASE_KEY = 'sb_publishable_mtI0_ZBvU_n5oRuqV58QHg_qJt3Gfyt';
-        
-        // Use window.supabase directly to avoid redeclaration issues if scripts re-run
         const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
         const COLS = 26; 
-        const ROWS = 50;
-        let cellData = {};
+        const ROWS = 100;
+        let cellData = {}; // Stores { value, formula, style: { bold, italic, color, bg, align } }
         let activeCellId = "A1";
         let isMouseDown = false;
+        let isDraggingFill = false;
         let selectionStart = null;
         let currentSheetId = null;
 
@@ -173,14 +192,12 @@
         const formulaInput = document.getElementById('formula-input');
         const selectedCellIndicator = document.getElementById('selected-cell-indicator');
 
-        // Check Authentication on Page Load
         async function checkSession() {
             const { data: { session }, error } = await supabaseClient.auth.getSession();
-            if (error || !session) {
-                window.location.href = 'auth.html';
-            } else {
+            if (error || !session) { window.location.href = 'auth.html'; } 
+            else { 
                 document.getElementById('user-display').innerText = session.user.email;
-                initGrid();
+                initGrid(); 
             }
         }
 
@@ -222,6 +239,16 @@
                     td.contentEditable = true;
                     td.spellcheck = false;
 
+                    // Fill handle element
+                    const handle = document.createElement('div');
+                    handle.className = 'fill-handle';
+                    handle.addEventListener('mousedown', (e) => {
+                        e.stopPropagation();
+                        isDraggingFill = true;
+                        selectionStart = activeCellId;
+                    });
+                    td.appendChild(handle);
+
                     td.addEventListener('mousedown', (e) => handleCellMouseDown(e, cellId));
                     td.addEventListener('mouseenter', () => handleCellMouseEnter(cellId));
                     td.addEventListener('focus', () => handleCellFocus(cellId));
@@ -233,13 +260,22 @@
                 }
                 gridBody.appendChild(tr);
             }
-            window.addEventListener('mouseup', () => isMouseDown = false);
+
+            window.addEventListener('mouseup', handleGlobalMouseUp);
             selectCell("A1");
             loadFileList();
             document.getElementById('loading-screen').classList.add('hidden');
         }
 
-        // --- Core Selection Logic ---
+        function handleGlobalMouseUp() {
+            if (isDraggingFill && selectionStart && activeCellId) {
+                completeFill(selectionStart, activeCellId);
+            }
+            isMouseDown = false;
+            isDraggingFill = false;
+            document.querySelectorAll('.drag-fill-preview').forEach(el => el.classList.remove('drag-fill-preview'));
+        }
+
         function selectCell(cellId) {
             document.querySelectorAll('.active-cell').forEach(c => c.classList.remove('active-cell'));
             document.querySelectorAll('.selected').forEach(c => c.classList.remove('selected'));
@@ -251,30 +287,11 @@
             cell.classList.add('selected');
             selectedCellIndicator.innerText = cellId;
             
-            formulaInput.value = (cellData[cellId] && cellData[cellId].formula) ? cellData[cellId].formula : cell.innerText;
+            formulaInput.value = (cellData[cellId] && cellData[cellId].formula) ? cellData[cellId].formula : (cellData[cellId]?.value ?? "");
+            updateSelectionSummary();
         }
 
         function handleCellMouseDown(e, cellId) {
-            const currentFormula = formulaInput.value;
-            const activeCell = document.getElementById(activeCellId);
-
-            if (activeCellId !== cellId && document.activeElement === activeCell) {
-                const triggerChars = ['=', '+', '-', '*', '/', '('];
-                const lastChar = currentFormula.trim().slice(-1);
-                
-                if (currentFormula.startsWith('=') || triggerChars.includes(lastChar)) {
-                    e.preventDefault();
-                    let separator = "";
-                    if (/^[A-Z0-9]$/i.test(lastChar)) {
-                        separator = "+";
-                    }
-                    
-                    formulaInput.value = currentFormula + separator + cellId;
-                    activeCell.innerText = formulaInput.value;
-                    return;
-                }
-            }
-
             isMouseDown = true;
             selectionStart = cellId;
             selectCell(cellId);
@@ -283,34 +300,101 @@
         function handleCellMouseEnter(cellId) {
             if (isMouseDown && selectionStart) {
                 applyRangeSelection(selectionStart, cellId);
+            } else if (isDraggingFill && selectionStart) {
+                applyFillPreview(selectionStart, cellId);
             }
         }
 
         function applyRangeSelection(startId, endId) {
             document.querySelectorAll('.cell.selected').forEach(c => c.classList.remove('selected'));
-            const sCol = startId.match(/[A-Z]+/)[0].charCodeAt(0), sRow = parseInt(startId.match(/\d+/)[0]);
-            const eCol = endId.match(/[A-Z]+/)[0].charCodeAt(0), eRow = parseInt(endId.match(/\d+/)[0]);
-            
-            for (let c = Math.min(sCol, eCol); c <= Math.max(sCol, eCol); c++) {
-                for (let r = Math.min(sRow, eRow); r <= Math.max(sRow, eRow); r++) {
-                    const el = document.getElementById(`${String.fromCharCode(c)}${r}`);
-                    if(el) el.classList.add('selected');
+            const range = getRange(startId, endId);
+            range.forEach(id => {
+                const el = document.getElementById(id);
+                if(el) el.classList.add('selected');
+            });
+            updateSelectionSummary();
+        }
+
+        function applyFillPreview(startId, endId) {
+            document.querySelectorAll('.drag-fill-preview').forEach(el => el.classList.remove('drag-fill-preview'));
+            const range = getLinearRange(startId, endId);
+            range.forEach(id => {
+                const el = document.getElementById(id);
+                if(el) el.classList.add('drag-fill-preview');
+            });
+        }
+
+        function getRange(startId, endId) {
+            const s = parseId(startId), e = parseId(endId);
+            const res = [];
+            for (let c = Math.min(s.c, e.c); c <= Math.max(s.c, e.c); c++) {
+                for (let r = Math.min(s.r, e.r); r <= Math.max(s.r, e.r); r++) {
+                    res.push(`${String.fromCharCode(c)}${r}`);
                 }
             }
+            return res;
+        }
+
+        function getLinearRange(startId, endId) {
+            const s = parseId(startId), e = parseId(endId);
+            const res = [];
+            // Google Sheets fill priority: Vertical then Horizontal
+            if (Math.abs(e.r - s.r) >= Math.abs(e.c - s.c)) {
+                // Fill Vertical
+                const step = e.r >= s.r ? 1 : -1;
+                for (let r = s.r; r !== e.r + step; r += step) res.push(`${String.fromCharCode(s.c)}${r}`);
+            } else {
+                // Fill Horizontal
+                const step = e.c >= s.c ? 1 : -1;
+                for (let c = s.c; c !== e.c + step; c += step) res.push(`${String.fromCharCode(c)}${s.r}`);
+            }
+            return res;
+        }
+
+        function completeFill(startId, endId) {
+            if (startId === endId) return;
+            const source = cellData[startId] || { value: "" };
+            const range = getLinearRange(startId, endId);
+            
+            range.forEach((id, index) => {
+                if (id === startId) return;
+                
+                let newVal = source.value;
+                let newFormula = source.formula;
+
+                // Smart fill logic (increment numbers)
+                if (!newFormula && !isNaN(parseFloat(newVal))) {
+                    newVal = (parseFloat(newVal) + index).toString();
+                }
+
+                if (!cellData[id]) cellData[id] = {};
+                cellData[id].value = newVal;
+                cellData[id].formula = newFormula;
+                // Copy styles too
+                if (source.style) cellData[id].style = { ...source.style };
+                
+                renderCell(id);
+            });
+            recalculateAll();
+        }
+
+        function parseId(id) {
+            return { c: id.match(/[A-Z]+/)[0].charCodeAt(0), r: parseInt(id.match(/\d+/)[0]) };
         }
 
         function handleCellFocus(cellId) {
             const cell = document.getElementById(cellId);
-            if (cellData[cellId]?.formula) {
-                cell.innerText = cellData[cellId].formula;
+            const data = cellData[cellId];
+            if (data?.formula) {
+                cell.innerText = data.formula;
+            } else {
+                cell.innerText = data?.value ?? "";
             }
         }
 
         function handleCellBlur(cellId) {
             const cell = document.getElementById(cellId);
-            if (!cell) return;
-            const val = cell.innerText;
-            updateCellValue(cellId, val);
+            updateCellValue(cellId, cell.innerText);
         }
 
         function handleCellInput(e, cellId) {
@@ -336,28 +420,44 @@
             try {
                 const sumRange = expr.match(/SUM\(([A-Z]\d+):([A-Z]\d+)\)/i);
                 if (sumRange) {
-                    const start = sumRange[1], end = sumRange[2];
-                    const sCol = start.match(/[A-Z]+/)[0].charCodeAt(0), sRow = parseInt(start.match(/\d+/)[0]);
-                    const eCol = end.match(/[A-Z]+/)[0].charCodeAt(0), eRow = parseInt(end.match(/\d+/)[0]);
+                    const range = getRange(sumRange[1].toUpperCase(), sumRange[2].toUpperCase());
                     let sum = 0;
-                    for(let c=sCol; c<=eCol; c++) 
-                        for(let r=sRow; r<=eRow; r++) 
-                            sum += Number(cellData[`${String.fromCharCode(c)}${r}`]?.value || 0);
+                    range.forEach(id => {
+                        const val = parseFloat(cellData[id]?.value);
+                        if (!isNaN(val)) sum += val;
+                    });
                     return sum;
                 }
 
                 const cleanExpr = expr.replace(/[A-Z]+\d+/g, (match) => {
                     const val = cellData[match.toUpperCase()]?.value;
-                    return isNaN(Number(val)) ? 0 : Number(val);
+                    return (val === undefined || val === "" || isNaN(Number(val))) ? 0 : Number(val);
                 });
-                return eval(cleanExpr);
+                const result = eval(cleanExpr);
+                return result === undefined ? "" : result;
             } catch { return "#ERR"; }
         }
 
         function renderCell(id) {
             const cell = document.getElementById(id);
-            if (cell && document.activeElement !== cell) {
-                cell.innerText = cellData[id]?.value || "";
+            if (!cell) return;
+            
+            const data = cellData[id] || {};
+            // Correctly show zero if value is 0
+            const displayVal = (data.value !== undefined && data.value !== null && data.value !== "") ? data.value : "";
+            
+            if (document.activeElement !== cell) {
+                cell.innerText = displayVal;
+            }
+
+            // Apply Styles
+            if (data.style) {
+                cell.style.fontWeight = data.style.bold ? 'bold' : 'normal';
+                cell.style.fontStyle = data.style.italic ? 'italic' : 'normal';
+                cell.style.textDecoration = data.style.underline ? 'underline' : 'none';
+                cell.style.textAlign = data.style.align || 'left';
+                cell.style.backgroundColor = data.style.bg || 'transparent';
+                cell.style.color = data.style.color || 'inherit';
             }
         }
 
@@ -368,8 +468,66 @@
                     renderCell(id);
                 }
             });
+            updateSelectionSummary();
         }
 
+        // Toolbar Features
+        function execStyle(type) {
+            const selected = document.querySelectorAll('.cell.selected');
+            selected.forEach(cell => {
+                const id = cell.id;
+                if (!cellData[id]) cellData[id] = { value: "" };
+                if (!cellData[id].style) cellData[id].style = {};
+                
+                if (type === 'bold') cellData[id].style.bold = !cellData[id].style.bold;
+                if (type === 'italic') cellData[id].style.italic = !cellData[id].style.italic;
+                if (type === 'underline') cellData[id].style.underline = !cellData[id].style.underline;
+                
+                renderCell(id);
+            });
+        }
+
+        function setAlignment(align) {
+            const selected = document.querySelectorAll('.cell.selected');
+            selected.forEach(cell => {
+                const id = cell.id;
+                if (!cellData[id]) cellData[id] = { value: "" };
+                if (!cellData[id].style) cellData[id].style = {};
+                cellData[id].style.align = align;
+                renderCell(id);
+            });
+        }
+
+        function setCellColor(type, value) {
+            const selected = document.querySelectorAll('.cell.selected');
+            selected.forEach(cell => {
+                const id = cell.id;
+                if (!cellData[id]) cellData[id] = { value: "" };
+                if (!cellData[id].style) cellData[id].style = {};
+                if (type === 'background') cellData[id].style.bg = value;
+                if (type === 'text') cellData[id].style.color = value;
+                renderCell(id);
+            });
+        }
+
+        function updateSelectionSummary() {
+            const selected = document.querySelectorAll('.cell.selected');
+            if (selected.length <= 1) {
+                document.getElementById('selection-summary').innerText = "";
+                return;
+            }
+            let sum = 0, count = 0;
+            selected.forEach(cell => {
+                const val = parseFloat(cellData[cell.id]?.value);
+                if (!isNaN(val)) {
+                    sum += val;
+                    count++;
+                }
+            });
+            document.getElementById('selection-summary').innerText = `Count: ${selected.length} | Sum: ${sum}`;
+        }
+
+        // Standard helpers
         function handleCellKeydown(e, cellId) {
             if (e.key === 'Enter') {
                 e.preventDefault();
@@ -388,14 +546,7 @@
             const title = document.getElementById('sheet-title').value || "Untitled Sheet";
             const id = currentSheetId || Date.now().toString();
             const sheets = JSON.parse(localStorage.getItem('cellnix_sheets') || '{}');
-            
-            sheets[id] = {
-                id: id,
-                title: title,
-                data: cellData,
-                updated: new Date().toISOString()
-            };
-            
+            sheets[id] = { id, title, data: cellData, updated: new Date().toISOString() };
             localStorage.setItem('cellnix_sheets', JSON.stringify(sheets));
             currentSheetId = id;
             loadFileList();
@@ -406,18 +557,11 @@
             const list = document.getElementById('file-list');
             const sheets = JSON.parse(localStorage.getItem('cellnix_sheets') || '{}');
             list.innerHTML = "";
-            
             Object.values(sheets).sort((a,b) => new Date(b.updated) - new Date(a.updated)).forEach(sheet => {
                 const btn = document.createElement('div');
                 btn.className = "flex items-center justify-between group p-2 hover:bg-zinc-200 dark:hover:bg-zinc-800 rounded cursor-pointer transition";
-                btn.innerHTML = `
-                    <div class="flex-1 truncate text-sm text-zinc-700 dark:text-zinc-300" onclick="openSheet('${sheet.id}')">
-                        <i class="fa-solid fa-file-lines mr-2 opacity-50"></i>${sheet.title}
-                    </div>
-                    <button onclick="deleteSheet('${sheet.id}')" class="opacity-0 group-hover:opacity-100 text-zinc-400 hover:text-red-500 p-1">
-                        <i class="fa-solid fa-trash-can text-xs"></i>
-                    </button>
-                `;
+                btn.innerHTML = `<div class="flex-1 truncate text-sm" onclick="openSheet('${sheet.id}')"><i class="fa-solid fa-file-lines mr-2 opacity-50"></i>${sheet.title}</div>
+                    <button onclick="deleteSheet('${sheet.id}')" class="opacity-0 group-hover:opacity-100 text-zinc-400 hover:text-red-500 p-1"><i class="fa-solid fa-trash-can text-xs"></i></button>`;
                 list.appendChild(btn);
             });
         }
@@ -426,11 +570,9 @@
             const sheets = JSON.parse(localStorage.getItem('cellnix_sheets') || '{}');
             const sheet = sheets[id];
             if (!sheet) return;
-
             currentSheetId = id;
             cellData = sheet.data || {};
             document.getElementById('sheet-title').value = sheet.title;
-            
             document.querySelectorAll('.cell').forEach(c => c.innerText = "");
             Object.keys(cellData).forEach(cellId => renderCell(cellId));
             toggleSidebar();
@@ -438,19 +580,16 @@
         }
 
         function createNewSheet() {
-            if (Object.keys(cellData).length > 0 && !confirm("Discard current changes?")) return;
             currentSheetId = null;
             cellData = {};
             document.getElementById('sheet-title').value = "Untitled Sheet";
-            document.querySelectorAll('.cell').forEach(c => {
-                c.innerText = "";
-            });
+            document.querySelectorAll('.cell').forEach(c => { c.innerText = ""; c.removeAttribute('style'); });
             toggleSidebar();
             selectCell("A1");
         }
 
         function deleteSheet(id) {
-            if (!confirm("Delete this sheet permanently?")) return;
+            if (!confirm("Delete this sheet?")) return;
             const sheets = JSON.parse(localStorage.getItem('cellnix_sheets') || '{}');
             delete sheets[id];
             localStorage.setItem('cellnix_sheets', JSON.stringify(sheets));
@@ -465,12 +604,6 @@
         }
 
         function toggleExportMenu() { document.getElementById('export-menu').classList.toggle('active'); }
-        
-        window.onclick = (e) => { 
-            if (e.target.closest('#export-btn')) return;
-            document.getElementById('export-menu').classList.remove('active'); 
-        }
-
         function showStatus(msg) {
             const el = document.getElementById('status-text');
             el.innerText = msg;
@@ -495,9 +628,6 @@
             XLSX.writeFile(wb, `${document.getElementById('sheet-title').value}.${format}`);
         }
 
-        function execStyle(cmd) { document.execCommand(cmd, false, null); }
-
-        // Initialize Authentication Check
         checkSession();
     </script>
 </body>
