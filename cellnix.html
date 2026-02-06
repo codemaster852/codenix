@@ -51,9 +51,9 @@
 
         /* Fill Handle */
         .fill-handle {
-            position: absolute; width: 6px; height: 6px; background-color: var(--accent-primary);
-            bottom: -3px; right: -3px; cursor: crosshair; z-index: 40; border: 1px solid white;
-            display: none;
+            position: absolute; width: 8px; height: 8px; background-color: var(--accent-primary);
+            bottom: -4px; right: -4px; cursor: crosshair; z-index: 40; border: 1.5px solid white;
+            display: none; border-radius: 1px;
         }
         .active-cell .fill-handle { display: block; }
 
@@ -180,10 +180,12 @@
 
         const COLS = 26; 
         const ROWS = 100;
-        let cellData = {}; // Stores { value, formula, style: { bold, italic, color, bg, align } }
+        let cellData = {}; 
         let activeCellId = "A1";
         let isMouseDown = false;
         let isDraggingFill = false;
+        let fillStartId = null;
+        let fillCurrentId = null;
         let selectionStart = null;
         let currentSheetId = null;
 
@@ -210,7 +212,6 @@
             headerRow.innerHTML = '';
             gridBody.innerHTML = '';
 
-            // Header Corner
             let trHead = document.createElement('tr');
             let thCorner = document.createElement('th');
             thCorner.className = 'header-corner h-[26px] w-[40px]';
@@ -239,13 +240,14 @@
                     td.contentEditable = true;
                     td.spellcheck = false;
 
-                    // Fill handle element
                     const handle = document.createElement('div');
                     handle.className = 'fill-handle';
                     handle.addEventListener('mousedown', (e) => {
                         e.stopPropagation();
+                        e.preventDefault();
                         isDraggingFill = true;
-                        selectionStart = activeCellId;
+                        fillStartId = activeCellId;
+                        fillCurrentId = activeCellId;
                     });
                     td.appendChild(handle);
 
@@ -268,11 +270,13 @@
         }
 
         function handleGlobalMouseUp() {
-            if (isDraggingFill && selectionStart && activeCellId) {
-                completeFill(selectionStart, activeCellId);
+            if (isDraggingFill && fillStartId && fillCurrentId) {
+                completeFill(fillStartId, fillCurrentId);
             }
             isMouseDown = false;
             isDraggingFill = false;
+            fillStartId = null;
+            fillCurrentId = null;
             document.querySelectorAll('.drag-fill-preview').forEach(el => el.classList.remove('drag-fill-preview'));
         }
 
@@ -292,6 +296,7 @@
         }
 
         function handleCellMouseDown(e, cellId) {
+            if (isDraggingFill) return;
             isMouseDown = true;
             selectionStart = cellId;
             selectCell(cellId);
@@ -300,8 +305,9 @@
         function handleCellMouseEnter(cellId) {
             if (isMouseDown && selectionStart) {
                 applyRangeSelection(selectionStart, cellId);
-            } else if (isDraggingFill && selectionStart) {
-                applyFillPreview(selectionStart, cellId);
+            } else if (isDraggingFill && fillStartId) {
+                fillCurrentId = cellId;
+                applyFillPreview(fillStartId, cellId);
             }
         }
 
@@ -338,13 +344,10 @@
         function getLinearRange(startId, endId) {
             const s = parseId(startId), e = parseId(endId);
             const res = [];
-            // Google Sheets fill priority: Vertical then Horizontal
             if (Math.abs(e.r - s.r) >= Math.abs(e.c - s.c)) {
-                // Fill Vertical
                 const step = e.r >= s.r ? 1 : -1;
                 for (let r = s.r; r !== e.r + step; r += step) res.push(`${String.fromCharCode(s.c)}${r}`);
             } else {
-                // Fill Horizontal
                 const step = e.c >= s.c ? 1 : -1;
                 for (let c = s.c; c !== e.c + step; c += step) res.push(`${String.fromCharCode(c)}${s.r}`);
             }
@@ -362,15 +365,14 @@
                 let newVal = source.value;
                 let newFormula = source.formula;
 
-                // Smart fill logic (increment numbers)
-                if (!newFormula && !isNaN(parseFloat(newVal))) {
-                    newVal = (parseFloat(newVal) + index).toString();
+                if (!newFormula && newVal !== "" && !isNaN(parseFloat(newVal))) {
+                    const step = (parseId(endId).r < parseId(startId).r || parseId(endId).c < parseId(startId).c) ? -1 : 1;
+                    newVal = (parseFloat(newVal) + (index * step)).toString();
                 }
 
                 if (!cellData[id]) cellData[id] = {};
                 cellData[id].value = newVal;
                 cellData[id].formula = newFormula;
-                // Copy styles too
                 if (source.style) cellData[id].style = { ...source.style };
                 
                 renderCell(id);
@@ -379,7 +381,9 @@
         }
 
         function parseId(id) {
-            return { c: id.match(/[A-Z]+/)[0].charCodeAt(0), r: parseInt(id.match(/\d+/)[0]) };
+            const colPart = id.match(/[A-Z]+/)[0];
+            const rowPart = id.match(/\d+/)[0];
+            return { c: colPart.charCodeAt(0), r: parseInt(rowPart) };
         }
 
         function handleCellFocus(cellId) {
@@ -443,14 +447,15 @@
             if (!cell) return;
             
             const data = cellData[id] || {};
-            // Correctly show zero if value is 0
             const displayVal = (data.value !== undefined && data.value !== null && data.value !== "") ? data.value : "";
             
             if (document.activeElement !== cell) {
+                // Preserve the fill-handle if it exists
+                const handle = cell.querySelector('.fill-handle');
                 cell.innerText = displayVal;
+                if (handle) cell.appendChild(handle);
             }
 
-            // Apply Styles
             if (data.style) {
                 cell.style.fontWeight = data.style.bold ? 'bold' : 'normal';
                 cell.style.fontStyle = data.style.italic ? 'italic' : 'normal';
@@ -471,7 +476,6 @@
             updateSelectionSummary();
         }
 
-        // Toolbar Features
         function execStyle(type) {
             const selected = document.querySelectorAll('.cell.selected');
             selected.forEach(cell => {
@@ -527,7 +531,6 @@
             document.getElementById('selection-summary').innerText = `Count: ${selected.length} | Sum: ${sum}`;
         }
 
-        // Standard helpers
         function handleCellKeydown(e, cellId) {
             if (e.key === 'Enter') {
                 e.preventDefault();
@@ -573,7 +576,10 @@
             currentSheetId = id;
             cellData = sheet.data || {};
             document.getElementById('sheet-title').value = sheet.title;
-            document.querySelectorAll('.cell').forEach(c => c.innerText = "");
+            document.querySelectorAll('.cell').forEach(c => {
+                c.innerText = "";
+                c.removeAttribute('style');
+            });
             Object.keys(cellData).forEach(cellId => renderCell(cellId));
             toggleSidebar();
             selectCell("A1");
@@ -583,7 +589,12 @@
             currentSheetId = null;
             cellData = {};
             document.getElementById('sheet-title').value = "Untitled Sheet";
-            document.querySelectorAll('.cell').forEach(c => { c.innerText = ""; c.removeAttribute('style'); });
+            document.querySelectorAll('.cell').forEach(c => { 
+                c.innerText = ""; 
+                c.removeAttribute('style'); 
+                const handle = c.querySelector('.fill-handle');
+                if (handle) c.appendChild(handle);
+            });
             toggleSidebar();
             selectCell("A1");
         }
