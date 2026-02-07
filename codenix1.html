@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Codenix IDE 3.5.3 (Nix 3 Optimized)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    <!-- Supabase JS -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .font-mono { font-family: 'Fira Code', monospace; }
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; height: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #333; border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #444; }
+        .resize-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            z-index: 1000;
+            cursor: col-resize;
+        }
+        .resizing-v .resize-overlay { cursor: row-resize; display: block; }
+        .resizing-h .resize-overlay { cursor: col-resize; display: block; }
+    </style>
+</head>
+<body class="bg-[#0d0d0d] text-[#e0e0e0] overflow-hidden select-none">
+
+    <div id="resize-overlay" class="resize-overlay"></div>
+
+    <div class="flex h-screen w-full">
+        <!-- Activity Bar -->
+        <div class="w-12 h-full bg-[#1e1e1e] flex flex-col items-center py-4 space-y-4 border-r border-[#2b2b2b] z-50 shadow-xl">
+            <button onclick="switchTab('explorer')" id="btn-explorer" class="p-2.5 rounded-xl transition-all text-[#858585] hover:text-white hover:bg-[#2d2d2d]">
+                <i data-lucide="file-code" size="22"></i>
+            </button>
+            <button onclick="switchTab('chat')" id="btn-chat" class="p-2.5 rounded-xl transition-all bg-[#2563eb] text-white shadow-lg shadow-blue-500/20">
+                <i data-lucide="message-square" size="22"></i>
+            </button>
+            <div class="mt-auto flex flex-col items-center space-y-4">
+                <button onclick="handleLogout()" title="Logout" class="p-2 text-[#858585] hover:text-red-400 transition-colors">
+                    <i data-lucide="log-out" size="20"></i>
+                </button>
+                <div class="p-2 text-[#858585] cursor-pointer hover:text-white" onclick="toggleSidebar()">
+                    <i id="sidebar-toggle-icon" data-lucide="panel-left-close" size="20"></i>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sidebar -->
+        <div id="sidebar-container" class="flex" style="width: 300px;">
+            <div id="sidebar" class="w-full bg-[#181818] flex flex-col border-r border-[#2b2b2b] overflow-hidden">
+                <div id="view-explorer" class="hidden flex-1 flex flex-col">
+                    <div class="p-4 text-[10px] uppercase font-bold text-[#666] tracking-widest flex justify-between items-center">
+                        <span>Workspace</span>
+                        <i data-lucide="folder-open" size="14"></i>
+                    </div>
+                    <div id="file-list" class="px-2 space-y-1"></div>
+                </div>
+
+                <div id="view-chat" class="flex-1 flex flex-col bg-[#181818] overflow-hidden">
+                    <div class="p-4 border-b border-[#2b2b2b] flex items-center justify-between">
+                        <div class="text-[11px] font-bold uppercase tracking-widest text-blue-400 flex items-center">
+                            <i data-lucide="zap" size="14" class="mr-2"></i> Nix 3
+                        </div>
+                        <button onclick="startNewApp()" title="New Project" class="p-1.5 rounded-lg hover:bg-red-500/10 text-gray-500 hover:text-red-400 transition-all">
+                            <i data-lucide="plus-circle" size="16"></i>
+                        </button>
+                    </div>
+
+                    <div id="task-container" class="hidden px-4 py-3 border-b border-[#2b2b2b] bg-[#1a1a1a]">
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="text-[10px] text-gray-500 uppercase font-bold">Plan & Progress</span>
+                            <button onclick="clearTasks()" class="text-[10px] text-red-400 hover:text-red-300 transition-colors">
+                                <i data-lucide="trash-2" size="10"></i>
+                            </button>
+                        </div>
+                        <div id="task-list" class="max-h-48 overflow-y-auto space-y-2 pr-1 custom-scrollbar"></div>
+                    </div>
+
+                    <div id="chat-messages" class="flex-1 overflow-y-auto p-4 space-y-4 text-xs custom-scrollbar">
+                        <div class="flex justify-start">
+                            <div class="max-w-[85%] p-3 rounded-2xl bg-[#2a2a2a] border border-[#3e3e3e] text-[#ddd]">
+                                Hello! I'm Nix 3. I'm connected and ready to help. <br><br>Click the <b>+</b> icon above to clear the code and start a new app.
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="p-4 border-t border-[#2b2b2b] bg-[#1e1e1e]">
+                        <div class="relative">
+                            <input id="chat-input" type="text" 
+                                class="w-full bg-[#2a2a2a] rounded-xl p-3 pr-10 text-xs outline-none border border-transparent focus:border-blue-500/50 transition-all shadow-inner"
+                                placeholder="Modify code using Nix 3...">
+                            <button onclick="handleSendMessage()" id="send-btn" class="absolute right-2 top-2 p-1.5 text-gray-400 hover:text-white transition-opacity">
+                                <i data-lucide="send" size="16"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div id="handle-sidebar" class="w-1 cursor-col-resize hover:bg-blue-500 active:bg-blue-600 transition-colors z-50"></div>
+        </div>
+
+        <div class="flex-1 flex flex-col min-w-0 bg-[#0d0d0d]">
+            <div class="h-10 flex bg-[#181818] items-center border-b border-[#2b2b2b] px-2 space-x-1">
+                <button onclick="switchView('editor')" id="tab-editor" class="px-4 h-full flex items-center text-[11px] font-medium transition-all rounded-t-lg bg-[#1e1e1e] text-white border-b-2 border-blue-500">
+                    <i data-lucide="code-2" size="14" class="mr-2"></i> Editor
+                </button>
+                <button onclick="switchView('preview')" id="tab-preview" class="px-4 h-full flex items-center text-[11px] font-medium transition-all rounded-t-lg text-gray-500 hover:text-gray-300">
+                    <i data-lucide="monitor" size="14" class="mr-2"></i> Live Preview
+                </button>
+                <div class="flex-1"></div>
+                <div id="active-filename" class="mr-4 text-[9px] font-bold text-gray-600 uppercase tracking-[0.2em]">index.html</div>
+            </div>
+
+            <div class="flex-1 flex flex-col overflow-hidden relative">
+                <textarea id="editor" spellcheck="false" class="flex-1 bg-[#1e1e1e] p-8 outline-none font-mono text-[14px] leading-relaxed resize-none text-[#cbd5e1] caret-blue-500 selection:bg-blue-500/30"></textarea>
+                <iframe id="preview" class="hidden w-full h-full border-none bg-white"></iframe>
+            </div>
+
+            <div id="terminal-container" class="flex flex-col">
+                <div id="handle-terminal" class="h-1 cursor-row-resize hover:bg-blue-500 active:bg-blue-600 transition-colors z-50"></div>
+                <div id="terminal" style="height: 140px;" class="bg-[#0f0f0f] border-t border-[#2b2b2b] flex flex-col overflow-hidden shadow-2xl">
+                    <div class="h-8 bg-[#1a1a1a] flex items-center justify-between px-4 border-b border-[#2b2b2b]">
+                        <div class="text-[10px] font-bold uppercase tracking-widest flex items-center text-gray-400">
+                            <i data-lucide="terminal" size="12" class="mr-2 text-blue-500"></i> Output Terminal
+                        </div>
+                        <i data-lucide="minimize-2" size="12" class="cursor-pointer text-gray-500 hover:text-white transition-colors" onclick="toggleTerminal()"></i>
+                    </div>
+                    <div id="terminal-content" class="flex-1 p-4 font-mono text-[12px] overflow-y-auto custom-scrollbar">
+                        <div class="text-emerald-500 mb-1 opacity-80">✓ Nix 3 Engine Connected</div>
+                        <div class="text-blue-400 opacity-80">ℹ Authenticated Session Active</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="h-7 bg-[#2563eb] flex items-center justify-between px-4 text-white text-[10px] font-medium z-50">
+                <div class="flex items-center space-x-6">
+                    <div class="flex items-center cursor-pointer hover:bg-white/10 px-2 py-0.5 rounded transition-all" onclick="toggleTerminal()">
+                        <i data-lucide="terminal" size="12" class="mr-1.5"></i> Terminal
+                    </div>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <span id="user-email" class="opacity-80 lowercase">loading user...</span>
+                    <div class="flex items-center space-x-1.5 bg-blue-400/30 px-2 py-0.5 rounded-full">
+                        <div class="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse"></div>
+                        <span class="text-[9px]">NIX 3 ACTIVE</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Use window properties to avoid 'already declared' errors in re-execution environments
+        window.SUPABASE_URL = "https://rnlwrngfgvznndlekmrz.supabase.co";
+        window.SUPABASE_KEY = "sb_publishable_mtI0_ZBvU_n5oRuqV58QHg_qJt3Gfyt";
+        
+        // Use a namespaced object for internal state to avoid global conflicts
+        window.NixApp = window.NixApp || {
+            supabase: null,
+            files: {
+                'index.html': `<!DOCTYPE html>\n<html>\n<head>\n  <meta charset="UTF-8">\n  <title>Nix App</title>\n</head>\n<body>\n  <h1>Welcome to Nix 3</h1>\n</body>\n</html>`,
+                'styles.css': `body { background: #0f172a; color: white; font-family: sans-serif; text-align: center; padding-top: 50px; }`,
+                'script.js': `console.log('Nix 3 Ready');`
+            },
+            activeFile: 'index.html',
+            isSidebarVisible: true,
+            isTerminalVisible: true
+        };
+
+        // Initialize Supabase Client if not exists
+        if (!window.NixApp.supabase) {
+            window.NixApp.supabase = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_KEY);
+        }
+
+        const API_KEY = "ak_2SX8q58oS3jn1Vc2Tk0pf5Tr5QB43";
+        const LONGCAT_URL = "https://api.longcat.chat/openai/v1/chat/completions";
+        const MODEL = "LongCat-Flash-Chat";
+
+        async function checkAuth() {
+            const { data: { session } } = await window.NixApp.supabase.auth.getSession();
+            if (!session) {
+                window.location.href = 'auth.html';
+                return;
+            }
+            document.getElementById('user-email').innerText = session.user.email;
+        }
+
+        window.onload = async () => {
+            await checkAuth();
+            lucide.createIcons();
+            renderFileList();
+            updateEditor();
+            setupResizing();
+            document.getElementById('chat-input').addEventListener('keypress', (e) => { if (e.key === 'Enter') handleSendMessage(); });
+        };
+
+        async function handleLogout() {
+            await window.NixApp.supabase.auth.signOut();
+            window.location.href = 'auth.html';
+        }
+
+        function renderFileList() {
+            const list = document.getElementById('file-list');
+            list.innerHTML = Object.keys(window.NixApp.files).map(name => `
+                <div onclick="setActiveFile('${name}')" class="flex items-center px-3 py-2 rounded-md cursor-pointer text-xs transition-colors ${window.NixApp.activeFile === name ? 'bg-[#2d2d2d] text-blue-400 border border-[#3e3e3e]' : 'hover:bg-[#252525] text-[#999]'}">
+                    <i data-lucide="file-code" class="w-3.5 h-3.5 mr-2"></i> ${name}
+                </div>
+            `).join('');
+            lucide.createIcons();
+        }
+
+        function setActiveFile(name) {
+            window.NixApp.files[window.NixApp.activeFile] = document.getElementById('editor').value;
+            window.NixApp.activeFile = name;
+            updateEditor();
+            renderFileList();
+            document.getElementById('active-filename').innerText = name;
+            document.getElementById('status-filename').innerText = name.toUpperCase();
+        }
+
+        function updateEditor() {
+            document.getElementById('editor').value = window.NixApp.files[window.NixApp.activeFile];
+        }
+
+        function startNewApp() {
+            window.NixApp.files = {
+                'index.html': `<!DOCTYPE html>\n<html>\n<head>\n  <meta charset="UTF-8">\n  <title>New Nix App</title>\n</head>\n<body>\n  <h1>New Project Ready</h1>\n</body>\n</html>`,
+                'styles.css': `body { background: #111; color: #fff; font-family: sans-serif; text-align: center; }`,
+                'script.js': `// New script`
+            };
+            window.NixApp.activeFile = 'index.html';
+            updateEditor();
+            renderFileList();
+            document.getElementById('chat-messages').innerHTML = `<div class="flex justify-start"><div class="max-w-[85%] p-3 rounded-2xl bg-[#2a2a2a] border border-[#3e3e3e] text-[#ddd]">Workspace cleared. Nix 3 is ready for your new app!</div></div>`;
+            document.getElementById('task-container').classList.add('hidden');
+        }
+
+        function switchTab(tab) {
+            document.getElementById('view-explorer').classList.toggle('hidden', tab !== 'explorer');
+            document.getElementById('view-chat').classList.toggle('hidden', tab !== 'chat');
+            document.getElementById('btn-explorer').className = tab === 'explorer' ? 'p-2.5 rounded-xl transition-all bg-[#3b82f6] text-white shadow-lg' : 'p-2.5 rounded-xl transition-all text-[#858585] hover:text-white hover:bg-[#2d2d2d]';
+            document.getElementById('btn-chat').className = tab === 'chat' ? 'p-2.5 rounded-xl transition-all bg-[#2563eb] text-white shadow-lg' : 'p-2.5 rounded-xl transition-all text-[#858585] hover:text-white hover:bg-[#2d2d2d]';
+        }
+
+        function switchView(view) {
+            const editorEl = document.getElementById('editor');
+            const previewEl = document.getElementById('preview');
+            if (view === 'editor') {
+                editorEl.classList.remove('hidden');
+                previewEl.classList.add('hidden');
+                document.getElementById('tab-editor').className = 'px-4 h-full flex items-center text-[11px] font-medium transition-all rounded-t-lg bg-[#1e1e1e] text-white border-b-2 border-blue-500';
+                document.getElementById('tab-preview').className = 'px-4 h-full flex items-center text-[11px] font-medium transition-all rounded-t-lg text-gray-500 hover:text-gray-300';
+            } else {
+                window.NixApp.files[window.NixApp.activeFile] = editorEl.value;
+                editorEl.classList.add('hidden');
+                previewEl.classList.remove('hidden');
+                document.getElementById('tab-preview').className = 'px-4 h-full flex items-center text-[11px] font-medium transition-all rounded-t-lg bg-[#1e1e1e] text-white border-b-2 border-green-500';
+                document.getElementById('tab-editor').className = 'px-4 h-full flex items-center text-[11px] font-medium transition-all rounded-t-lg text-gray-500 hover:text-gray-300';
+                previewEl.srcdoc = `<html><style>${window.NixApp.files['styles.css']}</style><body>${window.NixApp.files['index.html']}<script>${window.NixApp.files['script.js']}<\/script></body></html>`;
+            }
+        }
+
+        async function handleSendMessage() {
+            const input = document.getElementById('chat-input');
+            const prompt = input.value.trim();
+            if (!prompt) return;
+
+            window.NixApp.files[window.NixApp.activeFile] = document.getElementById('editor').value;
+            addChatMessage('user', prompt);
+            input.value = '';
+            toggleLoading(true);
+
+            try {
+                const contextPrompt = `
+                CURRENT FILE CONTENT (${window.NixApp.activeFile}):
+                ${window.NixApp.files[window.NixApp.activeFile]}
+                
+                USER INSTRUCTION:
+                ${prompt}
+                
+                Plan code updates. Respond ONLY with JSON format: {"tasks": [{"id":1, "label": "Task description", "file": "filename"}]}`;
+
+                const planRes = await callLongCat(contextPrompt);
+                const planMatch = planRes.match(/\{[\s\S]*\}/);
+                if (!planMatch) throw new Error("Invalid plan format");
+                const plan = JSON.parse(planMatch[0]);
+                showTasks(plan.tasks);
+
+                for (const task of plan.tasks) {
+                    updateTaskStatus(task.id, 'running');
+                    const executionPrompt = `
+                    ACTUAL FILE CONTENT (${task.file}):
+                    ${window.NixApp.files[task.file] || ""}
+                    
+                    TASK: "${task.label}" 
+                    GOAL: "${prompt}"
+                    
+                    Provide the complete updated source code for "${task.file}". No conversational text, no markdown backticks, just the raw code.`;
+
+                    const codeRes = await callLongCat(executionPrompt);
+                    const cleanCode = codeRes.replace(/^```[a-z]*\n/i, "").replace(/\n```$/, "");
+                    
+                    setActiveFile(task.file);
+                    await simulateTyping(task.file, cleanCode);
+                    updateTaskStatus(task.id, 'completed');
+                }
+                addChatMessage('assistant', 'Nix 3 has applied the requested changes.');
+            } catch (err) {
+                console.error(err);
+                addChatMessage('assistant', 'Error communicating with Nix 3 engine.');
+            } finally {
+                toggleLoading(false);
+            }
+        }
+
+        async function callLongCat(content) {
+            const response = await fetch(LONGCAT_URL, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${API_KEY}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    model: MODEL,
+                    messages: [{ role: 'system', content: 'You are Nix 3, an expert web developer.' }, { role: 'user', content: content }],
+                    temperature: 0.1
+                })
+            });
+            const data = await response.json();
+            return data.choices[0].message.content;
+        }
+
+        function addChatMessage(role, text) {
+            const container = document.getElementById('chat-messages');
+            const div = document.createElement('div');
+            div.className = `flex ${role === 'user' ? 'justify-end' : 'justify-start'}`;
+            div.innerHTML = `<div class="max-w-[85%] p-3 rounded-2xl ${role === 'user' ? 'bg-[#2563eb] text-white' : 'bg-[#2a2a2a] border border-[#3e3e3e] text-[#ddd]'}">${text}</div>`;
+            container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function showTasks(tasks) {
+            const container = document.getElementById('task-container');
+            const list = document.getElementById('task-list');
+            container.classList.remove('hidden');
+            list.innerHTML = tasks.map(t => `
+                <div id="task-${t.id}" class="flex items-start space-x-2 p-1.5 rounded bg-[#252525] border border-[#333]">
+                    <div class="status-icon mt-0.5"><i data-lucide="circle" size="12" class="text-gray-600"></i></div>
+                    <div class="flex-1 min-w-0">
+                        <div class="text-[10px] font-medium truncate">${t.label}</div>
+                        <div class="text-[8px] text-gray-500 uppercase">${t.file}</div>
+                    </div>
+                </div>
+            `).join('');
+            lucide.createIcons();
+        }
+
+        function updateTaskStatus(id, status) {
+            const el = document.getElementById(`task-${id}`);
+            if (!el) return;
+            const icon = el.querySelector('.status-icon');
+            if (status === 'running') {
+                el.classList.add('border-blue-500/50');
+                icon.innerHTML = `<i data-lucide="loader-2" size="12" class="text-blue-400 animate-spin"></i>`;
+            } else {
+                el.classList.remove('border-blue-500/50');
+                icon.innerHTML = `<i data-lucide="check-circle-2" size="12" class="text-green-500"></i>`;
+            }
+            lucide.createIcons();
+        }
+
+        function simulateTyping(fileName, fullContent) {
+            return new Promise((resolve) => {
+                let index = 0;
+                const step = () => {
+                    index += Math.ceil(fullContent.length / 10); 
+                    if (index < fullContent.length) {
+                        window.NixApp.files[fileName] = fullContent.slice(0, index);
+                        if (window.NixApp.activeFile === fileName) document.getElementById('editor').value = window.NixApp.files[fileName];
+                        requestAnimationFrame(step);
+                    } else {
+                        window.NixApp.files[fileName] = fullContent;
+                        if (window.NixApp.activeFile === fileName) document.getElementById('editor').value = fullContent;
+                        resolve();
+                    }
+                };
+                requestAnimationFrame(step);
+            });
+        }
+
+        function setupResizing() {
+            const hS = document.getElementById('handle-sidebar');
+            const hT = document.getElementById('handle-terminal');
+            let isH = false, isV = false;
+            hS.onmousedown = () => { isH = true; document.body.classList.add('resizing-h'); };
+            hT.onmousedown = () => { isV = true; document.body.classList.add('resizing-v'); };
+            window.onmousemove = (e) => {
+                if (isH) document.getElementById('sidebar-container').style.width = Math.max(200, e.clientX - 48) + 'px';
+                if (isV) document.getElementById('terminal').style.height = Math.max(40, window.innerHeight - e.clientY) + 'px';
+            };
+            window.onmouseup = () => { isH = false; isV = false; document.body.classList.remove('resizing-h', 'resizing-v'); };
+        }
+
+        function toggleLoading(isLoading) {
+            document.getElementById('send-btn').style.opacity = isLoading ? '0.3' : '1';
+            document.getElementById('chat-input').disabled = isLoading;
+        }
+
+        function toggleTerminal() {
+            window.NixApp.isTerminalVisible = !window.NixApp.isTerminalVisible;
+            document.getElementById('terminal').style.display = window.NixApp.isTerminalVisible ? 'flex' : 'none';
+            document.getElementById('handle-terminal').style.display = window.NixApp.isTerminalVisible ? 'block' : 'none';
+        }
+        
+        function toggleSidebar() {
+            window.NixApp.isSidebarVisible = !window.NixApp.isSidebarVisible;
+            document.getElementById('sidebar-container').style.display = window.NixApp.isSidebarVisible ? 'flex' : 'none';
+        }
+        
+        function clearTasks() {
+            document.getElementById('task-container').classList.add('hidden');
+        }
+    </script>
+</body>
+</html>
