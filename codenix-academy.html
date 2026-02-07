@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Codenix Academy | Learn to Code</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc;
+            scroll-behavior: smooth;
+        }
+
+        .course-card:hover {
+            transform: translateY(-4px);
+            transition: all 0.3s ease;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+        }
+
+        .certificate-canvas {
+            background: white;
+            border: 12px double #1e293b;
+            padding: 20px;
+            position: relative;
+            text-align: center;
+        }
+
+        .loader {
+            border-top-color: #3b82f6;
+            animation: spinner 1.5s linear infinite;
+        }
+
+        @keyframes spinner {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .hidden-section { display: none; }
+        
+        #lessons-sidebar-list::-webkit-scrollbar {
+            width: 5px;
+        }
+        #lessons-sidebar-list::-webkit-scrollbar-thumb {
+            background: #e2e8f0;
+            border-radius: 10px;
+        }
+
+        .lesson-active {
+            background-color: #eff6ff;
+            border-left: 4px solid #2563eb !important;
+        }
+
+        @media print {
+            body * { visibility: hidden; }
+            #cert-printable-area, #cert-printable-area * { visibility: visible; }
+            #cert-printable-area { position: absolute; left: 0; top: 0; width: 100%; }
+        }
+    </style>
+</head>
+<body class="text-slate-800">
+
+    <!-- Navigation -->
+    <nav class="bg-white border-b sticky top-0 z-50 shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16 items-center">
+                <div class="flex items-center gap-2 cursor-pointer" onclick="showCatalog()">
+                    <div class="bg-blue-600 p-1.5 rounded-lg text-white">
+                        <i class="fas fa-terminal"></i>
+                    </div>
+                    <span class="text-lg font-bold text-slate-900 tracking-tight">CODENIX <span class="text-blue-600 font-black">ACADEMY</span></span>
+                </div>
+                <div class="flex items-center gap-3">
+                    <!-- Added missing progress element to fix TypeError -->
+                    <div id="user-progress-container" class="hidden md:flex items-center gap-2 bg-slate-100 px-3 py-1.5 rounded-full">
+                        <div class="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+                        <span class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Total Progress: <span id="progress-percent" class="text-blue-600">0</span>%</span>
+                    </div>
+                    <button onclick="showMyCertificates()" class="text-slate-600 hover:text-blue-600 font-semibold text-sm px-3 py-2 rounded-lg transition-colors">
+                        <i class="fas fa-certificate mr-1"></i> My Skills
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-10">
+        
+        <!-- Loading State -->
+        <div id="loading" class="flex flex-col items-center justify-center py-32">
+            <div class="loader ease-linear rounded-full border-4 border-t-4 border-gray-100 h-14 w-14 mb-4"></div>
+            <p class="text-slate-400 font-medium text-sm">Organizing your curriculum...</p>
+        </div>
+
+        <!-- Catalog Section -->
+        <section id="catalog-section" class="hidden-section">
+            <div class="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-10">
+                <div>
+                    <h1 class="text-3xl md:text-5xl font-black text-slate-900 tracking-tight">Explore Courses</h1>
+                    <p class="text-slate-500 mt-2 text-lg">Master technical skills at your own pace.</p>
+                </div>
+                <div class="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
+                    <div class="relative flex-grow">
+                        <i class="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                        <input type="text" id="search-input" placeholder="Search topics..." 
+                            class="pl-11 pr-4 py-3 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none w-full sm:w-72 transition-all bg-white shadow-sm">
+                    </div>
+                    <select id="category-filter" class="px-4 py-3 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none bg-white cursor-pointer transition-all shadow-sm font-semibold text-slate-600">
+                        <option value="all">All Subjects</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div id="course-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
+                <!-- Course Cards -->
+            </div>
+        </section>
+
+        <!-- Course Viewer Section -->
+        <section id="viewer-section" class="hidden-section">
+            <!-- Mobile Sticky Header -->
+            <div class="lg:hidden bg-white border rounded-2xl p-4 mb-4 flex items-center justify-between shadow-sm">
+                <button onclick="showCatalog()" class="text-slate-500 p-2"><i class="fas fa-arrow-left"></i></button>
+                <div class="text-center">
+                    <h3 id="mobile-course-title" class="font-bold text-sm truncate max-w-[150px]">Course Title</h3>
+                    <p id="mobile-lesson-count" class="text-[10px] text-slate-400 uppercase font-bold tracking-widest">Lesson 1 of 10</p>
+                </div>
+                <button onclick="toggleMobileLessons()" class="bg-slate-100 p-2 rounded-lg text-slate-600"><i class="fas fa-list"></i></button>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start">
+                
+                <!-- Sidebar: Lessons List -->
+                <div id="lessons-sidebar" class="hidden lg:block lg:col-span-4 xl:col-span-3 bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-sm sticky top-24">
+                    <div class="p-6 border-b bg-slate-50/50">
+                        <button onclick="showCatalog()" class="hidden lg:flex items-center gap-2 text-xs font-bold text-blue-600 mb-4 hover:opacity-70 uppercase tracking-widest">
+                            <i class="fas fa-chevron-left"></i> Catalog
+                        </button>
+                        <h2 id="viewer-course-title" class="font-bold text-xl text-slate-900 leading-snug">Course Title</h2>
+                        <div id="viewer-course-meta" class="mt-2 text-[10px] font-black uppercase text-slate-400 tracking-[0.15em]"></div>
+                    </div>
+                    <div id="lessons-sidebar-list" class="max-h-[65vh] overflow-y-auto divide-y divide-slate-50">
+                        <!-- Lessons list -->
+                    </div>
+                </div>
+
+                <!-- Content Area -->
+                <div class="lg:col-span-8 xl:col-span-9">
+                    <div class="bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-sm flex flex-col min-h-[70vh]">
+                        <!-- Lesson Progress Bar -->
+                        <div class="w-full bg-slate-100 h-1.5">
+                            <div id="lesson-progress-indicator" class="bg-blue-600 h-full transition-all duration-500" style="width: 0%"></div>
+                        </div>
+
+                        <div class="p-6 md:p-12 flex-grow">
+                            <div id="lesson-header" class="mb-10">
+                                <div class="flex items-center gap-3 mb-4">
+                                    <span id="current-lesson-number" class="bg-blue-100 text-blue-700 font-bold uppercase text-[10px] px-3 py-1 rounded-full tracking-widest">Module 01</span>
+                                    <span id="lesson-read-time" class="text-slate-400 text-xs font-medium"><i class="far fa-clock mr-1"></i> 5 min read</span>
+                                </div>
+                                <h2 id="current-lesson-title" class="text-3xl md:text-4xl font-black text-slate-900 leading-tight">Selecting a lesson...</h2>
+                            </div>
+
+                            <div id="current-lesson-body" class="prose prose-blue max-w-none text-slate-600 text-lg leading-relaxed space-y-6">
+                                <p>Choose a module from the menu to start your learning journey with Codenix Academy.</p>
+                            </div>
+                        </div>
+
+                        <!-- Bottom Navigation Buttons -->
+                        <div class="bg-slate-50/50 border-t border-slate-100 p-6 md:px-12 md:py-8 flex flex-col sm:flex-row items-center justify-between gap-4">
+                            <div class="flex items-center gap-3 w-full sm:w-auto">
+                                <button id="prev-lesson-btn" class="flex-1 sm:flex-none border border-slate-200 bg-white text-slate-600 px-5 py-3 rounded-2xl font-bold hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed transition">
+                                    <i class="fas fa-chevron-left mr-2"></i> Prev
+                                </button>
+                                <button id="next-lesson-btn" class="flex-1 sm:flex-none border border-slate-200 bg-white text-slate-600 px-5 py-3 rounded-2xl font-bold hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed transition">
+                                    Next <i class="fas fa-chevron-right ml-2"></i>
+                                </button>
+                            </div>
+
+                            <div class="w-full sm:w-auto">
+                                <button id="mark-complete-btn" class="hidden w-full sm:w-auto bg-green-600 text-white px-8 py-3 rounded-2xl font-black hover:bg-green-700 transition shadow-lg shadow-green-100 active:scale-95">
+                                    Complete Module <i class="fas fa-check ml-2"></i>
+                                </button>
+                                <div id="completion-status" class="hidden flex items-center justify-center gap-3 text-green-700 font-bold bg-green-100 px-6 py-3 rounded-2xl border border-green-200">
+                                    <i class="fas fa-check-circle text-xl"></i> Module Finished
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Mobile Lesson Overlay -->
+        <div id="mobile-lessons-overlay" class="fixed inset-0 bg-black/60 z-[60] hidden backdrop-blur-sm" onclick="toggleMobileLessons()">
+            <div class="absolute bottom-0 left-0 right-0 bg-white rounded-t-[32px] max-h-[85vh] overflow-hidden flex flex-col" onclick="event.stopPropagation()">
+                <div class="p-6 border-b flex items-center justify-between">
+                    <h2 class="font-bold text-xl">Modules</h2>
+                    <button onclick="toggleMobileLessons()" class="text-slate-400 text-xl"><i class="fas fa-times"></i></button>
+                </div>
+                <div id="mobile-lessons-list" class="overflow-y-auto pb-10">
+                    <!-- Cloned from sidebar -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Certificate Modal -->
+        <div id="certificate-modal" class="fixed inset-0 bg-slate-900/90 backdrop-blur-md z-[100] hidden items-center justify-center p-4">
+            <div class="bg-white rounded-[40px] max-w-3xl w-full p-6 md:p-12 relative overflow-hidden shadow-2xl">
+                <button onclick="closeCertModal()" class="absolute top-8 right-8 text-slate-300 hover:text-slate-500 transition-colors">
+                    <i class="fas fa-times text-2xl"></i>
+                </button>
+                <div id="cert-printable-area" class="certificate-canvas rounded-xl shadow-inner">
+                    <div class="border-[1px] border-slate-100 p-8 md:p-16 bg-white relative">
+                        <div class="text-blue-600 text-6xl mb-6 opacity-80"><i class="fas fa-shield-halved"></i></div>
+                        <h1 class="text-xl md:text-2xl font-black text-slate-800 uppercase tracking-[0.4em] mb-4">Certificate</h1>
+                        <p class="text-slate-400 uppercase text-[10px] font-bold tracking-widest mb-2">of proficiency</p>
+                        <h2 class="text-4xl md:text-5xl font-extrabold text-blue-600 mb-8" id="cert-student-name">Learner</h2>
+                        <p class="text-slate-500 max-w-sm mx-auto mb-10 text-sm leading-relaxed">Successfully met all academic requirements and demonstrated competency in the specialized course:</p>
+                        <h3 class="text-xl md:text-2xl font-bold text-slate-900 mb-14" id="cert-course-name">Course Title</h3>
+                        
+                        <div class="flex justify-between items-end">
+                            <div class="text-left">
+                                <p class="font-bold text-slate-900">Codenix Academy</p>
+                                <p class="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Registrar Office</p>
+                            </div>
+                            <div class="text-right">
+                                <p class="font-bold text-slate-900" id="cert-date">Date</p>
+                                <p class="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Valid From</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="mt-10 flex flex-col sm:flex-row justify-center gap-4">
+                    <button onclick="window.print()" class="bg-slate-900 text-white px-10 py-4 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-black transition">
+                        <i class="fas fa-print"></i> Download Certificate
+                    </button>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <script>
+        const SHEET_ID = '1cs7IbcNmhLjPz4EXAGjSIuEoOB4KPBpnD28T57-LsYs';
+        const CSV_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv`;
+        
+        let courses = {};
+        let activeCourseId = null;
+        let activeLessonIdx = null;
+        let userProgress = JSON.parse(localStorage.getItem('codenix_progress')) || {};
+        let userName = localStorage.getItem('codenix_user') || 'Learner';
+
+        window.onload = async () => {
+            if (userName === 'Learner') {
+                const input = prompt("Enter your full name for your certificates:", "Learner");
+                if (input && input.trim()) {
+                    userName = input.trim();
+                    localStorage.setItem('codenix_user', userName);
+                }
+            }
+            await fetchData();
+            updateGlobalProgress();
+        };
+
+        async function fetchData() {
+            try {
+                const response = await fetch(CSV_URL);
+                const data = await response.text();
+                const rows = parseCSV(data);
+                const grouped = {};
+                const subjects = new Set();
+
+                for (let i = 1; i < rows.length; i++) {
+                    const row = rows[i];
+                    if (!row || row.length < 2) continue;
+                    const subject = (row[0] || 'General').trim();
+                    const courseName = (row[1] || '').trim();
+                    const lessonTitle = (row[2] || '').trim();
+                    const content = (row[3] || '').trim();
+
+                    if (!courseName) continue;
+                    if (!grouped[courseName]) {
+                        grouped[courseName] = { name: courseName, subject: subject, lessons: [] };
+                    }
+                    if (lessonTitle || content) {
+                        grouped[courseName].lessons.push({ title: lessonTitle || `Module ${grouped[courseName].lessons.length + 1}`, content: content });
+                    }
+                    if (subject) subjects.add(subject);
+                }
+
+                courses = grouped;
+                populateFilters(Array.from(subjects));
+                renderCatalog();
+                document.getElementById('loading').classList.add('hidden');
+                document.getElementById('catalog-section').classList.remove('hidden-section');
+            } catch (error) {
+                document.getElementById('loading').innerHTML = `<div class='text-center p-10 bg-white rounded-3xl border'><i class='fas fa-times-circle text-red-500 text-4xl mb-4'></i><p class='font-bold'>Failed to sync data.</p></div>`;
+            }
+        }
+
+        function parseCSV(text) {
+            const result = [];
+            let row = [''];
+            let i = 0, quote = false;
+            for (let char of text) {
+                if (char === '"') quote = !quote;
+                else if (char === ',' && !quote) { row.push(''); i++; }
+                else if (char === '\n' && !quote) { result.push(row.map(c => c.replace(/""/g, '"').trim())); row = ['']; i = 0; }
+                else row[i] += char;
+            }
+            if (row[0] !== '') result.push(row);
+            return result;
+        }
+
+        function populateFilters(subjects) {
+            const filter = document.getElementById('category-filter');
+            subjects.forEach(sub => {
+                const opt = document.createElement('option');
+                opt.value = sub; opt.textContent = sub;
+                filter.appendChild(opt);
+            });
+            document.getElementById('search-input').addEventListener('input', renderCatalog);
+            document.getElementById('category-filter').addEventListener('change', renderCatalog);
+        }
+
+        function renderCatalog() {
+            const grid = document.getElementById('course-grid');
+            const searchTerm = document.getElementById('search-input').value.toLowerCase();
+            const category = document.getElementById('category-filter').value;
+            grid.innerHTML = '';
+            
+            Object.values(courses).forEach(course => {
+                if ((category === 'all' || course.subject === category) && course.name.toLowerCase().includes(searchTerm)) {
+                    const progress = getCourseProgress(course.name);
+                    const isCompleted = progress === 100;
+                    const card = document.createElement('div');
+                    card.className = "course-card bg-white border border-slate-200 rounded-[32px] overflow-hidden flex flex-col cursor-pointer p-2";
+                    card.onclick = () => openCourse(course.name);
+                    card.innerHTML = `
+                        <div class="p-6 pb-2">
+                            <span class="text-[9px] uppercase font-black text-blue-600 bg-blue-50 px-3 py-1 rounded-full tracking-widest">${course.subject}</span>
+                            <h3 class="text-xl font-bold mt-4 text-slate-900 leading-snug h-14 overflow-hidden">${course.name}</h3>
+                        </div>
+                        <div class="px-6 py-4 flex items-center justify-between mt-auto">
+                            <div class="flex-grow mr-4">
+                                <div class="flex justify-between text-[10px] font-bold text-slate-400 mb-2">
+                                    <span>${isCompleted ? 'GRADUATED' : 'PROGRESS'}</span>
+                                    <span>${progress}%</span>
+                                </div>
+                                <div class="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                                    <div class="${isCompleted ? 'bg-green-500' : 'bg-blue-600'} h-full transition-all duration-700" style="width: ${progress}%"></div>
+                                </div>
+                            </div>
+                            <div class="${isCompleted ? 'text-green-500' : 'text-slate-300'}"><i class="fas ${isCompleted ? 'fa-certificate text-2xl' : 'fa-chevron-right'}"></i></div>
+                        </div>
+                    `;
+                    grid.appendChild(card);
+                }
+            });
+        }
+
+        function openCourse(courseName) {
+            activeCourseId = courseName;
+            const course = courses[courseName];
+            
+            document.getElementById('catalog-section').classList.add('hidden-section');
+            document.getElementById('viewer-section').classList.remove('hidden-section');
+            document.getElementById('viewer-course-title').textContent = course.name;
+            document.getElementById('viewer-course-meta').textContent = course.subject;
+            document.getElementById('mobile-course-title').textContent = course.name;
+
+            const listBuilder = (lesson, idx) => {
+                const isCompleted = userProgress[courseName]?.[idx];
+                return `
+                <button onclick="loadLesson(${idx}); if(window.innerWidth < 1024) toggleMobileLessons();" 
+                    class="lesson-btn-${idx} w-full text-left p-5 flex items-center gap-4 hover:bg-slate-50 transition-all border-l-4 border-l-transparent ${isCompleted ? 'opacity-60' : ''}">
+                    <div class="flex-shrink-0 h-9 w-9 rounded-xl border flex items-center justify-center text-xs font-black transition-all ${isCompleted ? 'bg-green-500 border-green-500 text-white' : 'bg-white border-slate-200 text-slate-400'}">
+                        ${isCompleted ? '<i class="fas fa-check"></i>' : (idx + 1).toString().padStart(2, '0')}
+                    </div>
+                    <div class="flex-grow overflow-hidden">
+                        <p class="font-bold text-sm text-slate-800 truncate">${lesson.title}</p>
+                    </div>
+                </button>`;
+            };
+
+            const sidebarHtml = course.lessons.map(listBuilder).join('');
+            document.getElementById('lessons-sidebar-list').innerHTML = sidebarHtml;
+            document.getElementById('mobile-lessons-list').innerHTML = sidebarHtml;
+
+            const firstIncomplete = course.lessons.findIndex((_, i) => !userProgress[courseName]?.[i]);
+            loadLesson(firstIncomplete === -1 ? 0 : firstIncomplete);
+        }
+
+        function loadLesson(idx) {
+            activeLessonIdx = idx;
+            const course = courses[activeCourseId];
+            const lesson = course.lessons[idx];
+
+            document.getElementById('mobile-lesson-count').textContent = `Lesson ${idx + 1} of ${course.lessons.length}`;
+            document.getElementById('current-lesson-number').textContent = `Module ${(idx + 1).toString().padStart(2, '0')}`;
+            document.getElementById('current-lesson-title').textContent = lesson.title;
+            
+            const content = lesson.content ? 
+                lesson.content.split('\n').map(p => p.trim() ? `<p>${p}</p>` : '').join('') : 
+                '<p class="italic text-slate-400">Preparation in progress...</p>';
+            
+            document.getElementById('current-lesson-body').innerHTML = content;
+
+            // Handle Buttons
+            const isCompleted = userProgress[activeCourseId]?.[idx];
+            document.getElementById('mark-complete-btn').classList.toggle('hidden', isCompleted);
+            document.getElementById('completion-status').classList.toggle('hidden', !isCompleted);
+            
+            document.getElementById('prev-lesson-btn').disabled = idx === 0;
+            document.getElementById('prev-lesson-btn').onclick = () => loadLesson(idx - 1);
+            document.getElementById('next-lesson-btn').disabled = idx === course.lessons.length - 1;
+            document.getElementById('next-lesson-btn').onclick = () => loadLesson(idx + 1);
+            
+            document.getElementById('mark-complete-btn').onclick = () => markComplete(idx);
+
+            // UI Feedback
+            const prog = ((idx + 1) / course.lessons.length) * 100;
+            document.getElementById('lesson-progress-indicator').style.width = prog + '%';
+
+            // Sync List Styles
+            document.querySelectorAll(`[class*="lesson-btn-"]`).forEach(b => b.classList.remove('lesson-active'));
+            document.querySelectorAll(`.lesson-btn-${idx}`).forEach(b => b.classList.add('lesson-active'));
+
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function markComplete(idx) {
+            if (!userProgress[activeCourseId]) userProgress[activeCourseId] = {};
+            userProgress[activeCourseId][idx] = true;
+            localStorage.setItem('codenix_progress', JSON.stringify(userProgress));
+            
+            if (getCourseProgress(activeCourseId) === 100) showCertificate(activeCourseId);
+            
+            openCourse(activeCourseId); 
+            loadLesson(idx);
+            updateGlobalProgress();
+        }
+
+        function getCourseProgress(courseName) {
+            const course = courses[courseName];
+            if (!course || !userProgress[courseName]) return 0;
+            return Math.round((Object.keys(userProgress[courseName]).length / course.lessons.length) * 100);
+        }
+
+        function updateGlobalProgress() {
+            const keys = Object.keys(courses);
+            const progressEl = document.getElementById('progress-percent');
+            const containerEl = document.getElementById('user-progress-container');
+            
+            if (keys.length === 0 || !progressEl || !containerEl) return;
+            
+            let total = 0; 
+            keys.forEach(c => total += getCourseProgress(c));
+            const average = Math.round(total / keys.length);
+            
+            progressEl.textContent = average;
+            containerEl.classList.remove('hidden');
+        }
+
+        function toggleMobileLessons() {
+            const overlay = document.getElementById('mobile-lessons-overlay');
+            overlay.classList.toggle('hidden');
+        }
+
+        function showCertificate(courseName) {
+            document.getElementById('cert-course-name').textContent = courseName;
+            document.getElementById('cert-student-name').textContent = userName;
+            document.getElementById('cert-date').textContent = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+            document.getElementById('certificate-modal').classList.remove('hidden');
+            document.getElementById('certificate-modal').classList.add('flex');
+        }
+
+        function closeCertModal() {
+            document.getElementById('certificate-modal').classList.add('hidden');
+            document.getElementById('certificate-modal').classList.remove('flex');
+        }
+
+        function showCatalog() {
+            document.getElementById('viewer-section').classList.add('hidden-section');
+            document.getElementById('catalog-section').classList.remove('hidden-section');
+            renderCatalog();
+        }
+
+        function showMyCertificates() {
+            const completed = Object.keys(courses).filter(c => getCourseProgress(c) === 100);
+            if (completed.length) showCertificate(completed[completed.length - 1]);
+            else alert("Finish a course to claim your certificate!");
+        }
+    </script>
+</body>
+</html>
