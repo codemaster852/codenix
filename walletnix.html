@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WalletNix - Digital Asset Management</title>
+    <title>WalletNix - Manage Your Real-World Wealth</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
@@ -22,6 +22,10 @@
 
         .premium-gradient {
             background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 50%, #1e40af 100%);
+        }
+
+        .expense-gradient {
+            background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%);
         }
 
         .card-shimmer {
@@ -52,6 +56,28 @@
         }
 
         [onclick] { cursor: pointer; }
+
+        .modal-overlay {
+            background: rgba(2, 6, 23, 0.85);
+            backdrop-filter: blur(8px);
+        }
+
+        input::-webkit-outer-spin-button,
+        input::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #1e293b;
+            border-radius: 10px;
+        }
     </style>
 </head>
 <body class="text-slate-200 min-h-screen">
@@ -65,27 +91,37 @@
         const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
         async function checkAuth() {
-            const { data: { session } } = await supabase.auth.getSession();
-            if (!session) {
-                // Redirect if not signed in
-                window.location.href = 'auth.html';
-            } else {
-                window.currentUser = session.user;
-                updateUI(session.user);
+            const { data: { session }, error } = await supabase.auth.getSession();
+            
+            if (error || !session) {
+                // Not logged in: Redirect to auth.html
+                window.location.replace('auth.html');
+                return;
             }
+
+            // User is signed in
+            window.currentUser = session.user;
+            updateUI(session.user);
         }
 
         function updateUI(user) {
-            document.getElementById('user-email').textContent = user.email;
-            document.getElementById('display-name').textContent = user.user_metadata?.full_name || 'Valued Member';
+            const emailEl = document.getElementById('user-email');
+            if (emailEl) emailEl.textContent = user.email;
+            
+            const displayName = user.user_metadata?.full_name || 'Valued Member';
+            const nameElements = document.querySelectorAll('.user-display-name');
+            nameElements.forEach(el => el.textContent = displayName);
         }
 
         window.logout = async () => {
-            await supabase.auth.signOut();
-            window.location.href = 'auth.html';
+            const { error } = await supabase.auth.signOut();
+            if (!error) {
+                window.location.replace('auth.html');
+            }
         };
 
-        window.onload = checkAuth;
+        // Run check on load
+        document.addEventListener('DOMContentLoaded', checkAuth);
     </script>
 
     <!-- Navbar -->
@@ -100,8 +136,8 @@
             
             <div class="flex items-center gap-4">
                 <div class="hidden sm:flex flex-col items-end mr-2 text-right">
-                    <span class="text-[10px] text-slate-500 uppercase font-bold tracking-wider">Account</span>
-                    <span id="user-email" class="text-sm font-medium text-white italic">Loading...</span>
+                    <span class="text-[10px] text-slate-500 uppercase font-bold tracking-wider">Active Wallet</span>
+                    <span id="user-email" class="text-sm font-medium text-white italic">Verifying...</span>
                 </div>
                 <button onclick="logout()" class="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition-all border border-transparent hover:border-slate-700">
                     <i data-lucide="log-out" class="w-5 h-5"></i>
@@ -113,33 +149,51 @@
     <main class="max-w-7xl mx-auto px-4 py-8">
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
             
-            <!-- Left Column: Balance & Card -->
+            <!-- Left Column: Balance & Management -->
             <div class="lg:col-span-2 space-y-8">
                 
                 <!-- Balance Card -->
                 <div class="premium-gradient rounded-[2.5rem] p-8 md:p-10 text-white shadow-2xl relative overflow-hidden group">
                     <div class="relative z-10">
                         <div class="flex justify-between items-start mb-4">
-                            <p class="text-blue-100 text-xs font-bold uppercase tracking-widest opacity-80">Net Liquidity</p>
+                            <p class="text-blue-100 text-xs font-bold uppercase tracking-widest opacity-80">Total Real-World Balance</p>
                             <div class="bg-white/10 p-2 rounded-xl backdrop-blur-sm border border-white/10">
                                 <i data-lucide="shield-check" class="w-4 h-4 text-blue-200"></i>
                             </div>
                         </div>
                         <h2 class="text-5xl md:text-6xl font-bold mb-10 tracking-tight">
-                            <span class="text-blue-300 mr-2">$</span>1,250.00
+                            <span class="text-blue-300 mr-2">$</span><span id="balance-amount">2,450.00</span>
                         </h2>
                         
                         <div class="flex flex-wrap gap-4">
-                            <button class="flex-1 min-w-[140px] bg-white text-blue-700 hover:bg-blue-50 py-4 rounded-2xl flex items-center justify-center gap-2 transition-all font-bold shadow-lg">
-                                <i data-lucide="plus" class="w-5 h-5"></i> Add Funds
+                            <button onclick="toggleModal('balance-modal', true)" class="flex-1 min-w-[140px] bg-white text-blue-700 hover:bg-blue-50 py-4 rounded-2xl flex items-center justify-center gap-2 transition-all font-bold shadow-lg">
+                                <i data-lucide="plus" class="w-5 h-5"></i> Income
                             </button>
-                            <button class="flex-1 min-w-[140px] bg-white/10 hover:bg-white/20 backdrop-blur-md py-4 rounded-2xl flex items-center justify-center gap-2 transition-all font-bold border border-white/20">
-                                <i data-lucide="arrow-up-right" class="w-5 h-5"></i> Send
+                            <button onclick="toggleModal('expense-modal', true)" class="flex-1 min-w-[140px] bg-red-500 text-white hover:bg-red-400 py-4 rounded-2xl flex items-center justify-center gap-2 transition-all font-bold shadow-lg">
+                                <i data-lucide="arrow-up-right" class="w-5 h-5"></i> Expense
                             </button>
                         </div>
                     </div>
                     
                     <div class="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -mr-20 -mt-20 blur-3xl group-hover:bg-white/10 transition-all duration-700"></div>
+                </div>
+
+                <!-- Stats Overview -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="glass-card p-6 rounded-3xl border border-slate-800">
+                        <p class="text-[10px] text-slate-500 uppercase font-black tracking-widest mb-1">Monthly Spend</p>
+                        <h4 id="stat-spend" class="text-2xl font-bold text-white">$412.50</h4>
+                        <div class="mt-4 w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                            <div class="bg-red-500 h-full w-[35%]"></div>
+                        </div>
+                    </div>
+                    <div class="glass-card p-6 rounded-3xl border border-slate-800">
+                        <p class="text-[10px] text-slate-500 uppercase font-black tracking-widest mb-1">Savings Rate</p>
+                        <h4 class="text-2xl font-bold text-emerald-400">12.4%</h4>
+                        <div class="mt-4 w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                            <div class="bg-emerald-500 h-full w-[62%]"></div>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Virtual Card Area -->
@@ -149,29 +203,16 @@
                             <div class="w-8 h-8 rounded-full bg-blue-500/10 flex items-center justify-center">
                                 <i data-lucide="credit-card" class="w-4 h-4 text-blue-500"></i>
                             </div>
-                            Virtual Card
+                            Linked Digital Card
                         </h3>
                     </div>
 
                     <div id="card-container">
-                        <!-- Placeholder for ungenerated card -->
-                        <div id="no-card" class="border-2 border-dashed border-slate-800 rounded-[2.5rem] h-64 md:h-72 flex flex-col items-center justify-center text-slate-500 p-8 text-center bg-slate-900/30 hover:bg-slate-900/50 transition-all group">
-                            <div class="w-16 h-16 bg-slate-800 rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                                <i data-lucide="credit-card" class="w-8 h-8 opacity-40 text-blue-500"></i>
-                            </div>
-                            <h4 class="text-white font-semibold mb-1">Unlock Your Virtual Card</h4>
-                            <p class="text-xs text-slate-500 mb-6 max-w-[240px]">Get instant access to digital payments with a secure virtual card.</p>
-                            <button onclick="generateCard()" class="bg-blue-600 hover:bg-blue-500 text-white px-8 py-3 rounded-2xl transition-all font-bold shadow-lg shadow-blue-900/20">
-                                Generate Now
-                            </button>
-                        </div>
-
-                        <!-- Card Display (Hidden by default) -->
-                        <div id="active-card" class="hidden group relative w-full h-64 md:h-72 rounded-[2.5rem] bg-slate-900 border border-slate-800 shadow-2xl p-8 md:p-10 flex flex-col justify-between overflow-hidden card-shimmer">
+                        <div id="active-card" class="group relative w-full h-64 md:h-72 rounded-[2.5rem] bg-slate-900 border border-slate-800 shadow-2xl p-8 md:p-10 flex flex-col justify-between overflow-hidden card-shimmer">
                             <div class="flex justify-between items-start relative z-10">
                                 <div class="space-y-1">
                                     <p class="text-[10px] text-slate-500 uppercase font-black tracking-[0.3em]">WalletNix Platinum</p>
-                                    <span class="text-[10px] text-slate-400 font-medium">International Credit</span>
+                                    <span class="text-[10px] text-slate-400 font-medium italic">Synchronized Balance</span>
                                 </div>
                                 <div class="flex -space-x-3">
                                     <div class="w-8 h-8 rounded-full bg-red-500/80 backdrop-blur-sm"></div>
@@ -180,15 +221,15 @@
                             </div>
 
                             <div class="space-y-8 relative z-10">
-                                <p id="display-number" class="text-2xl md:text-3xl font-mono tracking-[0.2em] text-white font-medium">0000 0000 0000 0000</p>
+                                <p id="display-number" class="text-2xl md:text-3xl font-mono tracking-[0.2em] text-white font-medium">4412 8892 0012 4492</p>
                                 <div class="flex justify-between items-end">
                                     <div class="flex gap-10">
                                         <div class="space-y-1">
-                                            <p class="text-[9px] text-slate-500 uppercase font-bold tracking-widest">Card Holder</p>
-                                            <p id="display-name" class="text-sm font-bold uppercase tracking-tight text-slate-200">User</p>
+                                            <p class="text-[9px] text-slate-500 uppercase font-bold tracking-widest">Global Manager</p>
+                                            <p class="user-display-name text-sm font-bold uppercase tracking-tight text-slate-200">User</p>
                                         </div>
                                         <div class="space-y-1">
-                                            <p class="text-[9px] text-slate-500 uppercase font-bold tracking-widest">Expiry</p>
+                                            <p class="text-[9px] text-slate-500 uppercase font-bold tracking-widest">Valid Thru</p>
                                             <p class="text-sm font-bold text-slate-200">12/28</p>
                                         </div>
                                     </div>
@@ -209,66 +250,179 @@
             <!-- Right Column -->
             <div class="space-y-6">
                 <div class="glass-card rounded-[2rem] p-8 shadow-xl">
-                    <h3 class="font-bold text-white mb-8">Recent Transactions</h3>
-                    <div class="space-y-7">
+                    <h3 class="font-bold text-white mb-8">Real-Time Ledger</h3>
+                    <div id="transaction-list" class="space-y-7 h-[450px] overflow-y-auto pr-2 custom-scrollbar">
+                        <!-- Initial items -->
                         <div class="flex items-center justify-between">
                             <div class="flex items-center gap-4">
-                                <div class="w-11 h-11 rounded-2xl bg-slate-800 flex items-center justify-center"><i data-lucide="arrow-up-right" class="w-5 h-5 text-slate-400"></i></div>
-                                <div><p class="text-sm font-bold text-white">Apple Store</p><p class="text-[10px] text-slate-500 uppercase">Tech • 2h ago</p></div>
+                                <div class="w-11 h-11 rounded-2xl bg-slate-800 flex items-center justify-center"><i data-lucide="shopping-cart" class="w-5 h-5 text-slate-400"></i></div>
+                                <div><p class="text-sm font-bold text-white">Groceries</p><p class="text-[10px] text-slate-500 uppercase">Essentials • Today</p></div>
                             </div>
-                            <p class="text-sm font-black text-white">-199.00</p>
+                            <p class="text-sm font-black text-white">-$42.50</p>
                         </div>
                         <div class="flex items-center justify-between">
                             <div class="flex items-center gap-4">
-                                <div class="w-11 h-11 rounded-2xl bg-emerald-500/10 flex items-center justify-center"><i data-lucide="arrow-down-left" class="w-5 h-5 text-emerald-400"></i></div>
-                                <div><p class="text-sm font-bold text-white">Salary Credit</p><p class="text-[10px] text-slate-500 uppercase">Income • 1d ago</p></div>
+                                <div class="w-11 h-11 rounded-2xl bg-emerald-500/10 flex items-center justify-center"><i data-lucide="trending-up" class="w-5 h-5 text-emerald-400"></i></div>
+                                <div><p class="text-sm font-bold text-white">Freelance Payment</p><p class="text-[10px] text-slate-500 uppercase">Work • Yesterday</p></div>
                             </div>
-                            <p class="text-sm font-black text-emerald-400">+3,500.00</p>
+                            <p class="text-sm font-black text-emerald-400">+$850.00</p>
                         </div>
-                    </div>
-                </div>
-
-                <div class="glass-card rounded-[2rem] p-8 shadow-xl">
-                    <div class="flex items-center gap-3 mb-4">
-                        <i data-lucide="shield-check" class="w-5 h-5 text-emerald-400"></i>
-                        <h3 class="font-bold text-white">Security Guard</h3>
-                    </div>
-                    <p class="text-xs text-slate-400 mb-6">Your data is secured with AES-256 bank-level encryption.</p>
-                    <div class="p-4 bg-slate-950/50 rounded-2xl border border-slate-800 flex justify-between">
-                        <span class="text-[10px] font-bold text-slate-500 uppercase">Fraud Shield</span>
-                        <span class="text-[10px] text-emerald-400 font-black tracking-widest">ACTIVE</span>
                     </div>
                 </div>
             </div>
         </div>
     </main>
 
+    <!-- Modal: Add Balance (Income) -->
+    <div id="balance-modal" class="fixed inset-0 z-[100] hidden flex items-center justify-center p-4 modal-overlay">
+        <div class="bg-slate-900 border border-slate-800 w-full max-w-md rounded-[2.5rem] p-8 shadow-2xl transform transition-all">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-bold text-white">Add Income</h3>
+                <button onclick="toggleModal('balance-modal', false)" class="text-slate-500 hover:text-white transition-colors">
+                    <i data-lucide="x" class="w-6 h-6"></i>
+                </button>
+            </div>
+            <div class="space-y-4 mb-8">
+                <div>
+                    <label class="text-[10px] font-bold text-slate-500 uppercase mb-2 block">Source Name</label>
+                    <input type="text" id="income-name" placeholder="Salary, Gift, etc." class="w-full bg-slate-950 border border-slate-800 rounded-xl py-3 px-4 text-white outline-none focus:ring-1 focus:ring-blue-600">
+                </div>
+                <div>
+                    <label class="text-[10px] font-bold text-slate-500 uppercase mb-2 block">Amount</label>
+                    <div class="relative">
+                        <span class="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 font-bold">$</span>
+                        <input type="number" id="income-amount" placeholder="0.00" class="w-full bg-slate-950 border border-slate-800 rounded-xl py-4 pl-8 pr-4 text-white font-bold text-2xl focus:ring-2 focus:ring-blue-600 outline-none">
+                    </div>
+                </div>
+            </div>
+            <button onclick="recordTransaction('income')" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 rounded-2xl transition-all shadow-lg shadow-blue-900/40">Confirm Deposit</button>
+        </div>
+    </div>
+
+    <!-- Modal: Record Spend (Expense) -->
+    <div id="expense-modal" class="fixed inset-0 z-[100] hidden flex items-center justify-center p-4 modal-overlay">
+        <div class="bg-slate-900 border border-slate-800 w-full max-w-md rounded-[2.5rem] p-8 shadow-2xl transform transition-all">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-bold text-white">Record Spend</h3>
+                <button onclick="toggleModal('expense-modal', false)" class="text-slate-500 hover:text-white transition-colors">
+                    <i data-lucide="x" class="w-6 h-6"></i>
+                </button>
+            </div>
+            <div class="space-y-4 mb-8">
+                <div>
+                    <label class="text-[10px] font-bold text-slate-500 uppercase mb-2 block">What did you buy?</label>
+                    <input type="text" id="expense-name" placeholder="Lunch, Gas, Subscription..." class="w-full bg-slate-950 border border-slate-800 rounded-xl py-3 px-4 text-white outline-none focus:ring-1 focus:ring-red-600">
+                </div>
+                <div>
+                    <label class="text-[10px] font-bold text-slate-500 uppercase mb-2 block">Amount Spent</label>
+                    <div class="relative">
+                        <span class="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 font-bold">$</span>
+                        <input type="number" id="expense-amount" placeholder="0.00" class="w-full bg-slate-950 border border-slate-800 rounded-xl py-4 pl-8 pr-4 text-white font-bold text-2xl focus:ring-2 focus:ring-red-600 outline-none">
+                    </div>
+                </div>
+            </div>
+            <button onclick="recordTransaction('expense')" class="w-full bg-red-600 hover:bg-red-500 text-white font-bold py-4 rounded-2xl transition-all shadow-lg shadow-red-900/40">Deduct Balance</button>
+        </div>
+    </div>
+
     <footer class="max-w-7xl mx-auto px-4 py-12 text-center">
-        <p class="text-[10px] text-slate-600 font-bold uppercase tracking-[0.4em]">© 2024 WalletNix Financial Systems</p>
+        <p class="text-[10px] text-slate-600 font-bold uppercase tracking-[0.4em]">WALLETNIX FINANCIAL COMMAND CENTER</p>
     </footer>
 
     <script>
-        let cardData = { number: '', cvv: '', visible: false };
+        let currentBalance = 2450.00;
+        let monthlySpend = 412.50;
 
-        function generateCard() {
-            cardData.number = Array.from({ length: 4 }, () => Math.floor(1000 + Math.random() * 9000)).join(' ');
-            cardData.cvv = Math.floor(100 + Math.random() * 899);
+        function updateDisplay() {
+            const balEl = document.getElementById('balance-amount');
+            const spendEl = document.getElementById('stat-spend');
             
-            document.getElementById('no-card').classList.add('hidden');
-            document.getElementById('active-card').classList.remove('hidden');
-            document.getElementById('display-number').innerText = cardData.number;
+            if (balEl) balEl.innerText = currentBalance.toLocaleString(undefined, { minimumFractionDigits: 2 });
+            if (spendEl) spendEl.innerText = '$' + monthlySpend.toLocaleString(undefined, { minimumFractionDigits: 2 });
+        }
+
+        function toggleModal(id, show) {
+            const modal = document.getElementById(id);
+            if (!modal) return;
+            if (show) {
+                modal.classList.remove('hidden');
+                const numInput = modal.querySelector('input[type="number"]');
+                if (numInput) numInput.focus();
+            } else {
+                modal.classList.add('hidden');
+            }
+        }
+
+        function recordTransaction(type) {
+            const prefix = type === 'income' ? 'income' : 'expense';
+            const nameInput = document.getElementById(`${prefix}-name`);
+            const amountInput = document.getElementById(`${prefix}-amount`);
             
-            // Re-render icons
+            const name = nameInput.value || (type === 'income' ? 'Cash Deposit' : 'General Purchase');
+            const amount = parseFloat(amountInput.value);
+
+            if (isNaN(amount) || amount <= 0) return;
+
+            if (type === 'income') {
+                currentBalance += amount;
+            } else {
+                currentBalance -= amount;
+                monthlySpend += amount;
+            }
+
+            // Update UI
+            updateDisplay();
+            addToList(name, amount, type);
+
+            // Reset and close
+            nameInput.value = '';
+            amountInput.value = '';
+            toggleModal(`${prefix}-modal`, false);
+        }
+
+        function addToList(name, amount, type) {
+            const list = document.getElementById('transaction-list');
+            if (!list) return;
+
+            const div = document.createElement('div');
+            const isIncome = type === 'income';
+            
+            div.className = "flex items-center justify-between opacity-0 translate-y-2 transition-all duration-500";
+            div.innerHTML = `
+                <div class="flex items-center gap-4">
+                    <div class="w-11 h-11 rounded-2xl ${isIncome ? 'bg-emerald-500/10' : 'bg-slate-800'} flex items-center justify-center">
+                        <i data-lucide="${isIncome ? 'trending-up' : 'shopping-bag'}" class="w-5 h-5 ${isIncome ? 'text-emerald-400' : 'text-slate-400'}"></i>
+                    </div>
+                    <div>
+                        <p class="text-sm font-bold text-white">${name}</p>
+                        <p class="text-[10px] text-slate-500 uppercase">Self • Just Now</p>
+                    </div>
+                </div>
+                <p class="text-sm font-black ${isIncome ? 'text-emerald-400' : 'text-white'}">
+                    ${isIncome ? '+' : '-'}$${amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                </p>
+            `;
+            
+            list.prepend(div);
+            setTimeout(() => {
+                div.classList.remove('opacity-0', 'translate-y-2');
+            }, 10);
+            
             lucide.createIcons();
         }
 
+        let cvvVisible = false;
         function toggleCVV() {
-            cardData.visible = !cardData.visible;
-            document.getElementById('display-cvv').innerText = cardData.visible ? cardData.cvv : '***';
+            cvvVisible = !cvvVisible;
+            const cvvEl = document.getElementById('display-cvv');
+            if (cvvEl) cvvEl.innerText = cvvVisible ? '882' : '***';
         }
 
-        // Initialize Icons
-        lucide.createIcons();
+        // Init UI components
+        window.addEventListener('load', () => {
+            lucide.createIcons();
+            updateDisplay();
+        });
     </script>
 </body>
 </html>
