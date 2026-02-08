@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Codenix Archive</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --accent: #3b82f6;
+            --bg: #0f172a;
+            --card-bg: #1e293b;
+        }
+        body {
+            background-color: var(--bg);
+            color: #f1f5f9;
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+        }
+        .glass-card {
+            background: var(--card-bg);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            transition: transform 0.2s, border-color 0.2s;
+        }
+        .glass-card:hover {
+            transform: translateY(-4px);
+            border-color: var(--accent);
+        }
+        .loader {
+            border: 3px solid rgba(255,255,255,0.1);
+            border-top: 3px solid var(--accent);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body class="min-h-screen p-4 md:p-8">
+
+    <div class="max-w-6xl mx-auto">
+        <!-- Header -->
+        <header class="text-center mb-12">
+            <h1 class="text-4xl md:text-5xl font-extrabold mb-4 bg-gradient-to-r from-blue-400 to-indigo-500 bg-clip-text text-transparent">
+                CODENIX ARCHIVE
+            </h1>
+            <p class="text-slate-400 max-w-2xl mx-auto">
+                Access your curated collection of resources and files. Synchronized directly from the cloud.
+            </p>
+        </header>
+
+        <!-- Search Bar -->
+        <div class="relative max-w-md mx-auto mb-10">
+            <span class="absolute inset-y-0 left-0 flex items-center pl-3">
+                <i class="fas fa-search text-slate-500"></i>
+            </span>
+            <input 
+                type="text" 
+                id="searchInput" 
+                placeholder="Search files..." 
+                class="w-full pl-10 pr-4 py-3 bg-slate-800 border border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
+            >
+        </div>
+
+        <!-- Content Area -->
+        <div id="loading" class="flex flex-col items-center justify-center py-20">
+            <div class="loader mb-4"></div>
+            <p class="text-slate-400">Loading archive data...</p>
+        </div>
+
+        <div id="error" class="hidden text-center py-20">
+            <div class="bg-red-900/20 border border-red-500/50 p-6 rounded-2xl inline-block max-w-lg">
+                <i class="fas fa-exclamation-triangle text-red-500 text-3xl mb-4"></i>
+                <h3 class="text-xl font-bold mb-2">Connection Error</h3>
+                <p id="errorMessage" class="text-slate-300 mb-4"></p>
+                <div class="text-left bg-black/30 p-4 rounded text-xs text-slate-400 mb-4">
+                    <p><strong>Required Setup:</strong></p>
+                    <ul class="list-decimal ml-4 mt-2 space-y-1">
+                        <li>Open your Sheet.</li>
+                        <li>Click <strong>File > Share > Publish to web</strong>.</li>
+                        <li>Click <strong>Publish</strong>.</li>
+                        <li>Ensure "Anyone with the link" has View access.</li>
+                    </ul>
+                </div>
+                <button onclick="location.reload()" class="px-6 py-2 bg-red-600 hover:bg-red-700 rounded-lg transition text-white">Retry</button>
+            </div>
+        </div>
+
+        <div id="fileGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            <!-- Cards will be injected here -->
+        </div>
+    </div>
+
+    <script>
+        /**
+         * CONFIGURATION
+         */
+        const SHEET_ID = '1InbByPBRlpUSr6sAurqKBa1wXMWy_JQjv4GBdnETQ_s'; 
+        const GID = '0'; 
+        
+        const DATA_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&gid=${GID}`;
+
+        let allFiles = [];
+
+        async function fetchData() {
+            const loadingEl = document.getElementById('loading');
+            const errorEl = document.getElementById('error');
+            const errorMsgEl = document.getElementById('errorMessage');
+
+            try {
+                const response = await fetch(DATA_URL);
+                if (!response.ok) throw new Error('Could not fetch spreadsheet data.');
+                
+                const text = await response.text();
+                
+                const jsonMatch = text.match(/\{.*\}/s);
+                if (!jsonMatch) {
+                    throw new Error('Data format incorrect. Check if the sheet is Published to the Web.');
+                }
+
+                const data = JSON.parse(jsonMatch[0]);
+                
+                if (data.status === 'error') {
+                    throw new Error(data.errors[0].detailed_message || 'Google API Error');
+                }
+
+                // .slice(1) ignores the first row (header row)
+                allFiles = data.table.rows
+                    .slice(1) 
+                    .map(row => {
+                        const nameVal = row.c && row.c[0] ? row.c[0].v : null;
+                        const linkVal = row.c && row.c[1] ? row.c[1].v : null;
+                        
+                        return {
+                            name: nameVal ? String(nameVal).trim() : null,
+                            link: linkVal ? String(linkVal).trim() : null
+                        };
+                    })
+                    .filter(item => item.name && item.link);
+
+                displayFiles(allFiles);
+                loadingEl.classList.add('hidden');
+            } catch (err) {
+                console.error('Archive Error:', err);
+                loadingEl.classList.add('hidden');
+                errorEl.classList.remove('hidden');
+                errorMsgEl.innerText = err.message;
+            }
+        }
+
+        function displayFiles(files) {
+            const grid = document.getElementById('fileGrid');
+            grid.innerHTML = '';
+
+            if (files.length === 0) {
+                grid.innerHTML = '<div class="col-span-full text-center text-slate-500 py-10">No items found in your archive yet.</div>';
+                return;
+            }
+
+            files.forEach(file => {
+                const card = document.createElement('div');
+                card.className = 'glass-card p-6 rounded-2xl flex flex-col justify-between h-full';
+                
+                const fileIcon = getIconByExtension(file.link);
+
+                card.innerHTML = `
+                    <div>
+                        <div class="text-blue-500 text-2xl mb-4">
+                            <i class="${fileIcon}"></i>
+                        </div>
+                        <h3 class="text-lg font-bold text-white mb-4 line-clamp-2">${file.name}</h3>
+                    </div>
+                    <a href="${file.link}" target="_blank" rel="noopener noreferrer" class="w-full flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors">
+                        <i class="fas fa-external-link-alt text-sm"></i>
+                        Open Link
+                    </a>
+                `;
+                grid.appendChild(card);
+            });
+        }
+
+        function getIconByExtension(url) {
+            const lowerUrl = url.toLowerCase();
+            if (lowerUrl.includes('drive.google.com')) return 'fab fa-google-drive';
+            if (lowerUrl.includes('docs.google.com')) return 'fas fa-file-alt';
+            if (lowerUrl.includes('github.com')) return 'fab fa-github';
+            if (lowerUrl.includes('youtube.com') || lowerUrl.includes('youtu.be')) return 'fab fa-youtube';
+            
+            const ext = lowerUrl.split('.').pop().split(/[?#]/)[0];
+            if (['jpg', 'jpeg', 'png', 'svg', 'gif', 'webp'].includes(ext)) return 'fas fa-file-image';
+            if (ext === 'pdf') return 'fas fa-file-pdf';
+            if (['zip', 'rar', '7z'].includes(ext)) return 'fas fa-file-archive';
+            if (['mp4', 'mov', 'avi'].includes(ext)) return 'fas fa-file-video';
+            
+            return 'fas fa-link';
+        }
+
+        document.getElementById('searchInput').addEventListener('input', (e) => {
+            const term = e.target.value.toLowerCase();
+            const filtered = allFiles.filter(f => f.name.toLowerCase().includes(term));
+            displayFiles(filtered);
+        });
+
+        window.onload = fetchData;
+    </script>
+</body>
+</html>
