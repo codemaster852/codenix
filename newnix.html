@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NewNix | by Codenix</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        // Apply theme immediately to the root element to avoid flashing
+        const savedTheme = localStorage.getItem('theme');
+        const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        
+        if (savedTheme === 'dark' || (!savedTheme && systemPrefersDark)) {
+            document.documentElement.classList.add('dark');
+        } else {
+            document.documentElement.classList.remove('dark');
+        }
+    </script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #8b5cf6;
+        }
+
+        /* Global transition for smooth theme switching across the entire site */
+        * {
+            transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
+        }
+
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+        }
+
+        .news-card {
+            transition: transform 0.2s ease, box-shadow 0.2s ease, background-color 0.3s ease;
+            cursor: pointer;
+        }
+
+        .news-card:hover {
+            transform: translateY(-4px);
+        }
+
+        .purple-gradient {
+            background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%);
+        }
+
+        #newsModal {
+            transition: opacity 0.3s ease;
+        }
+
+        .modal-content {
+            transform: scale(0.95);
+            transition: transform 0.3s ease, background-color 0.3s ease;
+        }
+
+        #newsModal.active .modal-content {
+            transform: scale(1);
+        }
+
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+        .dark ::-webkit-scrollbar-track {
+            background: #0f172a;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #8b5cf6;
+            border-radius: 10px;
+        }
+
+        .loader {
+            border: 3px solid #f3f3f3;
+            border-radius: 50%;
+            border-top: 3px solid #8b5cf6;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 min-h-screen">
+
+    <!-- Navigation -->
+    <nav class="sticky top-0 z-40 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-slate-200 dark:border-slate-800">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-16">
+                <div class="flex items-center space-x-2">
+                    <div class="purple-gradient p-2 rounded-lg">
+                        <i class="fas fa-bolt text-white text-xl"></i>
+                    </div>
+                    <div>
+                        <span class="text-2xl font-bold tracking-tight dark:text-white">New<span class="text-purple-600">Nix</span></span>
+                        <p class="text-[10px] uppercase tracking-widest text-slate-500 dark:text-slate-400 font-semibold leading-none">by Codenix</p>
+                    </div>
+                </div>
+
+                <div class="flex items-center space-x-4">
+                    <button id="themeToggle" class="p-2 w-10 h-10 flex items-center justify-center rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" title="Toggle Theme">
+                        <i id="themeIcon" class="fas fa-moon text-slate-600 dark:text-slate-300"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <header class="py-12 bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800">
+        <div class="max-w-7xl mx-auto px-4 text-center">
+            <h1 class="text-4xl md:text-5xl font-extrabold mb-4 text-slate-900 dark:text-white">Insights for the <span class="text-purple-600">Modern Era</span></h1>
+            <p class="text-slate-500 dark:text-slate-400 max-w-2xl mx-auto text-lg">
+                Fresh news automatically synchronized from our cloud database.
+            </p>
+        </div>
+    </header>
+
+    <!-- News Grid Container -->
+    <main class="max-w-7xl mx-auto px-4 py-12">
+        <div id="loadingState" class="flex flex-col items-center justify-center py-20">
+            <div class="loader mb-4"></div>
+            <p class="text-slate-500 dark:text-slate-400">Fetching latest stories...</p>
+        </div>
+
+        <div id="errorState" class="hidden text-center py-20">
+            <i class="fas fa-exclamation-circle text-red-500 text-5xl mb-4"></i>
+            <h3 class="text-xl font-bold dark:text-white">Connection Error</h3>
+            <p class="text-slate-500 dark:text-slate-400">We couldn't reach the database. Please check your sheet settings.</p>
+        </div>
+
+        <div id="newsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 hidden">
+            <!-- Content Injected via JS -->
+        </div>
+    </main>
+
+    <!-- Article Modal -->
+    <div id="newsModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm opacity-0 pointer-events-none transition-opacity duration-300">
+        <div class="modal-content bg-white dark:bg-slate-800 w-full max-w-2xl max-h-[90vh] rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+            <div class="p-6 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center">
+                <span class="text-xs text-purple-600 dark:text-purple-400 font-bold uppercase tracking-widest">Full Article</span>
+                <button id="closeModal" class="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors">
+                    <i class="fas fa-times text-xl"></i>
+                </button>
+            </div>
+            <div class="p-8 overflow-y-auto bg-white dark:bg-slate-800">
+                <h2 id="modalTitle" class="text-3xl font-extrabold mb-6 leading-tight text-slate-900 dark:text-white"></h2>
+                <div id="modalBody" class="text-slate-600 dark:text-slate-300 leading-relaxed text-lg whitespace-pre-line"></div>
+            </div>
+            <div class="p-6 border-t border-slate-100 dark:border-slate-700 flex justify-end bg-slate-50/50 dark:bg-slate-900/50">
+                <button id="closeModalBtn" class="bg-purple-600 hover:bg-purple-700 text-white px-8 py-2.5 rounded-full font-bold transition-colors">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 py-12">
+        <div class="max-w-7xl mx-auto px-4 text-center">
+            <span class="text-xl font-bold dark:text-white">New<span class="text-purple-600">Nix</span></span>
+            <p class="text-slate-500 dark:text-slate-400 text-sm mt-2">© 2024 Codenix. Driven by real-time data.</p>
+        </div>
+    </footer>
+
+    <script>
+        const SHEET_ID = '1yBETQM8SPi8ldqqYQY9VUWhW--dsG2ZMTcCU5jEsIs4';
+        const CSV_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv`;
+
+        const newsGrid = document.getElementById('newsGrid');
+        const loadingState = document.getElementById('loadingState');
+        const errorState = document.getElementById('errorState');
+        const themeToggle = document.getElementById('themeToggle');
+        const themeIcon = document.getElementById('themeIcon');
+        const newsModal = document.getElementById('newsModal');
+        const modalTitle = document.getElementById('modalTitle');
+        const modalBody = document.getElementById('modalBody');
+
+        let currentNews = [];
+
+        // Theme management function
+        function setIconState() {
+            const isDark = document.documentElement.classList.contains('dark');
+            themeIcon.className = isDark ? 'fas fa-sun text-yellow-400' : 'fas fa-moon text-slate-600';
+        }
+
+        themeToggle.addEventListener('click', () => {
+            const isDark = document.documentElement.classList.toggle('dark');
+            localStorage.setItem('theme', isDark ? 'dark' : 'light');
+            setIconState();
+        });
+
+        // Initialize icon state
+        setIconState();
+
+        async function fetchNews() {
+            try {
+                const response = await fetch(CSV_URL);
+                if (!response.ok) throw new Error();
+                const data = await response.text();
+                currentNews = parseCSV(data);
+                renderNews(currentNews);
+            } catch (err) {
+                loadingState.classList.add('hidden');
+                errorState.classList.remove('hidden');
+            }
+        }
+
+        function parseCSV(text) {
+            const rows = [];
+            let currentLine = [];
+            let currentCell = '';
+            let inQuotes = false;
+
+            for (let i = 0; i < text.length; i++) {
+                const char = text[i];
+                const nextChar = text[i+1];
+
+                if (inQuotes) {
+                    if (char === '"' && nextChar === '"') {
+                        currentCell += '"';
+                        i++;
+                    } else if (char === '"') {
+                        inQuotes = false;
+                    } else {
+                        currentCell += char;
+                    }
+                } else {
+                    if (char === '"') {
+                        inQuotes = true;
+                    } else if (char === ',') {
+                        currentLine.push(currentCell.trim());
+                        currentCell = '';
+                    } else if (char === '\n' || (char === '\r' && nextChar === '\n')) {
+                        if (char === '\r') i++;
+                        currentLine.push(currentCell.trim());
+                        if (currentLine.length > 0) rows.push(currentLine);
+                        currentLine = [];
+                        currentCell = '';
+                    } else {
+                        currentCell += char;
+                    }
+                }
+            }
+            if (currentCell || currentLine.length > 0) {
+                currentLine.push(currentCell.trim());
+                rows.push(currentLine);
+            }
+
+            return rows.slice(1).map((row, idx) => ({
+                title: row[0] || "Untitled Story",
+                content: row[1] || "No description provided.",
+                id: idx
+            })).filter(item => item.title !== "Untitled Story" || item.content !== "No description provided.");
+        }
+
+        function renderNews(articles) {
+            loadingState.classList.add('hidden');
+            newsGrid.classList.remove('hidden');
+            
+            if(articles.length === 0) {
+                newsGrid.innerHTML = '<div class="col-span-full text-center text-slate-400 py-10">Waiting for cloud data...</div>';
+                return;
+            }
+
+            newsGrid.innerHTML = articles.map((article, idx) => `
+                <article onclick="openArticle(${idx})" class="news-card bg-white dark:bg-slate-800 rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-700 flex flex-col shadow-sm hover:shadow-xl transition-all">
+                    <div class="p-8">
+                        <div class="flex items-center mb-4">
+                            <div class="h-10 w-10 purple-gradient rounded-full flex items-center justify-center text-white mr-3 shadow-inner">
+                                <i class="fas fa-newspaper text-sm"></i>
+                            </div>
+                            <span class="text-[10px] text-purple-600 dark:text-purple-400 font-bold uppercase tracking-widest">Update</span>
+                        </div>
+                        <h2 class="text-xl font-bold mb-3 leading-tight text-slate-900 dark:text-white">${article.title}</h2>
+                        <p class="text-slate-500 dark:text-slate-400 text-sm line-clamp-4 mb-6 leading-relaxed">
+                            ${article.content}
+                        </p>
+                        <div class="pt-4 border-t border-slate-100 dark:border-slate-700 flex justify-between items-center group">
+                            <span class="text-purple-600 dark:text-purple-400 font-bold text-xs uppercase tracking-wider">Expand Story</span>
+                            <i class="fas fa-arrow-right text-purple-600 dark:text-purple-400 text-xs transition-transform group-hover:translate-x-1"></i>
+                        </div>
+                    </div>
+                </article>
+            `).join('');
+        }
+
+        window.openArticle = (index) => {
+            const article = currentNews[index];
+            modalTitle.textContent = article.title;
+            modalBody.textContent = article.content;
+            
+            newsModal.classList.add('active');
+            newsModal.style.opacity = '1';
+            newsModal.style.pointerEvents = 'auto';
+            document.body.style.overflow = 'hidden';
+        };
+
+        function closeModal() {
+            newsModal.classList.remove('active');
+            newsModal.style.opacity = '0';
+            newsModal.style.pointerEvents = 'none';
+            document.body.style.overflow = 'auto';
+        }
+
+        document.getElementById('closeModal').onclick = closeModal;
+        document.getElementById('closeModalBtn').onclick = closeModal;
+        newsModal.onclick = (e) => { if(e.target === newsModal) closeModal(); };
+
+        window.onload = fetchNews;
+    </script>
+</body>
+</html>
