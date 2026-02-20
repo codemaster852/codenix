@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Watch Ads - Earn Rewards</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .video-container {
+            position: relative;
+            padding-bottom: 56.25%; /* 16:9 */
+            height: 0;
+            overflow: hidden;
+        }
+        .video-container iframe {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-white min-h-screen flex flex-col items-center p-4">
+
+    <!-- Header / Balance Section -->
+    <header class="w-full max-w-2xl flex justify-between items-center mb-8 p-4 bg-gray-800 rounded-xl shadow-lg">
+        <div>
+            <h1 class="text-xl font-bold text-blue-400">AdRewards</h1>
+            <p id="user-display" class="text-sm text-gray-400">Loading user...</p>
+        </div>
+        <div class="text-right">
+            <p class="text-xs uppercase tracking-widest text-gray-500">Balance</p>
+            <p id="token-balance" class="text-2xl font-black text-yellow-500">0 Tokens</p>
+        </div>
+    </header>
+
+    <!-- Ad Display Area -->
+    <main id="ad-card" class="w-full max-w-2xl bg-gray-800 rounded-2xl overflow-hidden shadow-2xl border border-gray-700 hidden">
+        <div id="video-wrapper" class="video-container bg-black">
+            <!-- Video Iframe injected here -->
+        </div>
+        
+        <div class="p-6">
+            <h2 id="ad-title" class="text-xl font-semibold mb-4 text-center">Watch to earn 3 tokens</h2>
+            
+            <div class="flex flex-col gap-3">
+                <button id="reward-btn" disabled class="w-full py-4 bg-gray-600 text-gray-400 font-bold rounded-lg cursor-not-allowed transition-all">
+                    Finish Video to Claim Reward
+                </button>
+                
+                <a id="visit-btn" href="#" target="_blank" class="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg text-center transition-all">
+                    Visit Sponsor Website
+                </a>
+            </div>
+            
+            <p class="mt-4 text-xs text-center text-gray-500">
+                Refreshing ads every time you reload. New ads from admin appear instantly.
+            </p>
+        </div>
+    </main>
+
+    <!-- Loading/Status Messages -->
+    <div id="status-msg" class="mt-20 text-center">
+        <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+        <p class="text-gray-400">Checking authentication and fetching ads...</p>
+    </div>
+
+    <script>
+        // Configuration
+        const SUPABASE_URL = "https://rnlwrngfgvznndlekmrz.supabase.co";
+        const SUPABASE_KEY = "sb_publishable_mtI0_ZBvU_n5oRuqV58QHg_qJt3Gfyt"; 
+        const GOOGLE_SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/1j0GMlqXCrCcbGxXVaYJCQlVTgHMm6Ocwwp8HdgpmL_E/gviz/tq?tqx=out:csv";
+        
+        // Fix: Use a unique variable name to avoid conflicts with global scope or repeated script injection
+        let supabaseClient;
+        if (typeof supabaseClient === 'undefined') {
+            supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        }
+
+        let currentUser = null;
+        let currentTokens = 0;
+
+        async function init() {
+            try {
+                // 1. Check Auth
+                const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
+                
+                if (authError || !user) {
+                    window.location.href = "auth.html";
+                    return;
+                }
+                
+                currentUser = user;
+                document.getElementById('user-display').innerText = user.email;
+                
+                // 2. Load Profile Data
+                await fetchUserBalance();
+                
+                // 3. Fetch Ads from Google Sheets
+                await loadRandomAd();
+            } catch (err) {
+                console.error("Initialization error:", err);
+                showError("Auth initialization failed. Please try again.");
+            }
+        }
+
+        async function fetchUserBalance() {
+            try {
+                const { data, error } = await supabaseClient
+                    .from('user_profiles')
+                    .select('tokens')
+                    .eq('id', currentUser.id)
+                    .maybeSingle();
+
+                if (data) {
+                    currentTokens = data.tokens || 0;
+                    updateBalanceDisplay();
+                } else {
+                    // Profile doesn't exist yet, create it
+                    const { data: newProfile, error: insertError } = await supabaseClient
+                        .from('user_profiles')
+                        .insert([{ id: currentUser.id, username: currentUser.email, tokens: 0 }])
+                        .select()
+                        .maybeSingle();
+                    
+                    if (newProfile) {
+                        currentTokens = newProfile.tokens || 0;
+                        updateBalanceDisplay();
+                    } else if (insertError) {
+                        console.error("Error creating profile:", insertError);
+                    }
+                }
+            } catch (err) {
+                console.error("Balance fetch error:", err);
+            }
+        }
+
+        function updateBalanceDisplay() {
+            document.getElementById('token-balance').innerText = `${currentTokens} Tokens`;
+        }
+
+        async function loadRandomAd() {
+            try {
+                const response = await fetch(GOOGLE_SHEET_CSV_URL);
+                if (!response.ok) throw new Error("Sheet fetch failed");
+                const csvText = await response.text();
+                
+                const rows = csvText.split('\n').map(row => {
+                    return row.split(',').map(cell => cell.replace(/"/g, '').trim());
+                }).filter(row => row.length >= 2 && (row[0].startsWith('http') || row[0].includes('youtube')));
+
+                if (rows.length === 0) {
+                    showError("No valid ads found in the database.");
+                    return;
+                }
+
+                // Skip header row if necessary (check if first row is a URL)
+                const validAds = rows[0][0].startsWith('http') ? rows : rows.slice(1);
+                const randomAd = validAds[Math.floor(Math.random() * validAds.length)];
+                displayAd(randomAd[0], randomAd[1]);
+
+            } catch (err) {
+                console.error("Ad loading error:", err);
+                showError("Failed to fetch ads from Google Sheets.");
+            }
+        }
+
+        function displayAd(videoLink, webLink) {
+            document.getElementById('status-msg').classList.add('hidden');
+            document.getElementById('ad-card').classList.remove('hidden');
+
+            const videoWrapper = document.getElementById('video-wrapper');
+            const visitBtn = document.getElementById('visit-btn');
+            const rewardBtn = document.getElementById('reward-btn');
+
+            let embedUrl = videoLink;
+            if (videoLink.includes('youtube.com/watch?v=')) {
+                embedUrl = videoLink.replace('watch?v=', 'embed/');
+            } else if (videoLink.includes('youtu.be/')) {
+                const id = videoLink.split('/').pop();
+                embedUrl = `https://www.youtube.com/embed/${id}`;
+            }
+
+            videoWrapper.innerHTML = `<iframe src="${embedUrl}?autoplay=1&mute=1" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>`;
+            
+            visitBtn.href = webLink;
+
+            let timeLeft = 10;
+            rewardBtn.disabled = true;
+            rewardBtn.innerText = `Watch for ${timeLeft}s...`;
+            
+            const timer = setInterval(() => {
+                timeLeft--;
+                if (timeLeft > 0) {
+                    rewardBtn.innerText = `Claim Reward in ${timeLeft}s...`;
+                } else {
+                    clearInterval(timer);
+                    rewardBtn.innerText = "Claim 3 Tokens Now!";
+                    rewardBtn.disabled = false;
+                    rewardBtn.classList.remove('bg-gray-600', 'text-gray-400', 'cursor-not-allowed');
+                    rewardBtn.classList.add('bg-green-600', 'hover:bg-green-700', 'text-white', 'cursor-pointer');
+                    
+                    rewardBtn.onclick = claimTokens;
+                }
+            }, 1000);
+        }
+
+        async function claimTokens() {
+            const rewardBtn = document.getElementById('reward-btn');
+            if (rewardBtn.disabled) return;
+            
+            rewardBtn.disabled = true;
+            rewardBtn.innerText = "Processing...";
+
+            const newBalance = currentTokens + 3;
+
+            try {
+                const { error } = await supabaseClient
+                    .from('user_profiles')
+                    .update({ tokens: newBalance })
+                    .eq('id', currentUser.id);
+
+                if (!error) {
+                    currentTokens = newBalance;
+                    updateBalanceDisplay();
+                    rewardBtn.innerText = "Success! +3 Tokens Added";
+                    rewardBtn.classList.replace('bg-green-600', 'bg-blue-600');
+                    
+                    setTimeout(() => {
+                        location.reload();
+                    }, 2000);
+                } else {
+                    throw error;
+                }
+            } catch (err) {
+                console.error("Claim error:", err);
+                rewardBtn.innerText = "Error saving tokens. Try again.";
+                rewardBtn.disabled = false;
+            }
+        }
+
+        function showError(msg) {
+            const status = document.getElementById('status-msg');
+            status.innerHTML = `<p class="text-red-500 font-bold">${msg}</p>`;
+        }
+
+        // Start the app
+        window.onload = init;
+    </script>
+</body>
+</html>
