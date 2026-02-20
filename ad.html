@@ -25,7 +25,6 @@
 </head>
 <body class="bg-gray-900 text-white min-h-screen flex flex-col items-center p-4">
 
-    <!-- Header / Balance Section -->
     <header class="w-full max-w-2xl flex justify-between items-center mb-8 p-4 bg-gray-800 rounded-xl shadow-lg">
         <div>
             <h1 class="text-xl font-bold text-blue-400">AdRewards</h1>
@@ -37,20 +36,14 @@
         </div>
     </header>
 
-    <!-- Ad Display Area -->
     <main id="ad-card" class="w-full max-w-2xl bg-gray-800 rounded-2xl overflow-hidden shadow-2xl border border-gray-700 hidden">
-        <div id="video-wrapper" class="video-container">
-            <!-- Video or Iframe injected here -->
-        </div>
-        
+        <div id="video-wrapper" class="video-container"></div>
         <div class="p-6">
-            <h2 id="ad-title" class="text-xl font-semibold mb-4 text-center">Watch to earn 3 tokens</h2>
-            
+            <h2 class="text-xl font-semibold mb-4 text-center">Watch to earn 3 tokens</h2>
             <div class="flex flex-col gap-3">
                 <button id="reward-btn" disabled class="w-full py-4 bg-gray-600 text-gray-400 font-bold rounded-lg cursor-not-allowed transition-all">
-                    Finish Video to Claim Reward
+                    Waiting for Video...
                 </button>
-                
                 <a id="visit-btn" href="#" target="_blank" class="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg text-center transition-all">
                     Visit Sponsor Website
                 </a>
@@ -58,10 +51,9 @@
         </div>
     </main>
 
-    <!-- Loading/Status Messages -->
     <div id="status-msg" class="mt-20 text-center">
-        <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
-        <p id="status-text" class="text-gray-400">Initializing...</p>
+        <div id="spinner" class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+        <p id="status-text" class="text-gray-400 font-medium">Connecting to Supabase...</p>
     </div>
 
     <script>
@@ -73,7 +65,7 @@
         try {
             supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
         } catch (e) {
-            console.error("Supabase Client Init Error", e);
+            console.error("Client Init Error", e);
         }
 
         let currentUser = null;
@@ -81,7 +73,6 @@
 
         async function init() {
             try {
-                // 1. Check Auth
                 const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
                 if (authError || !user) {
                     window.location.href = "auth.html";
@@ -90,14 +81,10 @@
                 currentUser = user;
                 document.getElementById('user-display').innerText = user.email;
 
-                // 2. Load Profile (Handle 404 explicitly)
                 await fetchUserBalance();
-
-                // 3. Load Ads
                 await loadRandomAd();
             } catch (err) {
-                console.error(err);
-                showError("Initialization failed. Check console for details.");
+                console.error("Init failed:", err);
             }
         }
 
@@ -109,23 +96,25 @@
                 .maybeSingle();
 
             if (error) {
-                if (error.code === '42P01' || error.message.includes('not found')) {
-                    showError("Database Table Missing: Please run the SQL setup in Supabase SQL Editor.");
-                    throw new Error("Table user_profiles not found");
+                console.error("Supabase Error:", error);
+                // 42P01 is the PostgREST error code for "Relation (table) does not exist"
+                if (error.code === '42P01' || error.status === 404) {
+                    showError("DATABASE ERROR: Table 'user_profiles' not found. Please run the SQL setup in Supabase SQL Editor.");
+                } else {
+                    showError("Error connecting to database. Please check your Supabase setup.");
                 }
-                console.error("Fetch Balance Error:", error);
-                return;
+                throw error;
             }
 
             if (data) {
                 currentTokens = data.tokens || 0;
             } else {
-                // Create profile if it doesn't exist
+                // Try to create the profile row if it doesn't exist
                 const { error: insError } = await supabaseClient
                     .from('user_profiles')
                     .insert([{ id: currentUser.id, username: currentUser.email, tokens: 0 }]);
                 
-                if (insError) console.error("Insert Profile Error:", insError);
+                if (insError) console.error("Could not create user profile row:", insError);
                 currentTokens = 0;
             }
             updateBalanceDisplay();
@@ -137,26 +126,23 @@
 
         async function loadRandomAd() {
             try {
-                const response = await fetch(GOOGLE_SHEET_CSV_URL);
+                // Add a cache-buster timestamp so it always gets new ads from the admin
+                const response = await fetch(`${GOOGLE_SHEET_CSV_URL}&cachebust=${Date.now()}`);
                 const csvText = await response.text();
                 
                 const rows = csvText.split('\n').map(row => {
                     return row.split(',').map(cell => cell.replace(/"/g, '').trim());
                 }).filter(row => row.length >= 2);
 
-                // Filter valid ad paths (those starting with /)
                 const validAds = rows.filter(r => r[0].startsWith('/'));
 
                 if (validAds.length === 0) {
-                    showError("No valid ad paths (starting with /) found in sheet.");
+                    showError("No valid ad paths found in Google Sheet (Paths must start with /)");
                     return;
                 }
 
                 const randomAd = validAds[Math.floor(Math.random() * validAds.length)];
-                
-                // Construct URL based on current domain directory
-                const baseDomain = window.location.origin;
-                const fullVideoUrl = baseDomain + randomAd[0];
+                const fullVideoUrl = window.location.origin + randomAd[0];
                 const webLink = randomAd[1];
 
                 displayAd(fullVideoUrl, webLink);
@@ -174,7 +160,7 @@
             const rewardBtn = document.getElementById('reward-btn');
 
             if (videoUrl.toLowerCase().endsWith('.mp4') || videoUrl.toLowerCase().endsWith('.webm')) {
-                videoWrapper.innerHTML = `<video src="${videoUrl}" autoplay muted playsinline class="w-full h-full"></video>`;
+                videoWrapper.innerHTML = `<video id="ad-video" src="${videoUrl}" autoplay muted playsinline class="w-full h-full"></video>`;
             } else {
                 videoWrapper.innerHTML = `<iframe src="${videoUrl}" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>`;
             }
@@ -200,7 +186,7 @@
             if (rewardBtn.disabled) return;
 
             rewardBtn.disabled = true;
-            rewardBtn.innerText = "Processing...";
+            rewardBtn.innerText = "Saving tokens...";
 
             const newBalance = currentTokens + 3;
             const { error } = await supabaseClient
@@ -211,19 +197,20 @@
             if (!error) {
                 currentTokens = newBalance;
                 updateBalanceDisplay();
-                rewardBtn.innerText = "Success! Reloading...";
+                rewardBtn.innerText = "Success! +3 Tokens";
                 setTimeout(() => location.reload(), 1500);
             } else {
-                console.error("Update Error:", error);
-                rewardBtn.innerText = "Error. Try again.";
+                console.error("Token Update Error:", error);
+                rewardBtn.innerText = "Error saving. Check console.";
                 rewardBtn.disabled = false;
             }
         }
 
         function showError(msg) {
-            document.getElementById('status-text').innerText = msg;
-            document.getElementById('status-text').classList.add('text-red-500', 'font-bold');
-            const spinner = document.querySelector('.animate-spin');
+            const statusText = document.getElementById('status-text');
+            statusText.innerText = msg;
+            statusText.className = "text-red-500 font-bold max-w-md mx-auto";
+            const spinner = document.getElementById('spinner');
             if (spinner) spinner.remove();
         }
 
