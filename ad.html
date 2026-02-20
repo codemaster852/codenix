@@ -64,15 +64,15 @@
         <div id="spinner" class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
         <p id="status-text" class="text-gray-400 font-medium">Connecting to Supabase...</p>
         <div id="debug-sql" class="hidden">
-            <p class="text-sm text-gray-500 mt-4">Run this in your Supabase SQL Editor to fix:</p>
+            <p class="text-sm text-gray-500 mt-4">If 'profiles' is still missing, run this in SQL Editor:</p>
             <div class="sql-box">
-CREATE TABLE public.user_profiles (
+CREATE TABLE public.profiles (
   id UUID REFERENCES auth.users NOT NULL PRIMARY KEY,
   username TEXT,
   tokens INTEGER DEFAULT 0
 );
-ALTER TABLE public.user_profiles ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Allow all" ON public.user_profiles FOR ALL USING (true);
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow individual read/write" ON public.profiles FOR ALL USING (auth.uid() = id);
             </div>
         </div>
     </div>
@@ -81,6 +81,7 @@ CREATE POLICY "Allow all" ON public.user_profiles FOR ALL USING (true);
         const SUPABASE_URL = "https://rnlwrngfgvznndlekmrz.supabase.co";
         const SUPABASE_KEY = "sb_publishable_mtI0_ZBvU_n5oRuqV58QHg_qJt3Gfyt"; 
         const GOOGLE_SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/1j0GMlqXCrCcbGxXVaYJCQlVTgHMm6Ocwwp8HdgpmL_E/gviz/tq?tqx=out:csv";
+        const TABLE_NAME = 'profiles'; // Updated to match your database hint
         
         let supabaseClient;
         try {
@@ -112,7 +113,7 @@ CREATE POLICY "Allow all" ON public.user_profiles FOR ALL USING (true);
 
         async function fetchUserBalance() {
             const { data, error } = await supabaseClient
-                .from('user_profiles')
+                .from(TABLE_NAME)
                 .select('tokens')
                 .eq('id', currentUser.id)
                 .maybeSingle();
@@ -120,7 +121,7 @@ CREATE POLICY "Allow all" ON public.user_profiles FOR ALL USING (true);
             if (error) {
                 console.error("Fetch Error:", error);
                 if (error.code === '42P01' || error.status === 404) {
-                    showError("Table 'user_profiles' does not exist.");
+                    showError(`Table '${TABLE_NAME}' does not exist.`);
                     document.getElementById('debug-sql').classList.remove('hidden');
                 } else {
                     showError("Database error: " + error.message);
@@ -131,9 +132,9 @@ CREATE POLICY "Allow all" ON public.user_profiles FOR ALL USING (true);
             if (data) {
                 currentTokens = data.tokens || 0;
             } else {
-                // Auto-create profile row
+                // Auto-create profile row if missing
                 const { error: insError } = await supabaseClient
-                    .from('user_profiles')
+                    .from(TABLE_NAME)
                     .insert([{ id: currentUser.id, username: currentUser.email, tokens: 0 }]);
                 if (insError) console.error("Create failed:", insError);
                 currentTokens = 0;
@@ -201,12 +202,14 @@ CREATE POLICY "Allow all" ON public.user_profiles FOR ALL USING (true);
 
         async function claimTokens() {
             const rewardBtn = document.getElementById('reward-btn');
+            if (rewardBtn.disabled) return;
+            
             rewardBtn.disabled = true;
             rewardBtn.innerText = "Saving...";
 
             const newBalance = currentTokens + 3;
             const { error } = await supabaseClient
-                .from('user_profiles')
+                .from(TABLE_NAME)
                 .update({ tokens: newBalance })
                 .eq('id', currentUser.id);
 
@@ -216,7 +219,8 @@ CREATE POLICY "Allow all" ON public.user_profiles FOR ALL USING (true);
                 rewardBtn.innerText = "Done! Reloading...";
                 setTimeout(() => location.reload(), 1500);
             } else {
-                showError("Save error. Check console.");
+                showError("Save error. Please check your Table columns.");
+                console.error("Update Error:", error);
             }
         }
 
