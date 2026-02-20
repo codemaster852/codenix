@@ -59,6 +59,7 @@
     <script>
         const SUPABASE_URL = "https://rnlwrngfgvznndlekmrz.supabase.co";
         const SUPABASE_KEY = "sb_publishable_mtI0_ZBvU_n5oRuqV58QHg_qJt3Gfyt"; 
+        // Using the visualization API endpoint to get the most up-to-date data from the sheet
         const GOOGLE_SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/1j0GMlqXCrCcbGxXVaYJCQlVTgHMm6Ocwwp8HdgpmL_E/gviz/tq?tqx=out:csv";
         
         let supabaseClient;
@@ -96,12 +97,10 @@
                 .maybeSingle();
 
             if (error) {
-                console.error("Supabase Error:", error);
-                // 42P01 is the PostgREST error code for "Relation (table) does not exist"
                 if (error.code === '42P01' || error.status === 404) {
                     showError("DATABASE ERROR: Table 'user_profiles' not found. Please run the SQL setup in Supabase SQL Editor.");
                 } else {
-                    showError("Error connecting to database. Please check your Supabase setup.");
+                    showError("Error connecting to database.");
                 }
                 throw error;
             }
@@ -109,12 +108,11 @@
             if (data) {
                 currentTokens = data.tokens || 0;
             } else {
-                // Try to create the profile row if it doesn't exist
                 const { error: insError } = await supabaseClient
                     .from('user_profiles')
                     .insert([{ id: currentUser.id, username: currentUser.email, tokens: 0 }]);
                 
-                if (insError) console.error("Could not create user profile row:", insError);
+                if (insError) console.error("Profile creation failed:", insError);
                 currentTokens = 0;
             }
             updateBalanceDisplay();
@@ -126,27 +124,34 @@
 
         async function loadRandomAd() {
             try {
-                // Add a cache-buster timestamp so it always gets new ads from the admin
-                const response = await fetch(`${GOOGLE_SHEET_CSV_URL}&cachebust=${Date.now()}`);
+                const response = await fetch(`${GOOGLE_SHEET_CSV_URL}&t=${Date.now()}`);
                 const csvText = await response.text();
                 
+                // Parse CSV rows
                 const rows = csvText.split('\n').map(row => {
-                    return row.split(',').map(cell => cell.replace(/"/g, '').trim());
+                    // Split by comma but handle potential quotes
+                    return row.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(cell => cell.replace(/"/g, '').trim());
                 }).filter(row => row.length >= 2);
 
+                // Skip headers (The first row is usually column names like "ad" and "link")
+                // We look for rows where the first column starts with "/" as you requested
                 const validAds = rows.filter(r => r[0].startsWith('/'));
 
                 if (validAds.length === 0) {
-                    showError("No valid ad paths found in Google Sheet (Paths must start with /)");
+                    showError("No valid ad paths found. Ensure column A starts with '/'");
                     return;
                 }
 
                 const randomAd = validAds[Math.floor(Math.random() * validAds.length)];
-                const fullVideoUrl = window.location.origin + randomAd[0];
+                
+                // Construct the full path using the current site domain
+                const baseDomain = window.location.origin;
+                const fullVideoUrl = baseDomain + randomAd[0];
                 const webLink = randomAd[1];
 
                 displayAd(fullVideoUrl, webLink);
             } catch (err) {
+                console.error("Sheet Error:", err);
                 showError("Failed to fetch ads from Google Sheets.");
             }
         }
@@ -159,6 +164,7 @@
             const visitBtn = document.getElementById('visit-btn');
             const rewardBtn = document.getElementById('reward-btn');
 
+            // Set up video source
             if (videoUrl.toLowerCase().endsWith('.mp4') || videoUrl.toLowerCase().endsWith('.webm')) {
                 videoWrapper.innerHTML = `<video id="ad-video" src="${videoUrl}" autoplay muted playsinline class="w-full h-full"></video>`;
             } else {
@@ -168,14 +174,17 @@
             visitBtn.href = webLink;
 
             let timeLeft = 10;
+            rewardBtn.disabled = true;
+            rewardBtn.classList.add('bg-gray-600', 'text-gray-400', 'cursor-not-allowed');
+
             const timer = setInterval(() => {
                 timeLeft--;
                 rewardBtn.innerText = timeLeft > 0 ? `Watch for ${timeLeft}s...` : "Claim 3 Tokens Now!";
                 if (timeLeft <= 0) {
                     clearInterval(timer);
                     rewardBtn.disabled = false;
-                    rewardBtn.classList.replace('bg-gray-600', 'bg-green-600');
-                    rewardBtn.classList.remove('text-gray-400', 'cursor-not-allowed');
+                    rewardBtn.classList.remove('bg-gray-600', 'text-gray-400', 'cursor-not-allowed');
+                    rewardBtn.classList.add('bg-green-600', 'hover:bg-green-700', 'text-white', 'cursor-pointer');
                     rewardBtn.onclick = claimTokens;
                 }
             }, 1000);
@@ -186,7 +195,7 @@
             if (rewardBtn.disabled) return;
 
             rewardBtn.disabled = true;
-            rewardBtn.innerText = "Saving tokens...";
+            rewardBtn.innerText = "Processing...";
 
             const newBalance = currentTokens + 3;
             const { error } = await supabaseClient
@@ -200,7 +209,7 @@
                 rewardBtn.innerText = "Success! +3 Tokens";
                 setTimeout(() => location.reload(), 1500);
             } else {
-                console.error("Token Update Error:", error);
+                console.error("Update Error:", error);
                 rewardBtn.innerText = "Error saving. Check console.";
                 rewardBtn.disabled = false;
             }
@@ -208,8 +217,10 @@
 
         function showError(msg) {
             const statusText = document.getElementById('status-text');
-            statusText.innerText = msg;
-            statusText.className = "text-red-500 font-bold max-w-md mx-auto";
+            if (statusText) {
+                statusText.innerText = msg;
+                statusText.className = "text-red-500 font-bold max-w-md mx-auto px-4";
+            }
             const spinner = document.getElementById('spinner');
             if (spinner) spinner.remove();
         }
