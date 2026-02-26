@@ -26,6 +26,7 @@
             overflow: hidden;
             background: #1e293b;
             user-select: none;
+            position: relative;
         }
 
         .square {
@@ -85,6 +86,11 @@
         }
         
         .modal-bg { background: rgba(0, 0, 0, 0.85); backdrop-filter: blur(4px); }
+        
+        #waiting-overlay {
+            background: rgba(15, 23, 42, 0.8);
+            backdrop-filter: blur(8px);
+        }
     </style>
 </head>
 <body class="flex flex-col items-center min-h-screen pb-10">
@@ -139,13 +145,24 @@
                     <div id="timer-b" class="timer">10:00</div>
                 </div>
                 
-                <div class="flex gap-4">
+                <div class="flex gap-4 relative">
                     <!-- Analysis Bar -->
                     <div class="eval-bar hidden lg:block">
                         <div id="eval-fill" style="height: 50%"></div>
                     </div>
-                    <!-- Chessboard -->
-                    <div id="board" class="chessboard shadow-2xl shadow-black"></div>
+                    
+                    <!-- Chessboard Container -->
+                    <div class="relative">
+                        <div id="board" class="chessboard shadow-2xl shadow-black"></div>
+                        
+                        <!-- Waiting Screen Overlay -->
+                        <div id="waiting-overlay" class="absolute inset-0 z-[50] flex flex-col items-center justify-center p-6 text-center rounded-lg">
+                            <div class="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+                            <h3 class="text-lg font-black uppercase tracking-widest text-white mb-2">Waiting for Opponent</h3>
+                            <p id="match-room-display" class="text-xs text-blue-400 font-mono mb-4">ROOM: ...</p>
+                            <button onclick="location.reload()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-[10px] font-black uppercase">Cancel</button>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- My Info -->
@@ -206,7 +223,6 @@
                 document.getElementById('user-email').innerText = user.email;
                 initEngine();
             } else {
-                // Fallback for demo if no session
                 document.getElementById('auth-overlay').innerHTML = `
                     <p class='text-red-400 mb-4'>Session Required</p>
                     <button onclick='location.reload()' class='bg-blue-600 px-6 py-2 rounded-lg font-bold'>Retry</button>
@@ -246,7 +262,6 @@
         }
 
         async function quickMatch() {
-            // Find existing room needing player black
             const { data } = await sb.from('games').select('*').is('player_black_id', null).neq('player_white_id', user.id).limit(1).maybeSingle();
             if (data) { 
                 playerColor = 'b'; 
@@ -271,14 +286,16 @@
         }
 
         async function create(rid) {
-            // We use standard columns to avoid 'timers' column error
             const { data, error } = await sb.from('games').insert({
                 room_id: rid,
                 player_white_id: user.id,
                 player_white_email: user.email,
                 pgn: ""
             }).select().single();
-            if (data) subscribe(data.id);
+            if (data) {
+                document.getElementById('match-room-display').innerText = `ROOM: ${rid}`;
+                subscribe(data.id);
+            }
             else showToast("Database error: " + error.message);
         }
 
@@ -305,21 +322,28 @@
 
         function sync(data) {
             currentGame = data;
-            // Since timers might not be in DB, we maintain them locally or estimate from PGN
             if (data.pgn !== game.pgn()) {
                 game.load_pgn(data.pgn);
                 const last = game.history({verbose:true}).pop();
                 if (last) document.getElementById(last.captured ? 'snd-capture' : 'snd-move').play();
             }
+            
             if (data.player_black_email) {
                 document.getElementById('lobby').classList.add('hidden');
                 document.getElementById('game-view').classList.remove('hidden');
+                document.getElementById('waiting-overlay').classList.add('hidden'); // Hide waiting screen
                 document.getElementById('opp-label').innerText = (playerColor === 'w' ? data.player_black_email : data.player_white_email).split('@')[0];
                 document.getElementById('color-label').innerText = playerColor === 'w' ? 'White' : 'Black';
                 if (!clock && !game.game_over()) startClock();
+            } else {
+                // Still waiting for player black
+                document.getElementById('lobby').classList.add('hidden');
+                document.getElementById('game-view').classList.remove('hidden');
+                document.getElementById('waiting-overlay').classList.remove('hidden');
+                document.getElementById('match-room-display').innerText = `ROOM: ${data.room_id}`;
             }
             render();
-            if(worker) {
+            if(worker && data.player_black_email) {
                 worker.postMessage(`position fen ${game.fen()}`);
                 worker.postMessage('go depth 12');
             }
@@ -356,10 +380,13 @@
             if (game.game_over()) endMatch();
         }
 
+        // Fixed Bishop icons logic
         function getPieceIcon(p) {
             const map = {
-                wp: '4/45/Chess_plt45.svg', wr: '7/72/Chess_rlt45.svg', wn: '7/70/Chess_nlt45.svg', wb: 'b/b1/Chess_blt45.svg', wq: '1/15/Chess_qlt45.svg', wk: '4/42/Chess_klt45.svg',
-                bp: 'c/c7/Chess_pdt45.svg', br: 'f/ff/Chess_rdt45.svg', bn: 'e/ef/Chess_ndt45.svg', bb: '9/8d/Chess_bdt45.svg', bq: '4/47/Chess_qdt45.svg', bk: 'f/f0/Chess_kdt45.svg'
+                wp: '4/45/Chess_plt45.svg', wr: '7/72/Chess_rlt45.svg', wn: '7/70/Chess_nlt45.svg', 
+                wb: 'b/ba/Chess_blt45.svg', wq: '1/15/Chess_qlt45.svg', wk: '4/42/Chess_klt45.svg',
+                bp: 'c/c7/Chess_pdt45.svg', br: 'f/ff/Chess_rdt45.svg', bn: 'e/ef/Chess_ndt45.svg', 
+                bb: '9/8d/Chess_bdt45.svg', bq: '4/47/Chess_qdt45.svg', bk: 'f/f0/Chess_kdt45.svg'
             };
             return map[p.color + p.type];
         }
