@@ -28,12 +28,15 @@
             justify-content: center;
             position: relative;
             cursor: pointer;
+            user-select: none;
         }
         .square.light { background-color: #dee3e6; }
         .square.dark { background-color: #8ca2ad; }
         .square.selected { background-color: #bbc949 !important; }
         .square.last-move { background-color: rgba(247, 247, 105, 0.6) !important; }
-        .piece-img { width: 85%; height: 85%; z-index: 10; }
+        .square.check { background: radial-gradient(circle, #ef4444 0%, transparent 70%) !important; }
+        .piece-img { width: 85%; height: 85%; z-index: 10; transition: transform 0.1s; }
+        .piece-img:active { transform: scale(1.1); }
 
         .timer-box {
             font-family: 'Monaco', 'Consolas', monospace;
@@ -41,32 +44,53 @@
             background: #0f172a;
             border: 2px solid #334155;
             border-radius: 12px;
+            min-width: 100px;
+            text-align: center;
         }
         .timer-active {
             border-color: #3b82f6;
             background: #1e3a8a;
             box-shadow: 0 0 15px rgba(59, 130, 246, 0.3);
+            color: white;
         }
+        .timer-low { border-color: #ef4444 !important; color: #ef4444; animation: pulse 1s infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
 
-        .spinner {
-            border: 4px solid rgba(255, 255, 255, 0.1);
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            border-left-color: #3b82f6;
-            animation: spin 1s linear infinite;
+        /* Auth/Overlay Styles */
+        #auth-overlay {
+            background: radial-gradient(circle at center, #1e293b 0%, #020617 100%);
         }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col items-center">
+
+    <!-- Auth Protection Overlay -->
+    <div id="auth-overlay" class="fixed inset-0 z-[100] flex flex-col items-center justify-center p-6 text-center">
+        <div class="w-16 h-16 bg-blue-600 rounded-2xl mb-6 flex items-center justify-center text-3xl font-black shadow-2xl">N</div>
+        <h1 class="text-4xl font-black mb-4">Welcome to ChessNix</h1>
+        <p class="text-slate-400 mb-8 max-w-md">Please sign in to your Supabase account to access the multiplayer arena and compete globally.</p>
+        <div class="flex flex-col gap-3 w-full max-w-xs">
+            <button onclick="window.location.reload()" class="bg-blue-600 hover:bg-blue-500 py-4 rounded-xl font-bold transition-all shadow-lg">Refresh Authentication</button>
+            <p class="text-xs text-slate-500">Checking session status...</p>
+        </div>
+    </div>
+
+    <!-- Promotion Modal -->
+    <div id="promotion-modal" class="hidden fixed inset-0 z-[110] bg-black/80 backdrop-blur-sm flex items-center justify-center">
+        <div class="bg-slate-900 p-8 rounded-3xl border border-slate-700 text-center">
+            <h3 class="text-xl font-bold mb-6">Choose Promotion</h3>
+            <div id="promotion-options" class="flex gap-4">
+                <!-- Dynamically filled -->
+            </div>
+        </div>
+    </div>
 
     <header class="w-full max-w-5xl flex justify-between items-center p-6">
         <div class="flex items-center gap-2">
             <div class="w-8 h-8 bg-blue-600 rounded flex items-center justify-center font-bold">N</div>
             <h1 class="text-2xl font-extrabold tracking-tight">CHESS<span class="text-blue-500">NIX</span></h1>
         </div>
-        <div id="user-info" class="flex items-center gap-4 bg-slate-900 px-4 py-2 rounded-full border border-slate-800">
+        <div id="user-info-bar" class="hidden flex items-center gap-4 bg-slate-900 px-4 py-2 rounded-full border border-slate-800">
             <span id="username-display" class="text-xs font-medium opacity-70">Detecting...</span>
             <button onclick="signOut()" class="text-xs font-bold text-red-400 hover:text-red-300">LOGOUT</button>
         </div>
@@ -78,15 +102,15 @@
         <div id="matchmaking-screen" class="hidden fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-md flex flex-col items-center justify-center">
             <div class="spinner mb-6"></div>
             <h2 id="matchmaking-status" class="text-2xl font-bold mb-2">Finding Opponent...</h2>
-            <p id="matchmaking-subtext" class="text-slate-400 mb-8 text-center px-6">Connecting to Supabase Realtime...</p>
+            <p id="matchmaking-subtext" class="text-slate-400 mb-8 text-center px-6">Establishing Realtime Connection...</p>
             <button onclick="cancelMatchmaking()" class="px-6 py-2 border border-slate-700 rounded-lg hover:bg-slate-800 transition">Cancel</button>
         </div>
 
         <!-- Lobby Area -->
-        <div id="lobby-container" class="w-full max-w-xl bg-slate-900 p-10 rounded-3xl border border-slate-800 shadow-2xl mt-10">
+        <div id="lobby-container" class="hidden w-full max-w-xl bg-slate-900 p-10 rounded-3xl border border-slate-800 shadow-2xl mt-10">
             <div class="text-center mb-10">
                 <h2 class="text-3xl font-black mb-2">Supabase Arena</h2>
-                <p class="text-slate-400">Instant matchmaking via Supabase Realtime.</p>
+                <p class="text-slate-400">FIDE Rules • 10-Minute Blitz • Instant Matchmaking</p>
             </div>
             
             <div class="grid gap-6">
@@ -94,20 +118,14 @@
                     <div class="flex items-center justify-between">
                         <div class="text-left">
                             <div class="text-xl">Quick Match</div>
-                            <div class="text-sm font-normal opacity-70">Join an open game instantly</div>
+                            <div class="text-sm font-normal opacity-70">Find random opponent</div>
                         </div>
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
                     </div>
                 </button>
 
-                <div class="flex items-center gap-4 my-2">
-                    <div class="h-px bg-slate-800 flex-grow"></div>
-                    <span class="text-xs font-bold text-slate-500">OR</span>
-                    <div class="h-px bg-slate-800 flex-grow"></div>
-                </div>
-
                 <div class="flex gap-3">
-                    <input type="text" id="room-input" placeholder="Room Name" class="flex-grow bg-slate-800 border border-slate-700 rounded-xl px-5 py-4 outline-none focus:ring-2 focus:ring-blue-500">
+                    <input type="text" id="room-input" placeholder="Custom Room ID" class="flex-grow bg-slate-800 border border-slate-700 rounded-xl px-5 py-4 outline-none focus:ring-2 focus:ring-blue-500">
                     <button onclick="joinRoom()" class="bg-slate-700 hover:bg-slate-600 px-8 rounded-xl font-bold transition">JOIN</button>
                 </div>
             </div>
@@ -116,12 +134,13 @@
         <!-- Game Area -->
         <div id="game-container" class="hidden w-full max-w-5xl flex flex-col lg:flex-row gap-10 mt-4">
             <div class="flex flex-col items-center flex-grow">
+                <!-- Opponent Info -->
                 <div class="w-full max-w-[520px] flex justify-between items-end mb-4">
                     <div class="flex items-center gap-3">
                         <div id="opp-avatar" class="w-10 h-10 bg-slate-800 rounded-lg flex items-center justify-center font-bold text-slate-400 border border-slate-700">?</div>
                         <div>
-                            <div id="opponent-name" class="font-bold text-sm italic text-slate-300">Opponent</div>
-                            <div id="opponent-status" class="text-[10px] text-green-500">ONLINE</div>
+                            <div id="opponent-name" class="font-bold text-sm italic text-slate-300">Waiting for opponent...</div>
+                            <div id="opponent-status" class="text-[10px] text-slate-500">OFFLINE</div>
                         </div>
                     </div>
                     <div id="black-timer" class="timer-box"><div id="b-time" class="text-2xl font-bold">10:00</div></div>
@@ -129,6 +148,7 @@
 
                 <div id="board" class="chessboard"></div>
 
+                <!-- Player Info -->
                 <div class="w-full max-w-[520px] flex justify-between items-start mt-4">
                     <div class="flex items-center gap-3">
                         <div class="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center font-bold text-white shadow-lg">YOU</div>
@@ -141,18 +161,18 @@
                 </div>
             </div>
 
+            <!-- History & Sidebar -->
             <div class="w-full lg:w-80 flex flex-col gap-4">
                 <div class="bg-slate-900 border border-slate-800 rounded-2xl flex-grow overflow-hidden flex flex-col shadow-xl min-h-[400px]">
                     <div class="p-4 border-b border-slate-800 flex justify-between items-center">
-                        <h3 class="text-xs font-black uppercase text-slate-500">Log</h3>
-                        <span id="turn-badge" class="px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded text-[10px] font-bold">WHITE'S TURN</span>
+                        <h3 class="text-xs font-black uppercase text-slate-500">FIDE Standard Log</h3>
+                        <span id="turn-badge" class="px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded text-[10px] font-bold">WAITING...</span>
                     </div>
                     <div id="move-history" class="p-4 grid grid-cols-2 gap-x-4 gap-y-1 text-sm font-mono h-64 overflow-y-auto content-start"></div>
+                    <div id="game-result-label" class="p-4 bg-slate-800 text-center text-xs font-bold text-blue-400 hidden"></div>
                 </div>
-                <div class="bg-slate-900 border border-slate-800 p-4 rounded-2xl">
-                    <div class="text-[10px] text-slate-500 uppercase font-bold mb-1">Room ID</div>
-                    <div id="room-display-id" class="text-xs text-slate-300 font-mono">...</div>
-                </div>
+                <button onclick="requestDraw()" class="bg-slate-800 hover:bg-slate-700 py-3 rounded-xl text-xs font-bold transition">OFFER DRAW</button>
+                <button onclick="resign()" class="bg-red-900/20 hover:bg-red-900/40 text-red-400 py-3 rounded-xl text-xs font-bold transition">RESIGN</button>
             </div>
         </div>
     </main>
@@ -167,7 +187,6 @@
         const SUPABASE_URL = "https://rnlwrngfgvznndlekmrz.supabase.co";
         const SUPABASE_KEY = "sb_publishable_mtI0_ZBvU_n5oRuqV58QHg_qJt3Gfyt";
         
-        // Use a global variable for the supabase instance to avoid SyntaxError 'supabase' already declared
         window.supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
         
         let game = new Chess();
@@ -179,21 +198,27 @@
         let blackTime = 600;
         let timerInterval = null;
         let gameSubscription = null;
+        let isPromotionPending = false;
 
         const pieceTheme = {
             w: { p: 'https://upload.wikimedia.org/wikipedia/commons/4/45/Chess_plt45.svg', r: 'https://upload.wikimedia.org/wikipedia/commons/7/72/Chess_rlt45.svg', n: 'https://upload.wikimedia.org/wikipedia/commons/7/70/Chess_nlt45.svg', b: 'https://upload.wikimedia.org/wikipedia/commons/b/b1/Chess_blt45.svg', q: 'https://upload.wikimedia.org/wikipedia/commons/1/15/Chess_qlt45.svg', k: 'https://upload.wikimedia.org/wikipedia/commons/4/42/Chess_klt45.svg' },
             b: { p: 'https://upload.wikimedia.org/wikipedia/commons/c/c7/Chess_pdt45.svg', r: 'https://upload.wikimedia.org/wikipedia/commons/f/ff/Chess_rdt45.svg', n: 'https://upload.wikimedia.org/wikipedia/commons/e/ef/Chess_ndt45.svg', b: 'https://upload.wikimedia.org/wikipedia/commons/9/8d/Chess_bdt45.svg', q: 'https://upload.wikimedia.org/wikipedia/commons/4/47/Chess_qdt45.svg', k: 'https://upload.wikimedia.org/wikipedia/commons/f/f0/Chess_kdt45.svg' }
         };
 
+        // --- AUTH CHECK ON START ---
         async function checkAuth() {
             const { data: { session } } = await window.supabaseClient.auth.getSession();
-            if (!session) { 
-                showToast("Please sign in first.");
-                return;
+            if (session) {
+                user = session.user;
+                document.getElementById('auth-overlay').classList.add('hidden');
+                document.getElementById('user-info-bar').classList.remove('hidden');
+                document.getElementById('lobby-container').classList.remove('hidden');
+                document.getElementById('username-display').innerText = user.email;
+                document.getElementById('my-name').innerText = user.email.split('@')[0];
+            } else {
+                // If no session, the overlay stays visible.
+                console.log("No active Supabase session.");
             }
-            user = session.user;
-            document.getElementById('username-display').innerText = user.email;
-            document.getElementById('my-name').innerText = user.email.split('@')[0];
         }
 
         async function signOut() {
@@ -211,7 +236,7 @@
             screen.classList.remove('hidden');
             
             try {
-                const { data: openGames, error } = await window.supabaseClient
+                const { data: openGames } = await window.supabaseClient
                     .from('games')
                     .select('*')
                     .is('player_black_id', null)
@@ -219,16 +244,15 @@
                     .limit(1);
 
                 if (openGames && openGames.length > 0) {
-                    const match = openGames[0];
                     playerColor = 'b';
-                    await joinExistingGame(match);
+                    await joinExistingGame(openGames[0]);
                 } else {
                     playerColor = 'w';
-                    await createNewGame("RANDOM_" + Math.random().toString(36).substr(2, 5).toUpperCase());
+                    await createNewGame("ARENA_" + Math.random().toString(36).substr(2, 5).toUpperCase());
                 }
             } catch (e) {
-                console.error(e);
                 cancelMatchmaking();
+                showToast("Connection Error");
             }
         }
 
@@ -236,8 +260,7 @@
             const roomId = document.getElementById('room-input').value.trim();
             if (!roomId) return;
             
-            const screen = document.getElementById('matchmaking-screen');
-            screen.classList.remove('hidden');
+            document.getElementById('matchmaking-screen').classList.remove('hidden');
 
             const { data: existing } = await window.supabaseClient
                 .from('games')
@@ -256,7 +279,7 @@
                     playerColor = 'b';
                     setupRealtime(existing.id);
                 } else {
-                    showToast("Room is full.");
+                    showToast("Room full.");
                     cancelMatchmaking();
                 }
             } else {
@@ -266,30 +289,19 @@
         }
 
         async function createNewGame(roomId) {
-            const { data, error } = await window.supabaseClient
+            const { data } = await window.supabaseClient
                 .from('games')
-                .insert([{ 
-                    room_id: roomId, 
-                    player_white_id: user.id, 
-                    player_white_email: user.email 
-                }])
-                .select()
-                .single();
-
+                .insert([{ room_id: roomId, player_white_id: user.id, player_white_email: user.email }])
+                .select().single();
             if (data) setupRealtime(data.id);
         }
 
         async function joinExistingGame(match) {
-            const { data, error } = await window.supabaseClient
+            const { data } = await window.supabaseClient
                 .from('games')
-                .update({ 
-                    player_black_id: user.id, 
-                    player_black_email: user.email 
-                })
+                .update({ player_black_id: user.id, player_black_email: user.email })
                 .eq('id', match.id)
-                .select()
-                .single();
-
+                .select().single();
             if (data) setupRealtime(data.id);
         }
 
@@ -298,16 +310,10 @@
 
             gameSubscription = window.supabaseClient
                 .channel(`game_${gameUuid}`)
-                .on('postgres_changes', { 
-                    event: 'UPDATE', 
-                    schema: 'public', 
-                    table: 'games', 
-                    filter: `id=eq.${gameUuid}` 
-                }, (payload) => {
-                    handleGameUpdate(payload.new);
-                })
-                .subscribe(async (status) => {
-                    if (status === 'SUBSCRIBED') {
+                .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'games', filter: `id=eq.${gameUuid}` }, 
+                (p) => handleGameUpdate(p.new))
+                .subscribe(async (s) => {
+                    if (s === 'SUBSCRIBED') {
                         const { data } = await window.supabaseClient.from('games').select('*').eq('id', gameUuid).single();
                         handleGameUpdate(data);
                     }
@@ -317,6 +323,7 @@
         function handleGameUpdate(data) {
             currentGame = data;
             
+            // Handle Logic Sync
             if (data.pgn !== game.pgn()) {
                 game.load_pgn(data.pgn);
                 const lastMove = game.history({verbose:true}).pop();
@@ -328,6 +335,7 @@
                 renderBoard();
             }
 
+            // Check if game starts (both players present)
             const oppEmail = playerColor === 'w' ? data.player_black_email : data.player_white_email;
             if (oppEmail) {
                 document.getElementById('matchmaking-screen').classList.add('hidden');
@@ -336,10 +344,13 @@
                 
                 document.getElementById('opponent-name').innerText = oppEmail.split('@')[0];
                 document.getElementById('opp-avatar').innerText = oppEmail[0].toUpperCase();
+                document.getElementById('opponent-status').innerText = "ONLINE";
+                document.getElementById('opponent-status').className = "text-[10px] text-green-500";
                 document.getElementById('room-display-id').innerText = data.room_id;
                 document.getElementById('my-color-label').innerText = playerColor === 'w' ? 'WHITE' : 'BLACK';
                 
-                if (!timerInterval) startTimer();
+                // Start FIDE Clock once opponent joins
+                if (!timerInterval && !game.game_over()) startTimer();
             }
             
             renderBoard();
@@ -350,6 +361,7 @@
             boardEl.innerHTML = '';
             const history = game.history({ verbose: true });
             const lastMove = history.length > 0 ? history[history.length - 1] : null;
+            const inCheck = game.in_check();
 
             const squares = playerColor === 'b' ? [...game.SQUARES].reverse() : game.SQUARES;
 
@@ -362,11 +374,17 @@
                 div.className = `square ${isDark ? 'dark' : 'light'}`;
                 if (selectedSquare === sq) div.classList.add('selected');
                 if (lastMove && (lastMove.from === sq || lastMove.to === sq)) div.classList.add('last-move');
+                
+                // Highlight King if in check
+                if (inCheck && piece && piece.type === 'k' && piece.color === game.turn() && sq === findKing(piece.color)) {
+                    div.classList.add('check');
+                }
 
                 if (piece) {
                     const img = document.createElement('img');
                     img.src = pieceTheme[piece.color][piece.type];
                     img.className = 'piece-img';
+                    img.draggable = false;
                     div.appendChild(img);
                 }
                 div.onclick = () => handleSquareClick(sq);
@@ -381,11 +399,19 @@
             if (game.game_over()) handleGameOver();
         }
 
+        function findKing(color) {
+            for (let i = 0; i < 64; i++) {
+                const sq = game.SQUARES[i];
+                const p = game.get(sq);
+                if (p && p.type === 'k' && p.color === color) return sq;
+            }
+        }
+
         function handleSquareClick(sq) {
             const isMyTurn = (game.turn() === playerColor);
             const bothPlayersJoined = (currentGame && currentGame.player_black_id);
 
-            if (!bothPlayersJoined || !isMyTurn || game.game_over()) return;
+            if (!bothPlayersJoined || !isMyTurn || game.game_over() || isPromotionPending) return;
 
             if (selectedSquare === null) {
                 const piece = game.get(sq);
@@ -394,6 +420,21 @@
                     renderBoard();
                 }
             } else {
+                // Check for promotion
+                const piece = game.get(selectedSquare);
+                const isPawn = piece && piece.type === 'p';
+                const isPromotionRank = (playerColor === 'w' && sq[1] === '8') || (playerColor === 'b' && sq[1] === '1');
+                
+                if (isPawn && isPromotionRank) {
+                    // Peek if move is valid
+                    const moves = game.moves({ square: selectedSquare, verbose: true });
+                    const isValidMove = moves.some(m => m.to === sq);
+                    if (isValidMove) {
+                        showPromotionModal(selectedSquare, sq);
+                        return;
+                    }
+                }
+
                 const move = game.move({ from: selectedSquare, to: sq, promotion: 'q' });
                 if (move) {
                     syncMoveToSupabase();
@@ -401,6 +442,32 @@
                 selectedSquare = null;
                 renderBoard();
             }
+        }
+
+        function showPromotionModal(from, to) {
+            isPromotionPending = true;
+            const modal = document.getElementById('promotion-modal');
+            const options = document.getElementById('promotion-options');
+            options.innerHTML = '';
+            modal.classList.remove('hidden');
+
+            ['q', 'r', 'b', 'n'].forEach(type => {
+                const btn = document.createElement('button');
+                btn.className = "p-4 bg-slate-800 hover:bg-slate-700 rounded-2xl transition border border-slate-700";
+                const img = document.createElement('img');
+                img.src = pieceTheme[playerColor][type];
+                img.className = "w-12 h-12";
+                btn.appendChild(img);
+                btn.onclick = () => {
+                    game.move({ from, to, promotion: type });
+                    syncMoveToSupabase();
+                    modal.classList.add('hidden');
+                    isPromotionPending = false;
+                    selectedSquare = null;
+                    renderBoard();
+                };
+                options.appendChild(btn);
+            });
         }
 
         async function syncMoveToSupabase() {
@@ -416,7 +483,7 @@
             el.innerHTML = '';
             for (let i = 0; i < history.length; i += 2) {
                 const num = Math.floor(i / 2) + 1;
-                el.innerHTML += `<div class="text-slate-500">${num}.</div><div>${history[i]} ${history[i+1] || ''}</div>`;
+                el.innerHTML += `<div class="text-slate-500">${num}.</div><div class="font-bold">${history[i]} <span class="text-slate-400 font-normal">${history[i+1] || ''}</span></div>`;
             }
             el.scrollTop = el.scrollHeight;
         }
@@ -432,19 +499,43 @@
 
         function updateTimerDisplay() {
             const format = (s) => `${Math.floor(s/60)}:${(s%60).toString().padStart(2, '0')}`;
-            document.getElementById('w-time').innerText = format(whiteTime);
-            document.getElementById('b-time').innerText = format(blackTime);
+            const wEl = document.getElementById('w-time');
+            const bEl = document.getElementById('b-time');
+            wEl.innerText = format(whiteTime);
+            bEl.innerText = format(blackTime);
+            
             document.getElementById('white-timer').classList.toggle('timer-active', game.turn() === 'w');
             document.getElementById('black-timer').classList.toggle('timer-active', game.turn() === 'b');
+            
+            document.getElementById('white-timer').classList.toggle('timer-low', whiteTime < 30);
+            document.getElementById('black-timer').classList.toggle('timer-low', blackTime < 30);
         }
 
         function handleGameOver(onTime = false) {
             clearInterval(timerInterval);
             let msg = "Game Over!";
-            if (onTime) msg = game.turn() === 'w' ? "Black wins on time!" : "White wins on time!";
-            else if (game.in_checkmate()) msg = `Checkmate! ${game.turn() === 'w' ? 'Black' : 'White'} Wins!`;
+            let sub = "";
+
+            if (onTime) {
+                msg = game.turn() === 'w' ? "Black wins on time!" : "White wins on time!";
+            } else if (game.in_checkmate()) {
+                msg = `Checkmate! ${game.turn() === 'w' ? 'Black' : 'White'} Wins!`;
+            } else if (game.in_draw()) {
+                msg = "Draw!";
+                if (game.in_stalemate()) sub = "Stalemate";
+                else if (game.in_threefold_repetition()) sub = "Threefold Repetition";
+                else if (game.insufficient_material()) sub = "Insufficient Material";
+                else sub = "50-move Rule";
+            }
+
+            const label = document.getElementById('game-result-label');
+            label.innerText = `${msg} ${sub ? '('+sub+')' : ''}`;
+            label.classList.remove('hidden');
             showToast(msg);
         }
+
+        function requestDraw() { showToast("Draw offer sent (Simulated)"); }
+        function resign() { handleGameOver(); }
 
         function cancelMatchmaking() {
             document.getElementById('matchmaking-screen').classList.add('hidden');
