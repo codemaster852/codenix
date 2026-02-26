@@ -98,7 +98,6 @@
     <div id="auth-overlay" class="fixed inset-0 z-[100] bg-slate-950 flex flex-col items-center justify-center p-6 text-center">
         <div class="w-16 h-16 bg-blue-600 rounded-2xl mb-4 flex items-center justify-center font-bold text-2xl shadow-xl shadow-blue-500/20">N</div>
         <h1 class="text-3xl font-black mb-2 tracking-tighter">ChessNix</h1>
-        <p class="text-slate-400 mb-6">Checking session...</p>
         <div class="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
     </div>
 
@@ -149,7 +148,6 @@
                     <div class="relative">
                         <div id="board" class="chessboard shadow-2xl shadow-black"></div>
                         
-                        <!-- Search Overlay -->
                         <div id="waiting-overlay" class="absolute inset-0 z-[50] flex flex-col items-center justify-center p-6 text-center rounded-lg">
                             <div class="w-20 h-20 mb-6 flex items-center justify-center relative">
                                 <div class="absolute inset-0 border-4 border-blue-500/20 rounded-full"></div>
@@ -157,11 +155,11 @@
                                 <svg class="w-8 h-8 text-blue-500 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
                             </div>
                             <h3 class="text-2xl font-black uppercase tracking-widest text-white mb-2">Seeking Opponent</h3>
-                            <p class="text-slate-400 text-sm mb-6 max-w-[240px]">The board will activate automatically once a player joins your room.</p>
+                            <p class="text-slate-400 text-sm mb-6 max-w-[240px]">Waiting for another player to join this room...</p>
                             <div class="bg-blue-500/10 px-6 py-2 rounded-full mb-8">
                                 <span id="match-room-display" class="text-xs text-blue-400 font-mono font-bold tracking-widest">ROOM: ...</span>
                             </div>
-                            <button onclick="location.reload()" class="px-8 py-3 bg-slate-800 hover:bg-red-900/40 text-slate-400 hover:text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all">Cancel Matchmaking</button>
+                            <button onclick="location.reload()" class="px-8 py-3 bg-slate-800 hover:bg-red-900/40 text-slate-400 hover:text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all">Cancel</button>
                         </div>
                     </div>
                 </div>
@@ -200,7 +198,6 @@
         </div>
     </main>
 
-    <!-- Global Sound Assets -->
     <audio id="snd-move" src="https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.mp3"></audio>
     <audio id="snd-capture" src="https://assets.mixkit.co/active_storage/sfx/2572/2572-preview.mp3"></audio>
     <audio id="snd-check" src="https://assets.mixkit.co/active_storage/sfx/1004/1004-preview.mp3"></audio>
@@ -238,26 +235,18 @@
 
         function playSound(id) {
             const el = document.getElementById(id);
-            if (el) { 
-                el.currentTime = 0; 
-                el.play().catch(e => console.warn("Audio interaction restricted.")); 
-            }
+            if (el) { el.currentTime = 0; el.play().catch(() => {}); }
         }
 
         function initEngine() {
-            const code = `
-                importScripts('https://cdnjs.cloudflare.com/ajax/libs/stockfish.js/10.0.2/stockfish.js');
-                self.onmessage = e => self.postMessage(e.data);
-            `;
+            const code = `importScripts('https://cdnjs.cloudflare.com/ajax/libs/stockfish.js/10.0.2/stockfish.js'); self.onmessage = e => self.postMessage(e.data);`;
             const blob = new Blob([code], { type: 'application/javascript' });
             try {
                 worker = new Worker(URL.createObjectURL(blob));
                 worker.onmessage = (e) => handleEngineMessage(e.data);
                 worker.postMessage('uci');
                 worker.postMessage('isready');
-            } catch(e) { 
-                document.getElementById('best-move').innerText = "Engine offline";
-            }
+            } catch(e) { document.getElementById('best-move').innerText = "Engine offline"; }
         }
 
         function handleEngineMessage(msg) {
@@ -277,46 +266,28 @@
 
         async function quickMatch() {
             const { data } = await sb.from('games').select('*').is('player_black_id', null).neq('player_white_id', user.id).limit(1).maybeSingle();
-            if (data) { 
-                playerColor = 'b'; 
-                join(data.id); 
-            } else { 
-                playerColor = 'w'; 
-                create("ROOM_" + Math.random().toString(36).substr(2,4).toUpperCase()); 
-            }
+            if (data) { playerColor = 'b'; join(data.id); } 
+            else { playerColor = 'w'; create("ROOM_" + Math.random().toString(36).substr(2,4).toUpperCase()); }
         }
 
         async function joinRoom() {
             const rid = document.getElementById('room-id').value.toUpperCase();
             if (!rid) return;
             const { data } = await sb.from('games').select('*').eq('room_id', rid).maybeSingle();
-            if (data) { 
-                playerColor = (data.player_white_id === user.id) ? 'w' : 'b'; 
-                join(data.id); 
-            } else { 
-                playerColor = 'w'; 
-                create(rid); 
-            }
+            if (data) { playerColor = (data.player_white_id === user.id) ? 'w' : 'b'; join(data.id); } 
+            else { playerColor = 'w'; create(rid); }
         }
 
         async function create(rid) {
-            const { data, error } = await sb.from('games').insert({
-                room_id: rid,
-                player_white_id: user.id,
-                player_white_email: user.email,
-                pgn: ""
-            }).select().single();
+            const { data, error } = await sb.from('games').insert({ room_id: rid, player_white_id: user.id, player_white_email: user.email, pgn: "" }).select().single();
             if (data) subscribe(data.id);
             else showToast("Failed to create match.");
         }
 
         async function join(gid) {
-            const { data, error } = await sb.from('games').update({
-                player_black_id: user.id,
-                player_black_email: user.email
-            }).eq('id', gid).select().single();
+            const { data, error } = await sb.from('games').update({ player_black_id: user.id, player_black_email: user.email }).eq('id', gid).select().single();
             if (data) subscribe(data.id);
-            else showToast("Room is full or unavailable.");
+            else showToast("Room full or closed.");
         }
 
         function subscribe(gid) {
@@ -332,10 +303,10 @@
         }
 
         function sync(data) {
-            const wasWaiting = !currentGame || !currentGame.player_black_email;
+            // Check if opponent just joined while we were waiting
+            const opponentJoined = !currentGame?.player_black_id && data.player_black_id;
             currentGame = data;
             
-            // Sync Game Logic
             if (data.pgn !== game.pgn()) {
                 game.load_pgn(data.pgn);
                 const history = game.history({verbose:true});
@@ -348,28 +319,25 @@
                 }
             }
             
-            // UI State Logic
-            if (data.player_black_email) {
-                // If we were waiting and someone just joined
-                if (wasWaiting) {
+            // Force show board if both players are present
+            if (data.player_black_id) {
+                if (opponentJoined) {
                     playSound('snd-join');
-                    document.getElementById('waiting-overlay').classList.add('hidden');
-                    showToast("Opponent Joined! Good Luck.");
+                    showToast("Opponent Connected!");
                 }
                 
                 document.getElementById('lobby').classList.add('hidden');
                 document.getElementById('game-view').classList.remove('hidden');
+                document.getElementById('waiting-overlay').classList.add('hidden');
                 
-                // Ensure overlay is hidden for the first player
-                const overlay = document.getElementById('waiting-overlay');
-                if(!overlay.classList.contains('hidden')) overlay.classList.add('hidden');
-
-                document.getElementById('opp-label').innerText = (playerColor === 'w' ? data.player_black_email : data.player_white_email).split('@')[0];
+                const whiteE = data.player_white_email?.split('@')[0] || 'Player 1';
+                const blackE = data.player_black_email?.split('@')[0] || 'Player 2';
+                document.getElementById('opp-label').innerText = playerColor === 'w' ? blackE : whiteE;
                 document.getElementById('color-label').innerText = playerColor === 'w' ? 'White' : 'Black';
                 
                 if (!clock && !game.game_over()) startClock();
             } else {
-                // Still waiting for player 2
+                // We are player 1, waiting for player 2
                 document.getElementById('lobby').classList.add('hidden');
                 document.getElementById('game-view').classList.remove('hidden');
                 document.getElementById('waiting-overlay').classList.remove('hidden');
@@ -377,8 +345,7 @@
             }
             
             render();
-            
-            if(worker && data.player_black_email) {
+            if(worker && data.player_black_id) {
                 worker.postMessage(`position fen ${game.fen()}`);
                 worker.postMessage('go depth 12');
             }
@@ -402,8 +369,7 @@
 
                 if (piece) {
                     const img = document.createElement('img');
-                    const pCode = piece.color + piece.type;
-                    img.src = `https://www.chess.com/chess-themes/pieces/neo/150/${pCode}.png`;
+                    img.src = `https://www.chess.com/chess-themes/pieces/neo/150/${piece.color}${piece.type}.png`;
                     img.className = `piece-img ${last?.to === sq ? 'moving' : ''}`;
                     div.appendChild(img);
                 }
@@ -417,39 +383,25 @@
         }
 
         function handleSquare(sq) {
-            if (game.turn() !== playerColor || !currentGame.player_black_id || game.game_over()) {
+            if (game.turn() !== playerColor || !currentGame?.player_black_id || game.game_over()) {
                 if (game.turn() !== playerColor && !game.game_over() && game.get(sq)) playSound('snd-invalid');
                 return;
             }
-            
             if (!selected) {
-                if (game.get(sq)?.color === playerColor) { 
-                    selected = sq; 
-                    render(); 
-                } else if (game.get(sq)) {
-                    playSound('snd-invalid');
-                }
+                if (game.get(sq)?.color === playerColor) { selected = sq; render(); }
             } else {
                 const move = game.move({ from: selected, to: sq, promotion: 'q' });
-                if (move) { 
-                    selected = null; 
-                    push(); 
-                } else { 
+                if (move) { selected = null; push(); } 
+                else { 
                     const p = game.get(sq);
-                    if (p && p.color === playerColor) {
-                        selected = sq; 
-                    } else {
-                        selected = null;
-                        playSound('snd-invalid');
-                    }
+                    if (p && p.color === playerColor) selected = sq; 
+                    else { selected = null; playSound('snd-invalid'); }
                     render(); 
                 }
             }
         }
 
-        async function push() {
-            await sb.from('games').update({ pgn: game.pgn() }).eq('id', currentGame.id);
-        }
+        async function push() { await sb.from('games').update({ pgn: game.pgn() }).eq('id', currentGame.id); }
 
         function startClock() {
             if (clock) clearInterval(clock);
@@ -461,10 +413,7 @@
         }
 
         function updateTimers() {
-            const fmt = (s) => {
-                if(s < 0) return "0:00";
-                return `${Math.floor(s/60)}:${(s%60).toString().padStart(2,'0')}`;
-            };
+            const fmt = (s) => `${Math.floor(Math.max(0, s)/60)}:${(Math.max(0, s)%60).toString().padStart(2,'0')}`;
             const w = document.getElementById('timer-w'), b = document.getElementById('timer-b');
             w.innerText = fmt(timers.w); b.innerText = fmt(timers.b);
             w.className = `timer ${game.turn()==='w'?'active':''} ${timers.w < 60 ? 'danger':''}`;
@@ -476,57 +425,16 @@
             const log = document.getElementById('move-log');
             log.innerHTML = '';
             for(let i=0; i<h.length; i+=2) {
-                log.innerHTML += `<div class='flex gap-2 items-center'><span class="text-[10px] text-slate-600 font-bold w-4">${Math.floor(i/2)+1}.</span> <span class='text-slate-200'>${h[i]}</span> <span class="text-slate-500">${h[i+1]||''}</span></div>`;
+                log.innerHTML += `<div class='flex gap-2 text-[11px]'><span class="text-slate-600 w-4 font-bold">${Math.floor(i/2)+1}.</span><span class='text-slate-200 w-10'>${h[i]}</span><span class="text-slate-400">${h[i+1]||''}</span></div>`;
             }
             log.scrollTop = log.scrollHeight;
             document.getElementById('turn-dot').className = `w-2 h-2 rounded-full animate-pulse ${game.turn() === 'w' ? 'bg-white' : 'bg-slate-700'}`;
         }
 
         function endMatch(timeout = false) {
-            clearInterval(clock);
-            playSound('snd-gameover');
-            let msg = timeout ? (timers.w <= 0 ? "Black wins on time!" : "White wins on time!") : "Match Draw";
-            if (game.in_checkmate()) msg = `Checkmate! ${game.turn()==='w'?'Black':'White'} wins!`;
-            
-            showModal(`
-                <div class='mb-4 flex justify-center'><div class='w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center font-black text-xl'>N</div></div>
-                <h2 class="text-2xl font-black mb-1">Match Over</h2>
-                <p class="text-slate-400 mb-8 text-sm">${msg}</p>
-                <div class='space-y-2'>
-                    <button onclick="location.reload()" class="w-full py-4 bg-blue-600 hover:bg-blue-500 rounded-2xl font-bold transition">START NEW GAME</button>
-                    <button onclick="closeModal()" class="w-full py-2 text-slate-500 font-bold text-xs">VIEW BOARD</button>
-                </div>
-            `);
-        }
-
-        function sendDrawOffer() {
-            sb.channel(`game_${currentGame.id}`).send({ type: 'broadcast', event: 'draw', payload: { from: user.id } });
-            showToast("Draw offer sent");
-        }
-
-        function showDrawOffer() {
-            showModal(`
-                <h2 class="text-xl font-black mb-2">Draw Offered</h2>
-                <p class="text-slate-400 mb-8 text-sm">Your opponent is offering a draw. Accept?</p>
-                <div class="flex gap-2">
-                    <button onclick="acceptDraw()" class="flex-grow bg-blue-600 py-3 rounded-xl font-bold">ACCEPT</button>
-                    <button onclick="closeModal()" class="flex-grow bg-slate-800 py-3 rounded-xl font-bold text-slate-400">DECLINE</button>
-                </div>
-            `);
-        }
-
-        function acceptDraw() {
-            closeModal();
-            endMatch();
-        }
-
-        function confirmResign() {
-            showModal(`
-                <h2 class="text-xl font-black mb-2 text-red-400">Resign?</h2>
-                <p class='text-slate-400 text-sm mb-8'>You will forfeit the game immediately.</p>
-                <button onclick="endMatch()" class="w-full bg-red-600 hover:bg-red-500 py-4 rounded-2xl font-bold mb-2 transition">FORFEIT MATCH</button>
-                <button onclick="closeModal()" class="w-full text-slate-500 font-bold py-2 text-xs">CANCEL</button>
-            `);
+            clearInterval(clock); playSound('snd-gameover');
+            let msg = timeout ? (timers.w <= 0 ? "Black wins on time!" : "White wins on time!") : (game.in_checkmate() ? `Checkmate! ${game.turn()==='w'?'Black':'White'} wins!` : "Draw!");
+            showModal(`<h2 class="text-2xl font-black mb-1">Match Over</h2><p class="text-slate-400 mb-8 text-sm">${msg}</p><button onclick="location.reload()" class="w-full py-4 bg-blue-600 rounded-2xl font-bold">NEW GAME</button>`);
         }
 
         function showModal(html) {
@@ -536,17 +444,13 @@
         }
 
         function closeModal() { document.getElementById('modal').classList.add('hidden'); }
-
         function showToast(txt) {
             const t = document.createElement('div');
             t.className = "fixed bottom-10 bg-slate-800 border border-blue-500/30 text-white px-8 py-3 rounded-2xl font-bold shadow-2xl z-[200] animate-bounce";
-            t.innerText = txt;
-            document.body.appendChild(t);
-            setTimeout(() => t.remove(), 3000);
+            t.innerText = txt; document.body.appendChild(t); setTimeout(() => t.remove(), 3000);
         }
 
         async function signOut() { await sb.auth.signOut(); location.reload(); }
-
         window.onload = init;
     </script>
 </body>
