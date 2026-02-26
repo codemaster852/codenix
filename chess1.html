@@ -69,6 +69,14 @@
         #waiting-overlay {
             background: rgba(15, 23, 42, 0.98);
             backdrop-filter: blur(16px);
+            transition: opacity 0.4s ease, visibility 0.4s;
+        }
+
+        #waiting-overlay.hidden {
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+            display: flex !important; /* Keep it flex but invisible for transition */
         }
     </style>
 </head>
@@ -163,6 +171,9 @@
         </div>
     </main>
 
+    <audio id="snd-move" src="https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.mp3"></audio>
+    <audio id="snd-join" src="https://assets.mixkit.co/active_storage/sfx/2305/2305-preview.mp3"></audio>
+
     <script>
         const SB_URL = "https://rnlwrngfgvznndlekmrz.supabase.co";
         const SB_KEY = "sb_publishable_mtI0_ZBvU_n5oRuqV58QHg_qJt3Gfyt";
@@ -179,18 +190,6 @@
                 document.getElementById('auth-overlay').classList.add('hidden');
                 document.getElementById('user-pill').classList.remove('hidden');
                 document.getElementById('user-email').innerText = user.email;
-
-                // Check if we are returning from a "waiting" reload
-                const savedGid = sessionStorage.getItem('chessnix_active_gid');
-                if (savedGid) {
-                    sessionStorage.removeItem('chessnix_active_gid');
-                    const { data } = await sb.from('games').select('*').eq('id', savedGid).single();
-                    if (data) {
-                        playerColor = (data.player_white_id === user.id) ? 'w' : 'b';
-                        subscribe(data.id);
-                        return;
-                    }
-                }
             } else {
                 document.getElementById('auth-overlay').innerHTML = `<p class='text-red-400'>Login required.</p>`;
             }
@@ -232,27 +231,36 @@
         }
 
         function sync(data) {
-            // RELOAD LOGIC: If we were waiting and player 2 joined, reload the page
-            if (!currentGame?.player_black_id && data.player_black_id && playerColor === 'w') {
-                sessionStorage.setItem('chessnix_active_gid', data.id);
-                location.reload(); // Hard reload the page
-                return;
-            }
-
+            // DETECT JOIN: If we were previously waiting (no player_black_id) and now we have one
+            const justJoined = !currentGame?.player_black_id && data.player_black_id;
+            
             currentGame = data;
-            if (data.pgn !== game.pgn()) game.load_pgn(data.pgn);
+            if (data.pgn !== game.pgn()) {
+                game.load_pgn(data.pgn);
+                if (data.pgn !== "") {
+                    const moveSnd = document.getElementById('snd-move');
+                    if(moveSnd) moveSnd.play().catch(() => {});
+                }
+            }
             
             if (data.player_black_id) {
+                // UI TRANSITION: Opponent found
                 document.getElementById('lobby').classList.add('hidden');
                 document.getElementById('game-view').classList.remove('hidden');
                 document.getElementById('waiting-overlay').classList.add('hidden');
                 
+                if (justJoined) {
+                    const joinSnd = document.getElementById('snd-join');
+                    if(joinSnd) joinSnd.play().catch(() => {});
+                }
+
                 const opp = playerColor === 'w' ? data.player_black_email : data.player_white_email;
-                document.getElementById('opp-label').innerText = opp.split('@')[0];
+                document.getElementById('opp-label').innerText = opp ? opp.split('@')[0] : "Opponent";
                 document.getElementById('color-label').innerText = playerColor === 'w' ? 'White' : 'Black';
                 
                 if (!clock && !game.game_over()) startClock();
             } else {
+                // WAITING STATE: Room created but lonely
                 document.getElementById('lobby').classList.add('hidden');
                 document.getElementById('game-view').classList.remove('hidden');
                 document.getElementById('waiting-overlay').classList.remove('hidden');
