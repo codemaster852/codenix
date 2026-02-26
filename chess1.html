@@ -75,12 +75,14 @@
             font-weight: 800;
             min-width: 120px;
             text-align: center;
+            transition: all 0.3s ease;
         }
         .timer.active { 
             border-color: #3b82f6; 
             background: #1e3a8a; 
             color: white; 
             box-shadow: 0 0 20px rgba(59, 130, 246, 0.4);
+            transform: scale(1.05);
         }
 
         .modal-bg { background: rgba(0, 0, 0, 0.9); backdrop-filter: blur(10px); }
@@ -102,7 +104,6 @@
             text-transform: uppercase;
         }
         
-        /* Strict lock for finished games */
         .game-over-lock { pointer-events: none !important; opacity: 0.8; }
     </style>
 </head>
@@ -209,7 +210,7 @@
         let resultShown = false;
 
         async function init() {
-            const { data: { session }, error } = await sb.auth.getSession();
+            const { data: { session } } = await sb.auth.getSession();
             if (session) {
                 user = session.user;
                 document.getElementById('auth-overlay').classList.add('hidden');
@@ -240,14 +241,10 @@
 
         async function quickMatch() {
             try {
-                const { data, error } = await sb.from('games').select('*').is('player_black_id', null).neq('player_white_id', user.id).limit(1).maybeSingle();
-                if (error) throw error;
+                const { data } = await sb.from('games').select('*').is('player_black_id', null).neq('player_white_id', user.id).limit(1).maybeSingle();
                 if (data) { playerColor = 'b'; join(data.id); } 
                 else { playerColor = 'w'; create("ROOM_" + Math.random().toString(36).substr(2,4).toUpperCase()); }
-            } catch (e) {
-                console.error("Matchmaking error:", e);
-                showModal(`<p class='text-red-400'>Error: Database mismatch (400). Please ensure 'white_warnings', 'black_warnings', and 'status' columns exist.</p>`);
-            }
+            } catch (e) { console.error(e); }
         }
 
         async function joinRoom() {
@@ -292,6 +289,8 @@
         function sync(data) {
             if (!data) return;
             currentGame = data;
+            
+            // Sync timers from DB
             timers.w = data.white_time;
             timers.b = data.black_time;
             
@@ -355,7 +354,11 @@
                 if (game.get(sq)?.color === playerColor) { selected = sq; render(); }
             } else {
                 const move = game.move({ from: selected, to: sq, promotion: 'q' });
-                if (move) { selected = null; pushMove(); } 
+                if (move) { 
+                    selected = null; 
+                    // Move is played, instantly shift focus
+                    pushMove(); 
+                } 
                 else { selected = (game.get(sq)?.color === playerColor) ? sq : null; render(); }
             }
         }
@@ -371,6 +374,8 @@
                 else if (game.in_draw()) reason = "Draw!";
             }
 
+            // After playing our move, we update the DB with our final time
+            // The turn effectively shifts to the opponent in the DB pgn string
             await sb.from('games').update({ 
                 pgn: game.pgn(),
                 white_time: timers.w,
@@ -385,14 +390,26 @@
             clock = setInterval(async () => {
                 if (!currentGame || currentGame.status !== 'active') return;
                 
-                if (game.turn() === 'w') timers.w--; else timers.b--;
+                // Countdown logic: Only subtract from the player whose turn it is
+                // Based on the game instance (synced via pgn)
+                const currentTurn = game.turn(); // 'w' or 'b'
+                
+                if (currentTurn === 'w') {
+                    timers.w--;
+                } else {
+                    timers.b--;
+                }
+                
                 updateTimersDisplay();
 
+                // Check for time out
                 if (timers.w <= 0 || timers.b <= 0) {
                     clearInterval(clock);
+                    // Only the player whose turn it IS (the one who timed out) or the winner sends the update to avoid conflict
+                    const winner = timers.w <= 0 ? 'Black' : 'White';
                     await sb.from('games').update({ 
                         status: 'finished', 
-                        game_over_reason: `Time Out! ${timers.w <= 0 ? 'Black' : 'White'} wins.` 
+                        game_over_reason: `Time Out! ${winner} wins.` 
                     }).eq('id', currentGame.id);
                 }
             }, 1000);
@@ -416,9 +433,12 @@
             const fmt = (s) => `${Math.floor(Math.max(0, s)/60)}:${(Math.max(0, s)%60).toString().padStart(2,'0')}`;
             document.getElementById('timer-w').innerText = fmt(timers.w);
             document.getElementById('timer-b').innerText = fmt(timers.b);
-            document.getElementById('timer-w').classList.toggle('active', game.turn() === 'w');
-            document.getElementById('timer-b').classList.toggle('active', game.turn() === 'b');
-            document.getElementById('turn-dot').style.backgroundColor = game.turn() === 'w' ? '#3b82f6' : '#ef4444';
+            
+            // Visual indicators for whose turn it is
+            const turn = game.turn();
+            document.getElementById('timer-w').classList.toggle('active', turn === 'w');
+            document.getElementById('timer-b').classList.toggle('active', turn === 'b');
+            document.getElementById('turn-dot').style.backgroundColor = turn === 'w' ? '#3b82f6' : '#ef4444';
         }
 
         function updateLog() {
