@@ -290,7 +290,6 @@
             if (!data) return;
             currentGame = data;
             
-            // Sync timers from DB
             timers.w = data.white_time;
             timers.b = data.black_time;
             
@@ -356,7 +355,6 @@
                 const move = game.move({ from: selected, to: sq, promotion: 'q' });
                 if (move) { 
                     selected = null; 
-                    // Move is played, instantly shift focus
                     pushMove(); 
                 } 
                 else { selected = (game.get(sq)?.color === playerColor) ? sq : null; render(); }
@@ -374,8 +372,6 @@
                 else if (game.in_draw()) reason = "Draw!";
             }
 
-            // After playing our move, we update the DB with our final time
-            // The turn effectively shifts to the opponent in the DB pgn string
             await sb.from('games').update({ 
                 pgn: game.pgn(),
                 white_time: timers.w,
@@ -390,9 +386,7 @@
             clock = setInterval(async () => {
                 if (!currentGame || currentGame.status !== 'active') return;
                 
-                // Countdown logic: Only subtract from the player whose turn it is
-                // Based on the game instance (synced via pgn)
-                const currentTurn = game.turn(); // 'w' or 'b'
+                const currentTurn = game.turn(); 
                 
                 if (currentTurn === 'w') {
                     timers.w--;
@@ -402,10 +396,8 @@
                 
                 updateTimersDisplay();
 
-                // Check for time out
                 if (timers.w <= 0 || timers.b <= 0) {
                     clearInterval(clock);
-                    // Only the player whose turn it IS (the one who timed out) or the winner sends the update to avoid conflict
                     const winner = timers.w <= 0 ? 'Black' : 'White';
                     await sb.from('games').update({ 
                         status: 'finished', 
@@ -434,7 +426,6 @@
             document.getElementById('timer-w').innerText = fmt(timers.w);
             document.getElementById('timer-b').innerText = fmt(timers.b);
             
-            // Visual indicators for whose turn it is
             const turn = game.turn();
             document.getElementById('timer-w').classList.toggle('active', turn === 'w');
             document.getElementById('timer-b').classList.toggle('active', turn === 'b');
