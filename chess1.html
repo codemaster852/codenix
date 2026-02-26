@@ -33,13 +33,6 @@
         .square.dark { background-color: #8ca2ad; }
         .square.selected { background-color: #bbc949 !important; }
         .square.last-move { background-color: rgba(247, 247, 105, 0.6) !important; }
-        .square.valid-move::after {
-            content: '';
-            width: 20%;
-            height: 20%;
-            background: rgba(0,0,0,0.1);
-            border-radius: 50%;
-        }
         
         .piece-img { 
             width: 85%; 
@@ -63,7 +56,6 @@
             box-shadow: 0 0 20px rgba(59, 130, 246, 0.3);
         }
 
-        /* Loading Spinner */
         .spinner {
             border: 4px solid rgba(255, 255, 255, 0.1);
             width: 36px;
@@ -80,15 +72,14 @@
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col items-center">
 
-    <!-- Header -->
     <header class="w-full max-w-5xl flex justify-between items-center p-6">
         <div class="flex items-center gap-2">
             <div class="w-8 h-8 bg-blue-600 rounded flex items-center justify-center font-bold">N</div>
             <h1 class="text-2xl font-extrabold tracking-tight">CHESS<span class="text-blue-500">NIX</span></h1>
         </div>
         <div id="user-info" class="flex items-center gap-4 bg-slate-900 px-4 py-2 rounded-full border border-slate-800">
-            <span id="username-display" class="text-xs font-medium opacity-70">Detecting user...</span>
-            <button onclick="signOut()" class="text-xs font-bold text-red-400 hover:text-red-300 transition">LOGOUT</button>
+            <span id="username-display" class="text-xs font-medium opacity-70">Detecting...</span>
+            <button onclick="signOut()" class="text-xs font-bold text-red-400 hover:text-red-300">LOGOUT</button>
         </div>
     </header>
 
@@ -97,39 +88,37 @@
         <!-- Matchmaking Overlay -->
         <div id="matchmaking-screen" class="hidden fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-md flex flex-col items-center justify-center">
             <div class="spinner mb-6"></div>
-            <h2 class="text-2xl font-bold mb-2">Finding Opponent...</h2>
-            <p class="text-slate-400 mb-8">Checking Google Sheets for open games</p>
+            <h2 id="matchmaking-status" class="text-2xl font-bold mb-2">Finding Opponent...</h2>
+            <p class="text-slate-400 mb-8">Synchronizing with Google Sheets</p>
             <button onclick="cancelMatchmaking()" class="px-6 py-2 border border-slate-700 rounded-lg hover:bg-slate-800 transition">Cancel</button>
         </div>
 
         <!-- Lobby Area -->
         <div id="lobby-container" class="w-full max-w-xl bg-slate-900 p-10 rounded-3xl border border-slate-800 shadow-2xl mt-10">
             <div class="text-center mb-10">
-                <h2 class="text-3xl font-black mb-2">Ready for Battle?</h2>
-                <p class="text-slate-400">Join thousands of players in real-time chess.</p>
+                <h2 class="text-3xl font-black mb-2">Multiplayer Lobby</h2>
+                <p class="text-slate-400">Join a random room or create a private one.</p>
             </div>
             
             <div class="grid gap-6">
-                <button onclick="startMatchmaking()" class="group relative overflow-hidden bg-blue-600 hover:bg-blue-500 p-6 rounded-2xl font-bold transition-all shadow-lg hover:-translate-y-1">
+                <button onclick="startMatchmaking()" class="group bg-blue-600 hover:bg-blue-500 p-6 rounded-2xl font-bold transition-all shadow-lg hover:-translate-y-1">
                     <div class="flex items-center justify-between">
                         <div class="text-left">
-                            <div class="text-xl">Quick Play</div>
-                            <div class="text-sm font-normal opacity-70">Random matchmaking (10 min)</div>
+                            <div class="text-xl">Quick Match</div>
+                            <div class="text-sm font-normal opacity-70">Finds an open game automatically</div>
                         </div>
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 opacity-50 group-hover:opacity-100 transition" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-                        </svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
                     </div>
                 </button>
 
                 <div class="flex items-center gap-4 my-2">
                     <div class="h-px bg-slate-800 flex-grow"></div>
-                    <span class="text-xs font-bold text-slate-500">PRIVATE ROOMS</span>
+                    <span class="text-xs font-bold text-slate-500">OR</span>
                     <div class="h-px bg-slate-800 flex-grow"></div>
                 </div>
 
                 <div class="flex gap-3">
-                    <input type="text" id="room-input" placeholder="Room ID (e.g. dragon-sky)" class="flex-grow bg-slate-800 border border-slate-700 rounded-xl px-5 py-4 outline-none focus:ring-2 focus:ring-blue-500 transition">
+                    <input type="text" id="room-input" placeholder="Custom Room Name" class="flex-grow bg-slate-800 border border-slate-700 rounded-xl px-5 py-4 outline-none focus:ring-2 focus:ring-blue-500">
                     <button onclick="joinRoom()" class="bg-slate-700 hover:bg-slate-600 px-8 rounded-xl font-bold transition">JOIN</button>
                 </div>
             </div>
@@ -137,17 +126,13 @@
 
         <!-- Game Area -->
         <div id="game-container" class="hidden w-full max-w-5xl flex flex-col lg:flex-row gap-10 mt-4">
-            
-            <!-- Left Side: Board & Info -->
             <div class="flex flex-col items-center flex-grow">
                 <div class="w-full max-w-[520px] flex justify-between items-end mb-4">
                     <div class="flex items-center gap-3">
                         <div id="opp-avatar" class="w-10 h-10 bg-slate-800 rounded-lg flex items-center justify-center font-bold text-slate-400 border border-slate-700">?</div>
                         <div>
-                            <div id="opponent-name" class="font-bold text-sm">Opponent</div>
-                            <div id="opponent-status" class="text-[10px] text-green-500 flex items-center gap-1">
-                                <span class="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></span> ONLINE
-                            </div>
+                            <div id="opponent-name" class="font-bold text-sm italic">Waiting for opponent...</div>
+                            <div id="opponent-status" class="text-[10px] text-slate-500 flex items-center gap-1">OFFLINE</div>
                         </div>
                     </div>
                     <div id="black-timer" class="timer-box">
@@ -161,7 +146,7 @@
                     <div class="flex items-center gap-3">
                         <div class="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center font-bold text-white shadow-lg">YOU</div>
                         <div>
-                            <div id="my-name" class="font-bold text-sm italic text-blue-400">Loading...</div>
+                            <div id="my-name" class="font-bold text-sm text-blue-400">Detecting...</div>
                             <div class="text-[10px] text-slate-500">PLAYING AS <span id="my-color-label">WHITE</span></div>
                         </div>
                     </div>
@@ -171,30 +156,24 @@
                 </div>
             </div>
 
-            <!-- Right Side: Moves & Chat -->
             <div class="w-full lg:w-80 flex flex-col gap-4">
-                <div class="bg-slate-900 border border-slate-800 rounded-2xl flex-grow overflow-hidden flex flex-col shadow-xl">
+                <div class="bg-slate-900 border border-slate-800 rounded-2xl flex-grow overflow-hidden flex flex-col shadow-xl min-h-[400px]">
                     <div class="p-4 border-b border-slate-800 bg-slate-900/50 flex justify-between items-center">
-                        <h3 class="text-xs font-black uppercase tracking-widest text-slate-500">Move History</h3>
+                        <h3 class="text-xs font-black uppercase tracking-widest text-slate-500">Moves</h3>
                         <span id="turn-badge" class="px-2 py-0.5 bg-green-500/20 text-green-400 rounded text-[10px] font-bold">WHITE'S TURN</span>
                     </div>
-                    <div id="move-history" class="p-4 grid grid-cols-2 gap-x-4 gap-y-1 text-sm font-mono h-64 overflow-y-auto content-start">
-                        <!-- Moves go here -->
-                    </div>
+                    <div id="move-history" class="p-4 grid grid-cols-2 gap-x-4 gap-y-1 text-sm font-mono h-64 overflow-y-auto content-start"></div>
                 </div>
-                
-                <div class="bg-slate-900 border border-slate-800 p-4 rounded-2xl flex items-center justify-between">
-                    <div class="text-xs text-slate-500">ROOM ID: <span id="room-display-id" class="text-slate-300 font-bold">...</span></div>
-                    <button onclick="location.reload()" class="text-[10px] font-bold text-slate-500 hover:text-white transition">RESIGN</button>
+                <div class="bg-slate-900 border border-slate-800 p-4 rounded-2xl">
+                    <div class="text-[10px] text-slate-500 uppercase font-bold mb-1">Game ID</div>
+                    <div id="room-display-id" class="text-xs text-slate-300 font-mono break-all">...</div>
                 </div>
             </div>
         </div>
     </main>
 
-    <!-- UI Overlays -->
     <div id="status-msg" class="fixed bottom-10 left-1/2 -translate-x-1/2 bg-blue-600 text-white px-8 py-3 rounded-2xl shadow-2xl font-bold z-[100] hidden"></div>
 
-    <!-- Audio -->
     <audio id="sound-move" src="https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.mp3" preload="auto"></audio>
     <audio id="sound-capture" src="https://assets.mixkit.co/active_storage/sfx/2572/2572-preview.mp3" preload="auto"></audio>
     <audio id="sound-check" src="https://assets.mixkit.co/active_storage/sfx/2573/2573-preview.mp3" preload="auto"></audio>
@@ -207,25 +186,21 @@
         let user = null;
         let currentGameId = null;
         let playerColor = 'w'; 
-        let lastMoveString = "";
         let selectedSquare = null;
         let whiteTime = 600;
         let blackTime = 600;
         let timerInterval = null;
         let pollingInterval = null;
 
-        // Piece Assets (Professional SVGs)
         const pieceTheme = {
             w: { p: 'https://upload.wikimedia.org/wikipedia/commons/4/45/Chess_plt45.svg', r: 'https://upload.wikimedia.org/wikipedia/commons/7/72/Chess_rlt45.svg', n: 'https://upload.wikimedia.org/wikipedia/commons/7/70/Chess_nlt45.svg', b: 'https://upload.wikimedia.org/wikipedia/commons/b/b1/Chess_blt45.svg', q: 'https://upload.wikimedia.org/wikipedia/commons/1/15/Chess_qlt45.svg', k: 'https://upload.wikimedia.org/wikipedia/commons/4/42/Chess_klt45.svg' },
             b: { p: 'https://upload.wikimedia.org/wikipedia/commons/c/c7/Chess_pdt45.svg', r: 'https://upload.wikimedia.org/wikipedia/commons/f/ff/Chess_rdt45.svg', n: 'https://upload.wikimedia.org/wikipedia/commons/e/ef/Chess_ndt45.svg', b: 'https://upload.wikimedia.org/wikipedia/commons/9/8d/Chess_bdt45.svg', q: 'https://upload.wikimedia.org/wikipedia/commons/4/47/Chess_qdt45.svg', k: 'https://upload.wikimedia.org/wikipedia/commons/f/f0/Chess_kdt45.svg' }
         };
 
         function initSupabase() {
-            const SUPABASE_URL = "https://rnlwrngfgvznndlekmrz.supabase.co";
-            const SUPABASE_KEY = "sb_publishable_mtI0_ZBvU_n5oRuqV58QHg_qJt3Gfyt";
-            if (typeof window.supabase !== 'undefined') {
-                client = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-            }
+            const URL = "https://rnlwrngfgvznndlekmrz.supabase.co";
+            const KEY = "sb_publishable_mtI0_ZBvU_n5oRuqV58QHg_qJt3Gfyt";
+            if (typeof window.supabase !== 'undefined') client = window.supabase.createClient(URL, KEY);
         }
 
         async function checkAuth() {
@@ -243,36 +218,35 @@
 
         function playSound(type) {
             const el = document.getElementById(`sound-${type}`);
-            if (el) { el.currentTime = 0; el.play(); }
+            if (el) { el.currentTime = 0; el.play().catch(()=>{}); }
         }
 
-        // --- MATCHMAKING LOGIC ---
         async function startMatchmaking() {
-            document.getElementById('matchmaking-screen').classList.remove('hidden');
+            const screen = document.getElementById('matchmaking-screen');
+            const statusText = document.getElementById('matchmaking-status');
+            screen.classList.remove('hidden');
             
             try {
-                // 1. Fetch all games from sheet to find an open one
                 const resp = await fetch(SCRIPT_URL);
                 const games = await resp.json();
                 
-                let foundGame = Array.isArray(games) ? games.find(g => g.player2 === "WAITING") : null;
+                let openSlot = Array.isArray(games) ? games.find(g => g.player2 === "WAITING" || !g.player2) : null;
                 
-                if (foundGame) {
-                    // 2. Join as Player 2
-                    currentGameId = foundGame.gameId;
+                if (openSlot) {
+                    statusText.innerText = "Joining existing game...";
+                    currentGameId = openSlot.gameId;
                     playerColor = 'b';
-                    await syncToSheet(currentGameId, foundGame.player1, user.email, "");
+                    await syncToSheet(currentGameId, openSlot.player1, user.email, openSlot.moves || "");
                     completeJoin();
                 } else {
-                    // 3. Create new game as Player 1
-                    currentGameId = "game_" + Math.random().toString(36).substr(2, 9);
+                    statusText.innerText = "Creating new game slot...";
+                    currentGameId = "NIX_" + Math.random().toString(36).substr(2, 6).toUpperCase();
                     playerColor = 'w';
                     await syncToSheet(currentGameId, user.email, "WAITING", "");
                     completeJoin();
                 }
             } catch (e) {
-                console.error("Matchmaking error", e);
-                showToast("Connection Error. Try again.");
+                showToast("Network Error. Retrying...");
                 cancelMatchmaking();
             }
         }
@@ -290,51 +264,50 @@
             
             renderBoard();
             startTimer();
-            pollingInterval = setInterval(pollDatabase, 2000);
+            if (pollingInterval) clearInterval(pollingInterval);
+            pollingInterval = setInterval(pollDatabase, 2500);
         }
 
-        function joinRoom() {
+        async function joinRoom() {
             const id = document.getElementById('room-input').value;
             if (!id) return;
             currentGameId = id;
-            playerColor = 'w'; // Default for room creator
+            playerColor = 'w';
+            // Pre-create the room in the sheet
+            await syncToSheet(currentGameId, user.email, "WAITING", "");
             completeJoin();
         }
 
-        // --- GAME CORE ---
         function renderBoard() {
             const boardEl = document.getElementById('board');
             boardEl.innerHTML = '';
             const history = game.history({ verbose: true });
             const lastMove = history.length > 0 ? history[history.length - 1] : null;
 
-            // Flip board for black
             const squares = playerColor === 'b' ? [...game.SQUARES].reverse() : game.SQUARES;
 
-            squares.forEach((squareName) => {
-                const piece = game.get(squareName);
-                const squareDiv = document.createElement('div');
-                const i = game.SQUARES.indexOf(squareName);
-                const isDark = (Math.floor(i / 8) + (i % 8)) % 2 !== 0;
+            squares.forEach((sq) => {
+                const piece = game.get(sq);
+                const div = document.createElement('div');
+                const idx = game.SQUARES.indexOf(sq);
+                const isDark = (Math.floor(idx / 8) + (idx % 8)) % 2 !== 0;
                 
-                squareDiv.className = `square ${isDark ? 'dark' : 'light'}`;
-                if (selectedSquare === squareName) squareDiv.classList.add('selected');
-                if (lastMove && (lastMove.from === squareName || lastMove.to === squareName)) {
-                    squareDiv.classList.add('last-move');
+                div.className = `square ${isDark ? 'dark' : 'light'}`;
+                if (selectedSquare === sq) div.classList.add('selected');
+                if (lastMove && (lastMove.from === sq || lastMove.to === sq)) {
+                    div.classList.add('last-move');
                 }
 
                 if (piece) {
                     const img = document.createElement('img');
                     img.src = pieceTheme[piece.color][piece.type];
                     img.className = 'piece-img';
-                    squareDiv.appendChild(img);
+                    div.appendChild(img);
                 }
-
-                squareDiv.onclick = () => handleSquareClick(squareName);
-                boardEl.appendChild(squareDiv);
+                div.onclick = () => handleSquareClick(sq);
+                boardEl.appendChild(div);
             });
 
-            // Update UI State
             const turn = game.turn() === 'w' ? 'WHITE' : 'BLACK';
             const badge = document.getElementById('turn-badge');
             badge.innerText = `${turn}'S TURN`;
@@ -342,7 +315,6 @@
             
             updateMoveHistory();
             updateTimerDisplay();
-
             if (game.game_over()) handleGameOver();
         }
 
@@ -351,28 +323,27 @@
             const el = document.getElementById('move-history');
             el.innerHTML = '';
             for (let i = 0; i < history.length; i += 2) {
-                const moveNum = Math.floor(i / 2) + 1;
-                el.innerHTML += `<div class="text-slate-500">${moveNum}.</div><div class="flex gap-4"><span>${history[i]}</span><span class="text-slate-300">${history[i+1] || ''}</span></div>`;
+                const num = Math.floor(i / 2) + 1;
+                el.innerHTML += `<div class="text-slate-500">${num}.</div><div class="flex gap-4"><span>${history[i]}</span><span class="text-slate-300">${history[i+1] || ''}</span></div>`;
             }
             el.scrollTop = el.scrollHeight;
         }
 
-        function handleSquareClick(square) {
+        function handleSquareClick(sq) {
             if (game.turn() !== playerColor || game.game_over()) return;
 
             if (selectedSquare === null) {
-                const piece = game.get(square);
+                const piece = game.get(sq);
                 if (piece && piece.color === playerColor) {
-                    selectedSquare = square;
+                    selectedSquare = sq;
                     renderBoard();
                 }
             } else {
-                const move = game.move({ from: selectedSquare, to: square, promotion: 'q' });
+                const move = game.move({ from: selectedSquare, to: sq, promotion: 'q' });
                 if (move) {
                     if (move.captured) playSound('capture');
                     else if (game.in_check()) playSound('check');
                     else playSound('move');
-                    
                     syncMoveToSheet();
                 }
                 selectedSquare = null;
@@ -381,39 +352,41 @@
         }
 
         async function syncMoveToSheet() {
-            const moves = game.pgn();
-            await syncToSheet(currentGameId, null, null, moves);
+            await syncToSheet(currentGameId, null, null, game.pgn());
         }
 
-        async function syncToSheet(gid, p1, p2, moves) {
+        async function syncToSheet(gid, p1, p2, pgn) {
             try {
                 await fetch(SCRIPT_URL, {
                     method: 'POST',
                     mode: 'no-cors',
-                    body: JSON.stringify({ gameId: gid, player1: p1, player2: p2, moves: moves })
+                    body: JSON.stringify({ gameId: gid, player1: p1, player2: p2, moves: pgn })
                 });
             } catch (e) {}
         }
 
         async function pollDatabase() {
-            if (!currentGameId || game.turn() === playerColor) return;
+            if (!currentGameId) return;
 
             try {
                 const response = await fetch(`${SCRIPT_URL}?gameId=${currentGameId}`);
                 const data = await response.json();
                 
-                if (data.moves && data.moves !== game.pgn()) {
-                    game.load_pgn(data.moves);
-                    playSound('move');
-                    renderBoard();
-                }
-
-                // Update opponent info
+                // Update opponent display
                 const opp = playerColor === 'w' ? data.player2 : data.player1;
                 if (opp && opp !== "WAITING") {
                     document.getElementById('opponent-name').innerText = opp.split('@')[0];
+                    document.getElementById('opponent-status').innerText = "ONLINE";
+                    document.getElementById('opponent-status').className = "text-[10px] text-green-500";
                     document.getElementById('opp-avatar').innerText = opp[0].toUpperCase();
                     document.getElementById('opp-avatar').className = "w-10 h-10 bg-slate-100 rounded-lg flex items-center justify-center font-bold text-slate-900";
+                }
+
+                // If opponent moved
+                if (game.turn() !== playerColor && data.moves && data.moves !== game.pgn()) {
+                    game.load_pgn(data.moves);
+                    playSound('move');
+                    renderBoard();
                 }
             } catch (e) {}
         }
@@ -450,7 +423,7 @@
             const el = document.getElementById('status-msg');
             el.innerText = msg;
             el.classList.remove('hidden');
-            setTimeout(() => el.classList.add('hidden'), 10000);
+            setTimeout(() => el.classList.add('hidden'), 8000);
         }
 
         window.onload = () => {
