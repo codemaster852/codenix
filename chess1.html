@@ -10,23 +10,40 @@
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800&display=swap" rel="stylesheet">
     
     <style>
-        :root { --sq-size: 60px; }
-        @media (max-width: 640px) { :root { --sq-size: 42px; } }
-
-        body { font-family: 'Plus Jakarta Sans', sans-serif; background: #020617; color: #f8fafc; overflow-x: hidden; }
+        :root { 
+            /* Larger board size for desktop */
+            --sq-size: 72px; 
+        }
         
+        @media (max-width: 768px) { :root { --sq-size: 55px; } }
+        @media (max-width: 480px) { :root { --sq-size: 42px; } }
+
+        body { 
+            font-family: 'Plus Jakarta Sans', sans-serif; 
+            background: #020617; 
+            color: #f8fafc; 
+            overflow-x: hidden;
+            background-image: radial-gradient(circle at 50% 50%, #1e293b 0%, #020617 100%);
+            background-attachment: fixed;
+        }
+        
+        .chessboard-container {
+            padding: 12px;
+            background: #1e293b;
+            border-radius: 12px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
         .chessboard {
             display: grid;
             grid-template-columns: repeat(8, var(--sq-size));
             grid-template-rows: repeat(8, var(--sq-size));
             width: calc(8 * var(--sq-size));
             height: calc(8 * var(--sq-size));
-            border: 8px solid #1e293b;
-            border-radius: 8px;
-            overflow: hidden;
-            background: #1e293b;
             user-select: none;
             position: relative;
+            background: #1e293b;
         }
 
         .square {
@@ -38,38 +55,58 @@
             position: relative;
             cursor: pointer;
         }
-        .square.light { background-color: #f0d9b5; }
-        .square.dark { background-color: #b58863; }
-        .square.selected { background-color: #f6ff00bb !important; }
-        .square.last-move { background-color: rgba(255, 255, 0, 0.3) !important; }
-        .square.check { background: radial-gradient(circle, #ef4444 0%, transparent 80%) !important; }
+        
+        .square.light { background-color: #f0d9b5; color: #b58863; }
+        .square.dark { background-color: #b58863; color: #f0d9b5; }
+        
+        /* Coordinate Labels */
+        .square::after {
+            position: absolute;
+            font-size: 10px;
+            font-weight: 800;
+            opacity: 0.5;
+            pointer-events: none;
+        }
+
+        .square.selected { background-color: #fcd34d !important; }
+        .square.last-move { background-color: rgba(252, 211, 77, 0.4) !important; }
 
         .piece-img {
             width: 90%;
             height: 90%;
             z-index: 10;
             pointer-events: none;
+            filter: drop-shadow(0 4px 4px rgba(0,0,0,0.2));
+            transition: transform 0.1s ease;
         }
         
         .timer {
             font-family: 'Monaco', 'Courier New', monospace;
-            padding: 8px 16px;
+            padding: 10px 20px;
             background: #0f172a;
             border: 2px solid #334155;
-            border-radius: 6px;
-            font-size: 1.25rem;
+            border-radius: 8px;
+            font-size: 1.5rem;
             font-weight: 800;
-            min-width: 100px;
+            min-width: 120px;
             text-align: center;
+            transition: all 0.3s ease;
         }
-        .timer.active { border-color: #3b82f6; background: #1e3a8a; color: white; box-shadow: 0 0 15px rgba(59, 130, 246, 0.3); }
+        .timer.active { 
+            border-color: #3b82f6; 
+            background: #1e3a8a; 
+            color: white; 
+            box-shadow: 0 0 20px rgba(59, 130, 246, 0.4);
+            transform: scale(1.05);
+        }
 
-        .modal-bg { background: rgba(0, 0, 0, 0.85); backdrop-filter: blur(4px); }
+        .modal-bg { background: rgba(0, 0, 0, 0.85); backdrop-filter: blur(8px); }
         
         #waiting-overlay {
-            background: rgba(15, 23, 42, 0.98);
-            backdrop-filter: blur(16px);
+            background: rgba(15, 23, 42, 0.95);
+            backdrop-filter: blur(12px);
             z-index: 60;
+            border-radius: 4px;
         }
 
         .hidden-el { display: none !important; }
@@ -89,81 +126,102 @@
         <div id="modal-body" class="bg-slate-900 border border-slate-700 p-8 rounded-3xl max-w-sm w-full text-center shadow-2xl"></div>
     </div>
 
-    <header class="w-full max-w-5xl flex justify-between items-center p-6">
+    <header class="w-full max-w-6xl flex justify-between items-center p-6">
         <div class="flex items-center gap-2">
-            <div class="w-8 h-8 bg-blue-600 rounded flex items-center justify-center font-bold">N</div>
-            <span class="font-black text-xl tracking-tighter">CHESSNIX</span>
+            <div class="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center font-bold text-xl">N</div>
+            <span class="font-black text-2xl tracking-tighter">CHESSNIX</span>
         </div>
-        <div id="user-pill" class="hidden flex items-center gap-4 bg-slate-900/50 px-4 py-2 rounded-full border border-white/5">
-            <span id="user-email" class="text-xs font-bold text-slate-400">...</span>
-            <button onclick="signOut()" class="text-[10px] text-red-400 font-black hover:text-red-300">LOGOUT</button>
+        <div id="user-pill" class="hidden flex items-center gap-4 bg-slate-900/80 backdrop-blur-md px-5 py-2 rounded-full border border-white/10">
+            <span id="user-email" class="text-sm font-bold text-slate-300">...</span>
+            <button onclick="signOut()" class="text-xs text-red-400 font-black hover:text-red-300 transition">LOGOUT</button>
         </div>
     </header>
 
-    <main class="flex flex-col lg:flex-row gap-10 items-center lg:items-start w-full max-w-6xl px-4">
+    <main class="flex flex-col items-center w-full max-w-7xl px-4 mt-4">
         
         <!-- Lobby State -->
-        <div id="lobby" class="w-full max-w-md mx-auto space-y-6 mt-10">
-            <div class="text-center space-y-2">
-                <h2 class="text-4xl font-black">Multiplayer</h2>
-                <p class="text-slate-500">Find an opponent to start playing.</p>
+        <div id="lobby" class="w-full max-w-md space-y-8 mt-12 bg-slate-900/50 p-10 rounded-3xl border border-white/5 backdrop-blur-sm">
+            <div class="text-center space-y-3">
+                <h2 class="text-5xl font-black tracking-tight">Arena</h2>
+                <p class="text-slate-400 text-lg">Challenge players worldwide.</p>
             </div>
-            <button onclick="quickMatch()" class="w-full py-6 bg-blue-600 hover:bg-blue-500 rounded-2xl font-black text-xl transition shadow-lg shadow-blue-500/20">FIND MATCH</button>
-            <div class="flex gap-2">
-                <input id="room-id" type="text" placeholder="Room Name" class="flex-grow bg-slate-900 border border-slate-700 rounded-xl px-4 outline-none focus:border-blue-500 transition">
-                <button onclick="joinRoom()" class="bg-slate-800 hover:bg-slate-700 px-8 rounded-xl font-bold">JOIN</button>
+            <button onclick="quickMatch()" class="w-full py-6 bg-blue-600 hover:bg-blue-500 rounded-2xl font-black text-2xl transition-all shadow-xl shadow-blue-600/30 hover:-translate-y-1">QUICK MATCH</button>
+            <div class="relative flex items-center gap-2">
+                <div class="flex-grow h-px bg-slate-800"></div>
+                <span class="text-[10px] font-black text-slate-600 tracking-widest uppercase">or private room</span>
+                <div class="flex-grow h-px bg-slate-800"></div>
+            </div>
+            <div class="flex gap-3">
+                <input id="room-id" type="text" placeholder="ROOM_CODE" class="flex-grow bg-slate-950 border border-slate-800 rounded-2xl px-6 text-center font-mono font-bold uppercase outline-none focus:border-blue-500 transition">
+                <button onclick="joinRoom()" class="bg-slate-800 hover:bg-slate-700 px-8 rounded-2xl font-bold transition">JOIN</button>
             </div>
         </div>
 
-        <!-- Game State (Hidden by default) -->
-        <div id="game-view" class="hidden w-full flex flex-col lg:flex-row gap-8 justify-center">
-            <div class="flex flex-col items-center">
-                <div class="w-full flex justify-between items-center mb-4">
-                    <div class="flex items-center gap-3">
-                        <div class="w-10 h-10 bg-slate-800 rounded-lg flex items-center justify-center font-black text-slate-500">?</div>
-                        <span id="opp-label" class="font-bold text-slate-400">Opponent</span>
+        <!-- Game State -->
+        <div id="game-view" class="hidden w-full flex flex-col xl:flex-row gap-12 justify-center items-start">
+            
+            <div class="flex flex-col items-center w-full xl:w-auto">
+                <!-- Opponent Info -->
+                <div class="w-full flex justify-between items-end mb-6 px-2">
+                    <div class="flex items-center gap-4">
+                        <div class="w-14 h-14 bg-slate-800 rounded-xl flex items-center justify-center font-black text-2xl text-slate-600 ring-2 ring-white/5">?</div>
+                        <div class="flex flex-col">
+                            <span id="opp-label" class="font-black text-xl text-slate-400 uppercase tracking-tight">Waiting...</span>
+                            <span class="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Opponent</span>
+                        </div>
                     </div>
                     <div id="timer-b" class="timer">10:00</div>
                 </div>
                 
-                <div class="relative">
-                    <div id="board" class="chessboard shadow-2xl shadow-black"></div>
-                    
-                    <!-- Search Overlay (Layered on top of board) -->
-                    <div id="waiting-overlay" class="absolute inset-0 flex flex-col items-center justify-center p-6 text-center rounded-lg">
-                        <div class="w-20 h-20 mb-6 flex items-center justify-center relative">
-                            <div class="absolute inset-0 border-4 border-blue-500/20 rounded-full"></div>
-                            <div class="absolute inset-0 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                <!-- Board -->
+                <div class="chessboard-container">
+                    <div class="relative">
+                        <div id="board" class="chessboard"></div>
+                        
+                        <!-- Search Overlay -->
+                        <div id="waiting-overlay" class="absolute inset-0 flex flex-col items-center justify-center p-8 text-center">
+                            <div class="w-24 h-24 mb-8 flex items-center justify-center relative">
+                                <div class="absolute inset-0 border-8 border-blue-500/10 rounded-full"></div>
+                                <div class="absolute inset-0 border-8 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                            </div>
+                            <h3 class="text-3xl font-black text-white mb-3 tracking-tighter">Matchmaking</h3>
+                            <div class="bg-blue-600/20 border border-blue-500/30 px-8 py-3 rounded-2xl mb-8">
+                                <span id="match-room-display" class="text-sm text-blue-400 font-mono font-bold tracking-widest">...</span>
+                            </div>
+                            <button onclick="location.reload()" class="px-10 py-4 bg-slate-800 hover:bg-red-600 text-slate-300 hover:text-white rounded-2xl text-xs font-black uppercase tracking-widest transition-all">Cancel Search</button>
                         </div>
-                        <h3 class="text-2xl font-black text-white mb-2">Seeking Opponent</h3>
-                        <div class="bg-blue-500/10 px-6 py-2 rounded-full mb-8">
-                            <span id="match-room-display" class="text-xs text-blue-400 font-mono font-bold">ROOM: ...</span>
-                        </div>
-                        <button onclick="location.reload()" class="px-8 py-3 bg-slate-800 hover:bg-red-900/40 text-slate-400 hover:text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all">Cancel</button>
                     </div>
                 </div>
 
-                <div class="w-full flex justify-between items-center mt-4">
-                    <div class="flex items-center gap-3">
-                        <div class="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center font-black text-white">U</div>
+                <!-- Player Info -->
+                <div class="w-full flex justify-between items-start mt-6 px-2">
+                    <div class="flex items-center gap-4">
+                        <div class="w-14 h-14 bg-blue-600 rounded-xl flex items-center justify-center font-black text-2xl text-white shadow-lg shadow-blue-600/20">U</div>
                         <div class="flex flex-col">
-                            <span id="my-label" class="font-bold text-blue-400">You</span>
-                            <span id="color-label" class="text-[10px] text-slate-500 font-black uppercase tracking-widest">White</span>
+                            <span id="my-label" class="font-black text-xl text-blue-400 uppercase tracking-tight">You</span>
+                            <span id="color-label" class="text-[10px] text-slate-500 font-bold uppercase tracking-wider">White</span>
                         </div>
                     </div>
                     <div id="timer-w" class="timer">10:00</div>
                 </div>
             </div>
 
-            <div class="w-full lg:w-72 space-y-4">
-                <div class="bg-slate-900 border border-white/5 rounded-2xl p-5 h-72 flex flex-col shadow-xl">
-                    <div class="flex justify-between items-center mb-3">
-                        <span class="text-[10px] font-black text-slate-500 uppercase">Live Moves</span>
-                        <div id="turn-dot" class="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></div>
+            <!-- Sidebar -->
+            <div class="w-full xl:w-80 space-y-6">
+                <div class="bg-slate-900/80 backdrop-blur-md border border-white/5 rounded-3xl p-6 h-[400px] flex flex-col shadow-2xl">
+                    <div class="flex justify-between items-center mb-5">
+                        <div class="flex items-center gap-2">
+                            <div id="turn-dot" class="w-3 h-3 rounded-full bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.8)]"></div>
+                            <span class="text-xs font-black text-slate-300 uppercase tracking-widest">Move History</span>
+                        </div>
+                        <span id="game-status" class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Live</span>
                     </div>
-                    <div id="move-log" class="overflow-y-auto flex-grow text-sm font-mono space-y-1 pr-2"></div>
+                    <div id="move-log" class="overflow-y-auto flex-grow text-sm font-mono space-y-2 pr-2 scrollbar-hide"></div>
                 </div>
-                <button onclick="confirmResign()" class="w-full py-3 bg-red-900/20 hover:bg-red-900/40 text-red-400 rounded-xl text-[10px] font-black tracking-widest transition">RESIGN</button>
+                
+                <div class="flex gap-3">
+                    <button onclick="confirmResign()" class="flex-1 py-4 bg-slate-800/50 hover:bg-red-950/40 text-red-400 hover:text-red-200 border border-red-500/10 rounded-2xl text-xs font-black tracking-widest transition-all">RESIGN</button>
+                </div>
             </div>
         </div>
     </main>
@@ -186,66 +244,54 @@
                 user = session.user;
                 document.getElementById('auth-overlay').classList.add('hidden');
                 document.getElementById('user-pill').classList.remove('hidden');
-                document.getElementById('user-email').innerText = user.email;
+                document.getElementById('user-email').innerText = user.email.split('@')[0];
             } else {
-                document.getElementById('auth-overlay').innerHTML = `<div class="bg-slate-900 p-8 rounded-2xl border border-slate-700">
-                    <p class='text-red-400 mb-4'>Login Required</p>
-                    <a href="auth.html" class="bg-blue-600 px-6 py-2 rounded-lg font-bold">Go to Login</a>
+                document.getElementById('auth-overlay').innerHTML = `
+                <div class="bg-slate-900 p-10 rounded-3xl border border-slate-800 shadow-2xl">
+                    <h2 class="text-2xl font-black mb-6">Welcome to ChessNix</h2>
+                    <a href="auth.html" class="block bg-blue-600 hover:bg-blue-500 px-8 py-4 rounded-2xl font-black transition-all shadow-lg shadow-blue-600/30">LOG IN TO PLAY</a>
                 </div>`;
             }
         }
 
         async function quickMatch() {
             const { data } = await sb.from('games').select('*').is('player_black_id', null).neq('player_white_id', user.id).limit(1).maybeSingle();
-            if (data) { 
-                playerColor = 'b'; 
-                join(data.id); 
-            } else { 
-                playerColor = 'w'; 
-                create("ROOM_" + Math.random().toString(36).substr(2,4).toUpperCase()); 
-            }
+            if (data) { playerColor = 'b'; join(data.id); } 
+            else { playerColor = 'w'; create("ROOM_" + Math.random().toString(36).substr(2,4).toUpperCase()); }
         }
 
         async function joinRoom() {
             const rid = document.getElementById('room-id').value.toUpperCase();
             if (!rid) return;
             const { data } = await sb.from('games').select('*').eq('room_id', rid).maybeSingle();
-            if (data) { 
-                playerColor = (data.player_white_id === user.id) ? 'w' : 'b'; 
-                join(data.id); 
-            } else { 
-                playerColor = 'w'; 
-                create(rid); 
-            }
+            if (data) { playerColor = (data.player_white_id === user.id) ? 'w' : 'b'; join(data.id); } 
+            else { playerColor = 'w'; create(rid); }
         }
 
         async function create(rid) {
-            const { data, error } = await sb.from('games').insert({ 
-                room_id: rid, 
-                player_white_id: user.id, 
-                player_white_email: user.email, 
-                pgn: "" 
+            const { data } = await sb.from('games').insert({ 
+                room_id: rid, player_white_id: user.id, player_white_email: user.email, pgn: "" 
             }).select().single();
             if (data) {
-                // IMPORTANT: Immediately transition UI for the creator
-                document.getElementById('lobby').classList.add('hidden');
-                document.getElementById('game-view').classList.remove('hidden');
-                document.getElementById('waiting-overlay').classList.remove('hidden-el');
-                document.getElementById('match-room-display').innerText = `ROOM: ${data.room_id}`;
+                showGameUI(data.room_id);
                 subscribe(data.id);
             }
         }
 
         async function join(gid) {
-            const { data, error } = await sb.from('games').update({ 
-                player_black_id: user.id, 
-                player_black_email: user.email 
+            const { data } = await sb.from('games').update({ 
+                player_black_id: user.id, player_black_email: user.email 
             }).eq('id', gid).select().single();
             if (data) {
-                document.getElementById('lobby').classList.add('hidden');
-                document.getElementById('game-view').classList.remove('hidden');
+                showGameUI(data.room_id);
                 subscribe(data.id);
             }
+        }
+
+        function showGameUI(rid) {
+            document.getElementById('lobby').classList.add('hidden');
+            document.getElementById('game-view').classList.remove('hidden');
+            document.getElementById('match-room-display').innerText = `ROOM: ${rid}`;
         }
 
         function subscribe(gid) {
@@ -263,36 +309,21 @@
             const justJoined = !currentGame?.player_black_id && data.player_black_id;
             currentGame = data;
             
-            // Sync PGN
             if (data.pgn !== game.pgn()) {
                 game.load_pgn(data.pgn);
-                if (data.pgn !== "") {
-                    playSound('snd-move');
-                }
+                if (data.pgn !== "") playSound('snd-move');
             }
             
-            // Logic to show/hide the waiting screen
             if (data.player_black_id) {
-                // Opponent is here
                 document.getElementById('waiting-overlay').classList.add('hidden-el');
-                document.getElementById('lobby').classList.add('hidden');
-                document.getElementById('game-view').classList.remove('hidden');
-
-                if (justJoined) {
-                    playSound('snd-join');
-                }
+                if (justJoined) playSound('snd-join');
 
                 const opp = playerColor === 'w' ? data.player_black_email : data.player_white_email;
                 document.getElementById('opp-label').innerText = opp ? opp.split('@')[0] : "Opponent";
                 document.getElementById('color-label').innerText = playerColor === 'w' ? 'White' : 'Black';
                 
                 if (!clock && !game.game_over()) startClock();
-            } else {
-                // Still waiting for opponent
-                document.getElementById('waiting-overlay').classList.remove('hidden-el');
-                document.getElementById('match-room-display').innerText = `ROOM: ${data.room_id}`;
             }
-            
             render();
         }
 
@@ -348,7 +379,7 @@
             clock = setInterval(() => {
                 if (game.turn() === 'w') timers.w--; else timers.b--;
                 updateTimers();
-                if (timers.w <= 0 || timers.b <= 0) endMatch(true);
+                if (timers.w <= 0 || timers.b <= 0) endMatch();
             }, 1000);
         }
 
@@ -358,18 +389,44 @@
             document.getElementById('timer-b').innerText = fmt(timers.b);
             document.getElementById('timer-w').classList.toggle('active', game.turn() === 'w');
             document.getElementById('timer-b').classList.toggle('active', game.turn() === 'b');
+            document.getElementById('turn-dot').classList.toggle('animate-pulse', true);
+            document.getElementById('turn-dot').style.backgroundColor = game.turn() === 'w' ? '#3b82f6' : '#94a3b8';
         }
 
         function updateLog() {
             const h = game.history();
             const log = document.getElementById('move-log');
-            log.innerHTML = h.map((m, i) => i % 2 === 0 ? `<div class='text-slate-400'>${Math.floor(i/2)+1}. ${m} <span class='text-white'>${h[i+1]||''}</span></div>` : '').join('');
+            log.innerHTML = h.map((m, i) => i % 2 === 0 ? `
+                <div class="flex items-center gap-3">
+                    <span class="w-6 text-[10px] font-black text-slate-600">${Math.floor(i/2)+1}</span>
+                    <div class="flex-grow flex gap-2">
+                        <span class="bg-slate-800 px-3 py-1 rounded-lg font-bold text-white min-w-[50px] text-center">${m}</span>
+                        ${h[i+1] ? `<span class="bg-slate-700/50 px-3 py-1 rounded-lg font-bold text-slate-300 min-w-[50px] text-center">${h[i+1]}</span>` : ''}
+                    </div>
+                </div>` : '').join('');
             log.scrollTop = log.scrollHeight;
         }
 
         function endMatch() {
             clearInterval(clock);
-            showModal(`<h2 class="text-2xl font-black mb-1">Match Over</h2><button onclick="location.reload()" class="w-full py-4 bg-blue-600 rounded-2xl font-bold mt-4">NEW GAME</button>`);
+            let result = "Draw";
+            if (game.in_checkmate()) result = game.turn() === 'w' ? "Black Wins" : "White Wins";
+            showModal(`
+                <h2 class="text-3xl font-black mb-2">${result}</h2>
+                <p class="text-slate-400 mb-6">The battle has concluded.</p>
+                <button onclick="location.reload()" class="w-full py-4 bg-blue-600 hover:bg-blue-500 rounded-2xl font-black transition-all">NEW MATCH</button>
+            `);
+        }
+
+        function confirmResign() {
+            showModal(`
+                <h2 class="text-2xl font-black mb-2 text-red-400">Resign?</h2>
+                <p class="text-slate-400 mb-6">Are you sure you want to forfeit?</p>
+                <div class="flex gap-3">
+                    <button onclick="document.getElementById('modal').classList.add('hidden')" class="flex-1 py-4 bg-slate-800 rounded-2xl font-bold">CANCEL</button>
+                    <button onclick="location.reload()" class="flex-1 py-4 bg-red-600 rounded-2xl font-bold">RESIGN</button>
+                </div>
+            `);
         }
 
         function playSound(id) {
@@ -377,7 +434,11 @@
             if (s) { s.currentTime = 0; s.play().catch(() => {}); }
         }
 
-        function showModal(html) { document.getElementById('modal-body').innerHTML = html; document.getElementById('modal').classList.remove('hidden'); }
+        function showModal(html) { 
+            document.getElementById('modal-body').innerHTML = html; 
+            document.getElementById('modal').classList.remove('hidden'); 
+        }
+
         async function signOut() { await sb.auth.signOut(); location.reload(); }
         window.onload = init;
     </script>
