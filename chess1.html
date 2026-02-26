@@ -89,7 +89,7 @@
         <div id="matchmaking-screen" class="hidden fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-md flex flex-col items-center justify-center">
             <div class="spinner mb-6"></div>
             <h2 id="matchmaking-status" class="text-2xl font-bold mb-2">Finding Opponent...</h2>
-            <p class="text-slate-400 mb-8">Synchronizing with Google Sheets</p>
+            <p id="matchmaking-subtext" class="text-slate-400 mb-8">Checking for available matches...</p>
             <button onclick="cancelMatchmaking()" class="px-6 py-2 border border-slate-700 rounded-lg hover:bg-slate-800 transition">Cancel</button>
         </div>
 
@@ -191,6 +191,7 @@
         let blackTime = 600;
         let timerInterval = null;
         let pollingInterval = null;
+        let isOpponentFound = false;
 
         const pieceTheme = {
             w: { p: 'https://upload.wikimedia.org/wikipedia/commons/4/45/Chess_plt45.svg', r: 'https://upload.wikimedia.org/wikipedia/commons/7/72/Chess_rlt45.svg', n: 'https://upload.wikimedia.org/wikipedia/commons/7/70/Chess_nlt45.svg', b: 'https://upload.wikimedia.org/wikipedia/commons/b/b1/Chess_blt45.svg', q: 'https://upload.wikimedia.org/wikipedia/commons/1/15/Chess_qlt45.svg', k: 'https://upload.wikimedia.org/wikipedia/commons/4/42/Chess_klt45.svg' },
@@ -224,26 +225,44 @@
         async function startMatchmaking() {
             const screen = document.getElementById('matchmaking-screen');
             const statusText = document.getElementById('matchmaking-status');
+            const subText = document.getElementById('matchmaking-subtext');
             screen.classList.remove('hidden');
             
             try {
                 const resp = await fetch(SCRIPT_URL);
                 const games = await resp.json();
                 
-                let openSlot = Array.isArray(games) ? games.find(g => g.player2 === "WAITING" || !g.player2) : null;
+                // Find game where player 2 is "WAITING" and player 1 is NOT current user
+                let openSlot = Array.isArray(games) ? games.find(g => (g.player2 === "WAITING" || !g.player2) && g.player1 !== user.email) : null;
                 
                 if (openSlot) {
-                    statusText.innerText = "Joining existing game...";
+                    statusText.innerText = "Match Found!";
+                    subText.innerText = "Joining as Black...";
                     currentGameId = openSlot.gameId;
                     playerColor = 'b';
+                    // Update sheet with current user as player 2
                     await syncToSheet(currentGameId, openSlot.player1, user.email, openSlot.moves || "");
+                    isOpponentFound = true;
                     completeJoin();
                 } else {
-                    statusText.innerText = "Creating new game slot...";
-                    currentGameId = "NIX_" + Math.random().toString(36).substr(2, 6).toUpperCase();
+                    // Check if current user already has a WAITING game
+                    let myExistingGame = Array.isArray(games) ? games.find(g => g.player1 === user.email && (g.player2 === "WAITING" || !g.player2)) : null;
+                    
+                    if (myExistingGame) {
+                        currentGameId = myExistingGame.gameId;
+                    } else {
+                        currentGameId = "NIX_" + Math.random().toString(36).substr(2, 6).toUpperCase();
+                        await syncToSheet(currentGameId, user.email, "WAITING", "");
+                    }
+                    
+                    statusText.innerText = "Searching...";
+                    subText.innerText = "Waiting for an opponent to join...";
                     playerColor = 'w';
-                    await syncToSheet(currentGameId, user.email, "WAITING", "");
-                    completeJoin();
+                    isOpponentFound = false;
+                    
+                    // Keep the loading screen up, but start polling to see if someone joins
+                    if (pollingInterval) clearInterval(pollingInterval);
+                    pollingInterval = setInterval(pollDatabase, 2000);
                 }
             } catch (e) {
                 showToast("Network Error. Retrying...");
@@ -253,6 +272,7 @@
 
         function cancelMatchmaking() {
             document.getElementById('matchmaking-screen').classList.add('hidden');
+            if (pollingInterval) clearInterval(pollingInterval);
         }
 
         function completeJoin() {
@@ -264,8 +284,10 @@
             
             renderBoard();
             startTimer();
-            if (pollingInterval) clearInterval(pollingInterval);
-            pollingInterval = setInterval(pollDatabase, 2500);
+            if (!pollingInterval || isOpponentFound) {
+                if (pollingInterval) clearInterval(pollingInterval);
+                pollingInterval = setInterval(pollDatabase, 2000);
+            }
         }
 
         async function joinRoom() {
@@ -273,9 +295,8 @@
             if (!id) return;
             currentGameId = id;
             playerColor = 'w';
-            // Pre-create the room in the sheet
             await syncToSheet(currentGameId, user.email, "WAITING", "");
-            completeJoin();
+            startMatchmaking(); // Use matchmaking logic to wait
         }
 
         function renderBoard() {
@@ -330,7 +351,7 @@
         }
 
         function handleSquareClick(sq) {
-            if (game.turn() !== playerColor || game.game_over()) return;
+            if (!isOpponentFound || game.turn() !== playerColor || game.game_over()) return;
 
             if (selectedSquare === null) {
                 const piece = game.get(sq);
@@ -375,6 +396,10 @@
                 // Update opponent display
                 const opp = playerColor === 'w' ? data.player2 : data.player1;
                 if (opp && opp !== "WAITING") {
+                    if (!isOpponentFound) {
+                        isOpponentFound = true;
+                        completeJoin(); // Hide loading screen once someone joins
+                    }
                     document.getElementById('opponent-name').innerText = opp.split('@')[0];
                     document.getElementById('opponent-status').innerText = "ONLINE";
                     document.getElementById('opponent-status').className = "text-[10px] text-green-500";
@@ -382,10 +407,13 @@
                     document.getElementById('opp-avatar').className = "w-10 h-10 bg-slate-100 rounded-lg flex items-center justify-center font-bold text-slate-900";
                 }
 
-                // If opponent moved
+                // If opponent moved, update board live
                 if (game.turn() !== playerColor && data.moves && data.moves !== game.pgn()) {
                     game.load_pgn(data.moves);
-                    playSound('move');
+                    const lastMove = game.history({verbose:true}).pop();
+                    if (lastMove && lastMove.captured) playSound('capture');
+                    else if (game.in_check()) playSound('check');
+                    else playSound('move');
                     renderBoard();
                 }
             } catch (e) {}
@@ -394,6 +422,7 @@
         function startTimer() {
             if (timerInterval) clearInterval(timerInterval);
             timerInterval = setInterval(() => {
+                if (!isOpponentFound) return;
                 if (game.turn() === 'w') whiteTime--;
                 else blackTime--;
                 updateTimerDisplay();
