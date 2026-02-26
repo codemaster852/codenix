@@ -30,7 +30,7 @@
 
         /* Ambient Background Glows */
         .glow {
-            position: fixed; /* Fixed so it doesn't move with scroll */
+            position: fixed;
             width: 60vw;
             height: 60vw;
             background: radial-gradient(circle, rgba(147, 51, 234, 0.1) 0%, rgba(0,0,0,0) 70%);
@@ -48,7 +48,7 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            padding: 2rem 1rem; /* Added padding for scrolling space on mobile */
+            padding: 2rem 1rem;
             overflow-y: auto;
         }
 
@@ -108,8 +108,16 @@
             transform: translateY(-1px);
         }
 
-        .btn-primary:active {
-            transform: translateY(0);
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(168, 85, 247, 0.2);
+            transition: all 0.3s ease;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: var(--brand-purple);
         }
 
         .signup-only { 
@@ -132,24 +140,52 @@
             justify-content: center;
             box-shadow: 0 10px 20px rgba(147, 51, 234, 0.3);
         }
+
+        .divider {
+            display: flex;
+            align-items: center;
+            text-align: center;
+            margin: 1.5rem 0;
+            color: #52525b;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            font-weight: 700;
+        }
+
+        .divider::before, .divider::after {
+            content: '';
+            flex: 1;
+            border-bottom: 1px solid rgba(168, 85, 247, 0.1);
+        }
+
+        .divider:not(:empty)::before { margin-right: .75rem; }
+        .divider:not(:empty)::after { margin-left: .75rem; }
     </style>
 </head>
 <body>
     <div class="glow" style="top: -10%; right: -10%;"></div>
     <div class="glow" style="bottom: -10%; left: -10%;"></div>
 
-    <!-- Scrollable Wrapper -->
     <div class="main-wrapper">
         <div class="w-full max-w-[440px]">
             <div class="glass-card rounded-[2.5rem] p-8 md:p-12">
                 <!-- Branding -->
-                <div class="flex flex-col items-center mb-10">
+                <div class="flex flex-col items-center mb-8">
                     <div class="brand-logo mb-6">
                         <i class="fa-solid fa-code text-white text-2xl"></i>
                     </div>
-                    <h1 id="auth-title" class="text-2xl font-black tracking-tighter text-white">Codenix AI Studio</h1>
+                    <h1 id="auth-title" class="text-2xl font-black tracking-tighter text-white text-center">Codenix AI Studio</h1>
                     <p id="auth-subtitle" class="text-zinc-500 text-sm mt-2 font-medium">Sign in to your AI workspace</p>
                 </div>
+
+                <!-- Social Auth -->
+                <button type="button" id="google-btn" class="btn-secondary w-full py-3.5 rounded-2xl flex items-center justify-center gap-3 text-sm font-bold mb-2">
+                    <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/pjax/google.svg" width="18" alt="Google">
+                    Continue with Google
+                </button>
+
+                <div class="divider">or use email</div>
 
                 <!-- Form -->
                 <form id="auth-form" class="space-y-4">
@@ -158,15 +194,12 @@
                             <input type="text" id="fullname" class="input-field w-full py-4 rounded-2xl text-sm" placeholder="Full Name">
                             <i class="fa-solid fa-user input-icon"></i>
                         </div>
-                    </div>
-                    
-                    <div class="signup-only">
                         <div class="input-group">
                             <input type="text" id="username" class="input-field w-full py-4 rounded-2xl text-sm" placeholder="Username">
                             <i class="fa-solid fa-at input-icon"></i>
                         </div>
                     </div>
-
+                    
                     <div class="input-group">
                         <input type="email" id="email" required class="input-field w-full py-4 rounded-2xl text-sm" placeholder="Developer Email">
                         <i class="fa-solid fa-envelope input-icon"></i>
@@ -188,7 +221,7 @@
                 <div class="mt-8 pt-8 border-t border-zinc-800/50 text-center">
                     <p class="text-zinc-500 text-xs font-bold uppercase tracking-widest">
                         <span id="toggle-text">New to the studio?</span>
-                        <button id="toggle-auth" class="text-purple ml-2 hover:underline">Create Account</button>
+                        <button id="toggle-auth" class="text-purple-500 ml-2 hover:underline">Create Account</button>
                     </p>
                 </div>
             </div>
@@ -206,12 +239,26 @@
 
         const authForm = document.getElementById('auth-form');
         const submitBtn = document.getElementById('submit-btn');
+        const googleBtn = document.getElementById('google-btn');
         const toggleBtn = document.getElementById('toggle-auth');
         const signupFields = document.querySelectorAll('.signup-only');
         const msgBox = document.getElementById('message-box');
         let isLogin = true;
 
-        toggleBtn.addEventListener('click', () => {
+        // Redirect Logic
+        const getRedirectUrl = () => {
+            const params = new URLSearchParams(window.location.search);
+            // If there's a specific 'redirect' parameter in URL, use it, otherwise default
+            const redirectParam = params.get('redirect');
+            if (redirectParam) return redirectParam;
+            
+            // If the document referrer is from our domain, we could also use that, 
+            // but usually a hardcoded 'portal.html' or a query param is safer.
+            return 'portal.html';
+        };
+
+        toggleBtn.addEventListener('click', (e) => {
+            e.preventDefault();
             isLogin = !isLogin;
             document.getElementById('auth-title').innerText = isLogin ? 'Codenix AI Studio' : 'Create Account';
             document.getElementById('auth-subtitle').innerText = isLogin ? 'Sign in to your AI workspace' : 'Begin your journey with Codenix';
@@ -223,6 +270,7 @@
             msgBox.classList.add('hidden');
         });
 
+        // Email/Password Auth
         authForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             const email = document.getElementById('email').value;
@@ -240,28 +288,61 @@
                 } else {
                     result = await supabaseClient.auth.signUp({ 
                         email, password,
-                        options: { data: { full_name: fullName, username: username } }
+                        options: { 
+                            data: { full_name: fullName, username: username },
+                            emailRedirectTo: window.location.origin + '/' + getRedirectUrl()
+                        }
                     });
                 }
 
                 if (result.error) throw result.error;
                 
                 if (!isLogin && result.data.user && result.data.session === null) {
-                    msgBox.innerText = "Check your email for confirmation.";
-                    msgBox.className = "p-4 rounded-2xl text-xs font-bold uppercase tracking-wider text-center bg-purple-500/10 text-purple mt-4";
-                    msgBox.classList.remove('hidden');
+                    showMessage("Check your email for confirmation.", "success");
                 } else {
-                    window.location.href = 'portal.html';
+                    window.location.href = getRedirectUrl();
                 }
             } catch (err) {
-                msgBox.innerText = err.message;
-                msgBox.className = "p-4 rounded-2xl text-xs font-bold uppercase tracking-wider text-center bg-red-500/10 text-red-400 mt-4";
-                msgBox.classList.remove('hidden');
+                showMessage(err.message, "error");
             } finally {
                 submitBtn.disabled = false;
                 submitBtn.innerText = isLogin ? 'Initialize Session' : 'Register Profile';
             }
         });
+
+        // Google Auth
+        googleBtn.addEventListener('click', async () => {
+            try {
+                const { error } = await supabaseClient.auth.signInWithOAuth({
+                    provider: 'google',
+                    options: {
+                        redirectTo: window.location.origin + '/' + getRedirectUrl()
+                    }
+                });
+                if (error) throw error;
+            } catch (err) {
+                showMessage(err.message, "error");
+            }
+        });
+
+        function showMessage(text, type) {
+            msgBox.innerText = text;
+            if (type === "success") {
+                msgBox.className = "p-4 rounded-2xl text-xs font-bold uppercase tracking-wider text-center bg-purple-500/10 text-purple-400 mt-4";
+            } else {
+                msgBox.className = "p-4 rounded-2xl text-xs font-bold uppercase tracking-wider text-center bg-red-500/10 text-red-400 mt-4";
+            }
+            msgBox.classList.remove('hidden');
+        }
+
+        // Auto-redirect if already logged in
+        async function checkSession() {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (session) {
+                window.location.href = getRedirectUrl();
+            }
+        }
+        checkSession();
     </script>
 </body>
 </html>
