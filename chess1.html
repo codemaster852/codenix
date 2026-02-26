@@ -101,12 +101,15 @@
             font-weight: 800;
             text-transform: uppercase;
         }
+        
+        /* Disable interaction when game over */
+        .game-over-lock .square { cursor: default !important; pointer-events: none; }
     </style>
 </head>
 <body class="flex flex-col items-center min-h-screen pb-10">
 
     <div id="auth-overlay" class="fixed inset-0 z-[100] bg-slate-950 flex flex-col items-center justify-center p-6 text-center">
-        <div class="w-16 h-16 bg-blue-600 rounded-2xl mb-4 flex items-center justify-center font-bold text-2xl shadow-xl shadow-blue-500/20">N</div>
+        <div class="w-16 h-16 bg-blue-600 rounded-2xl mb-4 flex items-center justify-center font-bold text-2xl">N</div>
         <h1 class="text-3xl font-black mb-2 tracking-tighter">ChessNix</h1>
         <div class="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
     </div>
@@ -127,7 +130,6 @@
     </header>
 
     <main class="flex flex-col items-center w-full max-w-7xl px-4 mt-4">
-        
         <div id="lobby" class="w-full max-w-md space-y-8 mt-12 bg-slate-900/50 p-10 rounded-3xl border border-white/5 backdrop-blur-sm">
             <div class="text-center space-y-3">
                 <h2 class="text-5xl font-black tracking-tight">Arena</h2>
@@ -188,7 +190,7 @@
                     </div>
                     <div id="move-log" class="overflow-y-auto flex-grow text-sm font-mono space-y-2 pr-2"></div>
                 </div>
-                <button onclick="confirmResign()" class="w-full py-4 bg-slate-800/50 hover:bg-red-950/40 text-red-400 rounded-2xl text-xs font-black tracking-widest transition-all">RESIGN</button>
+                <button id="resign-btn" onclick="confirmResign()" class="w-full py-4 bg-slate-800/50 hover:bg-red-950/40 text-red-400 rounded-2xl text-xs font-black tracking-widest transition-all">RESIGN</button>
             </div>
         </div>
     </main>
@@ -204,6 +206,7 @@
         let user = null, currentGame = null, playerColor = 'w';
         let clock = null, timers = { w: 600, b: 600 }, selected = null;
         let tabSwitches = 0;
+        let modalShown = false;
 
         async function init() {
             const { data: { session } } = await sb.auth.getSession();
@@ -220,7 +223,7 @@
 
         function setupTabDetection() {
             document.addEventListener("visibilitychange", async () => {
-                if (document.visibilityState === "hidden" && currentGame && !game.game_over()) {
+                if (document.visibilityState === "hidden" && currentGame && currentGame.status !== 'finished') {
                     tabSwitches++;
                     const updates = playerColor === 'w' ? { white_warnings: tabSwitches } : { black_warnings: tabSwitches };
                     
@@ -235,29 +238,33 @@
         }
 
         async function quickMatch() {
-            const { data } = await sb.from('games').select('*').is('player_black_id', null).neq('player_white_id', user.id).limit(1).maybeSingle();
-            if (data) { playerColor = 'b'; join(data.id); } 
-            else { playerColor = 'w'; create("ROOM_" + Math.random().toString(36).substr(2,4).toUpperCase()); }
+            try {
+                const { data } = await sb.from('games').select('*').is('player_black_id', null).neq('player_white_id', user.id).limit(1).maybeSingle();
+                if (data) { playerColor = 'b'; join(data.id); } 
+                else { playerColor = 'w'; create("ROOM_" + Math.random().toString(36).substr(2,4).toUpperCase()); }
+            } catch (e) { console.error(e); }
         }
 
         async function joinRoom() {
             const rid = document.getElementById('room-id').value.toUpperCase();
             if (!rid) return;
-            const { data } = await sb.from('games').select('*').eq('room_id', rid).maybeSingle();
-            if (data) { playerColor = (data.player_white_id === user.id) ? 'w' : 'b'; join(data.id); } 
-            else { playerColor = 'w'; create(rid); }
+            try {
+                const { data } = await sb.from('games').select('*').eq('room_id', rid).maybeSingle();
+                if (data) { playerColor = (data.player_white_id === user.id) ? 'w' : 'b'; join(data.id); } 
+                else { playerColor = 'w'; create(rid); }
+            } catch (e) { console.error(e); }
         }
 
         async function create(rid) {
-            const { data } = await sb.from('games').insert({ 
-                room_id: rid, player_white_id: user.id, player_white_email: user.email, pgn: "", white_time: 600, black_time: 600, white_warnings: 0, black_warnings: 0
+            const { data, error } = await sb.from('games').insert({ 
+                room_id: rid, player_white_id: user.id, player_white_email: user.email, pgn: "", white_time: 600, black_time: 600, white_warnings: 0, black_warnings: 0, status: 'waiting'
             }).select().single();
             if (data) { showGameUI(data.room_id); subscribe(data.id); }
         }
 
         async function join(gid) {
-            const { data } = await sb.from('games').update({ 
-                player_black_id: user.id, player_black_email: user.email 
+            const { data, error } = await sb.from('games').update({ 
+                player_black_id: user.id, player_black_email: user.email, status: 'active'
             }).eq('id', gid).select().single();
             if (data) { showGameUI(data.room_id); subscribe(data.id); }
         }
@@ -280,13 +287,14 @@
         }
 
         function sync(data) {
+            if (!data) return;
             currentGame = data;
-            timers.w = data.white_time;
-            timers.b = data.black_time;
+            timers.w = data.white_time || 600;
+            timers.b = data.black_time || 600;
             
             if (data.pgn !== game.pgn()) {
-                game.load_pgn(data.pgn);
-                if (data.pgn !== "") playSound('snd-move');
+                game.load_pgn(data.pgn || "");
+                if (data.pgn && data.pgn !== "") playSound('snd-move');
             }
             
             if (data.player_black_id) {
@@ -294,16 +302,21 @@
                 const opp = playerColor === 'w' ? data.player_black_email : data.player_white_email;
                 document.getElementById('opp-label').innerText = opp ? opp.split('@')[0] : "Opponent";
                 
-                // Warnings Display
                 const myWarn = playerColor === 'w' ? data.white_warnings : data.black_warnings;
                 const oppWarn = playerColor === 'w' ? data.black_warnings : data.white_warnings;
+                
                 document.getElementById('my-warnings').classList.remove('hidden');
                 document.getElementById('opp-warnings').classList.remove('hidden');
                 document.getElementById('my-warnings').innerText = `Tab Switches: ${myWarn}/3`;
                 document.getElementById('opp-warnings').innerText = `Tab Switches: ${oppWarn}/3`;
 
                 if (data.status === 'finished') {
-                    endMatch(data.game_over_reason);
+                    document.getElementById('board').classList.add('game-over-lock');
+                    document.getElementById('resign-btn').classList.add('hidden');
+                    if (!modalShown) {
+                        endMatch(data.game_over_reason);
+                        modalShown = true;
+                    }
                 } else if (!clock) {
                     startClock();
                 }
@@ -359,16 +372,20 @@
         async function pushMove() {
             const isGameOver = game.game_over();
             let reason = "";
+            let status = 'active';
+            
             if (isGameOver) {
+                status = 'finished';
                 if (game.in_checkmate()) reason = `Checkmate! ${game.turn() === 'w' ? 'Black' : 'White'} wins.`;
                 else if (game.in_draw()) reason = "Draw!";
+                else if (game.in_stalemate()) reason = "Stalemate!";
             }
 
             await sb.from('games').update({ 
                 pgn: game.pgn(),
                 white_time: timers.w,
                 black_time: timers.b,
-                status: isGameOver ? 'finished' : 'active',
+                status: status,
                 game_over_reason: reason
             }).eq('id', currentGame.id);
         }
@@ -386,12 +403,11 @@
 
                 if (timers.w <= 0 || timers.b <= 0) {
                     clearInterval(clock);
-                    if (playerColor === 'w' || playerColor === 'b') { // Only one person needs to push the timeout
-                        await sb.from('games').update({ 
-                            status: 'finished', 
-                            game_over_reason: `Timeout! ${timers.w <= 0 ? 'Black' : 'White'} wins.` 
-                        }).eq('id', currentGame.id);
-                    }
+                    // Force final state sync
+                    await sb.from('games').update({ 
+                        status: 'finished', 
+                        game_over_reason: `Timeout! ${timers.w <= 0 ? 'Black' : 'White'} wins.` 
+                    }).eq('id', currentGame.id);
                 }
             }, 1000);
         }
@@ -408,26 +424,27 @@
         function updateLog() {
             const h = game.history();
             const log = document.getElementById('move-log');
-            log.innerHTML = h.map((m, i) => i % 2 === 0 ? `<div class="flex gap-2 text-xs font-bold"><span class="text-slate-600">${Math.floor(i/2)+1}.</span><span class="text-white">${m}</span><span class="text-slate-400">${h[i+1]||''}</span></div>` : '').join('');
+            log.innerHTML = h.map((m, i) => i % 2 === 0 ? `<div class="flex gap-2 text-xs font-bold mb-1"><span class="text-slate-600">${Math.floor(i/2)+1}.</span><span class="text-white">${m}</span><span class="text-slate-400">${h[i+1]||''}</span></div>` : '').join('');
             log.scrollTop = log.scrollHeight;
         }
 
         function endMatch(reason) {
             clearInterval(clock);
             showModal(`
-                <h2 class="text-2xl font-black mb-2">Game Over</h2>
-                <p class="text-slate-400 mb-6">${reason || "The match has ended."}</p>
-                <button onclick="location.reload()" class="w-full py-4 bg-blue-600 rounded-2xl font-black">BACK TO LOBBY</button>
+                <h2 class="text-3xl font-black mb-2 text-white">Match Over</h2>
+                <p class="text-slate-400 mb-8 leading-relaxed">${reason || "The game has concluded."}</p>
+                <button onclick="location.reload()" class="w-full py-4 bg-blue-600 hover:bg-blue-500 rounded-2xl font-black shadow-lg shadow-blue-600/20 transition-all">RETURN TO LOBBY</button>
             `);
         }
 
         async function confirmResign() {
             if (currentGame?.status === 'finished') return;
             showModal(`
-                <h2 class="text-xl font-black mb-4">Resign Match?</h2>
-                <div class="flex gap-2">
-                    <button onclick="document.getElementById('modal').classList.add('hidden')" class="flex-1 py-3 bg-slate-800 rounded-xl font-bold">NO</button>
-                    <button onclick="submitResign()" class="flex-1 py-3 bg-red-600 rounded-xl font-bold">YES</button>
+                <h2 class="text-xl font-black mb-4">Surrender?</h2>
+                <p class="text-sm text-slate-400 mb-6">You will lose the match immediately.</p>
+                <div class="flex gap-3">
+                    <button onclick="document.getElementById('modal').classList.add('hidden')" class="flex-1 py-3 bg-slate-800 rounded-xl font-bold">CANCEL</button>
+                    <button onclick="submitResign()" class="flex-1 py-3 bg-red-600 rounded-xl font-bold">RESIGN</button>
                 </div>
             `);
         }
@@ -435,8 +452,9 @@
         async function submitResign() {
             await sb.from('games').update({ 
                 status: 'finished', 
-                game_over_reason: `Resignation: ${user.email.split('@')[0]} surrendered.` 
+                game_over_reason: `Resignation: ${user.email.split('@')[0]} forfeited.` 
             }).eq('id', currentGame.id);
+            document.getElementById('modal').classList.add('hidden');
         }
 
         function playSound(id) {
