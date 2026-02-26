@@ -3,553 +3,577 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ChessNix - Supabase Multiplayer</title>
+    <title>ChessNix - Pro Multiplayer Arena</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <!-- Stockfish for Analysis -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/stockfish.js/10.0.2/stockfish.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800&display=swap" rel="stylesheet">
     
     <style>
-        body { font-family: 'Inter', sans-serif; margin: 0; padding: 0; }
+        :root {
+            --sq-size: 60px;
+        }
+        @media (max-width: 640px) { :root { --sq-size: 42px; } }
+
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background: #020617; color: #f8fafc; overflow-x: hidden; }
+        
         .chessboard {
             display: grid;
-            grid-template-columns: repeat(8, 1fr);
-            width: 100%;
-            max-width: 520px;
-            aspect-ratio: 1/1;
-            border: 8px solid #1e293b;
-            border-radius: 8px;
-            overflow: hidden;
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            grid-template-columns: repeat(8, var(--sq-size));
+            grid-template-rows: repeat(8, var(--sq-size));
+            width: calc(8 * var(--sq-size));
+            height: calc(8 * var(--sq-size));
+            border: 12px solid #1e293b;
+            border-radius: 12px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+            position: relative;
         }
+
         .square {
+            width: var(--sq-size);
+            height: var(--sq-size);
             display: flex;
             align-items: center;
             justify-content: center;
             position: relative;
             cursor: pointer;
-            user-select: none;
+            transition: background-color 0.2s;
         }
-        .square.light { background-color: #dee3e6; }
-        .square.dark { background-color: #8ca2ad; }
-        .square.selected { background-color: #bbc949 !important; }
-        .square.last-move { background-color: rgba(247, 247, 105, 0.6) !important; }
-        .square.check { background: radial-gradient(circle, #ef4444 0%, transparent 70%) !important; }
-        .piece-img { width: 85%; height: 85%; z-index: 10; transition: transform 0.1s; }
-        .piece-img:active { transform: scale(1.1); }
+
+        .square.light { background-color: #f0d9b5; }
+        .square.dark { background-color: #b58863; }
+        .square.selected { background-color: #f6ff00 !important; }
+        .square.last-move { background-color: rgba(255, 255, 0, 0.3) !important; }
+        .square.check { background: radial-gradient(circle, #ff4444 0%, transparent 80%) !important; }
+        .square.hint::after {
+            content: '';
+            width: 15px;
+            height: 15px;
+            background: rgba(0,0,0,0.1);
+            border-radius: 50%;
+        }
+
+        .piece-img {
+            width: 90%;
+            height: 90%;
+            z-index: 10;
+            transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            pointer-events: none;
+        }
+
+        .move-anim { animation: movePiece 0.25s ease-out; }
+        @keyframes movePiece {
+            from { transform: scale(0.8); opacity: 0.5; }
+            to { transform: scale(1); opacity: 1; }
+        }
 
         .timer-box {
-            font-family: 'Monaco', 'Consolas', monospace;
-            padding: 12px;
+            font-family: 'Monaco', monospace;
+            padding: 10px 16px;
             background: #0f172a;
             border: 2px solid #334155;
-            border-radius: 12px;
-            min-width: 100px;
-            text-align: center;
+            border-radius: 8px;
+            font-size: 1.5rem;
+            font-weight: 800;
         }
-        .timer-active {
-            border-color: #3b82f6;
-            background: #1e3a8a;
-            box-shadow: 0 0 15px rgba(59, 130, 246, 0.3);
-            color: white;
-        }
-        .timer-low { border-color: #ef4444 !important; color: #ef4444; animation: pulse 1s infinite; }
-        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
+        .timer-active { background: #2563eb; border-color: #60a5fa; color: white; box-shadow: 0 0 20px rgba(37, 99, 235, 0.4); }
+        .timer-low { border-color: #ef4444; color: #ef4444; animation: blink 1s infinite; }
+        @keyframes blink { 50% { opacity: 0.5; } }
 
-        /* Auth/Overlay Styles */
-        #auth-overlay {
-            background: radial-gradient(circle at center, #1e293b 0%, #020617 100%);
+        .analysis-bar {
+            width: 8px;
+            background: #334155;
+            border-radius: 4px;
+            height: 100%;
+            position: relative;
+            overflow: hidden;
+        }
+        #eval-fill {
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+            background: #ffffff;
+            transition: height 0.5s ease;
+        }
+
+        .modal-bg {
+            background: rgba(2, 6, 23, 0.85);
+            backdrop-filter: blur(8px);
         }
     </style>
 </head>
-<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col items-center">
+<body>
 
     <!-- Auth Protection Overlay -->
-    <div id="auth-overlay" class="fixed inset-0 z-[100] flex flex-col items-center justify-center p-6 text-center">
-        <div class="w-16 h-16 bg-blue-600 rounded-2xl mb-6 flex items-center justify-center text-3xl font-black shadow-2xl">N</div>
-        <h1 class="text-4xl font-black mb-4">Welcome to ChessNix</h1>
-        <p class="text-slate-400 mb-8 max-w-md">Please sign in to your Supabase account to access the multiplayer arena and compete globally.</p>
-        <div class="flex flex-col gap-3 w-full max-w-xs">
-            <button onclick="window.location.reload()" class="bg-blue-600 hover:bg-blue-500 py-4 rounded-xl font-bold transition-all shadow-lg">Refresh Authentication</button>
-            <p class="text-xs text-slate-500">Checking session status...</p>
+    <div id="auth-overlay" class="fixed inset-0 z-[200] modal-bg flex flex-col items-center justify-center p-6 text-center">
+        <div class="w-20 h-20 bg-blue-600 rounded-3xl mb-8 flex items-center justify-center text-4xl font-black shadow-2xl">N</div>
+        <h1 class="text-5xl font-black mb-4 tracking-tighter">CHESS<span class="text-blue-500">NIX</span></h1>
+        <p class="text-slate-400 mb-8 max-w-sm">Authenticating with Supabase...</p>
+        <div class="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+    </div>
+
+    <!-- Generic Modal (Draw/Game Over/Promotion) -->
+    <div id="modal-container" class="hidden fixed inset-0 z-[150] modal-bg flex items-center justify-center p-4">
+        <div id="modal-content" class="bg-slate-900 border border-slate-700 p-8 rounded-3xl max-w-sm w-full shadow-2xl text-center">
+            <!-- Content dynamic -->
         </div>
     </div>
 
-    <!-- Promotion Modal -->
-    <div id="promotion-modal" class="hidden fixed inset-0 z-[110] bg-black/80 backdrop-blur-sm flex items-center justify-center">
-        <div class="bg-slate-900 p-8 rounded-3xl border border-slate-700 text-center">
-            <h3 class="text-xl font-bold mb-6">Choose Promotion</h3>
-            <div id="promotion-options" class="flex gap-4">
-                <!-- Dynamically filled -->
-            </div>
+    <header class="w-full max-w-6xl mx-auto flex justify-between items-center p-6">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center font-bold text-xl">N</div>
+            <h1 class="text-2xl font-black tracking-tight">CHESS<span class="text-blue-500">NIX</span></h1>
         </div>
-    </div>
-
-    <header class="w-full max-w-5xl flex justify-between items-center p-6">
-        <div class="flex items-center gap-2">
-            <div class="w-8 h-8 bg-blue-600 rounded flex items-center justify-center font-bold">N</div>
-            <h1 class="text-2xl font-extrabold tracking-tight">CHESS<span class="text-blue-500">NIX</span></h1>
-        </div>
-        <div id="user-info-bar" class="hidden flex items-center gap-4 bg-slate-900 px-4 py-2 rounded-full border border-slate-800">
-            <span id="username-display" class="text-xs font-medium opacity-70">Detecting...</span>
-            <button onclick="signOut()" class="text-xs font-bold text-red-400 hover:text-red-300">LOGOUT</button>
+        <div id="user-info" class="hidden flex items-center gap-4 bg-slate-900/50 backdrop-blur border border-white/5 px-4 py-2 rounded-full">
+            <span id="username-display" class="text-xs font-bold text-slate-400">...</span>
+            <button onclick="signOut()" class="text-[10px] font-black text-red-400 hover:text-red-300 tracking-widest uppercase">Logout</button>
         </div>
     </header>
 
-    <main class="w-full max-w-5xl px-4 pb-12 flex flex-col items-center">
+    <main class="w-full max-w-6xl mx-auto px-4 flex flex-col items-center">
         
-        <!-- Matchmaking Overlay -->
-        <div id="matchmaking-screen" class="hidden fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-md flex flex-col items-center justify-center">
-            <div class="spinner mb-6"></div>
-            <h2 id="matchmaking-status" class="text-2xl font-bold mb-2">Finding Opponent...</h2>
-            <p id="matchmaking-subtext" class="text-slate-400 mb-8 text-center px-6">Establishing Realtime Connection...</p>
-            <button onclick="cancelMatchmaking()" class="px-6 py-2 border border-slate-700 rounded-lg hover:bg-slate-800 transition">Cancel</button>
-        </div>
-
-        <!-- Lobby Area -->
-        <div id="lobby-container" class="hidden w-full max-w-xl bg-slate-900 p-10 rounded-3xl border border-slate-800 shadow-2xl mt-10">
-            <div class="text-center mb-10">
-                <h2 class="text-3xl font-black mb-2">Supabase Arena</h2>
-                <p class="text-slate-400">FIDE Rules • 10-Minute Blitz • Instant Matchmaking</p>
+        <!-- Lobby -->
+        <div id="lobby" class="w-full max-w-md mt-12 space-y-8">
+            <div class="text-center">
+                <h2 class="text-4xl font-black mb-2">Multiplayer Arena</h2>
+                <p class="text-slate-500">Join a room to start the 10-minute battle.</p>
             </div>
-            
-            <div class="grid gap-6">
-                <button onclick="startMatchmaking()" class="group bg-blue-600 hover:bg-blue-500 p-6 rounded-2xl font-bold transition-all shadow-lg hover:-translate-y-1">
-                    <div class="flex items-center justify-between">
-                        <div class="text-left">
-                            <div class="text-xl">Quick Match</div>
-                            <div class="text-sm font-normal opacity-70">Find random opponent</div>
-                        </div>
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
-                    </div>
-                </button>
-
-                <div class="flex gap-3">
-                    <input type="text" id="room-input" placeholder="Custom Room ID" class="flex-grow bg-slate-800 border border-slate-700 rounded-xl px-5 py-4 outline-none focus:ring-2 focus:ring-blue-500">
-                    <button onclick="joinRoom()" class="bg-slate-700 hover:bg-slate-600 px-8 rounded-xl font-bold transition">JOIN</button>
+            <div class="grid gap-4">
+                <button onclick="findGame()" class="py-6 bg-blue-600 hover:bg-blue-500 rounded-2xl font-black text-xl transition shadow-xl shadow-blue-900/20">QUICK MATCH</button>
+                <div class="flex gap-2">
+                    <input type="text" id="room-id-input" placeholder="Room Name" class="flex-grow bg-slate-900 border border-slate-700 rounded-xl px-6 py-4 outline-none focus:ring-2 focus:ring-blue-500">
+                    <button onclick="joinSpecific()" class="bg-slate-800 hover:bg-slate-700 px-8 rounded-xl font-bold transition">JOIN</button>
                 </div>
             </div>
         </div>
 
-        <!-- Game Area -->
-        <div id="game-container" class="hidden w-full max-w-5xl flex flex-col lg:flex-row gap-10 mt-4">
-            <div class="flex flex-col items-center flex-grow">
-                <!-- Opponent Info -->
-                <div class="w-full max-w-[520px] flex justify-between items-end mb-4">
+        <!-- Game Screen -->
+        <div id="game-arena" class="hidden w-full flex flex-col lg:flex-row gap-8 mt-4 items-start justify-center">
+            
+            <!-- Analysis Sidebar -->
+            <div class="hidden lg:flex flex-col items-center gap-2 h-[480px]">
+                <div class="text-[10px] font-bold text-slate-500 uppercase">Eval</div>
+                <div class="analysis-bar">
+                    <div id="eval-fill" style="height: 50%"></div>
+                </div>
+                <div id="eval-text" class="text-xs font-bold text-slate-400">0.0</div>
+            </div>
+
+            <!-- Main Board Column -->
+            <div class="flex flex-col items-center">
+                <div class="w-full flex justify-between items-center mb-4">
                     <div class="flex items-center gap-3">
-                        <div id="opp-avatar" class="w-10 h-10 bg-slate-800 rounded-lg flex items-center justify-center font-bold text-slate-400 border border-slate-700">?</div>
+                        <div id="opp-initial" class="w-10 h-10 bg-slate-800 rounded-lg flex items-center justify-center font-black text-slate-500">?</div>
                         <div>
-                            <div id="opponent-name" class="font-bold text-sm italic text-slate-300">Waiting for opponent...</div>
-                            <div id="opponent-status" class="text-[10px] text-slate-500">OFFLINE</div>
+                            <div id="opp-name" class="font-bold text-sm">Opponent</div>
+                            <div id="opp-status" class="text-[10px] text-slate-500 italic">Connecting...</div>
                         </div>
                     </div>
-                    <div id="black-timer" class="timer-box"><div id="b-time" class="text-2xl font-bold">10:00</div></div>
+                    <div id="timer-black" class="timer-box">10:00</div>
                 </div>
 
                 <div id="board" class="chessboard"></div>
 
-                <!-- Player Info -->
-                <div class="w-full max-w-[520px] flex justify-between items-start mt-4">
+                <div class="w-full flex justify-between items-center mt-4">
                     <div class="flex items-center gap-3">
-                        <div class="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center font-bold text-white shadow-lg">YOU</div>
+                        <div class="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center font-black text-white">U</div>
                         <div>
-                            <div id="my-name" class="font-bold text-sm text-blue-400">...</div>
-                            <div class="text-[10px] text-slate-500 uppercase">PLAYING AS <span id="my-color-label">...</span></div>
+                            <div id="my-name-display" class="font-bold text-sm text-blue-400">...</div>
+                            <div class="text-[10px] text-slate-500 uppercase font-bold tracking-widest">Playing as <span id="my-color-text">...</span></div>
                         </div>
                     </div>
-                    <div id="white-timer" class="timer-box"><div id="w-time" class="text-2xl font-bold">10:00</div></div>
+                    <div id="timer-white" class="timer-box">10:00</div>
                 </div>
             </div>
 
-            <!-- History & Sidebar -->
+            <!-- Sidebar Info -->
             <div class="w-full lg:w-80 flex flex-col gap-4">
-                <div class="bg-slate-900 border border-slate-800 rounded-2xl flex-grow overflow-hidden flex flex-col shadow-xl min-h-[400px]">
-                    <div class="p-4 border-b border-slate-800 flex justify-between items-center">
-                        <h3 class="text-xs font-black uppercase text-slate-500">FIDE Standard Log</h3>
-                        <span id="turn-badge" class="px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded text-[10px] font-bold">WAITING...</span>
+                <div class="bg-slate-900/50 border border-white/5 rounded-2xl flex-grow flex flex-col shadow-2xl">
+                    <div class="p-4 border-b border-white/5 flex justify-between items-center">
+                        <h3 class="text-[10px] font-black uppercase text-slate-500 tracking-tighter">Live Game Feed</h3>
+                        <div id="turn-indicator" class="px-3 py-1 bg-blue-500/20 text-blue-400 rounded-full text-[10px] font-black animate-pulse">WHITE'S TURN</div>
                     </div>
-                    <div id="move-history" class="p-4 grid grid-cols-2 gap-x-4 gap-y-1 text-sm font-mono h-64 overflow-y-auto content-start"></div>
-                    <div id="game-result-label" class="p-4 bg-slate-800 text-center text-xs font-bold text-blue-400 hidden"></div>
+                    <div id="move-list" class="p-4 h-64 overflow-y-auto font-mono text-sm grid grid-cols-2 gap-2 content-start"></div>
+                    <div id="game-status-footer" class="p-4 bg-blue-600/10 text-blue-400 text-center text-xs font-bold hidden border-t border-white/5"></div>
                 </div>
-                <button onclick="requestDraw()" class="bg-slate-800 hover:bg-slate-700 py-3 rounded-xl text-xs font-bold transition">OFFER DRAW</button>
-                <button onclick="resign()" class="bg-red-900/20 hover:bg-red-900/40 text-red-400 py-3 rounded-xl text-xs font-bold transition">RESIGN</button>
+
+                <div class="grid grid-cols-2 gap-2">
+                    <button onclick="offerDraw()" class="py-3 bg-slate-800 hover:bg-slate-700 rounded-xl text-[10px] font-black transition tracking-widest">OFFER DRAW</button>
+                    <button onclick="resign()" class="py-3 bg-red-900/20 hover:bg-red-900/40 text-red-400 rounded-xl text-[10px] font-black transition tracking-widest">RESIGN</button>
+                </div>
+                
+                <div class="p-4 bg-slate-900/30 rounded-xl border border-white/5">
+                    <div class="text-[9px] text-slate-500 uppercase font-black mb-1">Stockfish Analysis</div>
+                    <div id="best-move-hint" class="text-xs text-blue-300 font-mono italic">Calculating...</div>
+                </div>
             </div>
         </div>
     </main>
 
-    <div id="status-msg" class="fixed bottom-10 left-1/2 -translate-x-1/2 bg-blue-600 text-white px-8 py-3 rounded-2xl shadow-2xl font-bold z-[100] hidden"></div>
-
-    <audio id="sound-move" src="https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.mp3"></audio>
-    <audio id="sound-capture" src="https://assets.mixkit.co/active_storage/sfx/2572/2572-preview.mp3"></audio>
-    <audio id="sound-check" src="https://assets.mixkit.co/active_storage/sfx/2573/2573-preview.mp3"></audio>
+    <div id="toast" class="fixed bottom-10 left-1/2 -translate-x-1/2 px-8 py-4 bg-blue-600 text-white rounded-2xl shadow-2xl font-black z-[300] hidden transition-all"></div>
 
     <script>
         const SUPABASE_URL = "https://rnlwrngfgvznndlekmrz.supabase.co";
         const SUPABASE_KEY = "sb_publishable_mtI0_ZBvU_n5oRuqV58QHg_qJt3Gfyt";
+        const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
         
-        window.supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-        
+        // Game State
         let game = new Chess();
         let user = null;
         let currentGame = null;
-        let playerColor = null; 
-        let selectedSquare = null;
-        let whiteTime = 600;
-        let blackTime = 600;
-        let timerInterval = null;
-        let gameSubscription = null;
-        let isPromotionPending = false;
+        let playerColor = null; // 'w' or 'b'
+        let selectedSq = null;
+        let clockInterval = null;
+        let timers = { w: 600, b: 600 };
+        let channel = null;
+        let stockfish = null;
+
+        // Assets
+        const sounds = {
+            move: new Audio('https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.mp3'),
+            capture: new Audio('https://assets.mixkit.co/active_storage/sfx/2572/2572-preview.mp3'),
+            check: new Audio('https://assets.mixkit.co/active_storage/sfx/2573/2573-preview.mp3'),
+            end: new Audio('https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3')
+        };
 
         const pieceTheme = {
             w: { p: 'https://upload.wikimedia.org/wikipedia/commons/4/45/Chess_plt45.svg', r: 'https://upload.wikimedia.org/wikipedia/commons/7/72/Chess_rlt45.svg', n: 'https://upload.wikimedia.org/wikipedia/commons/7/70/Chess_nlt45.svg', b: 'https://upload.wikimedia.org/wikipedia/commons/b/b1/Chess_blt45.svg', q: 'https://upload.wikimedia.org/wikipedia/commons/1/15/Chess_qlt45.svg', k: 'https://upload.wikimedia.org/wikipedia/commons/4/42/Chess_klt45.svg' },
             b: { p: 'https://upload.wikimedia.org/wikipedia/commons/c/c7/Chess_pdt45.svg', r: 'https://upload.wikimedia.org/wikipedia/commons/f/ff/Chess_rdt45.svg', n: 'https://upload.wikimedia.org/wikipedia/commons/e/ef/Chess_ndt45.svg', b: 'https://upload.wikimedia.org/wikipedia/commons/9/8d/Chess_bdt45.svg', q: 'https://upload.wikimedia.org/wikipedia/commons/4/47/Chess_qdt45.svg', k: 'https://upload.wikimedia.org/wikipedia/commons/f/f0/Chess_kdt45.svg' }
         };
 
-        // --- AUTH CHECK ON START ---
-        async function checkAuth() {
-            const { data: { session } } = await window.supabaseClient.auth.getSession();
+        // --- Core Functions ---
+
+        async function init() {
+            const { data: { session } } = await client.auth.getSession();
             if (session) {
                 user = session.user;
                 document.getElementById('auth-overlay').classList.add('hidden');
-                document.getElementById('user-info-bar').classList.remove('hidden');
-                document.getElementById('lobby-container').classList.remove('hidden');
+                document.getElementById('user-info').classList.remove('hidden');
                 document.getElementById('username-display').innerText = user.email;
-                document.getElementById('my-name').innerText = user.email.split('@')[0];
-            } else {
-                // If no session, the overlay stays visible.
-                console.log("No active Supabase session.");
+                document.getElementById('my-name-display').innerText = user.email.split('@')[0];
+                initStockfish();
             }
         }
 
-        async function signOut() {
-            await window.supabaseClient.auth.signOut();
-            location.reload();
-        }
-
-        function playSound(type) {
-            const el = document.getElementById(`sound-${type}`);
-            if (el) { el.currentTime = 0; el.play().catch(()=>{}); }
-        }
-
-        async function startMatchmaking() {
-            const screen = document.getElementById('matchmaking-screen');
-            screen.classList.remove('hidden');
-            
+        function initStockfish() {
             try {
-                const { data: openGames } = await window.supabaseClient
-                    .from('games')
-                    .select('*')
-                    .is('player_black_id', null)
-                    .neq('player_white_id', user.id)
-                    .limit(1);
-
-                if (openGames && openGames.length > 0) {
-                    playerColor = 'b';
-                    await joinExistingGame(openGames[0]);
-                } else {
-                    playerColor = 'w';
-                    await createNewGame("ARENA_" + Math.random().toString(36).substr(2, 5).toUpperCase());
-                }
-            } catch (e) {
-                cancelMatchmaking();
-                showToast("Connection Error");
-            }
+                stockfish = new Worker('https://cdnjs.cloudflare.com/ajax/libs/stockfish.js/10.0.2/stockfish.js');
+                stockfish.onmessage = (e) => {
+                    const msg = e.data;
+                    if (msg.includes('score cp')) {
+                        const score = parseInt(msg.split('score cp ')[1].split(' ')[0]);
+                        const eval = (score / 100).toFixed(1);
+                        updateEvalUI(eval);
+                    } else if (msg.includes('bestmove')) {
+                        const best = msg.split('bestmove ')[1].split(' ')[0];
+                        document.getElementById('best-move-hint').innerText = "Best: " + best;
+                    }
+                };
+                stockfish.postMessage('uci');
+            } catch(err) { console.error("Stockfish init failed", err); }
         }
 
-        async function joinRoom() {
-            const roomId = document.getElementById('room-input').value.trim();
-            if (!roomId) return;
+        function updateEvalUI(eval) {
+            const perc = Math.max(5, Math.min(95, 50 + (eval * 5)));
+            document.getElementById('eval-fill').style.height = (playerColor === 'b' ? 100 - perc : perc) + '%';
+            document.getElementById('eval-text').innerText = (eval > 0 ? '+' : '') + eval;
+        }
+
+        async function findGame() {
+            const { data: open } = await client.from('games')
+                .select('*').is('player_black_id', null).neq('player_white_id', user.id).limit(1).maybeSingle();
             
-            document.getElementById('matchmaking-screen').classList.remove('hidden');
-
-            const { data: existing } = await window.supabaseClient
-                .from('games')
-                .select('*')
-                .eq('room_id', roomId)
-                .maybeSingle();
-
-            if (existing) {
-                if (existing.player_white_id === user.id) {
-                    playerColor = 'w';
-                    setupRealtime(existing.id);
-                } else if (!existing.player_black_id) {
-                    playerColor = 'b';
-                    await joinExistingGame(existing);
-                } else if (existing.player_black_id === user.id) {
-                    playerColor = 'b';
-                    setupRealtime(existing.id);
-                } else {
-                    showToast("Room full.");
-                    cancelMatchmaking();
-                }
+            if (open) {
+                playerColor = 'b';
+                await joinGame(open.id);
             } else {
                 playerColor = 'w';
-                await createNewGame(roomId);
+                await createGame("CHESS_" + Math.random().toString(36).substr(2,5).toUpperCase());
             }
         }
 
-        async function createNewGame(roomId) {
-            const { data } = await window.supabaseClient
-                .from('games')
-                .insert([{ room_id: roomId, player_white_id: user.id, player_white_email: user.email }])
-                .select().single();
-            if (data) setupRealtime(data.id);
+        async function joinSpecific() {
+            const rid = document.getElementById('room-id-input').value.trim().toUpperCase();
+            if (!rid) return;
+            const { data: existing } = await client.from('games').select('*').eq('room_id', rid).maybeSingle();
+            if (existing) {
+                if (existing.player_white_id === user.id) playerColor = 'w';
+                else if (!existing.player_black_id || existing.player_black_id === user.id) playerColor = 'b';
+                else return showToast("Room Full");
+                await joinGame(existing.id);
+            } else {
+                playerColor = 'w';
+                await createGame(rid);
+            }
         }
 
-        async function joinExistingGame(match) {
-            const { data } = await window.supabaseClient
-                .from('games')
-                .update({ player_black_id: user.id, player_black_email: user.email })
-                .eq('id', match.id)
-                .select().single();
-            if (data) setupRealtime(data.id);
+        async function createGame(rid) {
+            const { data } = await client.from('games').insert({
+                room_id: rid,
+                player_white_id: user.id,
+                player_white_email: user.email,
+                timers: { w: 600, b: 600 }
+            }).select().single();
+            if (data) subscribe(data.id);
         }
 
-        function setupRealtime(gameUuid) {
-            if (gameSubscription) window.supabaseClient.removeChannel(gameSubscription);
+        async function joinGame(id) {
+            const { data } = await client.from('games').update({
+                player_black_id: user.id,
+                player_black_email: user.email
+            }).eq('id', id).select().single();
+            if (data) subscribe(data.id);
+        }
 
-            gameSubscription = window.supabaseClient
-                .channel(`game_${gameUuid}`)
-                .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'games', filter: `id=eq.${gameUuid}` }, 
-                (p) => handleGameUpdate(p.new))
+        function subscribe(gameId) {
+            if (channel) client.removeChannel(channel);
+            channel = client.channel(`arena_${gameId}`)
+                .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'games', filter: `id=eq.${gameId}` }, (p) => sync(p.new))
                 .subscribe(async (s) => {
                     if (s === 'SUBSCRIBED') {
-                        const { data } = await window.supabaseClient.from('games').select('*').eq('id', gameUuid).single();
-                        handleGameUpdate(data);
+                        const { data } = await client.from('games').select('*').eq('id', gameId).single();
+                        sync(data);
                     }
                 });
+            
+            // Listen for Broadcast events (Draw offers etc)
+            channel.on('broadcast', { event: 'draw_offer' }, (p) => {
+                if (p.payload.from !== user.id) showDrawModal();
+            });
         }
 
-        function handleGameUpdate(data) {
+        function sync(data) {
             currentGame = data;
-            
-            // Handle Logic Sync
+            timers = data.timers;
+
             if (data.pgn !== game.pgn()) {
+                const oldMoves = game.history();
                 game.load_pgn(data.pgn);
-                const lastMove = game.history({verbose:true}).pop();
-                if (lastMove) {
-                    if (lastMove.captured) playSound('capture');
-                    else if (game.in_check()) playSound('check');
-                    else playSound('move');
+                const newMoves = game.history();
+                if (newMoves.length > oldMoves.length) {
+                    const last = game.history({verbose:true}).pop();
+                    if (last.captured) sounds.capture.play();
+                    else if (game.in_check()) sounds.check.play();
+                    else sounds.move.play();
                 }
-                renderBoard();
             }
 
-            // Check if game starts (both players present)
             const oppEmail = playerColor === 'w' ? data.player_black_email : data.player_white_email;
             if (oppEmail) {
-                document.getElementById('matchmaking-screen').classList.add('hidden');
-                document.getElementById('lobby-container').classList.add('hidden');
-                document.getElementById('game-container').classList.remove('hidden');
+                document.getElementById('lobby').classList.add('hidden');
+                document.getElementById('game-arena').classList.remove('hidden');
+                document.getElementById('opp-name').innerText = oppEmail.split('@')[0];
+                document.getElementById('opp-initial').innerText = oppEmail[0].toUpperCase();
+                document.getElementById('opp-status').innerText = "Online";
+                document.getElementById('opp-status').className = "text-[10px] text-green-500 italic";
+                document.getElementById('my-color-text').innerText = playerColor === 'w' ? 'White' : 'Black';
                 
-                document.getElementById('opponent-name').innerText = oppEmail.split('@')[0];
-                document.getElementById('opp-avatar').innerText = oppEmail[0].toUpperCase();
-                document.getElementById('opponent-status').innerText = "ONLINE";
-                document.getElementById('opponent-status').className = "text-[10px] text-green-500";
-                document.getElementById('room-display-id').innerText = data.room_id;
-                document.getElementById('my-color-label').innerText = playerColor === 'w' ? 'WHITE' : 'BLACK';
-                
-                // Start FIDE Clock once opponent joins
-                if (!timerInterval && !game.game_over()) startTimer();
+                if (!clockInterval && !game.game_over()) startClock();
             }
-            
-            renderBoard();
+            render();
+            if (stockfish) {
+                stockfish.postMessage(`position fen ${game.fen()}`);
+                stockfish.postMessage('go depth 12');
+            }
         }
 
-        function renderBoard() {
+        function render() {
             const boardEl = document.getElementById('board');
             boardEl.innerHTML = '';
-            const history = game.history({ verbose: true });
-            const lastMove = history.length > 0 ? history[history.length - 1] : null;
-            const inCheck = game.in_check();
-
+            const history = game.history({verbose:true});
+            const lastMove = history.pop();
             const squares = playerColor === 'b' ? [...game.SQUARES].reverse() : game.SQUARES;
 
-            squares.forEach((sq) => {
+            squares.forEach(sq => {
                 const piece = game.get(sq);
                 const div = document.createElement('div');
-                const idx = game.SQUARES.indexOf(sq);
-                const isDark = (Math.floor(idx / 8) + (idx % 8)) % 2 !== 0;
+                div.className = `square ${(game.SQUARES.indexOf(sq) + Math.floor(game.SQUARES.indexOf(sq)/8)) % 2 === 0 ? 'dark' : 'light'}`;
                 
-                div.className = `square ${isDark ? 'dark' : 'light'}`;
-                if (selectedSquare === sq) div.classList.add('selected');
+                if (selectedSq === sq) div.classList.add('selected');
                 if (lastMove && (lastMove.from === sq || lastMove.to === sq)) div.classList.add('last-move');
-                
-                // Highlight King if in check
-                if (inCheck && piece && piece.type === 'k' && piece.color === game.turn() && sq === findKing(piece.color)) {
-                    div.classList.add('check');
-                }
+                if (game.in_check() && piece && piece.type === 'k' && piece.color === game.turn()) div.classList.add('check');
 
                 if (piece) {
                     const img = document.createElement('img');
                     img.src = pieceTheme[piece.color][piece.type];
                     img.className = 'piece-img';
-                    img.draggable = false;
+                    // Animation for most recent move
+                    if (lastMove && lastMove.to === sq) img.classList.add('move-anim');
                     div.appendChild(img);
                 }
-                div.onclick = () => handleSquareClick(sq);
+
+                div.onclick = () => handleSqClick(sq);
                 boardEl.appendChild(div);
             });
 
-            const turn = game.turn() === 'w' ? 'WHITE' : 'BLACK';
-            document.getElementById('turn-badge').innerText = `${turn}'S TURN`;
+            // Timers & UI
+            updateTimerUI();
+            updateHistoryUI();
             
-            updateMoveHistory();
-            updateTimerDisplay();
-            if (game.game_over()) handleGameOver();
+            const turn = game.turn() === 'w' ? 'WHITE' : 'BLACK';
+            const badge = document.getElementById('turn-indicator');
+            badge.innerText = `${turn}'S TURN`;
+            badge.className = `px-3 py-1 rounded-full text-[10px] font-black animate-pulse ${game.turn() === 'w' ? 'bg-white text-black' : 'bg-slate-800 text-white'}`;
+
+            if (game.game_over()) handleEnd();
         }
 
-        function findKing(color) {
-            for (let i = 0; i < 64; i++) {
-                const sq = game.SQUARES[i];
+        function handleSqClick(sq) {
+            if (game.turn() !== playerColor || game.game_over() || !currentGame.player_black_id) return;
+
+            if (selectedSq === null) {
                 const p = game.get(sq);
-                if (p && p.type === 'k' && p.color === color) return sq;
-            }
-        }
-
-        function handleSquareClick(sq) {
-            const isMyTurn = (game.turn() === playerColor);
-            const bothPlayersJoined = (currentGame && currentGame.player_black_id);
-
-            if (!bothPlayersJoined || !isMyTurn || game.game_over() || isPromotionPending) return;
-
-            if (selectedSquare === null) {
-                const piece = game.get(sq);
-                if (piece && piece.color === playerColor) {
-                    selectedSquare = sq;
-                    renderBoard();
+                if (p && p.color === playerColor) {
+                    selectedSq = sq;
+                    render();
                 }
             } else {
-                // Check for promotion
-                const piece = game.get(selectedSquare);
-                const isPawn = piece && piece.type === 'p';
-                const isPromotionRank = (playerColor === 'w' && sq[1] === '8') || (playerColor === 'b' && sq[1] === '1');
-                
-                if (isPawn && isPromotionRank) {
-                    // Peek if move is valid
-                    const moves = game.moves({ square: selectedSquare, verbose: true });
-                    const isValidMove = moves.some(m => m.to === sq);
-                    if (isValidMove) {
-                        showPromotionModal(selectedSquare, sq);
-                        return;
-                    }
-                }
-
-                const move = game.move({ from: selectedSquare, to: sq, promotion: 'q' });
+                const move = game.move({ from: selectedSq, to: sq, promotion: 'q' });
                 if (move) {
-                    syncMoveToSupabase();
+                    selectedSq = null;
+                    save();
+                } else {
+                    const p = game.get(sq);
+                    selectedSq = (p && p.color === playerColor) ? sq : null;
+                    render();
                 }
-                selectedSquare = null;
-                renderBoard();
             }
         }
 
-        function showPromotionModal(from, to) {
-            isPromotionPending = true;
-            const modal = document.getElementById('promotion-modal');
-            const options = document.getElementById('promotion-options');
-            options.innerHTML = '';
-            modal.classList.remove('hidden');
-
-            ['q', 'r', 'b', 'n'].forEach(type => {
-                const btn = document.createElement('button');
-                btn.className = "p-4 bg-slate-800 hover:bg-slate-700 rounded-2xl transition border border-slate-700";
-                const img = document.createElement('img');
-                img.src = pieceTheme[playerColor][type];
-                img.className = "w-12 h-12";
-                btn.appendChild(img);
-                btn.onclick = () => {
-                    game.move({ from, to, promotion: type });
-                    syncMoveToSupabase();
-                    modal.classList.add('hidden');
-                    isPromotionPending = false;
-                    selectedSquare = null;
-                    renderBoard();
-                };
-                options.appendChild(btn);
-            });
+        async function save() {
+            await client.from('games').update({ 
+                pgn: game.pgn(), 
+                timers: timers,
+                last_move_at: new Date() 
+            }).eq('id', currentGame.id);
         }
 
-        async function syncMoveToSupabase() {
-            await window.supabaseClient
-                .from('games')
-                .update({ pgn: game.pgn(), last_move_at: new Date() })
-                .eq('id', currentGame.id);
+        function startClock() {
+            clockInterval = setInterval(() => {
+                if (game.turn() === 'w') timers.w--;
+                else timers.b--;
+                
+                updateTimerUI();
+                if (timers.w <= 0 || timers.b <= 0) handleEnd(true);
+            }, 1000);
         }
 
-        function updateMoveHistory() {
-            const history = game.history();
-            const el = document.getElementById('move-history');
+        function updateTimerUI() {
+            const fmt = (s) => `${Math.floor(s/60)}:${(s%60).toString().padStart(2,'0')}`;
+            const wBox = document.getElementById('timer-white');
+            const bBox = document.getElementById('timer-black');
+            
+            wBox.innerText = fmt(timers.w);
+            bBox.innerText = fmt(timers.b);
+            
+            wBox.className = `timer-box ${game.turn() === 'w' ? 'timer-active' : ''} ${timers.w < 30 ? 'timer-low' : ''}`;
+            bBox.className = `timer-box ${game.turn() === 'b' ? 'timer-active' : ''} ${timers.b < 30 ? 'timer-low' : ''}`;
+        }
+
+        function updateHistoryUI() {
+            const h = game.history();
+            const el = document.getElementById('move-list');
             el.innerHTML = '';
-            for (let i = 0; i < history.length; i += 2) {
-                const num = Math.floor(i / 2) + 1;
-                el.innerHTML += `<div class="text-slate-500">${num}.</div><div class="font-bold">${history[i]} <span class="text-slate-400 font-normal">${history[i+1] || ''}</span></div>`;
+            for(let i=0; i<h.length; i+=2) {
+                el.innerHTML += `<div class="text-slate-600 font-bold">${Math.floor(i/2)+1}.</div><div class="text-slate-200">${h[i]} <span class="text-slate-500 ml-1">${h[i+1]||''}</span></div>`;
             }
             el.scrollTop = el.scrollHeight;
         }
 
-        function startTimer() {
-            timerInterval = setInterval(() => {
-                if (game.turn() === 'w') whiteTime--;
-                else blackTime--;
-                updateTimerDisplay();
-                if (whiteTime <= 0 || blackTime <= 0) handleGameOver(true);
-            }, 1000);
-        }
-
-        function updateTimerDisplay() {
-            const format = (s) => `${Math.floor(s/60)}:${(s%60).toString().padStart(2, '0')}`;
-            const wEl = document.getElementById('w-time');
-            const bEl = document.getElementById('b-time');
-            wEl.innerText = format(whiteTime);
-            bEl.innerText = format(blackTime);
+        function handleEnd(timeout = false) {
+            clearInterval(clockInterval);
+            sounds.end.play();
             
-            document.getElementById('white-timer').classList.toggle('timer-active', game.turn() === 'w');
-            document.getElementById('black-timer').classList.toggle('timer-active', game.turn() === 'b');
-            
-            document.getElementById('white-timer').classList.toggle('timer-low', whiteTime < 30);
-            document.getElementById('black-timer').classList.toggle('timer-low', blackTime < 30);
-        }
-
-        function handleGameOver(onTime = false) {
-            clearInterval(timerInterval);
-            let msg = "Game Over!";
-            let sub = "";
-
-            if (onTime) {
-                msg = game.turn() === 'w' ? "Black wins on time!" : "White wins on time!";
+            let result = "Game Over";
+            if (timeout) {
+                result = timers.w <= 0 ? "Black wins on time!" : "White wins on time!";
             } else if (game.in_checkmate()) {
-                msg = `Checkmate! ${game.turn() === 'w' ? 'Black' : 'White'} Wins!`;
+                result = `Checkmate! ${game.turn() === 'w' ? 'Black' : 'White'} wins.`;
             } else if (game.in_draw()) {
-                msg = "Draw!";
-                if (game.in_stalemate()) sub = "Stalemate";
-                else if (game.in_threefold_repetition()) sub = "Threefold Repetition";
-                else if (game.insufficient_material()) sub = "Insufficient Material";
-                else sub = "50-move Rule";
+                result = "Draw by rule.";
             }
 
-            const label = document.getElementById('game-result-label');
-            label.innerText = `${msg} ${sub ? '('+sub+')' : ''}`;
-            label.classList.remove('hidden');
-            showToast(msg);
+            const footer = document.getElementById('game-status-footer');
+            footer.innerText = result.toUpperCase();
+            footer.classList.remove('hidden');
+
+            showModal(`
+                <h2 class="text-2xl font-black mb-2">Match Finished</h2>
+                <p class="text-slate-400 mb-6">${result}</p>
+                <div class="flex flex-col gap-2">
+                    <button onclick="location.reload()" class="bg-blue-600 py-3 rounded-xl font-bold">New Match</button>
+                    <button onclick="closeModal()" class="text-slate-500 text-xs font-bold py-2">View Board</button>
+                </div>
+            `);
         }
 
-        function requestDraw() { showToast("Draw offer sent (Simulated)"); }
-        function resign() { handleGameOver(); }
+        // --- Modals & Extras ---
 
-        function cancelMatchmaking() {
-            document.getElementById('matchmaking-screen').classList.add('hidden');
-            if (gameSubscription) window.supabaseClient.removeChannel(gameSubscription);
+        function offerDraw() {
+            if (channel) {
+                channel.send({ type: 'broadcast', event: 'draw_offer', payload: { from: user.id } });
+                showToast("Draw offer sent");
+            }
+        }
+
+        function showDrawModal() {
+            showModal(`
+                <h2 class="text-xl font-black mb-4">Draw Offered</h2>
+                <p class="text-slate-400 mb-6">Your opponent is offering a draw. Do you accept?</p>
+                <div class="flex gap-2">
+                    <button onclick="acceptDraw()" class="flex-grow bg-blue-600 py-3 rounded-xl font-bold">Accept</button>
+                    <button onclick="closeModal()" class="flex-grow bg-slate-800 py-3 rounded-xl font-bold text-slate-400">Decline</button>
+                </div>
+            `);
+        }
+
+        async function acceptDraw() {
+            // Force draw in FEN/PGN and save
+            closeModal();
+            handleEnd();
+        }
+
+        function resign() {
+            showModal(`
+                <h2 class="text-xl font-black mb-4">Resign?</h2>
+                <p class="text-slate-400 mb-6">Are you sure you want to forfeit the match?</p>
+                <div class="flex gap-2">
+                    <button onclick="confirmResign()" class="flex-grow bg-red-600 py-3 rounded-xl font-bold">Resign</button>
+                    <button onclick="closeModal()" class="flex-grow bg-slate-800 py-3 rounded-xl font-bold">Cancel</button>
+                </div>
+            `);
+        }
+
+        function confirmResign() {
+            closeModal();
+            handleEnd();
+        }
+
+        function showModal(html) {
+            const container = document.getElementById('modal-container');
+            document.getElementById('modal-content').innerHTML = html;
+            container.classList.remove('hidden');
+        }
+
+        function closeModal() {
+            document.getElementById('modal-container').classList.add('hidden');
         }
 
         function showToast(msg) {
-            const el = document.getElementById('status-msg');
+            const el = document.getElementById('toast');
             el.innerText = msg;
             el.classList.remove('hidden');
-            setTimeout(() => el.classList.add('hidden'), 5000);
+            setTimeout(() => el.classList.add('hidden'), 3000);
         }
 
-        window.onload = checkAuth;
+        async function signOut() {
+            await client.auth.signOut();
+            location.reload();
+        }
+
+        window.onload = init;
     </script>
 </body>
 </html>
