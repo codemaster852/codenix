@@ -3,13 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ChessNix - Multiplayer Chess</title>
+    <title>ChessNix - Supabase Multiplayer</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    
     <style>
-        body { font-family: 'Inter', sans-serif; }
+        body { font-family: 'Inter', sans-serif; margin: 0; padding: 0; }
         .chessboard {
             display: grid;
             grid-template-columns: repeat(8, 1fr);
@@ -17,7 +18,7 @@
             max-width: 520px;
             aspect-ratio: 1/1;
             border: 8px solid #1e293b;
-            border-radius: 4px;
+            border-radius: 8px;
             overflow: hidden;
             box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
         }
@@ -27,19 +28,12 @@
             justify-content: center;
             position: relative;
             cursor: pointer;
-            transition: background 0.2s;
         }
         .square.light { background-color: #dee3e6; }
         .square.dark { background-color: #8ca2ad; }
         .square.selected { background-color: #bbc949 !important; }
         .square.last-move { background-color: rgba(247, 247, 105, 0.6) !important; }
-        
-        .piece-img { 
-            width: 85%; 
-            height: 85%; 
-            z-index: 10;
-            filter: drop-shadow(0 2px 2px rgba(0,0,0,0.3));
-        }
+        .piece-img { width: 85%; height: 85%; z-index: 10; }
 
         .timer-box {
             font-family: 'Monaco', 'Consolas', monospace;
@@ -47,27 +41,22 @@
             background: #0f172a;
             border: 2px solid #334155;
             border-radius: 12px;
-            transition: all 0.3s;
         }
         .timer-active {
             border-color: #3b82f6;
             background: #1e3a8a;
-            transform: scale(1.05);
-            box-shadow: 0 0 20px rgba(59, 130, 246, 0.3);
+            box-shadow: 0 0 15px rgba(59, 130, 246, 0.3);
         }
 
         .spinner {
             border: 4px solid rgba(255, 255, 255, 0.1);
-            width: 36px;
-            height: 36px;
+            width: 40px;
+            height: 40px;
             border-radius: 50%;
             border-left-color: #3b82f6;
             animation: spin 1s linear infinite;
         }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col items-center">
@@ -86,18 +75,18 @@
     <main class="w-full max-w-5xl px-4 pb-12 flex flex-col items-center">
         
         <!-- Matchmaking Overlay -->
-        <div id="matchmaking-screen" class="hidden fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-md flex flex-col items-center justify-center">
+        <div id="matchmaking-screen" class="hidden fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-md flex flex-col items-center justify-center">
             <div class="spinner mb-6"></div>
             <h2 id="matchmaking-status" class="text-2xl font-bold mb-2">Finding Opponent...</h2>
-            <p id="matchmaking-subtext" class="text-slate-400 mb-8">Checking for available matches...</p>
+            <p id="matchmaking-subtext" class="text-slate-400 mb-8 text-center px-6">Connecting to Supabase Realtime...</p>
             <button onclick="cancelMatchmaking()" class="px-6 py-2 border border-slate-700 rounded-lg hover:bg-slate-800 transition">Cancel</button>
         </div>
 
         <!-- Lobby Area -->
         <div id="lobby-container" class="w-full max-w-xl bg-slate-900 p-10 rounded-3xl border border-slate-800 shadow-2xl mt-10">
             <div class="text-center mb-10">
-                <h2 class="text-3xl font-black mb-2">Multiplayer Lobby</h2>
-                <p class="text-slate-400">Join a random room or create a private one.</p>
+                <h2 class="text-3xl font-black mb-2">Supabase Arena</h2>
+                <p class="text-slate-400">Instant matchmaking via Supabase Realtime.</p>
             </div>
             
             <div class="grid gap-6">
@@ -105,7 +94,7 @@
                     <div class="flex items-center justify-between">
                         <div class="text-left">
                             <div class="text-xl">Quick Match</div>
-                            <div class="text-sm font-normal opacity-70">Finds an open game automatically</div>
+                            <div class="text-sm font-normal opacity-70">Join an open game instantly</div>
                         </div>
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
                     </div>
@@ -118,7 +107,7 @@
                 </div>
 
                 <div class="flex gap-3">
-                    <input type="text" id="room-input" placeholder="Custom Room Name" class="flex-grow bg-slate-800 border border-slate-700 rounded-xl px-5 py-4 outline-none focus:ring-2 focus:ring-blue-500">
+                    <input type="text" id="room-input" placeholder="Room Name" class="flex-grow bg-slate-800 border border-slate-700 rounded-xl px-5 py-4 outline-none focus:ring-2 focus:ring-blue-500">
                     <button onclick="joinRoom()" class="bg-slate-700 hover:bg-slate-600 px-8 rounded-xl font-bold transition">JOIN</button>
                 </div>
             </div>
@@ -131,13 +120,11 @@
                     <div class="flex items-center gap-3">
                         <div id="opp-avatar" class="w-10 h-10 bg-slate-800 rounded-lg flex items-center justify-center font-bold text-slate-400 border border-slate-700">?</div>
                         <div>
-                            <div id="opponent-name" class="font-bold text-sm italic">Waiting for opponent...</div>
-                            <div id="opponent-status" class="text-[10px] text-slate-500 flex items-center gap-1">OFFLINE</div>
+                            <div id="opponent-name" class="font-bold text-sm italic text-slate-300">Opponent</div>
+                            <div id="opponent-status" class="text-[10px] text-green-500">ONLINE</div>
                         </div>
                     </div>
-                    <div id="black-timer" class="timer-box">
-                        <div id="b-time" class="text-2xl font-bold">10:00</div>
-                    </div>
+                    <div id="black-timer" class="timer-box"><div id="b-time" class="text-2xl font-bold">10:00</div></div>
                 </div>
 
                 <div id="board" class="chessboard"></div>
@@ -146,27 +133,25 @@
                     <div class="flex items-center gap-3">
                         <div class="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center font-bold text-white shadow-lg">YOU</div>
                         <div>
-                            <div id="my-name" class="font-bold text-sm text-blue-400">Detecting...</div>
-                            <div class="text-[10px] text-slate-500">PLAYING AS <span id="my-color-label">WHITE</span></div>
+                            <div id="my-name" class="font-bold text-sm text-blue-400">...</div>
+                            <div class="text-[10px] text-slate-500 uppercase">PLAYING AS <span id="my-color-label">...</span></div>
                         </div>
                     </div>
-                    <div id="white-timer" class="timer-box">
-                        <div id="w-time" class="text-2xl font-bold">10:00</div>
-                    </div>
+                    <div id="white-timer" class="timer-box"><div id="w-time" class="text-2xl font-bold">10:00</div></div>
                 </div>
             </div>
 
             <div class="w-full lg:w-80 flex flex-col gap-4">
                 <div class="bg-slate-900 border border-slate-800 rounded-2xl flex-grow overflow-hidden flex flex-col shadow-xl min-h-[400px]">
-                    <div class="p-4 border-b border-slate-800 bg-slate-900/50 flex justify-between items-center">
-                        <h3 class="text-xs font-black uppercase tracking-widest text-slate-500">Moves</h3>
-                        <span id="turn-badge" class="px-2 py-0.5 bg-green-500/20 text-green-400 rounded text-[10px] font-bold">WHITE'S TURN</span>
+                    <div class="p-4 border-b border-slate-800 flex justify-between items-center">
+                        <h3 class="text-xs font-black uppercase text-slate-500">Log</h3>
+                        <span id="turn-badge" class="px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded text-[10px] font-bold">WHITE'S TURN</span>
                     </div>
                     <div id="move-history" class="p-4 grid grid-cols-2 gap-x-4 gap-y-1 text-sm font-mono h-64 overflow-y-auto content-start"></div>
                 </div>
                 <div class="bg-slate-900 border border-slate-800 p-4 rounded-2xl">
-                    <div class="text-[10px] text-slate-500 uppercase font-bold mb-1">Game ID</div>
-                    <div id="room-display-id" class="text-xs text-slate-300 font-mono break-all">...</div>
+                    <div class="text-[10px] text-slate-500 uppercase font-bold mb-1">Room ID</div>
+                    <div id="room-display-id" class="text-xs text-slate-300 font-mono">...</div>
                 </div>
             </div>
         </div>
@@ -174,47 +159,46 @@
 
     <div id="status-msg" class="fixed bottom-10 left-1/2 -translate-x-1/2 bg-blue-600 text-white px-8 py-3 rounded-2xl shadow-2xl font-bold z-[100] hidden"></div>
 
-    <audio id="sound-move" src="https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.mp3" preload="auto"></audio>
-    <audio id="sound-capture" src="https://assets.mixkit.co/active_storage/sfx/2572/2572-preview.mp3" preload="auto"></audio>
-    <audio id="sound-check" src="https://assets.mixkit.co/active_storage/sfx/2573/2573-preview.mp3" preload="auto"></audio>
+    <audio id="sound-move" src="https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.mp3"></audio>
+    <audio id="sound-capture" src="https://assets.mixkit.co/active_storage/sfx/2572/2572-preview.mp3"></audio>
+    <audio id="sound-check" src="https://assets.mixkit.co/active_storage/sfx/2573/2573-preview.mp3"></audio>
 
     <script>
-        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycby5J3OZgHk0PCSHjRsVKY0gcZ0O9GDvKY8TqYpXKK6JgZOXngg5xUOzCF3ZegNrCqCW/exec";
+        const SUPABASE_URL = "https://rnlwrngfgvznndlekmrz.supabase.co";
+        const SUPABASE_KEY = "sb_publishable_mtI0_ZBvU_n5oRuqV58QHg_qJt3Gfyt";
         
-        let client;
+        // Use a global variable for the supabase instance to avoid SyntaxError 'supabase' already declared
+        window.supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        
         let game = new Chess();
         let user = null;
-        let currentGameId = null;
-        let playerColor = 'w'; 
+        let currentGame = null;
+        let playerColor = null; 
         let selectedSquare = null;
         let whiteTime = 600;
         let blackTime = 600;
         let timerInterval = null;
-        let pollingInterval = null;
-        let isOpponentFound = false;
+        let gameSubscription = null;
 
         const pieceTheme = {
             w: { p: 'https://upload.wikimedia.org/wikipedia/commons/4/45/Chess_plt45.svg', r: 'https://upload.wikimedia.org/wikipedia/commons/7/72/Chess_rlt45.svg', n: 'https://upload.wikimedia.org/wikipedia/commons/7/70/Chess_nlt45.svg', b: 'https://upload.wikimedia.org/wikipedia/commons/b/b1/Chess_blt45.svg', q: 'https://upload.wikimedia.org/wikipedia/commons/1/15/Chess_qlt45.svg', k: 'https://upload.wikimedia.org/wikipedia/commons/4/42/Chess_klt45.svg' },
             b: { p: 'https://upload.wikimedia.org/wikipedia/commons/c/c7/Chess_pdt45.svg', r: 'https://upload.wikimedia.org/wikipedia/commons/f/ff/Chess_rdt45.svg', n: 'https://upload.wikimedia.org/wikipedia/commons/e/ef/Chess_ndt45.svg', b: 'https://upload.wikimedia.org/wikipedia/commons/9/8d/Chess_bdt45.svg', q: 'https://upload.wikimedia.org/wikipedia/commons/4/47/Chess_qdt45.svg', k: 'https://upload.wikimedia.org/wikipedia/commons/f/f0/Chess_kdt45.svg' }
         };
 
-        function initSupabase() {
-            const URL = "https://rnlwrngfgvznndlekmrz.supabase.co";
-            const KEY = "sb_publishable_mtI0_ZBvU_n5oRuqV58QHg_qJt3Gfyt";
-            if (typeof window.supabase !== 'undefined') client = window.supabase.createClient(URL, KEY);
-        }
-
         async function checkAuth() {
-            if (!client) initSupabase();
-            const { data: { session } } = await client.auth.getSession();
-            if (!session) { window.location.href = 'auth.html'; return; }
+            const { data: { session } } = await window.supabaseClient.auth.getSession();
+            if (!session) { 
+                showToast("Please sign in first.");
+                return;
+            }
             user = session.user;
             document.getElementById('username-display').innerText = user.email;
             document.getElementById('my-name').innerText = user.email.split('@')[0];
         }
 
         async function signOut() {
-            if (client) { await client.auth.signOut(); window.location.href = 'auth.html'; }
+            await window.supabaseClient.auth.signOut();
+            location.reload();
         }
 
         function playSound(type) {
@@ -224,79 +208,141 @@
 
         async function startMatchmaking() {
             const screen = document.getElementById('matchmaking-screen');
-            const statusText = document.getElementById('matchmaking-status');
-            const subText = document.getElementById('matchmaking-subtext');
             screen.classList.remove('hidden');
             
             try {
-                const resp = await fetch(SCRIPT_URL);
-                const games = await resp.json();
-                
-                // Find game where player 2 is "WAITING" and player 1 is NOT current user
-                let openSlot = Array.isArray(games) ? games.find(g => (g.player2 === "WAITING" || !g.player2) && g.player1 !== user.email) : null;
-                
-                if (openSlot) {
-                    statusText.innerText = "Match Found!";
-                    subText.innerText = "Joining as Black...";
-                    currentGameId = openSlot.gameId;
+                const { data: openGames, error } = await window.supabaseClient
+                    .from('games')
+                    .select('*')
+                    .is('player_black_id', null)
+                    .neq('player_white_id', user.id)
+                    .limit(1);
+
+                if (openGames && openGames.length > 0) {
+                    const match = openGames[0];
                     playerColor = 'b';
-                    // Update sheet with current user as player 2
-                    await syncToSheet(currentGameId, openSlot.player1, user.email, openSlot.moves || "");
-                    isOpponentFound = true;
-                    completeJoin();
+                    await joinExistingGame(match);
                 } else {
-                    // Check if current user already has a WAITING game
-                    let myExistingGame = Array.isArray(games) ? games.find(g => g.player1 === user.email && (g.player2 === "WAITING" || !g.player2)) : null;
-                    
-                    if (myExistingGame) {
-                        currentGameId = myExistingGame.gameId;
-                    } else {
-                        currentGameId = "NIX_" + Math.random().toString(36).substr(2, 6).toUpperCase();
-                        await syncToSheet(currentGameId, user.email, "WAITING", "");
-                    }
-                    
-                    statusText.innerText = "Searching...";
-                    subText.innerText = "Waiting for an opponent to join...";
                     playerColor = 'w';
-                    isOpponentFound = false;
-                    
-                    // Keep the loading screen up, but start polling to see if someone joins
-                    if (pollingInterval) clearInterval(pollingInterval);
-                    pollingInterval = setInterval(pollDatabase, 2000);
+                    await createNewGame("RANDOM_" + Math.random().toString(36).substr(2, 5).toUpperCase());
                 }
             } catch (e) {
-                showToast("Network Error. Retrying...");
+                console.error(e);
                 cancelMatchmaking();
             }
         }
 
-        function cancelMatchmaking() {
-            document.getElementById('matchmaking-screen').classList.add('hidden');
-            if (pollingInterval) clearInterval(pollingInterval);
-        }
-
-        function completeJoin() {
-            document.getElementById('matchmaking-screen').classList.add('hidden');
-            document.getElementById('lobby-container').classList.add('hidden');
-            document.getElementById('game-container').classList.remove('hidden');
-            document.getElementById('room-display-id').innerText = currentGameId;
-            document.getElementById('my-color-label').innerText = playerColor === 'w' ? 'WHITE' : 'BLACK';
+        async function joinRoom() {
+            const roomId = document.getElementById('room-input').value.trim();
+            if (!roomId) return;
             
-            renderBoard();
-            startTimer();
-            if (!pollingInterval || isOpponentFound) {
-                if (pollingInterval) clearInterval(pollingInterval);
-                pollingInterval = setInterval(pollDatabase, 2000);
+            const screen = document.getElementById('matchmaking-screen');
+            screen.classList.remove('hidden');
+
+            const { data: existing } = await window.supabaseClient
+                .from('games')
+                .select('*')
+                .eq('room_id', roomId)
+                .maybeSingle();
+
+            if (existing) {
+                if (existing.player_white_id === user.id) {
+                    playerColor = 'w';
+                    setupRealtime(existing.id);
+                } else if (!existing.player_black_id) {
+                    playerColor = 'b';
+                    await joinExistingGame(existing);
+                } else if (existing.player_black_id === user.id) {
+                    playerColor = 'b';
+                    setupRealtime(existing.id);
+                } else {
+                    showToast("Room is full.");
+                    cancelMatchmaking();
+                }
+            } else {
+                playerColor = 'w';
+                await createNewGame(roomId);
             }
         }
 
-        async function joinRoom() {
-            const id = document.getElementById('room-input').value;
-            if (!id) return;
-            currentGameId = id;
-            playerColor = 'w';
-            await syncToSheet(currentGameId, user.email, "WAITING", "");
-            startMatchmaking(); // Use matchmaking logic to wait
+        async function createNewGame(roomId) {
+            const { data, error } = await window.supabaseClient
+                .from('games')
+                .insert([{ 
+                    room_id: roomId, 
+                    player_white_id: user.id, 
+                    player_white_email: user.email 
+                }])
+                .select()
+                .single();
+
+            if (data) setupRealtime(data.id);
+        }
+
+        async function joinExistingGame(match) {
+            const { data, error } = await window.supabaseClient
+                .from('games')
+                .update({ 
+                    player_black_id: user.id, 
+                    player_black_email: user.email 
+                })
+                .eq('id', match.id)
+                .select()
+                .single();
+
+            if (data) setupRealtime(data.id);
+        }
+
+        function setupRealtime(gameUuid) {
+            if (gameSubscription) window.supabaseClient.removeChannel(gameSubscription);
+
+            gameSubscription = window.supabaseClient
+                .channel(`game_${gameUuid}`)
+                .on('postgres_changes', { 
+                    event: 'UPDATE', 
+                    schema: 'public', 
+                    table: 'games', 
+                    filter: `id=eq.${gameUuid}` 
+                }, (payload) => {
+                    handleGameUpdate(payload.new);
+                })
+                .subscribe(async (status) => {
+                    if (status === 'SUBSCRIBED') {
+                        const { data } = await window.supabaseClient.from('games').select('*').eq('id', gameUuid).single();
+                        handleGameUpdate(data);
+                    }
+                });
+        }
+
+        function handleGameUpdate(data) {
+            currentGame = data;
+            
+            if (data.pgn !== game.pgn()) {
+                game.load_pgn(data.pgn);
+                const lastMove = game.history({verbose:true}).pop();
+                if (lastMove) {
+                    if (lastMove.captured) playSound('capture');
+                    else if (game.in_check()) playSound('check');
+                    else playSound('move');
+                }
+                renderBoard();
+            }
+
+            const oppEmail = playerColor === 'w' ? data.player_black_email : data.player_white_email;
+            if (oppEmail) {
+                document.getElementById('matchmaking-screen').classList.add('hidden');
+                document.getElementById('lobby-container').classList.add('hidden');
+                document.getElementById('game-container').classList.remove('hidden');
+                
+                document.getElementById('opponent-name').innerText = oppEmail.split('@')[0];
+                document.getElementById('opp-avatar').innerText = oppEmail[0].toUpperCase();
+                document.getElementById('room-display-id').innerText = data.room_id;
+                document.getElementById('my-color-label').innerText = playerColor === 'w' ? 'WHITE' : 'BLACK';
+                
+                if (!timerInterval) startTimer();
+            }
+            
+            renderBoard();
         }
 
         function renderBoard() {
@@ -315,9 +361,7 @@
                 
                 div.className = `square ${isDark ? 'dark' : 'light'}`;
                 if (selectedSquare === sq) div.classList.add('selected');
-                if (lastMove && (lastMove.from === sq || lastMove.to === sq)) {
-                    div.classList.add('last-move');
-                }
+                if (lastMove && (lastMove.from === sq || lastMove.to === sq)) div.classList.add('last-move');
 
                 if (piece) {
                     const img = document.createElement('img');
@@ -330,28 +374,18 @@
             });
 
             const turn = game.turn() === 'w' ? 'WHITE' : 'BLACK';
-            const badge = document.getElementById('turn-badge');
-            badge.innerText = `${turn}'S TURN`;
-            badge.className = `px-2 py-0.5 rounded text-[10px] font-bold ${game.turn() === 'w' ? 'bg-blue-500/20 text-blue-400' : 'bg-slate-500/20 text-slate-300'}`;
+            document.getElementById('turn-badge').innerText = `${turn}'S TURN`;
             
             updateMoveHistory();
             updateTimerDisplay();
             if (game.game_over()) handleGameOver();
         }
 
-        function updateMoveHistory() {
-            const history = game.history();
-            const el = document.getElementById('move-history');
-            el.innerHTML = '';
-            for (let i = 0; i < history.length; i += 2) {
-                const num = Math.floor(i / 2) + 1;
-                el.innerHTML += `<div class="text-slate-500">${num}.</div><div class="flex gap-4"><span>${history[i]}</span><span class="text-slate-300">${history[i+1] || ''}</span></div>`;
-            }
-            el.scrollTop = el.scrollHeight;
-        }
-
         function handleSquareClick(sq) {
-            if (!isOpponentFound || game.turn() !== playerColor || game.game_over()) return;
+            const isMyTurn = (game.turn() === playerColor);
+            const bothPlayersJoined = (currentGame && currentGame.player_black_id);
+
+            if (!bothPlayersJoined || !isMyTurn || game.game_over()) return;
 
             if (selectedSquare === null) {
                 const piece = game.get(sq);
@@ -362,67 +396,33 @@
             } else {
                 const move = game.move({ from: selectedSquare, to: sq, promotion: 'q' });
                 if (move) {
-                    if (move.captured) playSound('capture');
-                    else if (game.in_check()) playSound('check');
-                    else playSound('move');
-                    syncMoveToSheet();
+                    syncMoveToSupabase();
                 }
                 selectedSquare = null;
                 renderBoard();
             }
         }
 
-        async function syncMoveToSheet() {
-            await syncToSheet(currentGameId, null, null, game.pgn());
+        async function syncMoveToSupabase() {
+            await window.supabaseClient
+                .from('games')
+                .update({ pgn: game.pgn(), last_move_at: new Date() })
+                .eq('id', currentGame.id);
         }
 
-        async function syncToSheet(gid, p1, p2, pgn) {
-            try {
-                await fetch(SCRIPT_URL, {
-                    method: 'POST',
-                    mode: 'no-cors',
-                    body: JSON.stringify({ gameId: gid, player1: p1, player2: p2, moves: pgn })
-                });
-            } catch (e) {}
-        }
-
-        async function pollDatabase() {
-            if (!currentGameId) return;
-
-            try {
-                const response = await fetch(`${SCRIPT_URL}?gameId=${currentGameId}`);
-                const data = await response.json();
-                
-                // Update opponent display
-                const opp = playerColor === 'w' ? data.player2 : data.player1;
-                if (opp && opp !== "WAITING") {
-                    if (!isOpponentFound) {
-                        isOpponentFound = true;
-                        completeJoin(); // Hide loading screen once someone joins
-                    }
-                    document.getElementById('opponent-name').innerText = opp.split('@')[0];
-                    document.getElementById('opponent-status').innerText = "ONLINE";
-                    document.getElementById('opponent-status').className = "text-[10px] text-green-500";
-                    document.getElementById('opp-avatar').innerText = opp[0].toUpperCase();
-                    document.getElementById('opp-avatar').className = "w-10 h-10 bg-slate-100 rounded-lg flex items-center justify-center font-bold text-slate-900";
-                }
-
-                // If opponent moved, update board live
-                if (game.turn() !== playerColor && data.moves && data.moves !== game.pgn()) {
-                    game.load_pgn(data.moves);
-                    const lastMove = game.history({verbose:true}).pop();
-                    if (lastMove && lastMove.captured) playSound('capture');
-                    else if (game.in_check()) playSound('check');
-                    else playSound('move');
-                    renderBoard();
-                }
-            } catch (e) {}
+        function updateMoveHistory() {
+            const history = game.history();
+            const el = document.getElementById('move-history');
+            el.innerHTML = '';
+            for (let i = 0; i < history.length; i += 2) {
+                const num = Math.floor(i / 2) + 1;
+                el.innerHTML += `<div class="text-slate-500">${num}.</div><div>${history[i]} ${history[i+1] || ''}</div>`;
+            }
+            el.scrollTop = el.scrollHeight;
         }
 
         function startTimer() {
-            if (timerInterval) clearInterval(timerInterval);
             timerInterval = setInterval(() => {
-                if (!isOpponentFound) return;
                 if (game.turn() === 'w') whiteTime--;
                 else blackTime--;
                 updateTimerDisplay();
@@ -440,25 +440,25 @@
 
         function handleGameOver(onTime = false) {
             clearInterval(timerInterval);
-            clearInterval(pollingInterval);
             let msg = "Game Over!";
             if (onTime) msg = game.turn() === 'w' ? "Black wins on time!" : "White wins on time!";
             else if (game.in_checkmate()) msg = `Checkmate! ${game.turn() === 'w' ? 'Black' : 'White'} Wins!`;
-            else if (game.in_draw()) msg = "Draw!";
             showToast(msg);
+        }
+
+        function cancelMatchmaking() {
+            document.getElementById('matchmaking-screen').classList.add('hidden');
+            if (gameSubscription) window.supabaseClient.removeChannel(gameSubscription);
         }
 
         function showToast(msg) {
             const el = document.getElementById('status-msg');
             el.innerText = msg;
             el.classList.remove('hidden');
-            setTimeout(() => el.classList.add('hidden'), 8000);
+            setTimeout(() => el.classList.add('hidden'), 5000);
         }
 
-        window.onload = () => {
-            checkAuth();
-            renderBoard();
-        };
+        window.onload = checkAuth;
     </script>
 </body>
 </html>
