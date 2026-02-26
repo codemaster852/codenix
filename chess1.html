@@ -88,8 +88,8 @@
         .modal-bg { background: rgba(0, 0, 0, 0.85); backdrop-filter: blur(4px); }
         
         #waiting-overlay {
-            background: rgba(15, 23, 42, 0.95);
-            backdrop-filter: blur(12px);
+            background: rgba(15, 23, 42, 0.98);
+            backdrop-filter: blur(16px);
         }
     </style>
 </head>
@@ -149,17 +149,19 @@
                     <div class="relative">
                         <div id="board" class="chessboard shadow-2xl shadow-black"></div>
                         
+                        <!-- Search Overlay -->
                         <div id="waiting-overlay" class="absolute inset-0 z-[50] flex flex-col items-center justify-center p-6 text-center rounded-lg">
-                            <div class="w-16 h-16 bg-blue-600/10 rounded-full flex items-center justify-center mb-6 relative">
+                            <div class="w-20 h-20 mb-6 flex items-center justify-center relative">
+                                <div class="absolute inset-0 border-4 border-blue-500/20 rounded-full"></div>
                                 <div class="absolute inset-0 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                                <div class="w-4 h-4 bg-blue-500 rounded-full animate-ping"></div>
+                                <svg class="w-8 h-8 text-blue-500 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
                             </div>
-                            <h3 class="text-2xl font-black uppercase tracking-widest text-white mb-2">Finding Match</h3>
-                            <p class="text-slate-400 text-sm mb-6">Waiting for a worthy opponent to join...</p>
+                            <h3 class="text-2xl font-black uppercase tracking-widest text-white mb-2">Seeking Opponent</h3>
+                            <p class="text-slate-400 text-sm mb-6 max-w-[240px]">The board will activate automatically once a player joins your room.</p>
                             <div class="bg-blue-500/10 px-6 py-2 rounded-full mb-8">
-                                <span id="match-room-display" class="text-xs text-blue-400 font-mono font-bold">ROOM: ...</span>
+                                <span id="match-room-display" class="text-xs text-blue-400 font-mono font-bold tracking-widest">ROOM: ...</span>
                             </div>
-                            <button onclick="location.reload()" class="px-8 py-3 bg-slate-800 hover:bg-red-900/50 text-slate-400 hover:text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all">Cancel Search</button>
+                            <button onclick="location.reload()" class="px-8 py-3 bg-slate-800 hover:bg-red-900/40 text-slate-400 hover:text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all">Cancel Matchmaking</button>
                         </div>
                     </div>
                 </div>
@@ -333,6 +335,7 @@
             const wasWaiting = !currentGame || !currentGame.player_black_email;
             currentGame = data;
             
+            // Sync Game Logic
             if (data.pgn !== game.pgn()) {
                 game.load_pgn(data.pgn);
                 const history = game.history({verbose:true});
@@ -345,23 +348,36 @@
                 }
             }
             
+            // UI State Logic
             if (data.player_black_email) {
+                // If we were waiting and someone just joined
                 if (wasWaiting) {
                     playSound('snd-join');
                     document.getElementById('waiting-overlay').classList.add('hidden');
+                    showToast("Opponent Joined! Good Luck.");
                 }
+                
                 document.getElementById('lobby').classList.add('hidden');
                 document.getElementById('game-view').classList.remove('hidden');
+                
+                // Ensure overlay is hidden for the first player
+                const overlay = document.getElementById('waiting-overlay');
+                if(!overlay.classList.contains('hidden')) overlay.classList.add('hidden');
+
                 document.getElementById('opp-label').innerText = (playerColor === 'w' ? data.player_black_email : data.player_white_email).split('@')[0];
                 document.getElementById('color-label').innerText = playerColor === 'w' ? 'White' : 'Black';
+                
                 if (!clock && !game.game_over()) startClock();
             } else {
+                // Still waiting for player 2
                 document.getElementById('lobby').classList.add('hidden');
                 document.getElementById('game-view').classList.remove('hidden');
                 document.getElementById('waiting-overlay').classList.remove('hidden');
                 document.getElementById('match-room-display').innerText = `ROOM: ${data.room_id}`;
             }
+            
             render();
+            
             if(worker && data.player_black_email) {
                 worker.postMessage(`position fen ${game.fen()}`);
                 worker.postMessage('go depth 12');
@@ -386,7 +402,6 @@
 
                 if (piece) {
                     const img = document.createElement('img');
-                    // Switching to stable Chess.com CDN for all pieces including Bishops
                     const pCode = piece.color + piece.type;
                     img.src = `https://www.chess.com/chess-themes/pieces/neo/150/${pCode}.png`;
                     img.className = `piece-img ${last?.to === sq ? 'moving' : ''}`;
