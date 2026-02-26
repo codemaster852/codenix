@@ -102,8 +102,8 @@
             text-transform: uppercase;
         }
         
-        /* Disable interaction when game over */
-        .game-over-lock .square { cursor: default !important; pointer-events: none; }
+        /* Strict lock for finished games */
+        .game-over-lock { pointer-events: none !important; opacity: 0.8; }
     </style>
 </head>
 <body class="flex flex-col items-center min-h-screen pb-10">
@@ -111,7 +111,7 @@
     <div id="auth-overlay" class="fixed inset-0 z-[100] bg-slate-950 flex flex-col items-center justify-center p-6 text-center">
         <div class="w-16 h-16 bg-blue-600 rounded-2xl mb-4 flex items-center justify-center font-bold text-2xl">N</div>
         <h1 class="text-3xl font-black mb-2 tracking-tighter">ChessNix</h1>
-        <div class="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+        <div id="loader-spinner" class="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
     </div>
 
     <div id="modal" class="hidden fixed inset-0 z-[110] modal-bg flex items-center justify-center p-4">
@@ -143,7 +143,7 @@
         </div>
 
         <div id="game-view" class="hidden w-full flex flex-col xl:flex-row gap-12 justify-center items-start">
-            <div class="flex flex-col items-center w-full xl:w-auto">
+            <div id="board-area" class="flex flex-col items-center w-full xl:w-auto">
                 <div class="w-full flex justify-between items-end mb-6 px-2">
                     <div class="flex items-center gap-4">
                         <div class="w-14 h-14 bg-slate-800 rounded-xl flex items-center justify-center font-black text-2xl text-slate-600">?</div>
@@ -206,10 +206,10 @@
         let user = null, currentGame = null, playerColor = 'w';
         let clock = null, timers = { w: 600, b: 600 }, selected = null;
         let tabSwitches = 0;
-        let modalShown = false;
+        let resultShown = false;
 
         async function init() {
-            const { data: { session } } = await sb.auth.getSession();
+            const { data: { session }, error } = await sb.auth.getSession();
             if (session) {
                 user = session.user;
                 document.getElementById('auth-overlay').classList.add('hidden');
@@ -217,18 +217,19 @@
                 document.getElementById('user-email').innerText = user.email.split('@')[0];
                 setupTabDetection();
             } else {
-                document.getElementById('auth-overlay').innerHTML = `<div class="bg-slate-900 p-10 rounded-3xl border border-slate-800"><a href="auth.html" class="bg-blue-600 px-8 py-4 rounded-2xl font-black">LOG IN TO PLAY</a></div>`;
+                document.getElementById('loader-spinner').classList.add('hidden');
+                document.getElementById('auth-overlay').innerHTML += `<div class="mt-4"><a href="auth.html" class="bg-blue-600 px-8 py-4 rounded-2xl font-black inline-block">GO TO LOGIN</a></div>`;
             }
         }
 
         function setupTabDetection() {
             document.addEventListener("visibilitychange", async () => {
-                if (document.visibilityState === "hidden" && currentGame && currentGame.status !== 'finished') {
+                if (document.visibilityState === "hidden" && currentGame && currentGame.status === 'active') {
                     tabSwitches++;
                     const updates = playerColor === 'w' ? { white_warnings: tabSwitches } : { black_warnings: tabSwitches };
                     
                     if (tabSwitches >= 3) {
-                        updates.game_over_reason = `Forfeit: ${user.email.split('@')[0]} switched tabs too many times.`;
+                        updates.game_over_reason = `Loss by forfeit: ${user.email.split('@')[0]} switched tabs 3 times.`;
                         updates.status = 'finished';
                     }
                     
@@ -239,31 +240,33 @@
 
         async function quickMatch() {
             try {
-                const { data } = await sb.from('games').select('*').is('player_black_id', null).neq('player_white_id', user.id).limit(1).maybeSingle();
+                const { data, error } = await sb.from('games').select('*').is('player_black_id', null).neq('player_white_id', user.id).limit(1).maybeSingle();
+                if (error) throw error;
                 if (data) { playerColor = 'b'; join(data.id); } 
                 else { playerColor = 'w'; create("ROOM_" + Math.random().toString(36).substr(2,4).toUpperCase()); }
-            } catch (e) { console.error(e); }
+            } catch (e) {
+                console.error("Matchmaking error:", e);
+                showModal(`<p class='text-red-400'>Error: Database mismatch (400). Please ensure 'white_warnings', 'black_warnings', and 'status' columns exist.</p>`);
+            }
         }
 
         async function joinRoom() {
             const rid = document.getElementById('room-id').value.toUpperCase();
             if (!rid) return;
-            try {
-                const { data } = await sb.from('games').select('*').eq('room_id', rid).maybeSingle();
-                if (data) { playerColor = (data.player_white_id === user.id) ? 'w' : 'b'; join(data.id); } 
-                else { playerColor = 'w'; create(rid); }
-            } catch (e) { console.error(e); }
+            const { data } = await sb.from('games').select('*').eq('room_id', rid).maybeSingle();
+            if (data) { playerColor = (data.player_white_id === user.id) ? 'w' : 'b'; join(data.id); } 
+            else { playerColor = 'w'; create(rid); }
         }
 
         async function create(rid) {
-            const { data, error } = await sb.from('games').insert({ 
+            const { data } = await sb.from('games').insert({ 
                 room_id: rid, player_white_id: user.id, player_white_email: user.email, pgn: "", white_time: 600, black_time: 600, white_warnings: 0, black_warnings: 0, status: 'waiting'
             }).select().single();
             if (data) { showGameUI(data.room_id); subscribe(data.id); }
         }
 
         async function join(gid) {
-            const { data, error } = await sb.from('games').update({ 
+            const { data } = await sb.from('games').update({ 
                 player_black_id: user.id, player_black_email: user.email, status: 'active'
             }).eq('id', gid).select().single();
             if (data) { showGameUI(data.room_id); subscribe(data.id); }
@@ -289,12 +292,12 @@
         function sync(data) {
             if (!data) return;
             currentGame = data;
-            timers.w = data.white_time || 600;
-            timers.b = data.black_time || 600;
+            timers.w = data.white_time;
+            timers.b = data.black_time;
             
             if (data.pgn !== game.pgn()) {
                 game.load_pgn(data.pgn || "");
-                if (data.pgn && data.pgn !== "") playSound('snd-move');
+                if (data.pgn) playSound('snd-move');
             }
             
             if (data.player_black_id) {
@@ -302,21 +305,16 @@
                 const opp = playerColor === 'w' ? data.player_black_email : data.player_white_email;
                 document.getElementById('opp-label').innerText = opp ? opp.split('@')[0] : "Opponent";
                 
-                const myWarn = playerColor === 'w' ? data.white_warnings : data.black_warnings;
-                const oppWarn = playerColor === 'w' ? data.black_warnings : data.white_warnings;
+                const myW = playerColor === 'w' ? data.white_warnings : data.black_warnings;
+                const opW = playerColor === 'w' ? data.black_warnings : data.white_warnings;
                 
+                document.getElementById('my-warnings').innerText = `Tab Switches: ${myW}/3`;
+                document.getElementById('opp-warnings').innerText = `Tab Switches: ${opW}/3`;
                 document.getElementById('my-warnings').classList.remove('hidden');
                 document.getElementById('opp-warnings').classList.remove('hidden');
-                document.getElementById('my-warnings').innerText = `Tab Switches: ${myWarn}/3`;
-                document.getElementById('opp-warnings').innerText = `Tab Switches: ${oppWarn}/3`;
 
                 if (data.status === 'finished') {
-                    document.getElementById('board').classList.add('game-over-lock');
-                    document.getElementById('resign-btn').classList.add('hidden');
-                    if (!modalShown) {
-                        endMatch(data.game_over_reason);
-                        modalShown = true;
-                    }
+                    lockGame(data.game_over_reason);
                 } else if (!clock) {
                     startClock();
                 }
@@ -347,25 +345,18 @@
                 div.onclick = () => handleSquare(sq);
                 board.appendChild(div);
             });
-
             updateTimersDisplay();
             updateLog();
         }
 
         function handleSquare(sq) {
-            if (game.turn() !== playerColor || !currentGame?.player_black_id || currentGame.status === 'finished') return;
+            if (game.turn() !== playerColor || currentGame?.status !== 'active') return;
             if (!selected) {
                 if (game.get(sq)?.color === playerColor) { selected = sq; render(); }
             } else {
                 const move = game.move({ from: selected, to: sq, promotion: 'q' });
-                if (move) { 
-                    selected = null; 
-                    pushMove(); 
-                } else { 
-                    const p = game.get(sq);
-                    selected = (p && p.color === playerColor) ? sq : null;
-                    render(); 
-                }
+                if (move) { selected = null; pushMove(); } 
+                else { selected = (game.get(sq)?.color === playerColor) ? sq : null; render(); }
             }
         }
 
@@ -373,12 +364,11 @@
             const isGameOver = game.game_over();
             let reason = "";
             let status = 'active';
-            
+
             if (isGameOver) {
                 status = 'finished';
                 if (game.in_checkmate()) reason = `Checkmate! ${game.turn() === 'w' ? 'Black' : 'White'} wins.`;
                 else if (game.in_draw()) reason = "Draw!";
-                else if (game.in_stalemate()) reason = "Stalemate!";
             }
 
             await sb.from('games').update({ 
@@ -393,23 +383,33 @@
         function startClock() {
             if (clock) clearInterval(clock);
             clock = setInterval(async () => {
-                if (currentGame?.status === 'finished') {
-                    clearInterval(clock);
-                    return;
-                }
-
+                if (!currentGame || currentGame.status !== 'active') return;
+                
                 if (game.turn() === 'w') timers.w--; else timers.b--;
                 updateTimersDisplay();
 
                 if (timers.w <= 0 || timers.b <= 0) {
                     clearInterval(clock);
-                    // Force final state sync
                     await sb.from('games').update({ 
                         status: 'finished', 
-                        game_over_reason: `Timeout! ${timers.w <= 0 ? 'Black' : 'White'} wins.` 
+                        game_over_reason: `Time Out! ${timers.w <= 0 ? 'Black' : 'White'} wins.` 
                     }).eq('id', currentGame.id);
                 }
             }, 1000);
+        }
+
+        function lockGame(reason) {
+            clearInterval(clock);
+            document.getElementById('board-area').classList.add('game-over-lock');
+            document.getElementById('resign-btn').classList.add('hidden');
+            if (!resultShown) {
+                resultShown = true;
+                showModal(`
+                    <h2 class="text-3xl font-black mb-2 text-white uppercase tracking-tighter">Final Result</h2>
+                    <p class="text-slate-400 mb-8 leading-relaxed">${reason || "The match has ended."}</p>
+                    <button onclick="location.reload()" class="w-full py-4 bg-blue-600 rounded-2xl font-black">BACK TO LOBBY</button>
+                `);
+            }
         }
 
         function updateTimersDisplay() {
@@ -424,25 +424,15 @@
         function updateLog() {
             const h = game.history();
             const log = document.getElementById('move-log');
-            log.innerHTML = h.map((m, i) => i % 2 === 0 ? `<div class="flex gap-2 text-xs font-bold mb-1"><span class="text-slate-600">${Math.floor(i/2)+1}.</span><span class="text-white">${m}</span><span class="text-slate-400">${h[i+1]||''}</span></div>` : '').join('');
+            log.innerHTML = h.map((m, i) => i % 2 === 0 ? `<div class="mb-1 text-xs font-bold"><span class="text-slate-600 mr-2">${Math.floor(i/2)+1}.</span><span class="text-white">${m}</span> <span class="text-slate-400">${h[i+1]||''}</span></div>` : '').join('');
             log.scrollTop = log.scrollHeight;
         }
 
-        function endMatch(reason) {
-            clearInterval(clock);
-            showModal(`
-                <h2 class="text-3xl font-black mb-2 text-white">Match Over</h2>
-                <p class="text-slate-400 mb-8 leading-relaxed">${reason || "The game has concluded."}</p>
-                <button onclick="location.reload()" class="w-full py-4 bg-blue-600 hover:bg-blue-500 rounded-2xl font-black shadow-lg shadow-blue-600/20 transition-all">RETURN TO LOBBY</button>
-            `);
-        }
-
         async function confirmResign() {
-            if (currentGame?.status === 'finished') return;
+            if (currentGame?.status !== 'active') return;
             showModal(`
-                <h2 class="text-xl font-black mb-4">Surrender?</h2>
-                <p class="text-sm text-slate-400 mb-6">You will lose the match immediately.</p>
-                <div class="flex gap-3">
+                <h2 class="text-xl font-black mb-4">Confirm Resignation?</h2>
+                <div class="flex gap-2">
                     <button onclick="document.getElementById('modal').classList.add('hidden')" class="flex-1 py-3 bg-slate-800 rounded-xl font-bold">CANCEL</button>
                     <button onclick="submitResign()" class="flex-1 py-3 bg-red-600 rounded-xl font-bold">RESIGN</button>
                 </div>
@@ -452,7 +442,7 @@
         async function submitResign() {
             await sb.from('games').update({ 
                 status: 'finished', 
-                game_over_reason: `Resignation: ${user.email.split('@')[0]} forfeited.` 
+                game_over_reason: `Resignation: ${user.email.split('@')[0]} surrendered.` 
             }).eq('id', currentGame.id);
             document.getElementById('modal').classList.add('hidden');
         }
