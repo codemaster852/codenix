@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en" class="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Name4World - Global Name Explorer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            light: '#9333ea',
+                            dark: '#a855f7',
+                            bgLight: '#ffffff',
+                            bgDark: '#0a0a0a'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600;800&display=swap');
+        
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+
+        .glass-card {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .name-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .loader {
+            border: 2px solid rgba(147, 51, 234, 0.1);
+            border-top: 2px solid #9333ea;
+            border-radius: 50%;
+            width: 18px;
+            height: 18px;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .gradient-text {
+            background: linear-gradient(135deg, #9333ea 0%, #c084fc 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .animate-card {
+            animation: cardAppear 0.4s ease-out forwards;
+        }
+
+        @keyframes cardAppear {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
+        }
+
+        .tag-scroll::-webkit-scrollbar { height: 4px; }
+        .tag-scroll::-webkit-scrollbar-thumb { background: #9333ea; border-radius: 10px; }
+    </style>
+</head>
+<body class="bg-white dark:bg-[#0a0a0a] text-slate-900 dark:text-slate-100 min-h-screen">
+
+    <!-- Theme Toggle & Header -->
+    <div class="absolute top-6 right-6 z-50">
+        <button onclick="toggleTheme()" class="w-12 h-12 flex items-center justify-center rounded-2xl bg-slate-100 dark:bg-zinc-900 text-purple-600 dark:text-purple-400 hover:scale-110 transition-all border border-slate-200 dark:border-zinc-800 shadow-sm">
+            <i id="themeIcon" class="fa-solid fa-moon text-xl"></i>
+        </button>
+    </div>
+
+    <header class="py-16 px-4 text-center">
+        <h1 class="text-6xl font-extrabold mb-4 gradient-text">Name4World</h1>
+        <p class="text-slate-500 dark:text-slate-400 max-w-xl mx-auto text-lg">
+            Discover how your name is written across the globe. We've grouped similar spellings to show you how cultures connect.
+        </p>
+    </header>
+
+    <!-- Search Section -->
+    <main class="max-w-7xl mx-auto px-6">
+        <div class="flex flex-col md:flex-row gap-4 mb-16 items-center justify-center">
+            <div class="relative w-full max-w-2xl group">
+                <i class="fa-solid fa-signature absolute left-5 top-1/2 -translate-y-1/2 text-purple-400 group-focus-within:text-purple-600"></i>
+                <input type="text" id="nameInput" placeholder="Enter a name to explore..." 
+                    class="w-full pl-14 pr-6 py-5 rounded-3xl bg-slate-50 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 focus:ring-4 focus:ring-purple-500/10 focus:border-purple-500 outline-none transition-all text-xl shadow-sm">
+            </div>
+            <button onclick="exploreName()" id="searchBtn" class="bg-purple-600 hover:bg-purple-700 text-white px-10 py-5 rounded-3xl font-bold shadow-xl shadow-purple-500/20 transition-all active:scale-95 flex items-center gap-3">
+                <span>Explore</span>
+                <div id="btnLoader" class="loader hidden !border-t-white"></div>
+            </button>
+        </div>
+
+        <!-- Result Stats & Controls -->
+        <div id="resultsInfo" class="hidden mb-8 flex flex-col sm:flex-row items-center justify-between gap-4 border-b border-slate-100 dark:border-zinc-800 pb-6">
+            <div class="flex items-center gap-3">
+                <span id="resultCount" class="font-semibold text-purple-600 dark:text-purple-400">Preparing...</span>
+                <div id="statusDot" class="w-2 h-2 rounded-full bg-purple-500 animate-pulse"></div>
+            </div>
+            <div class="flex gap-2">
+                <button onclick="sortResults('alpha')" class="px-4 py-2 rounded-xl bg-slate-50 dark:bg-zinc-900 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors text-sm font-medium flex items-center gap-2">
+                    <i class="fa-solid fa-sort-alpha-down"></i> Language A-Z
+                </button>
+                <button onclick="sortResults('popularity')" class="px-4 py-2 rounded-xl bg-slate-50 dark:bg-zinc-900 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors text-sm font-medium flex items-center gap-2">
+                    <i class="fa-solid fa-users"></i> Most Used
+                </button>
+            </div>
+        </div>
+
+        <!-- Error Container -->
+        <div id="errorBox" class="hidden mb-8 p-6 bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-900/30 text-red-600 dark:text-red-400 rounded-2xl text-center font-medium">
+        </div>
+
+        <!-- Cards Grid -->
+        <div id="resultsGrid" class="name-grid pb-32">
+            <div class="col-span-full text-center py-24 opacity-20 dark:opacity-10">
+                <i class="fa-solid fa-wand-magic-sparkles text-8xl mb-6"></i>
+                <p class="text-2xl font-light italic">Universal connection starts with a name</p>
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="fixed bottom-0 w-full bg-white/80 dark:bg-black/80 backdrop-blur-xl py-6 text-center text-xs font-medium text-slate-400 dark:text-zinc-500 border-t border-slate-100 dark:border-zinc-800 z-50">
+        <p>NAME4WORLD • CONNECTING CULTURES THROUGH LANGUAGE</p>
+    </footer>
+
+    <script>
+        const languages = {
+            "af": "Afrikaans", "sq": "Albanian", "am": "Amharic", "ar": "Arabic", "hy": "Armenian", "az": "Azerbaijani",
+            "eu": "Basque", "be": "Belarusian", "bn": "Bengali", "bs": "Bosnian", "bg": "Bulgarian", "ca": "Catalan",
+            "zh-CN": "Chinese", "hr": "Croatian", "cs": "Czech", "da": "Danish", "nl": "Dutch", "en": "English", 
+            "eo": "Esperanto", "et": "Estonian", "fi": "Finnish", "fr": "French", "gl": "Galician", "ka": "Georgian", 
+            "de": "German", "el": "Greek", "gu": "Gujarati", "ht": "Haitian", "he": "Hebrew", "hi": "Hindi", 
+            "hu": "Hungarian", "is": "Icelandic", "id": "Indonesian", "ga": "Irish", "it": "Italian", "ja": "Japanese", 
+            "kn": "Kannada", "ko": "Korean", "la": "Latin", "lv": "Latvian", "lt": "Lithuanian", "ms": "Malay", 
+            "ml": "Malayalam", "mt": "Maltese", "mr": "Marathi", "mn": "Mongolian", "ne": "Nepali", "no": "Norwegian", 
+            "fa": "Persian", "pl": "Polish", "pt": "Portuguese", "pa": "Punjabi", "ro": "Romanian", "ru": "Russian", 
+            "sr": "Serbian", "sk": "Slovak", "sl": "Slovenian", "es": "Spanish", "sw": "Swahili", "sv": "Swedish", 
+            "ta": "Tamil", "te": "Telugu", "th": "Thai", "tr": "Turkish", "uk": "Ukrainian", "ur": "Urdu", 
+            "vi": "Vietnamese", "cy": "Welsh"
+        };
+
+        let groupedData = {}; 
+        let currentSort = 'popularity';
+
+        // Theme Toggle Logic
+        function toggleTheme() {
+            const html = document.documentElement;
+            const icon = document.getElementById('themeIcon');
+            if (html.classList.contains('dark')) {
+                html.classList.remove('dark');
+                html.classList.add('light');
+                icon.classList.replace('fa-sun', 'fa-moon');
+            } else {
+                html.classList.remove('light');
+                html.classList.add('dark');
+                icon.classList.replace('fa-moon', 'fa-sun');
+            }
+        }
+
+        async function fetchWithRetry(url, options = {}, retries = 3, backoff = 800) {
+            try {
+                const response = await fetch(url, options);
+                if (!response.ok) throw new Error("API Limit");
+                const text = await response.text();
+                return JSON.parse(text);
+            } catch (error) {
+                if (retries > 0) {
+                    await new Promise(r => setTimeout(r, backoff));
+                    return fetchWithRetry(url, options, retries - 1, backoff * 1.5);
+                }
+                throw error;
+            }
+        }
+
+        async function fetchTranslation(text, target) {
+            const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${target}&dt=t&q=${encodeURIComponent(text)}`;
+            const data = await fetchWithRetry(url);
+            return data[0][0][0];
+        }
+
+        async function exploreName() {
+            const name = document.getElementById('nameInput').value.trim();
+            if (!name) return;
+
+            const grid = document.getElementById('resultsGrid');
+            const btnLoader = document.getElementById('btnLoader');
+            const searchBtn = document.getElementById('searchBtn');
+            const errorBox = document.getElementById('errorBox');
+            const resultsInfo = document.getElementById('resultsInfo');
+
+            errorBox.classList.add('hidden');
+            btnLoader.classList.remove('hidden');
+            searchBtn.disabled = true;
+            grid.innerHTML = '';
+            groupedData = {};
+            resultsInfo.classList.remove('hidden');
+
+            const entries = Object.entries(languages);
+            const chunkSize = 6;
+
+            for (let i = 0; i < entries.length; i += chunkSize) {
+                const chunk = entries.slice(i, i + chunkSize);
+                document.getElementById('resultCount').innerText = `Exploring ${currentLanguageCount()}/${entries.length} languages...`;
+
+                await Promise.all(chunk.map(async ([code, langName]) => {
+                    try {
+                        const translated = await fetchTranslation(name, code);
+                        addToGroup(translated, code, langName);
+                    } catch (e) {
+                        console.warn(`Skipped ${langName}`);
+                    }
+                }));
+                
+                renderGrid(); 
+                await new Promise(r => setTimeout(r, 200));
+            }
+
+            btnLoader.classList.add('hidden');
+            searchBtn.disabled = false;
+            document.getElementById('statusDot').classList.remove('animate-pulse');
+            document.getElementById('resultCount').innerText = `Mapped to ${Object.keys(groupedData).length} unique spellings`;
+        }
+
+        function addToGroup(value, code, langName) {
+            if (!groupedData[value]) {
+                groupedData[value] = { value, langs: [] };
+            }
+            if (!groupedData[value].langs.find(l => l.code === code)) {
+                groupedData[value].langs.push({ code, name: langName });
+            }
+        }
+
+        function currentLanguageCount() {
+            return Object.values(groupedData).reduce((acc, curr) => acc + curr.langs.length, 0);
+        }
+
+        function renderGrid() {
+            const grid = document.getElementById('resultsGrid');
+            grid.innerHTML = '';
+            
+            let displayItems = Object.values(groupedData);
+
+            if (currentSort === 'alpha') {
+                displayItems.sort((a, b) => a.value.localeCompare(b.value));
+            } else {
+                displayItems.sort((a, b) => b.langs.length - a.langs.length);
+            }
+
+            displayItems.forEach(item => {
+                const card = document.createElement('div');
+                card.className = 'bg-slate-50 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 p-8 rounded-[2.5rem] shadow-sm hover:shadow-2xl hover:border-purple-500/30 transition-all animate-card flex flex-col justify-between';
+                
+                const langTags = item.langs.map(l => 
+                    `<span class="inline-block px-3 py-1 rounded-full bg-white dark:bg-zinc-800 border border-slate-100 dark:border-zinc-700 text-[10px] font-bold text-slate-500 dark:text-zinc-400 uppercase tracking-tighter whitespace-nowrap">
+                        ${l.name}
+                    </span>`
+                ).join('');
+
+                card.innerHTML = `
+                    <div>
+                        <div class="flex justify-between items-center mb-6">
+                            <span class="text-xs font-black text-purple-600 dark:text-purple-400 bg-purple-100 dark:bg-purple-900/30 px-3 py-1 rounded-lg uppercase tracking-widest">
+                                ${item.langs.length} ${item.langs.length > 1 ? 'Countries' : 'Country'}
+                            </span>
+                            <button onclick="speak('${item.value.replace(/'/g, "\\'")}', '${item.langs[0].code}')" 
+                                class="w-10 h-10 flex items-center justify-center rounded-full bg-white dark:bg-zinc-800 text-purple-500 hover:scale-110 transition-transform shadow-sm">
+                                <i class="fa-solid fa-volume-high"></i>
+                            </button>
+                        </div>
+                        <h3 class="text-4xl font-extrabold mb-4 text-slate-800 dark:text-white break-words">${item.value}</h3>
+                    </div>
+                    <div class="mt-4">
+                        <p class="text-[10px] text-slate-400 dark:text-zinc-500 font-bold uppercase mb-2">Used in:</p>
+                        <div class="flex flex-wrap gap-2 max-h-24 overflow-y-auto tag-scroll pr-2">
+                            ${langTags}
+                        </div>
+                    </div>
+                `;
+                grid.appendChild(card);
+            });
+        }
+
+        function speak(text, code) {
+            window.speechSynthesis.cancel();
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = code;
+            utterance.rate = 0.9;
+            window.speechSynthesis.speak(utterance);
+        }
+
+        function sortResults(type) {
+            currentSort = type;
+            renderGrid();
+        }
+
+        document.getElementById('nameInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') exploreName();
+        });
+    </script>
+</body>
+</html>
