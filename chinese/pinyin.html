@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Simplified Chinese Pinyin Editor</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Noto Sans SC', sans-serif;
+            background-color: #f1f5f9;
+            overscroll-behavior-y: contain;
+            height: 100dvh;
+        }
+        #editor:empty:before {
+            content: attr(placeholder);
+            color: #94a3b8;
+        }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        .key-btn, .key-special {
+            height: 48px;
+            background: white;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.1rem;
+            box-shadow: 0 1px 0 rgba(0,0,0,0.2);
+            transition: background 0.1s;
+            user-select: none;
+            touch-action: manipulation;
+        }
+        .key-btn:active, .key-special:active {
+            background-color: #cbd5e1;
+        }
+        .key-special {
+            background-color: #adb5bd;
+            color: white;
+            font-size: 0.85rem;
+        }
+        
+        #keyboardArea {
+            padding-bottom: env(safe-area-inset-bottom);
+        }
+
+        /* Animation for API loading */
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .loading-dots {
+            animation: pulse 1s infinite;
+        }
+    </style>
+</head>
+<body class="flex flex-col overflow-hidden">
+
+    <header class="bg-white border-b border-slate-200 py-2 px-4 flex-shrink-0">
+        <div class="max-w-5xl mx-auto flex justify-between items-center">
+            <h1 class="text-lg font-bold text-slate-800 flex items-center gap-1">
+                <span class="bg-blue-600 text-white px-1.5 py-0.5 rounded text-sm">简</span>
+                Cloud Pinyin
+            </h1>
+            <div class="flex gap-2">
+                <button id="clearBtn" class="text-xs border border-slate-300 px-3 py-1.5 rounded-lg active:bg-slate-100">Clear</button>
+                <button id="copyBtn" class="text-xs bg-blue-600 text-white px-3 py-1.5 rounded-lg active:bg-blue-700">Copy</button>
+            </div>
+        </div>
+    </header>
+
+    <main class="flex-grow flex flex-col min-h-0 bg-white">
+        <div id="editor" 
+             contenteditable="true" 
+             inputmode="none"
+             class="flex-grow p-4 text-xl leading-relaxed outline-none overflow-y-auto whitespace-pre-wrap" 
+             placeholder="Type pinyin (e.g., 'jiao', 'nihao', 'zhongguo')..."></div>
+    </main>
+
+    <div id="keyboardArea" class="bg-slate-200 border-t border-slate-300 flex-shrink-0">
+        <!-- IME Panel -->
+        <div id="imePanel" class="bg-slate-100 border-b border-slate-300 h-14 flex items-center overflow-hidden">
+            <div id="pinyinBufferContainer" class="px-3 border-r border-slate-300 flex items-center bg-slate-200 h-full min-w-[70px] justify-center">
+                <span id="pinyinBuffer" class="text-blue-600 font-mono font-bold text-sm tracking-tighter uppercase break-all text-center"></span>
+            </div>
+            <div id="candidatesList" class="flex flex-grow overflow-x-auto no-scrollbar py-1 px-2 gap-2 items-center">
+                <span class="text-slate-400 text-xs self-center">Cloud IME Ready</span>
+            </div>
+        </div>
+
+        <!-- Virtual Keyboard -->
+        <div class="p-1.5 grid grid-cols-1 gap-1.5 max-w-md mx-auto">
+            <div class="flex justify-center gap-1">
+                <button class="key-btn flex-1" data-key="q">q</button><button class="key-btn flex-1" data-key="w">w</button><button class="key-btn flex-1" data-key="e">e</button><button class="key-btn flex-1" data-key="r">r</button><button class="key-btn flex-1" data-key="t">t</button><button class="key-btn flex-1" data-key="y">y</button><button class="key-btn flex-1" data-key="u">u</button><button class="key-btn flex-1" data-key="i">i</button><button class="key-btn flex-1" data-key="o">o</button><button class="key-btn flex-1" data-key="p">p</button>
+            </div>
+            <div class="flex justify-center gap-1 px-2">
+                <button class="key-btn flex-1" data-key="a">a</button><button class="key-btn flex-1" data-key="s">s</button><button class="key-btn flex-1" data-key="d">d</button><button class="key-btn flex-1" data-key="f">f</button><button class="key-btn flex-1" data-key="g">g</button><button class="key-btn flex-1" data-key="h">h</button><button class="key-btn flex-1" data-key="j">j</button><button class="key-btn flex-1" data-key="k">k</button><button class="key-btn flex-1" data-key="l">l</button>
+            </div>
+            <div class="flex justify-center gap-1">
+                <button class="key-special w-12" data-key="Backspace">⌫</button>
+                <button class="key-btn flex-1" data-key="z">z</button><button class="key-btn flex-1" data-key="x">x</button><button class="key-btn flex-1" data-key="c">c</button><button class="key-btn flex-1" data-key="v">v</button><button class="key-btn flex-1" data-key="b">b</button><button class="key-btn flex-1" data-key="n">n</button><button class="key-btn flex-1" data-key="m">m</button>
+                <button class="key-special w-12" data-key="Enter">↩</button>
+            </div>
+            <div class="flex justify-center gap-1">
+                <button class="key-special px-4" data-key=",">，</button>
+                <button class="key-btn flex-[4] font-bold" data-key=" ">SPACE / 选</button>
+                <button class="key-special px-4" data-key=".">。</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast" class="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-black/80 text-white px-6 py-3 rounded-xl opacity-0 transition-opacity pointer-events-none z-50">
+        Copied
+    </div>
+
+    <script>
+        const editor = document.getElementById('editor');
+        const pinyinBuffer = document.getElementById('pinyinBuffer');
+        const candidatesList = document.getElementById('candidatesList');
+        const toast = document.getElementById('toast');
+
+        let currentPinyin = "";
+        let currentCandidates = [];
+        let debounceTimer = null;
+
+        // Using Google Input Tools Public API
+        async function fetchCandidates(pinyin) {
+            if (!pinyin) return [];
+            
+            const url = `https://inputtools.google.com/request?text=${pinyin}&itc=zh-t-i0-pinyin&num=15&cp=0&cs=1&ie=utf-8&oe=utf-8&app=demopage`;
+            
+            try {
+                const response = await fetch(url);
+                const data = await response.json();
+                if (data[0] === "SUCCESS") {
+                    return data[1][0][1]; // Array of character strings
+                }
+            } catch (error) {
+                console.error("API Error:", error);
+            }
+            return [];
+        }
+
+        function handleKey(key) {
+            if (key === 'Backspace') {
+                if (currentPinyin.length > 0) {
+                    currentPinyin = currentPinyin.slice(0, -1);
+                    updateIME();
+                } else {
+                    document.execCommand('delete', false, null);
+                }
+            } else if (key === 'Enter') {
+                if (currentPinyin.length > 0) {
+                    insertText(currentPinyin);
+                    clearBuffer();
+                } else {
+                    insertText('\n');
+                }
+            } else if (key === ' ') {
+                if (currentPinyin.length > 0 && currentCandidates.length > 0) {
+                    selectCandidate(currentCandidates[0]);
+                } else {
+                    insertText(' ');
+                }
+            } else if (/[a-z]/.test(key) && key.length === 1) {
+                currentPinyin += key.toLowerCase();
+                updateIME();
+            } else if (key.length === 1) {
+                // Symbols like , . etc
+                insertText(key);
+                if (currentPinyin) clearBuffer();
+            }
+        }
+
+        async function updateIME() {
+            pinyinBuffer.textContent = currentPinyin;
+            
+            if (!currentPinyin) {
+                candidatesList.innerHTML = '<span class="text-slate-400 text-xs self-center">Ready</span>';
+                return;
+            }
+
+            // Show loading state
+            candidatesList.innerHTML = '<span class="text-blue-500 text-xs self-center loading-dots">Thinking...</span>';
+
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(async () => {
+                const results = await fetchCandidates(currentPinyin);
+                currentCandidates = results;
+                renderCandidates();
+            }, 50); // Small debounce to handle fast typing
+        }
+
+        function renderCandidates() {
+            candidatesList.innerHTML = '';
+            if (currentCandidates.length === 0) {
+                candidatesList.innerHTML = `<button class="bg-white border border-slate-300 px-4 py-1.5 rounded-lg text-sm text-slate-500 font-mono">${currentPinyin}</button>`;
+                return;
+            }
+
+            currentCandidates.forEach((char, index) => {
+                const btn = document.createElement('button');
+                btn.className = 'bg-white border border-slate-300 px-5 py-2 rounded-lg text-xl font-medium shadow-sm flex-shrink-0 active:bg-blue-100 transition-colors';
+                // Add index for keyboard users
+                btn.innerHTML = `<span class="text-[10px] text-slate-400 align-top mr-1">${index + 1}</span>${char}`;
+                btn.onclick = (e) => {
+                    e.preventDefault();
+                    selectCandidate(char);
+                };
+                candidatesList.appendChild(btn);
+            });
+        }
+
+        function selectCandidate(char) {
+            insertText(char);
+            clearBuffer();
+        }
+
+        function clearBuffer() {
+            currentPinyin = "";
+            currentCandidates = [];
+            updateIME();
+        }
+
+        function insertText(text) {
+            editor.focus();
+            document.execCommand('insertText', false, text);
+            editor.scrollTop = editor.scrollHeight;
+        }
+
+        // Virtual Keyboard
+        document.querySelectorAll('.key-btn, .key-special').forEach(btn => {
+            btn.addEventListener('pointerdown', (e) => {
+                e.preventDefault();
+                handleKey(btn.getAttribute('data-key'));
+            });
+        });
+
+        // Physical Keyboard
+        window.addEventListener('keydown', (e) => {
+            if (e.ctrlKey || e.metaKey) return;
+            
+            const key = e.key;
+            // Handle number row for selection (1-9)
+            if (currentPinyin && /^[1-9]$/.test(key)) {
+                const index = parseInt(key) - 1;
+                if (currentCandidates[index]) {
+                    e.preventDefault();
+                    selectCandidate(currentCandidates[index]);
+                    return;
+                }
+            }
+
+            if (key.length === 1 || key === 'Backspace' || key === 'Enter' || key === ' ') {
+                e.preventDefault();
+                handleKey(key);
+            }
+        });
+
+        // Utilities
+        document.getElementById('copyBtn').onclick = () => {
+            const text = editor.innerText;
+            const el = document.createElement('textarea');
+            el.value = text;
+            document.body.appendChild(el);
+            el.select();
+            document.execCommand('copy');
+            document.body.removeChild(el);
+            
+            toast.style.opacity = '1';
+            setTimeout(() => toast.style.opacity = '0', 1500);
+        };
+
+        document.getElementById('clearBtn').onclick = () => {
+            editor.innerHTML = '';
+            clearBuffer();
+        };
+
+        window.onload = () => editor.focus();
+    </script>
+</body>
+</html>
