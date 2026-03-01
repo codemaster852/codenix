@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chinese Story Weaver</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;700&display=swap');
+        
+        body {
+            background-color: #fcfaf7;
+            font-family: 'Noto Serif SC', serif;
+        }
+
+        .word-token {
+            display: inline-block;
+            cursor: pointer;
+            padding: 0 1px;
+            border-bottom: 1px solid transparent;
+            transition: all 0.2s;
+            border-radius: 2px;
+        }
+
+        .word-token:hover {
+            background-color: #fef3c7;
+            border-bottom: 1px solid #f59e0b;
+            color: #b45309;
+        }
+
+        .story-container {
+            line-height: 2.2;
+            letter-spacing: 0.05em;
+        }
+
+        /* Loading Spinner */
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #d97706;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="min-h-screen p-4 md:p-8">
+    <div class="max-w-4xl mx-auto">
+        <!-- Header -->
+        <header class="mb-8 text-center">
+            <h1 class="text-4xl font-bold text-stone-800 mb-2">Chinese Story Weaver</h1>
+            <p class="text-stone-500">Generate stories with LongCat AI • Click any word for translation</p>
+        </header>
+
+        <!-- Controls -->
+        <div class="bg-white rounded-xl shadow-sm border border-stone-200 p-6 mb-8">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="md:col-span-2">
+                    <label class="block text-sm font-medium text-stone-600 mb-1">Story Topic or Prompt</label>
+                    <input id="promptInput" type="text" placeholder="e.g., A brave cat in ancient Beijing..." 
+                           class="w-full px-4 py-2 rounded-lg border border-stone-300 focus:ring-2 focus:ring-amber-500 focus:border-transparent outline-none">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-stone-600 mb-1">Difficulty</label>
+                    <select id="levelSelect" class="w-full px-4 py-2 rounded-lg border border-stone-300 outline-none">
+                        <option value="beginner (HSK 1-2)">Beginner</option>
+                        <option value="intermediate (HSK 3-4)" selected>Intermediate</option>
+                        <option value="advanced (HSK 5-6)">Advanced</option>
+                    </select>
+                </div>
+            </div>
+            <button id="generateBtn" class="w-full mt-4 bg-stone-800 hover:bg-stone-900 text-white font-bold py-3 rounded-lg transition flex items-center justify-center gap-2">
+                <span>Generate Story</span>
+                <div id="btnSpinner" class="spinner hidden"></div>
+            </button>
+        </div>
+
+        <!-- Story Display -->
+        <div id="storyPaper" class="bg-white rounded-xl shadow-md border border-stone-200 p-8 md:p-12 hidden">
+            <div id="storyTitle" class="text-3xl font-bold text-center mb-8 text-stone-900"></div>
+            <div id="storyContent" class="story-container text-xl text-stone-800 mb-8"></div>
+        </div>
+
+        <!-- Translation Popup (Sticky Bottom) -->
+        <div id="dictPopup" class="fixed bottom-6 left-1/2 -translate-x-1/2 w-[90%] max-w-md bg-stone-900 text-white rounded-2xl p-6 shadow-2xl transform translate-y-32 transition-transform duration-300 ease-out z-50">
+            <div class="flex justify-between items-start mb-2">
+                <h3 id="dictWord" class="text-3xl font-bold text-amber-400"></h3>
+                <button onclick="closePopup()" class="text-stone-400 hover:text-white">✕</button>
+            </div>
+            <div id="dictPinyin" class="text-sm text-stone-400 mb-3 italic"></div>
+            <div id="dictMeaning" class="text-lg leading-relaxed"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_KEY = "ak_2rU1Lo7PA23X5Is9wm3m69EY2T37J";
+        const BASE_URL = "https://api.longcat.chat/openai/v1/chat/completions";
+
+        const promptInput = document.getElementById('promptInput');
+        const levelSelect = document.getElementById('levelSelect');
+        const generateBtn = document.getElementById('generateBtn');
+        const btnSpinner = document.getElementById('btnSpinner');
+        const storyPaper = document.getElementById('storyPaper');
+        const storyContent = document.getElementById('storyContent');
+        const storyTitle = document.getElementById('storyTitle');
+        const dictPopup = document.getElementById('dictPopup');
+
+        // Simple Dictionary Mockup & API Fallback
+        // In a real app, you'd use a massive CC-CEDICT JSON or a dedicated Dict API.
+        // Here we use the AI to fetch definitions on the fly for clicked words.
+        
+        async function fetchStory() {
+            const topic = promptInput.value || "A random interesting short story";
+            const level = levelSelect.value;
+
+            setLoading(true);
+
+            const systemPrompt = `You are a professional Chinese language teacher. Write a short, engaging story in Simplified Chinese about: ${topic}. 
+            Level: ${level}. 
+            Format: Start with a TITLE on the first line, then the story. 
+            Do not include pinyin or English in the story text itself. Keep it under 300 characters.`;
+
+            try {
+                const response = await fetch(BASE_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${API_KEY}`
+                    },
+                    body: JSON.stringify({
+                        model: "longcat-flash-chat",
+                        messages: [{ role: "user", content: systemPrompt }],
+                        temperature: 0.7
+                    })
+                });
+
+                const data = await response.json();
+                const fullText = data.choices[0].message.content;
+                processStory(fullText);
+            } catch (err) {
+                alert("Failed to connect to LongCat AI. Please check your API key or connection.");
+                console.error(err);
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        function processStory(text) {
+            const lines = text.split('\n').filter(l => l.trim() !== "");
+            const title = lines[0].replace(/Title:|题目：/gi, "").trim();
+            const body = lines.slice(1).join('\n');
+
+            storyTitle.textContent = title;
+            
+            // Simple segmentation: In a real app, use 'Intl.Segmenter' (Modern Browsers)
+            const segmenter = new Intl.Segmenter('zh-Hans', { granularity: 'word' });
+            const segments = Array.from(segmenter.segment(body));
+
+            storyContent.innerHTML = '';
+            segments.forEach(seg => {
+                const span = document.createElement('span');
+                span.className = 'word-token';
+                span.textContent = seg.segment;
+                if (seg.isWordLike) {
+                    span.onclick = () => showTranslation(seg.segment);
+                }
+                storyContent.appendChild(span);
+            });
+
+            storyPaper.classList.remove('hidden');
+            storyPaper.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        async function showTranslation(word) {
+            // Quick local cache for common punctuation/particles
+            const quickDict = {
+                "的": "Possessive particle / of",
+                "是": "To be / is / am / are",
+                "了": "Completed action marker",
+                "我": "I / me",
+                "你": "You"
+            };
+
+            document.getElementById('dictWord').textContent = word;
+            document.getElementById('dictPinyin').textContent = "Loading pinyin...";
+            document.getElementById('dictMeaning').textContent = "Fetching definition...";
+            dictPopup.style.transform = "translateX(-50%) translateY(0)";
+
+            if (quickDict[word]) {
+                document.getElementById('dictPinyin').textContent = "";
+                document.getElementById('dictMeaning').textContent = quickDict[word];
+                return;
+            }
+
+            // Fetch definition from LongCat AI for the specific word
+            try {
+                const response = await fetch(BASE_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${API_KEY}`
+                    },
+                    body: JSON.stringify({
+                        model: "longcat-flash-chat",
+                        messages: [{ 
+                            role: "user", 
+                            content: `Provide the Pinyin and brief English definition for the Chinese word: "${word}". Format: Pinyin | Definition` 
+                        }],
+                        max_tokens: 50
+                    })
+                });
+                const data = await response.json();
+                const res = data.choices[0].message.content.split('|');
+                document.getElementById('dictPinyin').textContent = res[0]?.trim() || "";
+                document.getElementById('dictMeaning').textContent = res[1]?.trim() || res[0];
+            } catch (e) {
+                document.getElementById('dictMeaning').textContent = "Translation unavailable.";
+            }
+        }
+
+        function closePopup() {
+            dictPopup.style.transform = "translateX(-50%) translateY(150%)";
+        }
+
+        function setLoading(loading) {
+            generateBtn.disabled = loading;
+            if (loading) {
+                btnSpinner.classList.remove('hidden');
+                generateBtn.querySelector('span').textContent = "Weaving Story...";
+            } else {
+                btnSpinner.classList.add('hidden');
+                generateBtn.querySelector('span').textContent = "Generate Story";
+            }
+        }
+
+        generateBtn.addEventListener('click', fetchStory);
+    </script>
+</body>
+</html>
