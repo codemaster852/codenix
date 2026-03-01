@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chinese Handwriting to Text</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            background-color: #f8fafc;
+            touch-action: none; /* Prevents scrolling while drawing */
+        }
+        .canvas-container {
+            position: relative;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+        }
+        #drawingCanvas {
+            cursor: crosshair;
+            background-color: white;
+            border-radius: 0.5rem;
+        }
+        .loading-dots:after {
+            content: '.';
+            animation: dots 1.5s steps(5, end) infinite;
+        }
+        @keyframes dots {
+            0%, 20% { content: '.'; }
+            40% { content: '..'; }
+            60% { content: '...'; }
+            80%, 100% { content: ''; }
+        }
+        .candidate-btn {
+            transition: all 0.2s;
+        }
+        .candidate-btn:hover {
+            transform: translateY(-2px);
+            background-color: #eef2ff;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center p-4 md:p-8">
+    <div class="max-w-2xl w-full space-y-6">
+        <header class="text-center">
+            <h1 class="text-3xl font-bold text-slate-800">Chinese Handwriting</h1>
+            <p class="text-slate-500 mt-2">Powered by Public Input Tools API (No Key Required)</p>
+        </header>
+
+        <main class="flex flex-col gap-6">
+            <!-- Canvas Area -->
+            <div class="canvas-container bg-white rounded-lg p-2 border-2 border-slate-200">
+                <canvas id="drawingCanvas" class="w-full h-[300px] md:h-[350px]"></canvas>
+                <div class="flex justify-between mt-4 gap-4">
+                    <button id="clearBtn" class="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold py-3 px-6 rounded-lg transition">
+                        Clear
+                    </button>
+                    <button id="undoBtn" class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-600 font-semibold py-3 px-4 rounded-lg transition">
+                        Undo Stroke
+                    </button>
+                </div>
+            </div>
+
+            <!-- Candidate Selection Area -->
+            <div id="selectionArea" class="bg-white rounded-lg p-4 border-2 border-indigo-100 min-h-[80px]">
+                <div id="statusText" class="text-slate-400 italic text-center py-4">Start drawing to see suggestions...</div>
+                <div id="candidatesList" class="flex flex-wrap justify-center gap-3">
+                    <!-- Candidates will appear here -->
+                </div>
+            </div>
+
+            <!-- Text Output -->
+            <div class="bg-slate-800 rounded-lg p-6 text-white shadow-xl">
+                <div class="flex justify-between items-center mb-2">
+                    <h2 class="text-xs font-bold uppercase tracking-widest text-slate-400">Recognized Text</h2>
+                    <button id="copyAll" class="text-xs bg-slate-700 hover:bg-slate-600 px-2 py-1 rounded">Copy All</button>
+                </div>
+                <div id="finalOutput" class="text-3xl min-h-[1.5em] break-all leading-relaxed"></div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Error Toast -->
+    <div id="errorToast" class="fixed bottom-4 left-1/2 -translate-x-1/2 bg-red-600 text-white px-6 py-3 rounded-full shadow-2xl hidden z-50">
+        <span id="errorMessage"></span>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('drawingCanvas');
+        const ctx = canvas.getContext('2d');
+        const clearBtn = document.getElementById('clearBtn');
+        const undoBtn = document.getElementById('undoBtn');
+        const candidatesList = document.getElementById('candidatesList');
+        const statusText = document.getElementById('statusText');
+        const finalOutput = document.getElementById('finalOutput');
+        const errorToast = document.getElementById('errorToast');
+
+        let isDrawing = false;
+        let strokes = []; // Array of strokes, each stroke is an array of [x, y]
+        let currentStroke = [];
+
+        // --- Canvas Setup ---
+        function resizeCanvas() {
+            const rect = canvas.getBoundingClientRect();
+            canvas.width = rect.width;
+            canvas.height = rect.height;
+            redraw();
+        }
+
+        function setupCtx() {
+            ctx.strokeStyle = '#1e293b';
+            ctx.lineWidth = 6;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+        }
+
+        window.onload = () => {
+            resizeCanvas();
+            window.addEventListener('resize', resizeCanvas);
+        };
+
+        // --- Drawing Logic ---
+        function getCoord(e) {
+            const rect = canvas.getBoundingClientRect();
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            return [
+                Math.round(clientX - rect.left),
+                Math.round(clientY - rect.top)
+            ];
+        }
+
+        function startDrawing(e) {
+            isDrawing = true;
+            currentStroke = [];
+            const coord = getCoord(e);
+            currentStroke.push(coord);
+            
+            setupCtx();
+            ctx.beginPath();
+            ctx.moveTo(coord[0], coord[1]);
+        }
+
+        function draw(e) {
+            if (!isDrawing) return;
+            const coord = getCoord(e);
+            currentStroke.push(coord);
+            ctx.lineTo(coord[0], coord[1]);
+            ctx.stroke();
+        }
+
+        function stopDrawing() {
+            if (!isDrawing) return;
+            isDrawing = false;
+            if (currentStroke.length > 0) {
+                strokes.push(currentStroke);
+                recognize();
+            }
+        }
+
+        function redraw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            setupCtx();
+            strokes.forEach(stroke => {
+                ctx.beginPath();
+                ctx.moveTo(stroke[0][0], stroke[0][1]);
+                stroke.slice(1).forEach(pt => ctx.lineTo(pt[0], pt[1]));
+                ctx.stroke();
+            });
+        }
+
+        canvas.addEventListener('mousedown', startDrawing);
+        canvas.addEventListener('mousemove', draw);
+        window.addEventListener('mouseup', stopDrawing);
+
+        canvas.addEventListener('touchstart', (e) => { e.preventDefault(); startDrawing(e); }, { passive: false });
+        canvas.addEventListener('touchmove', (e) => { e.preventDefault(); draw(e); }, { passive: false });
+        canvas.addEventListener('touchend', stopDrawing);
+
+        clearBtn.addEventListener('click', () => {
+            strokes = [];
+            redraw();
+            candidatesList.innerHTML = '';
+            statusText.classList.remove('hidden');
+        });
+
+        undoBtn.addEventListener('click', () => {
+            strokes.pop();
+            redraw();
+            if (strokes.length > 0) recognize();
+            else {
+                candidatesList.innerHTML = '';
+                statusText.classList.remove('hidden');
+            }
+        });
+
+        // --- API Recognition ---
+        async function recognize() {
+            if (strokes.length === 0) return;
+
+            // Format data for Google Input Tools API
+            // Format: [[[x1,x2,...], [y1,y2,...], [t1,t2,...]], ...]
+            const apiStrokes = strokes.map(stroke => {
+                const x = stroke.map(p => p[0]);
+                const y = stroke.map(p => p[1]);
+                const t = stroke.map((_, i) => i * 10); // Dummy timestamps
+                return [x, y, t];
+            });
+
+            statusText.innerHTML = '<span class="loading-dots text-indigo-500">Thinking</span>';
+            statusText.classList.remove('hidden');
+
+            try {
+                const response = await fetch('https://www.google.com/inputtools/request?ime=handwriting&app=mobilesearch&cs=1&oe=UTF-8', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        options: "enable_pre_space",
+                        requests: [{
+                            writing_guide: {
+                                writing_area_width: canvas.width,
+                                writing_area_height: canvas.height
+                            },
+                            ink: apiStrokes,
+                            language: "zh"
+                        }]
+                    })
+                });
+
+                const data = await response.json();
+                
+                if (data[0] === "SUCCESS") {
+                    const results = data[1][0][1];
+                    showCandidates(results);
+                } else {
+                    throw new Error("Recognition failed");
+                }
+            } catch (err) {
+                console.error(err);
+                showError("Connection error. Try again.");
+            }
+        }
+
+        function showCandidates(list) {
+            statusText.classList.add('hidden');
+            candidatesList.innerHTML = '';
+            
+            list.slice(0, 8).forEach(char => {
+                const btn = document.createElement('button');
+                btn.className = 'candidate-btn bg-indigo-50 text-indigo-800 text-3xl w-14 h-14 rounded-lg flex items-center justify-center font-bold shadow-sm border border-indigo-100';
+                btn.textContent = char;
+                btn.onclick = () => selectCharacter(char);
+                candidatesList.appendChild(btn);
+            });
+        }
+
+        function selectCharacter(char) {
+            finalOutput.textContent += char;
+            // Auto-clear canvas for next character
+            strokes = [];
+            redraw();
+            candidatesList.innerHTML = '';
+            statusText.classList.remove('hidden');
+            statusText.textContent = "Draw next character...";
+        }
+
+        function showError(msg) {
+            const errorMsg = document.getElementById('errorMessage');
+            errorMsg.textContent = msg;
+            errorToast.classList.remove('hidden');
+            setTimeout(() => errorToast.classList.add('hidden'), 3000);
+        }
+
+        document.getElementById('copyAll').addEventListener('click', () => {
+            const text = finalOutput.textContent;
+            if (!text) return;
+            const el = document.createElement('textarea');
+            el.value = text;
+            document.body.appendChild(el);
+            el.select();
+            document.execCommand('copy');
+            document.body.removeChild(el);
+            showError("Copied to clipboard!");
+        });
+    </script>
+</body>
+</html>
