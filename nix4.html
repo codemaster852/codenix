@@ -212,24 +212,23 @@
             const aiMsgId = appendMessage('...', 'ai', true);
 
             try {
-                // 1. Search Sheets (Vertical Search: Column A for Questions, Column B for Answers)
+                // 1. Search Sheets
                 const sheetAnswer = await searchSheets(text);
                 
                 if (sheetAnswer) {
                     updateAIMessage(aiMsgId, sheetAnswer);
                 } else {
-                    // 2. Fallback to LongCat API if not found in sheet
+                    // 2. Fallback to LongCat API
                     const longCatResponse = await callLongCat(text);
                     updateAIMessage(aiMsgId, longCatResponse);
                 }
             } catch (e) {
-                updateAIMessage(aiMsgId, "Nix 4 encountered a connection error. Please try again.");
+                updateAIMessage(aiMsgId, "Nix 4 encountered a system interruption. Please try again.");
             }
         }
 
         async function searchSheets(query) {
             try {
-                // Fetch using GViz API
                 const response = await fetch(`https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:json`);
                 const resText = await response.text();
                 const json = JSON.parse(resText.substring(47).slice(0, -2));
@@ -237,33 +236,34 @@
                 const rows = json.table.rows;
                 let foundAnswer = null;
 
-                // According to screenshot: 
-                // Row 1 (rows[0]) is header: Question | Answer
-                // We start from Row 2 (index 1) to check vertically
+                // Clean the query: lowercase, trim, remove last question mark if exists
+                const cleanQuery = query.toLowerCase().trim().replace(/\?$/, '');
+
                 for (let i = 1; i < rows.length; i++) {
                     const rowData = rows[i].c;
-                    if (!rowData) continue;
+                    if (!rowData || !rowData[0]) continue;
 
-                    // Question is in Column A (index 0)
-                    const qValue = rowData[0] ? rowData[0].v : "";
+                    const qValue = rowData[0].v.toString().toLowerCase().trim().replace(/\?$/, '');
                     
-                    // Match query (case-insensitive and trimmed)
-                    if (qValue && qValue.toString().toLowerCase().trim() === query.toLowerCase().trim()) {
-                        // Answer is in Column B (index 1)
+                    if (qValue === cleanQuery) {
                         foundAnswer = rowData[1] ? rowData[1].v : null;
                         break; 
                     }
                 }
-                
                 return foundAnswer;
             } catch (err) {
-                console.error("Sheet Search Error:", err);
+                console.warn("Sheet search failed, falling back to AI.");
                 return null;
             }
         }
 
         async function callLongCat(query) {
             try {
+                // The error logs suggest api.longcat.ai is not resolving. 
+                // Ensure the URL is absolutely correct. Adding a timeout for better user experience.
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 8000);
+
                 const response = await fetch('https://api.longcat.ai/v1/chat/completions', {
                     method: 'POST',
                     headers: {
@@ -271,19 +271,24 @@
                         'Authorization': `Bearer ${LONGCAT_API_KEY}`
                     },
                     body: JSON.stringify({
-                        model: "nix-4-turbo",
+                        model: "gpt-4o", // standard model name usually works better
                         messages: [
-                            { role: "system", content: "You are Nix 4, a professional AI assistant created by Codenix. You provide clear, concise, and professional answers." },
+                            { role: "system", content: "You are Nix 4, a professional AI assistant created by Codenix. You provide helpful, concise, and professional answers." },
                             { role: "user", content: query }
                         ]
-                    })
+                    }),
+                    signal: controller.signal
                 });
 
-                if (!response.ok) throw new Error("LongCat API Error");
+                clearTimeout(timeoutId);
+
+                if (!response.ok) throw new Error("LongCat API Unreachable");
                 const data = await response.json();
                 return data.choices[0].message.content;
             } catch (e) {
-                return "I couldn't locate that in your spreadsheet, and my neural link is currently fluctuating. Please refine your query or check the Codenix dashboard.";
+                console.error("LongCat Error:", e);
+                if (e.name === 'AbortError') return "The connection timed out. Nix 4 is experiencing high latency.";
+                return "Nix 4 is currently unable to reach the LongCat server (ERR_NAME_NOT_RESOLVED). Please verify the API endpoint or try again later.";
             }
         }
 
