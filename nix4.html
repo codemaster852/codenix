@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Nix 4 - Intelligent Workspace</title>
+    <title>Nix 4 Pro - Intelligent Workspace</title>
     <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -39,58 +39,27 @@
             background-color: var(--bg-main);
             color: var(--text-primary);
             overflow: hidden;
-            transition: background-color 0.3s ease, color 0.3s ease;
+            transition: all 0.3s ease;
         }
 
-        .glass-panel {
-            background: var(--glass);
-            backdrop-filter: blur(16px);
-            border-bottom: 1px solid var(--border);
-        }
-
-        .input-glass {
-            background: var(--glass);
-            backdrop-filter: blur(16px);
-            border: 1px solid var(--border);
-        }
-
-        .sidebar-item-active {
-            background: rgba(99, 102, 241, 0.1);
-            color: var(--accent);
-            box-shadow: inset 3px 0 0 0 var(--accent);
-        }
-
+        .glass-panel { background: var(--glass); backdrop-filter: blur(16px); border-bottom: 1px solid var(--border); }
+        .sidebar-item-active { background: rgba(99, 102, 241, 0.1); color: var(--accent); box-shadow: inset 3px 0 0 0 var(--accent); }
+        
         .chat-scroll::-webkit-scrollbar { width: 4px; }
         .chat-scroll::-webkit-scrollbar-thumb { background: rgba(128,128,128,0.2); border-radius: 10px; }
 
-        .message-bubble {
-            max-width: 85%;
-            animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+        .quiz-option {
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            border: 1px solid var(--border);
         }
-
-        @keyframes slideUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
-
-        .file-badge {
+        .quiz-option:hover:not(:disabled) {
             background: rgba(99, 102, 241, 0.1);
-            border: 1px solid var(--accent);
-            padding: 4px 12px;
-            border-radius: 12px;
-            font-size: 11px;
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            color: var(--accent);
-            font-weight: 600;
+            border-color: var(--accent);
+            transform: scale(1.01);
         }
 
-        .lesson-card {
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-        .lesson-card:hover {
-            transform: translateY(-4px);
-            border-color: var(--accent);
-            background: rgba(99, 102, 241, 0.05);
-        }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .animate-fade { animation: fadeIn 0.4s ease-out forwards; }
     </style>
 </head>
 <body>
@@ -99,6 +68,9 @@
     <script type="text/babel">
         const { useState, useEffect, useRef } = React;
 
+        // Configuration
+        const SHEET_ID = "1BwS2zO3IGppDo2r_ROZVW74iSmu6aGSyE8j1O63UjbE";
+        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx3YKf3u6KoxvHJc3bBRJzWYg1CPcpHAFXUTTWTh28FR2XcOJlqzcIsJC19_9X7ozH8/exec";
         const SUPABASE_URL = "https://rnlwrngfgvznndlekmrz.supabase.co";
         const SUPABASE_KEY = "sb_publishable_mtI0_ZBvU_n5oRuqV58QHg_qJt3Gfyt";
         const API_KEY = "ak_2OJ4ng6za7b74DP3hu32a6P04XH8J";
@@ -116,18 +88,18 @@
             const [input, setInput] = useState("");
             const [isTyping, setIsTyping] = useState(false);
             const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-            const [selectedFile, setSelectedFile] = useState(null);
             
-            // Class Features State
+            // Class Features
             const [myClasses, setMyClasses] = useState([]);
             const [selectedClass, setSelectedClass] = useState(null);
             const [activeLesson, setActiveLesson] = useState(null);
-            const [explanationInput, setExplanationInput] = useState("");
-            const [explanationResult, setExplanationResult] = useState("");
+            
+            // Quiz State
+            const [quizIndex, setQuizIndex] = useState(0);
+            const [score, setScore] = useState(0);
+            const [quizFinished, setQuizFinished] = useState(false);
 
             const scrollRef = useRef(null);
-            const textareaRef = useRef(null);
-            const fileInputRef = useRef(null);
 
             useEffect(() => {
                 const init = async () => {
@@ -141,125 +113,130 @@
             }, []);
 
             useEffect(() => { document.body.className = theme; }, [theme]);
-
-            useEffect(() => {
-                if (scrollRef.current) {
-                    scrollRef.current.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
-                }
-            }, [messages, isTyping]);
+            useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' }); }, [messages, isTyping]);
 
             const fetchConversations = async (uid) => {
                 const { data } = await supabaseClient.from('conversations').select('*').eq('user_id', uid).order('created_at', { ascending: false });
                 if (data) setConversations(data);
             };
 
-            const loadConversation = async (id) => {
-                setActiveConvId(id);
-                const { data } = await supabaseClient.from('messages').select('*').eq('conversation_id', id).order('created_at', { ascending: true });
-                if (data) setMessages(data);
-            };
-
             const fetchClasses = async (uid) => {
                 const { data: teacherClasses } = await supabaseClient.from('classes').select('*').eq('teacher_id', uid);
                 const { data: joinedClasses } = await supabaseClient.from('class_members').select('classes(*)').eq('user_id', uid);
-                
                 const combined = [
                     ...(teacherClasses || []).map(c => ({ ...c, role: 'teacher' })),
                     ...(joinedClasses || []).map(item => ({ ...item.classes, role: 'student' }))
                 ];
-
-                // For each class, fetch its content
                 const enriched = await Promise.all(combined.map(async (cls) => {
                     const { data: content } = await supabaseClient.from('class_content').select('*').eq('class_id', cls.id).order('created_at', { ascending: false });
                     return { ...cls, content: content || [] };
                 }));
-                
                 setMyClasses(enriched);
             };
 
-            const handleFileUpload = (e) => {
-                const file = e.target.files[0];
-                if (file) {
-                    setSelectedFile({ name: file.name, size: (file.size / 1024).toFixed(1) + ' KB', type: file.type });
-                }
+            const loadConversation = async (id) => {
+                setActiveConvId(id);
+                setView('chat');
+                const { data } = await supabaseClient.from('messages').select('*').eq('conversation_id', id).order('created_at', { ascending: true });
+                if (data) setMessages(data);
+                setIsSidebarOpen(false);
             };
 
-            const generateClassAI = async (type, topic) => {
-                if (!topic) return;
-                setIsTyping(true);
-                const promptMsg = type === 'mindmap' 
-                    ? `Create a structured mindmap for '${topic}'. Write it as a step-by-step hierarchical list (1. Main, 1.1 Subtopic).`
-                    : `Generate professional ${type} content for the topic: ${topic}.`;
-
-                try {
-                    const res = await fetch(API_URL, {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${API_KEY}` },
-                        body: JSON.stringify({
-                            model: "LongCat-Flash-Chat",
-                            messages: [{ role: "system", content: "Expert Educator mode." }, { role: "user", content: promptMsg }]
-                        })
-                    });
-                    const data = await res.json();
-                    const aiContent = data.choices[0].message.content;
-                    
-                    await supabaseClient.from('class_content').insert([{ 
-                        class_id: selectedClass.id, 
-                        type, 
-                        title: topic, 
-                        content: aiContent 
-                    }]);
-                    
-                    fetchClasses(user.id);
-                } finally { setIsTyping(false); }
+            const startNewChat = () => {
+                setActiveConvId(null);
+                setMessages([]);
+                setView('chat');
+                setIsSidebarOpen(false);
             };
 
-            const askExplanation = async () => {
-                if (!explanationInput.trim()) return;
-                setIsTyping(true);
-                setExplanationResult("Thinking...");
-                
-                const context = activeLesson ? `Context Lesson: ${activeLesson.title}\nContent: ${activeLesson.content}\n\n` : "";
-                
+            // Search Google Sheet Logic
+            const searchLocalSheet = async (q) => {
                 try {
-                    const res = await fetch(API_URL, {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${API_KEY}` },
-                        body: JSON.stringify({
-                            model: "LongCat-Flash-Chat",
-                            messages: [
-                                { role: "system", content: "You are a friendly academic tutor. Explain concepts simply and provide examples." },
-                                { role: "user", content: `${context}Student Question: ${explanationInput}` }
-                            ]
-                        })
-                    });
-                    const data = await res.json();
-                    setExplanationResult(data.choices[0].message.content);
-                } catch (e) {
-                    setExplanationResult("Failed to get explanation. Please try again.");
-                } finally {
-                    setIsTyping(false);
-                }
+                    const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tq=${encodeURIComponent("SELECT A, B")}&headers=0&t=${Date.now()}`;
+                    const res = await fetch(url);
+                    const text = await res.text();
+                    const json = JSON.parse(text.match(/google\.visualization\.Query\.setResponse\(([\s\S\w]+)\);/)[1]);
+                    const queryNorm = q.toLowerCase().trim();
+                    const match = json.table.rows.find(r => r.c && r.c[0] && String(r.c[0].v).toLowerCase().trim() === queryNorm);
+                    return match ? String(match.c[1].v) : null;
+                } catch(e) { return null; }
+            };
+
+            const saveToSheet = (q, a) => {
+                fetch(SCRIPT_URL, { method: "POST", mode: "no-cors", body: JSON.stringify({ values: [[q, a]] }) });
             };
 
             const processQuery = async () => {
-                if (!input.trim() && !selectedFile || isTyping) return;
+                if (!input.trim() || isTyping) return;
                 const q = input;
-                const f = selectedFile;
                 setInput("");
-                setSelectedFile(null);
                 setIsTyping(true);
 
                 let currentConvId = activeConvId;
                 if (!currentConvId) {
-                    const { data } = await supabaseClient.from('conversations').insert([{ user_id: user.id, title: q.substring(0, 20) }]).select().single();
+                    const { data } = await supabaseClient.from('conversations').insert([{ user_id: user.id, title: q.substring(0, 30) }]).select().single();
                     currentConvId = data.id;
                     setActiveConvId(currentConvId);
                     fetchConversations(user.id);
                 }
 
-                const userMsg = { conversation_id: currentConvId, role: 'user', content: q + (f ? `\n[File: ${f.name}]` : ""), file_data: f };
+                const userMsg = { conversation_id: currentConvId, role: 'user', content: q };
                 setMessages(prev => [...prev, userMsg]);
+
+                try {
+                    // 1. Check Google Sheet First
+                    const localResponse = await searchLocalSheet(q);
+                    let finalResponse;
+
+                    if (localResponse) {
+                        finalResponse = localResponse;
+                    } else {
+                        // 2. Ask AI if not in sheet
+                        const res = await fetch(API_URL, {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json", "Authorization": `Bearer ${API_KEY}` },
+                            body: JSON.stringify({
+                                model: "LongCat-Flash-Chat",
+                                messages: [...messages.map(m => ({ role: m.role, content: m.content })), { role: "user", content: q }]
+                            })
+                        });
+                        const data = await res.json();
+                        finalResponse = data.choices[0].message.content;
+                        // 3. Save new pair to sheet
+                        saveToSheet(q, finalResponse);
+                    }
+
+                    const aiMsg = { conversation_id: currentConvId, role: 'assistant', content: finalResponse };
+                    setMessages(prev => [...prev, aiMsg]);
+                    await supabaseClient.from('messages').insert([userMsg, aiMsg]);
+                } finally { setIsTyping(false); }
+            };
+
+            // Quiz Management
+            const parseQuiz = (content) => {
+                try {
+                    return JSON.parse(content);
+                } catch (e) {
+                    // Fallback if not JSON: simple text parsing for generated tests
+                    return [{ question: "Loading quiz...", options: ["Option A", "Option B"], correct: 0 }];
+                }
+            };
+
+            const handleQuizAnswer = (idx, correctIdx) => {
+                if (idx === correctIdx) setScore(s => s + 1);
+                if (quizIndex < parseQuiz(activeLesson.content).length - 1) {
+                    setQuizIndex(quizIndex + 1);
+                } else {
+                    setQuizFinished(true);
+                }
+            };
+
+            const generateQuizAI = async (topic) => {
+                if (!topic) return;
+                setIsTyping(true);
+                const prompt = `Create a 5-question multiple choice quiz about '${topic}'. 
+                Format your response ONLY as a JSON array of objects like this: 
+                [{"question": "...", "options": ["A", "B", "C", "D"], "correct": 0}]`;
 
                 try {
                     const res = await fetch(API_URL, {
@@ -267,93 +244,105 @@
                         headers: { "Content-Type": "application/json", "Authorization": `Bearer ${API_KEY}` },
                         body: JSON.stringify({
                             model: "LongCat-Flash-Chat",
-                            messages: [...messages.map(m => ({ role: m.role, content: m.content })), { role: "user", content: userMsg.content }]
+                            messages: [{ role: "system", content: "You are a JSON quiz generator." }, { role: "user", content: prompt }]
                         })
                     });
                     const data = await res.json();
-                    const aiTxt = data.choices[0].message.content;
-                    const aiMsg = { conversation_id: currentConvId, role: 'assistant', content: aiTxt };
-                    setMessages(prev => [...prev, aiMsg]);
-                    await supabaseClient.from('messages').insert([userMsg, aiMsg]);
+                    const quizData = data.choices[0].message.content;
+                    
+                    await supabaseClient.from('class_content').insert([{ 
+                        class_id: selectedClass.id, 
+                        type: 'test', 
+                        title: `Quiz: ${topic}`, 
+                        content: quizData 
+                    }]);
+                    fetchClasses(user.id);
                 } finally { setIsTyping(false); }
             };
 
             return (
-                <div className={`flex h-screen w-full bg-[var(--bg-main)] text-[var(--text-primary)] transition-colors duration-300`}>
-                    <input type="file" ref={fileInputRef} onChange={handleFileUpload} className="hidden" />
-
+                <div className="flex h-screen w-full bg-[var(--bg-main)] text-[var(--text-primary)] transition-all">
+                    
                     {/* Sidebar */}
                     <aside className={`fixed lg:static inset-y-0 left-0 z-50 w-72 bg-[var(--bg-sidebar)] border-r border-[var(--border)] transition-transform lg:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
                         <div className="flex flex-col h-full">
                             <div className="p-6">
                                 <div className="flex items-center gap-3 mb-8">
-                                    <div className="w-10 h-10 bg-[var(--accent)] rounded-xl flex items-center justify-center font-bold text-white">N4</div>
-                                    <h1 className="font-bold">Nix 4 Pro</h1>
+                                    <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center font-bold text-white shadow-lg">N4</div>
+                                    <h1 className="font-bold tracking-tight">Nix 4 Pro</h1>
                                 </div>
-                                <div className="space-y-1">
-                                    <button onClick={() => { setView('chat'); setIsSidebarOpen(false); }} className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all ${view === 'chat' ? 'sidebar-item-active' : 'hover:bg-white/5 opacity-60'}`}>
+
+                                <button onClick={startNewChat} className="w-full flex items-center justify-center gap-2 p-3.5 mb-6 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 transition-all font-bold text-[10px] uppercase tracking-widest text-indigo-400">
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 4v16m8-8H4" strokeWidth="2.5"/></svg>
+                                    + New Chat
+                                </button>
+
+                                <nav className="space-y-1">
+                                    <button onClick={() => { setView('chat'); setIsSidebarOpen(false); }} className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all ${view === 'chat' ? 'sidebar-item-active' : 'opacity-40 hover:opacity-100 hover:bg-white/5'}`}>
                                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/></svg>
                                         <span className="text-sm font-semibold">AI Assistant</span>
                                     </button>
-                                    <button onClick={() => { setView('class'); setIsSidebarOpen(false); }} className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all ${view === 'class' ? 'sidebar-item-active' : 'hover:bg-white/5 opacity-60'}`}>
+                                    <button onClick={() => { setView('class'); setIsSidebarOpen(false); }} className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all ${view === 'class' ? 'sidebar-item-active' : 'opacity-40 hover:opacity-100 hover:bg-white/5'}`}>
                                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 14l9-5-9-5-9 5 9 5zM12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z"/></svg>
                                         <span className="text-sm font-semibold">Nix Class</span>
                                     </button>
-                                </div>
+                                </nav>
                             </div>
-                            
+
                             <div className="flex-1 overflow-y-auto px-4 chat-scroll">
+                                <p className="px-3 text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-2 mt-4 opacity-30">History</p>
                                 {view === 'chat' ? (
-                                    <>
-                                        <p className="px-3 text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-2">History</p>
+                                    <div className="space-y-1">
                                         {conversations.map(c => (
-                                            <button key={c.id} onClick={() => loadConversation(c.id)} className={`w-full text-left p-3 rounded-xl text-sm truncate ${activeConvId === c.id ? 'bg-white/5' : 'opacity-40 hover:opacity-100'}`}>{c.title}</button>
+                                            <button key={c.id} onClick={() => loadConversation(c.id)} className={`w-full text-left p-3 rounded-xl text-xs truncate transition-all ${activeConvId === c.id ? 'bg-indigo-600/20 text-indigo-400' : 'opacity-40 hover:opacity-100 hover:bg-white/5'}`}>
+                                                {c.title || "New Chat"}
+                                            </button>
                                         ))}
-                                    </>
+                                    </div>
                                 ) : (
-                                    <>
-                                        <p className="px-3 text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-2">Enrolled Courses</p>
+                                    <div className="space-y-1">
                                         {myClasses.map(c => (
-                                            <button key={c.id} onClick={() => { setSelectedClass(c); setActiveLesson(null); }} className={`w-full text-left p-3 rounded-xl text-sm truncate ${selectedClass?.id === c.id ? 'bg-white/5 text-indigo-400' : 'opacity-40'}`}>
+                                            <button key={c.id} onClick={() => { setSelectedClass(c); setActiveLesson(null); }} className={`w-full text-left p-3 rounded-xl text-xs truncate ${selectedClass?.id === c.id ? 'bg-indigo-600/20 text-indigo-400' : 'opacity-40 hover:opacity-100'}`}>
                                                 {c.name} {c.role === 'teacher' ? '👑' : ''}
                                             </button>
                                         ))}
-                                    </>
+                                    </div>
                                 )}
                             </div>
                         </div>
                     </aside>
 
-                    {/* Main Content */}
-                    <main className="flex-1 flex flex-col relative overflow-hidden bg-[var(--bg-main)]">
-                        <header className="h-16 flex items-center justify-between px-6 glass-panel shrink-0 z-10">
+                    {/* Main Workspace */}
+                    <main className="flex-1 flex flex-col relative overflow-hidden">
+                        <header className="h-16 flex items-center justify-between px-6 glass-panel shrink-0 z-20">
                             <div className="flex items-center gap-4">
                                 <button onClick={() => setIsSidebarOpen(true)} className="lg:hidden p-2"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16m-7 6h7" strokeWidth="2"/></svg></button>
-                                <h2 className="text-sm font-bold uppercase tracking-widest opacity-60">
-                                    {view === 'chat' ? 'Neural Workspace' : selectedClass ? `COURSE: ${selectedClass.name}` : 'Classroom'}
+                                <h2 className="text-xs font-black uppercase tracking-[0.2em] opacity-40">
+                                    {view === 'chat' ? 'Intelligent Chat' : selectedClass ? `COURSE: ${selectedClass.name}` : 'Classroom'}
                                 </h2>
                             </div>
-                            <div className="flex items-center gap-2">
-                                <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="p-2.5 rounded-xl border border-[var(--border)]">{theme === 'dark' ? '☀️' : '🌙'}</button>
-                            </div>
+                            <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="p-2.5 rounded-xl border border-[var(--border)] text-sm">
+                                {theme === 'dark' ? '☀️' : '🌙'}
+                            </button>
                         </header>
 
                         <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 md:px-10 py-10 chat-scroll">
-                            <div className="max-w-5xl mx-auto">
+                            <div className="max-w-4xl mx-auto">
+                                
                                 {view === 'chat' ? (
                                     <div className="space-y-8 pb-40">
                                         {messages.length === 0 && (
                                             <div className="h-[60vh] flex flex-col items-center justify-center text-center opacity-20">
-                                                <div className="w-20 h-20 bg-indigo-600 rounded-[2rem] mb-6 blur-lg animate-pulse"></div>
-                                                <h3 className="text-2xl font-bold">How can Nix help you today?</h3>
+                                                <div className="w-16 h-16 bg-indigo-600 rounded-3xl mb-6 blur-2xl animate-pulse"></div>
+                                                <h3 className="text-3xl font-black">Nix Knowledge</h3>
+                                                <p className="text-sm mt-2">Hybrid AI + Google Sheet Search</p>
                                             </div>
                                         )}
                                         {messages.map((m, i) => (
-                                            <div key={i} className={`flex gap-4 ${m.role === 'user' ? 'flex-row-reverse' : ''}`}>
-                                                <div className={`w-10 h-10 shrink-0 rounded-2xl flex items-center justify-center font-bold text-xs ${m.role === 'user' ? 'bg-[var(--border)]' : 'bg-indigo-600'}`}>{m.role === 'user' ? 'ME' : 'N4'}</div>
-                                                <div className={`p-6 rounded-[2rem] max-w-[85%] leading-relaxed ${m.role === 'user' ? 'bg-[var(--bubble-user)] border border-[var(--border)] rounded-tr-none' : ''}`}>
+                                            <div key={i} className={`flex gap-5 animate-fade ${m.role === 'user' ? 'flex-row-reverse' : ''}`}>
+                                                <div className={`w-10 h-10 shrink-0 rounded-2xl flex items-center justify-center font-bold text-[10px] ${m.role === 'user' ? 'bg-white/5' : 'bg-indigo-600 text-white'}`}>{m.role === 'user' ? 'ME' : 'N4'}</div>
+                                                <div className={`p-6 rounded-[2rem] max-w-[80%] leading-relaxed text-[15px] ${m.role === 'user' ? 'bg-[var(--bubble-user)] border border-[var(--border)] rounded-tr-none' : 'bg-white/5 border border-white/5 rounded-tl-none'}`}>
                                                     {m.content}
-                                                    {m.file_data && <div className="mt-4"><span className="file-badge">📎 {m.file_data.name}</span></div>}
                                                 </div>
                                             </div>
                                         ))}
@@ -361,112 +350,110 @@
                                 ) : (
                                     <div className="pb-20">
                                         {!selectedClass ? (
-                                            <div className="text-center py-20 opacity-30">Select a course from the sidebar to start learning.</div>
+                                            <div className="text-center py-20 opacity-20">Select a course to start learning.</div>
                                         ) : activeLesson ? (
-                                            <div className="grid lg:grid-cols-3 gap-8 items-start">
-                                                <div className="lg:col-span-2 space-y-6">
-                                                    <button onClick={() => setActiveLesson(null)} className="flex items-center gap-2 text-xs font-bold text-indigo-400 hover:underline mb-4">
-                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M15 19l-7-7 7-7" strokeWidth="2"/></svg> BACK TO COURSE
-                                                    </button>
-                                                    <div className="p-8 bg-white/5 border border-[var(--border)] rounded-[2.5rem]">
-                                                        <div className="flex justify-between items-center mb-6">
-                                                            <span className="bg-indigo-600 text-[10px] font-black px-3 py-1 rounded-full uppercase">{activeLesson.type}</span>
-                                                        </div>
-                                                        <h3 className="text-3xl font-extrabold mb-6">{activeLesson.title}</h3>
-                                                        <div className="text-lg opacity-80 leading-loose whitespace-pre-wrap">{activeLesson.content}</div>
-                                                    </div>
-                                                </div>
-                                                <div className="space-y-6 sticky top-0">
-                                                    <div className="p-6 bg-indigo-600/10 border border-indigo-600/30 rounded-[2rem]">
-                                                        <h4 className="font-bold mb-4 flex items-center gap-2">
-                                                            <span className="p-1 bg-indigo-600 rounded text-xs">AI</span> Ask Nix for Help
-                                                        </h4>
-                                                        <textarea 
-                                                            className="w-full bg-black/40 border border-[var(--border)] rounded-xl p-4 text-sm outline-none resize-none mb-3"
-                                                            rows="3"
-                                                            placeholder="Explain the second paragraph..."
-                                                            value={explanationInput}
-                                                            onChange={(e) => setExplanationInput(e.target.value)}
-                                                        />
-                                                        <button 
-                                                            onClick={askExplanation}
-                                                            className="w-full bg-indigo-600 py-3 rounded-xl font-bold text-sm active:scale-95 transition-all"
-                                                        >
-                                                            Ask Nix
-                                                        </button>
-                                                        {explanationResult && (
-                                                            <div className="mt-6 p-4 bg-white/5 rounded-xl text-sm border-l-2 border-indigo-500 animate-in fade-in duration-500">
-                                                                <p className="font-bold text-[10px] uppercase opacity-40 mb-2">Nix Explains:</p>
-                                                                <div className="opacity-90 italic whitespace-pre-wrap">{explanationResult}</div>
+                                            <div className="animate-fade">
+                                                <button onClick={() => setActiveLesson(null)} className="mb-8 flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-indigo-400">
+                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M15 19l-7-7 7-7" strokeWidth="2.5"/></svg> Back to Materials
+                                                </button>
+                                                
+                                                {activeLesson.type === 'test' ? (
+                                                    <div className="max-w-2xl mx-auto">
+                                                        {!quizFinished ? (
+                                                            <div className="space-y-8">
+                                                                <div className="flex justify-between items-end mb-4">
+                                                                    <p className="text-xs font-bold opacity-40 uppercase tracking-widest">Question {quizIndex + 1}</p>
+                                                                    <p className="text-xs font-bold text-indigo-400">{Math.round(((quizIndex + 1) / parseQuiz(activeLesson.content).length) * 100)}% Complete</p>
+                                                                </div>
+                                                                <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden mb-10">
+                                                                    <div className="h-full bg-indigo-600 transition-all duration-500" style={{ width: `${((quizIndex + 1) / parseQuiz(activeLesson.content).length) * 100}%` }}></div>
+                                                                </div>
+                                                                
+                                                                <h3 className="text-2xl font-bold leading-tight mb-8">
+                                                                    {parseQuiz(activeLesson.content)[quizIndex].question}
+                                                                </h3>
+                                                                
+                                                                <div className="grid gap-3">
+                                                                    {parseQuiz(activeLesson.content)[quizIndex].options.map((opt, oIdx) => (
+                                                                        <button 
+                                                                            key={oIdx} 
+                                                                            onClick={() => handleQuizAnswer(oIdx, parseQuiz(activeLesson.content)[quizIndex].correct)}
+                                                                            className="quiz-option text-left p-5 rounded-2xl bg-white/5 text-sm font-medium flex items-center gap-4"
+                                                                        >
+                                                                            <span className="w-8 h-8 rounded-lg bg-black/40 flex items-center justify-center text-[10px] font-bold opacity-60">{String.fromCharCode(65 + oIdx)}</span>
+                                                                            {opt}
+                                                                        </button>
+                                                                    ))}
+                                                                </div>
+                                                            </div>
+                                                        ) : (
+                                                            <div className="text-center py-20 bg-white/5 border border-white/5 rounded-[3rem]">
+                                                                <div className="text-6xl mb-6">🏆</div>
+                                                                <h3 className="text-3xl font-black mb-2">Quiz Complete!</h3>
+                                                                <p className="opacity-60 mb-8">You scored {score} out of {parseQuiz(activeLesson.content).length}</p>
+                                                                <button onClick={() => { setQuizIndex(0); setScore(0); setQuizFinished(false); }} className="px-8 py-3 bg-indigo-600 rounded-xl font-bold text-sm">Retry Quiz</button>
                                                             </div>
                                                         )}
                                                     </div>
-                                                </div>
+                                                ) : (
+                                                    <div className="p-10 bg-white/5 border border-[var(--border)] rounded-[3rem]">
+                                                        <h3 className="text-3xl font-black mb-6">{activeLesson.title}</h3>
+                                                        <div className="text-lg opacity-70 leading-relaxed whitespace-pre-wrap">{activeLesson.content}</div>
+                                                    </div>
+                                                )}
                                             </div>
                                         ) : (
                                             <div className="space-y-12">
-                                                <div className="flex justify-between items-center bg-indigo-600 p-10 rounded-[3rem] text-white shadow-2xl shadow-indigo-600/20">
-                                                    <div>
-                                                        <h3 className="text-4xl font-black mb-2">{selectedClass.name}</h3>
-                                                        <p className="opacity-80">Welcome to your personalized AI learning path.</p>
-                                                    </div>
-                                                    <div className="text-right hidden md:block">
-                                                        <p className="text-xs font-black uppercase tracking-widest opacity-60">Join Code</p>
-                                                        <p className="text-3xl font-mono font-bold">{selectedClass.join_code}</p>
+                                                <div className="bg-gradient-to-br from-indigo-600 to-indigo-900 p-12 rounded-[3.5rem] text-white shadow-2xl relative overflow-hidden">
+                                                    <h3 className="text-5xl font-black mb-2">{selectedClass.name}</h3>
+                                                    <p className="opacity-70 text-lg">Course materials and interactive assessments.</p>
+                                                    <div className="mt-8 pt-8 border-t border-white/10 flex gap-6">
+                                                        <div><p className="text-[10px] font-black uppercase opacity-60">Join Code</p><p className="font-mono font-bold text-xl">{selectedClass.join_code}</p></div>
+                                                        <div><p className="text-[10px] font-black uppercase opacity-60">Materials</p><p className="font-bold text-xl">{selectedClass.content.length}</p></div>
                                                     </div>
                                                 </div>
 
                                                 {selectedClass.role === 'teacher' && (
-                                                    <div className="flex gap-4 overflow-x-auto pb-4">
-                                                        <button onClick={() => generateClassAI('lesson', prompt("Enter Lesson Topic:"))} className="shrink-0 p-4 px-6 bg-white/5 border border-[var(--border)] rounded-2xl font-bold text-xs hover:bg-white/10">+ AI Lesson</button>
-                                                        <button onClick={() => generateClassAI('test', prompt("Enter Quiz Topic:"))} className="shrink-0 p-4 px-6 bg-white/5 border border-[var(--border)] rounded-2xl font-bold text-xs hover:bg-white/10">+ AI Quiz</button>
-                                                        <button onClick={() => generateClassAI('mindmap', prompt("Enter Topic:"))} className="shrink-0 p-4 px-6 bg-white/5 border border-[var(--border)] rounded-2xl font-bold text-xs hover:bg-white/10">+ AI Mindmap</button>
+                                                    <div className="flex gap-4">
+                                                        <button onClick={() => generateQuizAI(prompt("Quiz topic:"))} className="p-4 px-6 bg-white/5 border border-white/5 rounded-2xl font-bold text-[10px] uppercase tracking-widest hover:bg-white/10 transition-colors">+ NEW QUIZ</button>
                                                     </div>
                                                 )}
 
                                                 <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
                                                     {selectedClass.content.map((item, idx) => (
-                                                        <div key={idx} onClick={() => { setActiveLesson(item); setExplanationResult(""); setExplanationInput(""); }} className="lesson-card p-6 bg-white/5 border border-[var(--border)] rounded-3xl cursor-pointer">
-                                                            <div className="flex justify-between items-start mb-6">
-                                                                <span className="text-[10px] font-black px-2 py-0.5 rounded bg-indigo-600/20 text-indigo-400 border border-indigo-500/20 uppercase">{item.type}</span>
-                                                                <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center opacity-40">
-                                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" strokeWidth="2"/></svg>
-                                                                </div>
+                                                        <div key={idx} onClick={() => { setActiveLesson(item); setQuizIndex(0); setScore(0); setQuizFinished(false); }} className="p-8 bg-white/5 border border-white/5 rounded-[2.5rem] cursor-pointer group hover:bg-indigo-600/5 hover:border-indigo-600/20 transition-all">
+                                                            <span className="text-[9px] font-black px-3 py-1 rounded-full bg-indigo-600/20 text-indigo-400 uppercase mb-6 inline-block">{item.type}</span>
+                                                            <h4 className="text-xl font-bold line-clamp-2 leading-tight">{item.title}</h4>
+                                                            <div className="mt-6 flex items-center gap-2 text-[10px] font-black text-indigo-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                OPEN {item.type === 'test' ? 'QUIZ' : 'LESSON'} <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M13 5l7 7-7 7" strokeWidth="3"/></svg>
                                                             </div>
-                                                            <h4 className="text-lg font-bold mb-2 line-clamp-2">{item.title}</h4>
-                                                            <p className="text-sm opacity-40 line-clamp-3 leading-relaxed">Click to open and study this module with AI assistance.</p>
                                                         </div>
                                                     ))}
-                                                    {selectedClass.content.length === 0 && (
-                                                        <div className="col-span-full py-20 text-center opacity-20 italic">No content has been added to this course yet.</div>
-                                                    )}
                                                 </div>
                                             </div>
                                         )}
                                     </div>
                                 )}
-                                {isTyping && <div className="p-4 opacity-40 animate-pulse text-xs font-bold tracking-widest italic">Nix is processing...</div>}
+                                {isTyping && <div className="p-4 opacity-40 text-[10px] font-black tracking-widest animate-pulse">NIX IS THINKING...</div>}
                             </div>
                         </div>
 
-                        {/* Global Input (Only for Chat View) */}
                         {view === 'chat' && (
                             <div className="p-6 bg-gradient-to-t from-[var(--bg-main)] via-[var(--bg-main)] to-transparent absolute bottom-0 left-0 right-0">
                                 <div className="max-w-4xl mx-auto">
-                                    {selectedFile && <div className="mb-2"><span className="file-badge">📎 {selectedFile.name} <button onClick={() => setSelectedFile(null)} className="ml-2 opacity-50">×</button></span></div>}
-                                    <div className="relative input-glass rounded-[2.5rem] p-2 flex items-end shadow-2xl">
-                                        <button onClick={() => fileInputRef.current.click()} className="p-4 text-[var(--text-secondary)] hover:text-indigo-400 transition-colors"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" strokeWidth="2"/></svg></button>
-                                        <textarea 
-                                            ref={textareaRef}
-                                            rows="1"
+                                    <div className="relative bg-white/5 backdrop-blur-xl rounded-[2.5rem] p-2 flex items-center shadow-2xl border border-white/5">
+                                        <input 
                                             value={input}
-                                            onChange={(e) => { setInput(e.target.value); e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px'; }}
-                                            onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), processQuery())}
+                                            onChange={(e) => setInput(e.target.value)}
+                                            onKeyDown={(e) => e.key === 'Enter' && processQuery()}
                                             placeholder="Ask Nix anything..."
-                                            className="flex-1 bg-transparent p-4 outline-none resize-none text-[15px]"
+                                            className="flex-1 bg-transparent p-5 outline-none text-[15px]"
                                         />
-                                        <button onClick={processQuery} className="w-12 h-12 flex items-center justify-center bg-white text-black rounded-full mb-1 ml-2 active:scale-90 transition-transform"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7" strokeWidth="3"/></svg></button>
+                                        <button onClick={processQuery} className="w-12 h-12 flex items-center justify-center bg-white text-black rounded-full active:scale-90 transition-all shadow-xl mr-1">
+                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7" strokeWidth="3"/></svg>
+                                        </button>
                                     </div>
+                                    <p className="text-center text-[10px] opacity-20 mt-4 uppercase tracking-[0.3em] font-black">Powered by LongCat + Knowledge Base</p>
                                 </div>
                             </div>
                         )}
