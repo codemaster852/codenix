@@ -213,10 +213,14 @@
 
             try {
                 // 1. Search Sheets (Vertical Check: Column A for Questions, Column B for Answers)
-                const sheetAnswer = await searchSheets(text);
+                const sheetResult = await searchSheets(text);
                 
-                if (sheetAnswer !== null && sheetAnswer !== undefined) {
-                    updateAIMessage(aiMsgId, sheetAnswer);
+                if (sheetResult !== null) {
+                    updateAIMessage(aiMsgId, sheetResult.answer);
+                    // Console log the third column if it exists
+                    if (sheetResult.tokens) {
+                        console.log("%c[Sheet Tokens]", "color: #8B5CF6; font-weight: bold;", sheetResult.tokens);
+                    }
                 } else {
                     // 2. Fallback to LongCat AI only if no sheet match
                     const longCatResponse = await callLongCat(text);
@@ -234,7 +238,6 @@
                 if (!response.ok) return null;
                 
                 const resText = await response.text();
-                // Strip GViz prefix
                 const jsonStr = resText.substring(47).slice(0, -2);
                 const json = JSON.parse(jsonStr);
                 
@@ -244,17 +247,21 @@
                 // Normalize input query
                 const cleanQuery = query.toLowerCase().trim().replace(/[?.,!]$/, "");
 
-                // Start from 1 to skip "Question | Answer" headers
+                // Start from 1 to skip headers
                 for (let i = 1; i < rows.length; i++) {
                     const row = rows[i].c;
                     if (!row || !row[0]) continue;
 
+                    // Col 1 (A): Question
                     const rawQ = row[0].v ? row[0].v.toString() : "";
                     const cleanQ = rawQ.toLowerCase().trim().replace(/[?.,!]$/, "");
 
                     if (cleanQ === cleanQuery) {
-                        // Found match in Col A, return Col B
-                        return row[1] ? row[1].v : "No response provided in knowledge base.";
+                        // Found match
+                        return {
+                            answer: row[1] ? row[1].v : "No response provided in knowledge base.", // Col 2 (B)
+                            tokens: row[2] ? row[2].v : null // Col 3 (C)
+                        };
                     }
                 }
                 return null;
@@ -266,7 +273,6 @@
 
         async function callLongCat(query) {
             try {
-                // If ERR_NAME_NOT_RESOLVED persists, it is likely the endpoint is blocked or down.
                 const response = await fetch('https://api.longcat.ai/v1/chat/completions', {
                     method: 'POST',
                     headers: {
@@ -287,7 +293,6 @@
                 return data.choices[0].message.content;
             } catch (e) {
                 console.error("LongCat Error:", e);
-                // Inform user about the resolution error specifically
                 if (e.message.includes("ERR_NAME_NOT_RESOLVED") || e.name === "TypeError") {
                     return "Neural Link Error: The LongCat API domain (api.longcat.ai) is currently unreachable. Please check your spreadsheet knowledge base or verify the API endpoint status.";
                 }
