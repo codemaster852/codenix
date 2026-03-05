@@ -128,33 +128,49 @@
                 if (!error) setMessages(data);
             };
 
-            const generateTitle = async (query) => {
+            const generateTitle = async (query, context = "") => {
                 try {
                     const res = await fetch(API_URL, {
                         method: "POST",
                         headers: { "Content-Type": "application/json", "Authorization": `Bearer ${API_KEY}` },
                         body: JSON.stringify({
                             model: "LongCat-Flash-Chat",
-                            messages: [{ role: "system", content: "Summarize this query into a 3-word title." }, { role: "user", content: query }],
-                            max_tokens: 10
+                            messages: [
+                                { role: "system", content: "Create a very short (max 3 words) title for this chat based on the conversation." }, 
+                                { role: "user", content: `Context: ${context}\nNew message: ${query}` }
+                            ],
+                            max_tokens: 15
                         })
                     });
                     const data = await res.json();
-                    return data.choices[0].message.content.replace(/"/g, '');
-                } catch (e) { return "New Chat"; }
+                    let title = data.choices[0].message.content.replace(/"/g, '').trim();
+                    if (title.endsWith('.')) title = title.slice(0, -1);
+                    return title;
+                } catch (e) { return "Active Chat"; }
+            };
+
+            const updateConversationTitle = async (id, newTitle) => {
+                const { error } = await supabase
+                    .from('conversations')
+                    .update({ title: newTitle })
+                    .eq('id', id);
+                
+                if (!error) {
+                    setConversations(prev => prev.map(c => c.id === id ? { ...c, title: newTitle } : c));
+                }
             };
 
             const processQuery = async (query) => {
                 if (!query.trim() || !user) return;
 
                 let currentConvId = activeConvId;
+                const isFirstMessage = !currentConvId;
                 
-                // Create new conversation if none active
-                if (!currentConvId) {
-                    const title = await generateTitle(query);
+                // Create new conversation if none active (initially default title)
+                if (isFirstMessage) {
                     const { data, error } = await supabase
                         .from('conversations')
-                        .insert([{ user_id: user.id, title }])
+                        .insert([{ user_id: user.id, title: "New Chat..." }])
                         .select()
                         .single();
                     if (error) return;
@@ -199,6 +215,12 @@
                     const aiMsg = { conversation_id: currentConvId, role: 'assistant', content: aiResponseText };
                     setMessages(prev => [...prev, aiMsg]);
                     await supabase.from('messages').insert([aiMsg]);
+
+                    // Dynamic Title Update: Only trigger on the first or second message for accuracy
+                    if (messages.length <= 2) {
+                        const newTitle = await generateTitle(query, messages.length > 0 ? messages[0].content : "");
+                        await updateConversationTitle(currentConvId, newTitle);
+                    }
 
                 } catch (e) {
                     console.error(e);
