@@ -216,8 +216,10 @@
                 const sheetResult = await searchSheets(text);
                 
                 if (sheetResult !== null) {
+                    // Update UI with the Answer from Column B
                     updateAIMessage(aiMsgId, sheetResult.answer);
-                    // Console log the third column if it exists
+                    
+                    // Console log the Token from Column C if it exists
                     if (sheetResult.tokens) {
                         console.log("%c[Sheet Tokens]", "color: #8B5CF6; font-weight: bold;", sheetResult.tokens);
                     }
@@ -250,17 +252,17 @@
                 // Start from 1 to skip headers
                 for (let i = 1; i < rows.length; i++) {
                     const row = rows[i].c;
-                    if (!row || !row[0]) continue;
+                    if (!row || row.length < 1 || !row[0]) continue;
 
-                    // Col 1 (A): Question
+                    // Column A (Index 0): Question
                     const rawQ = row[0].v ? row[0].v.toString() : "";
                     const cleanQ = rawQ.toLowerCase().trim().replace(/[?.,!]$/, "");
 
                     if (cleanQ === cleanQuery) {
                         // Found match
                         return {
-                            answer: row[1] ? row[1].v : "No response provided in knowledge base.", // Col 2 (B)
-                            tokens: row[2] ? row[2].v : null // Col 3 (C)
+                            answer: row[1] && row[1].v !== null ? row[1].v.toString() : "No response provided in knowledge base.", // Column B (Index 1)
+                            tokens: row[2] && row[2].v !== null ? row[2].v.toString() : null // Column C (Index 2)
                         };
                     }
                 }
@@ -306,14 +308,18 @@
             msgDiv.id = id;
             msgDiv.className = `flex w-full mb-8 fade-in ${sender === 'user' ? 'justify-end' : 'justify-start'}`;
             
+            const contentClass = sender === 'user' 
+                ? 'bg-neutral-100 dark:bg-neutral-900 dark:text-white' 
+                : 'ai-bubble dark:text-neutral-100 shadow-sm border border-neutral-100 dark:border-neutral-800';
+
             msgDiv.innerHTML = `
                 <div class="flex max-w-[85%] md:max-w-2xl space-x-4 ${sender === 'user' ? 'flex-row-reverse space-x-reverse' : ''}">
                     <div class="w-8 h-8 flex-shrink-0 rounded-lg flex items-center justify-center font-bold text-[10px] ${sender === 'user' ? 'bg-neutral-200 dark:bg-neutral-800' : 'purple-gradient text-white'}">
                         ${sender === 'user' ? 'ME' : 'N4'}
                     </div>
                     <div class="space-y-1">
-                        <div class="px-4 py-3 rounded-2xl ${sender === 'user' ? 'bg-neutral-100 dark:bg-neutral-900 dark:text-white' : 'ai-bubble dark:text-neutral-100 shadow-sm border border-neutral-100 dark:border-neutral-800'}">
-                            ${isLoading ? '<div class="flex space-x-1 py-1"><div class="w-1.5 h-1.5 bg-purple-500 rounded-full animate-bounce"></div><div class="w-1.5 h-1.5 bg-purple-500 rounded-full animate-bounce" style="animation-delay:0.2s"></div><div class="w-1.5 h-1.5 bg-purple-500 rounded-full animate-bounce" style="animation-delay:0.4s"></div></div>' : text}
+                        <div class="message-content px-4 py-3 rounded-2xl ${contentClass}">
+                            ${isLoading ? '<div class="typing-indicator flex space-x-1 py-1"><div class="w-1.5 h-1.5 bg-purple-500 rounded-full animate-bounce"></div><div class="w-1.5 h-1.5 bg-purple-500 rounded-full animate-bounce" style="animation-delay:0.2s"></div><div class="w-1.5 h-1.5 bg-purple-500 rounded-full animate-bounce" style="animation-delay:0.4s"></div></div>' : text}
                         </div>
                     </div>
                 </div>
@@ -325,11 +331,13 @@
         }
 
         function updateAIMessage(id, text) {
-            const msg = document.getElementById(id);
-            if (msg) {
-                const bubble = msg.querySelector('.ai-bubble') || msg.querySelector('.rounded-2xl');
-                bubble.innerHTML = text;
-                chatWindow.scrollTo({ top: chatWindow.scrollHeight, behavior: 'smooth' });
+            const msgElement = document.getElementById(id);
+            if (msgElement) {
+                const contentDiv = msgElement.querySelector('.message-content');
+                if (contentDiv) {
+                    contentDiv.innerHTML = text;
+                    chatWindow.scrollTo({ top: chatWindow.scrollHeight, behavior: 'smooth' });
+                }
             }
         }
 
