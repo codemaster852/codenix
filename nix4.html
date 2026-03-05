@@ -134,34 +134,47 @@
                     const response = await fetch(SHEET_CSV_URL);
                     const csvText = await response.text();
                     
-                    // Improved CSV parsing for Google Sheets Export
-                    const rows = csvText.split('\n').filter(row => row.trim() !== "").map(row => {
-                        // This regex handles commas inside double quotes correctly
-                        const matches = row.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g) || row.split(',');
-                        return matches.map(cell => cell.replace(/^"|"$/g, '').trim());
+                    // Comprehensive CSV parsing that respects quotes and mixed content
+                    const rows = csvText.split(/\r?\n/).filter(row => row.trim() !== "").map(row => {
+                        const values = [];
+                        let current = "";
+                        let inQuotes = false;
+                        for (let i = 0; i < row.length; i++) {
+                            const char = row[i];
+                            if (char === '"') {
+                                inQuotes = !inQuotes;
+                            } else if (char === ',' && !inQuotes) {
+                                values.push(current.trim());
+                                current = "";
+                            } else {
+                                current += char;
+                            }
+                        }
+                        values.push(current.trim());
+                        return values.map(v => v.replace(/^"|"$/g, '').trim());
                     });
 
                     const normalizedQuery = query.toLowerCase().trim();
                     
                     for (let i = 0; i < rows.length; i++) {
-                        const question = rows[i][0]?.toLowerCase().trim(); // Column 1: Question
+                        const question = rows[i][0]?.toLowerCase().trim();
                         
-                        // Exact match or partial match
                         if (question && (question === normalizedQuery || normalizedQuery.includes(question))) {
-                            const answer = rows[i][1]; // Column 2: Answer
-                            const tokens = rows[i][2]; // Column 3: Tokens
+                            const answer = rows[i][1]; 
+                            const tokens = rows[i][2];
                             
-                            // Log tokens to console
-                            console.log(`[Knowledge Base Match Found]`);
-                            console.log(`Question: ${rows[i][0]}`);
-                            console.log(`Tokens: ${tokens || '0'}`);
+                            console.log(`[KB Match] Found: "${rows[i][0]}"`);
+                            console.log(`[KB Match] Tokens: ${tokens || '0'}`);
                             
-                            if (answer) return answer;
+                            // Return whatever is in column 2 (string, number, etc.)
+                            if (answer !== undefined && answer !== null && answer !== "") {
+                                return answer;
+                            }
                         }
                     }
                     return null;
                 } catch (err) {
-                    console.error("Knowledge Base Access Error:", err);
+                    console.error("KB Error:", err);
                     return null;
                 }
             };
@@ -191,20 +204,18 @@
                 setIsLoading(true);
 
                 try {
-                    // Search Sheets Knowledge Base
                     const sheetAnswer = await searchSheets(userMsg);
                     
                     let finalAnswer;
-                    if (sheetAnswer && sheetAnswer !== "") {
-                        finalAnswer = sheetAnswer;
+                    if (sheetAnswer !== null) {
+                        finalAnswer = String(sheetAnswer);
                     } else {
-                        // Fallback to Longcat AI
                         finalAnswer = await askLongcat(userMsg);
                     }
 
                     setMessages(prev => [...prev, { role: 'assistant', content: finalAnswer }]);
                 } catch (error) {
-                    setMessages(prev => [...prev, { role: 'assistant', content: "Connection error. Please try again later." }]);
+                    setMessages(prev => [...prev, { role: 'assistant', content: "An error occurred. Please try again." }]);
                 } finally {
                     setIsLoading(false);
                 }
@@ -214,7 +225,6 @@
 
             return (
                 <div className={`flex flex-col h-full w-full ${theme === 'light' ? 'light-mode' : ''}`}>
-                    {/* Header */}
                     <header className="glass-header h-16 flex items-center justify-between px-6 shrink-0 z-20">
                         <div className="flex items-center gap-2">
                             <div className="w-8 h-8 bg-violet-600 rounded-lg flex items-center justify-center font-black text-white text-xs">N4</div>
@@ -230,7 +240,6 @@
                         </div>
                     </header>
 
-                    {/* Chat Area */}
                     <main ref={scrollRef} className="flex-1 overflow-y-auto chat-container p-4 md:p-8">
                         <div className="max-w-3xl mx-auto space-y-8 pb-20">
                             {messages.length === 0 && (
@@ -268,7 +277,6 @@
                         </div>
                     </main>
 
-                    {/* Input Area */}
                     <div className="shrink-0 p-4 md:p-6 bg-gradient-to-t from-[var(--bg-main)] via-[var(--bg-main)] to-transparent">
                         <div className="max-w-3xl mx-auto relative">
                             <div className="input-area flex items-end p-2 pr-3">
