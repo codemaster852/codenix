@@ -134,12 +134,11 @@
                     const response = await fetch(SHEET_CSV_URL);
                     const csvText = await response.text();
                     
-                    // Professional CSV parsing logic
-                    const rows = csvText.split('\n').map(row => {
-                        // Regex to correctly handle commas inside quotes
-                        return row.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(cell => 
-                            cell.replace(/^"|"$/g, '').trim()
-                        );
+                    // Improved CSV parsing for Google Sheets Export
+                    const rows = csvText.split('\n').filter(row => row.trim() !== "").map(row => {
+                        // This regex handles commas inside double quotes correctly
+                        const matches = row.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g) || row.split(',');
+                        return matches.map(cell => cell.replace(/^"|"$/g, '').trim());
                     });
 
                     const normalizedQuery = query.toLowerCase().trim();
@@ -147,20 +146,22 @@
                     for (let i = 0; i < rows.length; i++) {
                         const question = rows[i][0]?.toLowerCase().trim(); // Column 1: Question
                         
+                        // Exact match or partial match
                         if (question && (question === normalizedQuery || normalizedQuery.includes(question))) {
                             const answer = rows[i][1]; // Column 2: Answer
                             const tokens = rows[i][2]; // Column 3: Tokens
                             
-                            // Log tokens to console as requested
-                            console.log(`Nix 4 System: Match found in Knowledge Base.`);
-                            console.log(`Tokens used: ${tokens || 'N/A'}`);
+                            // Log tokens to console
+                            console.log(`[Knowledge Base Match Found]`);
+                            console.log(`Question: ${rows[i][0]}`);
+                            console.log(`Tokens: ${tokens || '0'}`);
                             
-                            return answer;
+                            if (answer) return answer;
                         }
                     }
                     return null;
                 } catch (err) {
-                    console.error("Knowledge Base Error:", err);
+                    console.error("Knowledge Base Access Error:", err);
                     return null;
                 }
             };
@@ -190,20 +191,20 @@
                 setIsLoading(true);
 
                 try {
-                    // 1. Search Knowledge Base (Sheets)
+                    // Search Sheets Knowledge Base
                     const sheetAnswer = await searchSheets(userMsg);
                     
                     let finalAnswer;
-                    if (sheetAnswer) {
+                    if (sheetAnswer && sheetAnswer !== "") {
                         finalAnswer = sheetAnswer;
                     } else {
-                        // 2. Fallback to Longcat AI
+                        // Fallback to Longcat AI
                         finalAnswer = await askLongcat(userMsg);
                     }
 
                     setMessages(prev => [...prev, { role: 'assistant', content: finalAnswer }]);
                 } catch (error) {
-                    setMessages(prev => [...prev, { role: 'assistant', content: "I encountered an error connecting to my core systems. Please try again." }]);
+                    setMessages(prev => [...prev, { role: 'assistant', content: "Connection error. Please try again later." }]);
                 } finally {
                     setIsLoading(false);
                 }
@@ -238,7 +239,7 @@
                                         <span className="text-4xl">🔮</span>
                                     </div>
                                     <h2 className="text-3xl font-bold mb-3">Welcome to Nix 4</h2>
-                                    <p className="opacity-50 max-w-sm">How can I assist you today? I have access to the codenix knowledge base and advanced AI reasoning.</p>
+                                    <p className="opacity-50 max-w-sm">How can I assist you today? I search the knowledge base before using AI reasoning.</p>
                                 </div>
                             )}
 
@@ -296,7 +297,7 @@
                                 </button>
                             </div>
                             <p className="text-[10px] text-center mt-3 opacity-30 uppercase font-bold tracking-widest">
-                                Nix 4 may search knowledge bases to provide accurate results.
+                                Nix 4 knowledge base search active.
                             </p>
                         </div>
                     </div>
