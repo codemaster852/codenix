@@ -188,10 +188,7 @@
                 const sheetResult = await searchSheets(text);
                 
                 if (sheetResult && sheetResult.answer) {
-                    // Update Chat UI with Answer
                     updateAIMessage(aiMsgId, sheetResult.answer);
-                    
-                    // Log Tokens to Console
                     if (sheetResult.tokens) {
                         console.log("%c[Nix 4 Token Meter]", "color: #8B5CF6; font-weight: bold; font-size: 12px;", sheetResult.tokens);
                     }
@@ -219,13 +216,24 @@
                     const row = rows[i].c;
                     if (!row || !row[0]) continue;
 
-                    const sheetQ = row[0].v ? row[0].v.toString().toLowerCase().trim().replace(/[?.,!]$/, "") : "";
+                    // Get value or formatted value for Column A
+                    const cellA = row[0];
+                    const sheetQ = (cellA.f || cellA.v || "").toString().toLowerCase().trim().replace(/[?.,!]$/, "");
 
                     if (sheetQ === cleanQuery) {
-                        return {
-                            answer: row[1] && row[1].v ? row[1].v.toString() : "Protocol error: Empty answer slot.",
-                            tokens: row[2] && row[2].v ? row[2].v.toString() : "0"
-                        };
+                        // Get value or formatted value for Column B (Answer)
+                        const cellB = row[1];
+                        const cellC = row[2];
+                        
+                        const finalAnswer = (cellB && (cellB.f || cellB.v)) ? (cellB.f || cellB.v).toString() : null;
+                        const finalTokens = (cellC && (cellC.f || cellC.v)) ? (cellC.f || cellC.v).toString() : "0";
+
+                        if (finalAnswer) {
+                            return {
+                                answer: finalAnswer,
+                                tokens: finalTokens
+                            };
+                        }
                     }
                 }
                 return null;
@@ -274,7 +282,7 @@
                         ${sender === 'user' ? 'U' : 'N4'}
                     </div>
                     <div class="space-y-1 flex-1">
-                        <div class="nix-content-target px-4 py-3 rounded-2xl ${bubbleStyle} text-sm leading-relaxed">
+                        <div class="nix-content-target px-4 py-3 rounded-2xl ${bubbleStyle} text-sm leading-relaxed min-w-[50px]">
                             ${isLoading ? '<div class="flex space-x-1 py-1"><div class="w-1.5 h-1.5 bg-purple-500 rounded-full animate-bounce"></div><div class="w-1.5 h-1.5 bg-purple-500 rounded-full animate-bounce" style="animation-delay:0.2s"></div><div class="w-1.5 h-1.5 bg-purple-500 rounded-full animate-bounce" style="animation-delay:0.4s"></div></div>' : text}
                         </div>
                     </div>
