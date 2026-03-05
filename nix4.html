@@ -70,9 +70,6 @@
 
         @keyframes slideUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
 
-        .rtl { direction: rtl; }
-        .ltr { direction: ltr; }
-        
         .file-badge {
             background: rgba(99, 102, 241, 0.1);
             border: 1px solid var(--accent);
@@ -84,6 +81,15 @@
             gap: 8px;
             color: var(--accent);
             font-weight: 600;
+        }
+
+        .lesson-card {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .lesson-card:hover {
+            transform: translateY(-4px);
+            border-color: var(--accent);
+            background: rgba(99, 102, 241, 0.05);
         }
     </style>
 </head>
@@ -112,8 +118,12 @@
             const [isSidebarOpen, setIsSidebarOpen] = useState(false);
             const [selectedFile, setSelectedFile] = useState(null);
             
+            // Class Features State
             const [myClasses, setMyClasses] = useState([]);
             const [selectedClass, setSelectedClass] = useState(null);
+            const [activeLesson, setActiveLesson] = useState(null);
+            const [explanationInput, setExplanationInput] = useState("");
+            const [explanationResult, setExplanationResult] = useState("");
 
             const scrollRef = useRef(null);
             const textareaRef = useRef(null);
@@ -152,39 +162,26 @@
             const fetchClasses = async (uid) => {
                 const { data: teacherClasses } = await supabaseClient.from('classes').select('*').eq('teacher_id', uid);
                 const { data: joinedClasses } = await supabaseClient.from('class_members').select('classes(*)').eq('user_id', uid);
+                
                 const combined = [
                     ...(teacherClasses || []).map(c => ({ ...c, role: 'teacher' })),
                     ...(joinedClasses || []).map(item => ({ ...item.classes, role: 'student' }))
                 ];
-                setMyClasses(combined);
+
+                // For each class, fetch its content
+                const enriched = await Promise.all(combined.map(async (cls) => {
+                    const { data: content } = await supabaseClient.from('class_content').select('*').eq('class_id', cls.id).order('created_at', { ascending: false });
+                    return { ...cls, content: content || [] };
+                }));
+                
+                setMyClasses(enriched);
             };
 
             const handleFileUpload = (e) => {
                 const file = e.target.files[0];
                 if (file) {
-                    setSelectedFile({
-                        name: file.name,
-                        size: (file.size / 1024).toFixed(1) + ' KB',
-                        type: file.type
-                    });
+                    setSelectedFile({ name: file.name, size: (file.size / 1024).toFixed(1) + ' KB', type: file.type });
                 }
-            };
-
-            const createClass = async () => {
-                const name = prompt("Enter Class Name:");
-                if (!name) return;
-                const code = Math.random().toString(36).substring(2, 8).toUpperCase();
-                const { data } = await supabaseClient.from('classes').insert([{ teacher_id: user.id, name, join_code: code }]).select().single();
-                if (data) setMyClasses([{ ...data, role: 'teacher' }, ...myClasses]);
-            };
-
-            const joinClass = async () => {
-                const code = prompt("Enter Join Code:");
-                if (!code) return;
-                const { data: cls } = await supabaseClient.from('classes').select('id').eq('join_code', code.toUpperCase()).single();
-                if (!cls) return alert("Invalid code");
-                await supabaseClient.from('class_members').insert([{ class_id: cls.id, user_id: user.id }]);
-                fetchClasses(user.id);
             };
 
             const generateClassAI = async (type, topic) => {
@@ -194,15 +191,13 @@
                     ? `Create a structured mindmap for '${topic}'. Write it as a step-by-step hierarchical list (1. Main, 1.1 Subtopic).`
                     : `Generate professional ${type} content for the topic: ${topic}.`;
 
-                const fileInfo = selectedFile ? ` [Attached context from file: ${selectedFile.name}]` : "";
-
                 try {
                     const res = await fetch(API_URL, {
                         method: "POST",
                         headers: { "Content-Type": "application/json", "Authorization": `Bearer ${API_KEY}` },
                         body: JSON.stringify({
                             model: "LongCat-Flash-Chat",
-                            messages: [{ role: "system", content: "Expert Educator mode." }, { role: "user", content: promptMsg + fileInfo }]
+                            messages: [{ role: "system", content: "Expert Educator mode." }, { role: "user", content: promptMsg }]
                         })
                     });
                     const data = await res.json();
@@ -212,14 +207,39 @@
                         class_id: selectedClass.id, 
                         type, 
                         title: topic, 
-                        content: aiContent,
-                        file_attachment: selectedFile ? JSON.stringify(selectedFile) : null
+                        content: aiContent 
                     }]);
                     
-                    const { data: updated } = await supabaseClient.from('class_content').select('*').eq('class_id', selectedClass.id).order('created_at', { ascending: false });
-                    setSelectedClass({ ...selectedClass, content: updated });
-                    setSelectedFile(null);
+                    fetchClasses(user.id);
                 } finally { setIsTyping(false); }
+            };
+
+            const askExplanation = async () => {
+                if (!explanationInput.trim()) return;
+                setIsTyping(true);
+                setExplanationResult("Thinking...");
+                
+                const context = activeLesson ? `Context Lesson: ${activeLesson.title}\nContent: ${activeLesson.content}\n\n` : "";
+                
+                try {
+                    const res = await fetch(API_URL, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${API_KEY}` },
+                        body: JSON.stringify({
+                            model: "LongCat-Flash-Chat",
+                            messages: [
+                                { role: "system", content: "You are a friendly academic tutor. Explain concepts simply and provide examples." },
+                                { role: "user", content: `${context}Student Question: ${explanationInput}` }
+                            ]
+                        })
+                    });
+                    const data = await res.json();
+                    setExplanationResult(data.choices[0].message.content);
+                } catch (e) {
+                    setExplanationResult("Failed to get explanation. Please try again.");
+                } finally {
+                    setIsTyping(false);
+                }
             };
 
             const processQuery = async () => {
@@ -228,36 +248,26 @@
                 const f = selectedFile;
                 setInput("");
                 setSelectedFile(null);
-                if(textareaRef.current) textareaRef.current.style.height = 'auto';
                 setIsTyping(true);
 
                 let currentConvId = activeConvId;
                 if (!currentConvId) {
-                    const { data } = await supabaseClient.from('conversations').insert([{ user_id: user.id, title: q.substring(0, 20) || "File Upload" }]).select().single();
+                    const { data } = await supabaseClient.from('conversations').insert([{ user_id: user.id, title: q.substring(0, 20) }]).select().single();
                     currentConvId = data.id;
                     setActiveConvId(currentConvId);
+                    fetchConversations(user.id);
                 }
 
-                const userMsg = { 
-                    conversation_id: currentConvId, 
-                    role: 'user', 
-                    content: q + (f ? `\n[File Attached: ${f.name}]` : ""),
-                    file_data: f
-                };
+                const userMsg = { conversation_id: currentConvId, role: 'user', content: q + (f ? `\n[File: ${f.name}]` : ""), file_data: f };
                 setMessages(prev => [...prev, userMsg]);
 
                 try {
-                    const systemContext = "You are Nix 4. If the user mentions a file attachment, assume you have processed its text content.";
                     const res = await fetch(API_URL, {
                         method: "POST",
                         headers: { "Content-Type": "application/json", "Authorization": `Bearer ${API_KEY}` },
                         body: JSON.stringify({
                             model: "LongCat-Flash-Chat",
-                            messages: [
-                                { role: "system", content: systemContext },
-                                ...messages.map(m => ({ role: m.role, content: m.content })), 
-                                { role: "user", content: userMsg.content }
-                            ]
+                            messages: [...messages.map(m => ({ role: m.role, content: m.content })), { role: "user", content: userMsg.content }]
                         })
                     });
                     const data = await res.json();
@@ -271,21 +281,21 @@
             return (
                 <div className={`flex h-screen w-full bg-[var(--bg-main)] text-[var(--text-primary)] transition-colors duration-300`}>
                     <input type="file" ref={fileInputRef} onChange={handleFileUpload} className="hidden" />
-                    
+
                     {/* Sidebar */}
                     <aside className={`fixed lg:static inset-y-0 left-0 z-50 w-72 bg-[var(--bg-sidebar)] border-r border-[var(--border)] transition-transform lg:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
                         <div className="flex flex-col h-full">
                             <div className="p-6">
                                 <div className="flex items-center gap-3 mb-8">
-                                    <div className="w-10 h-10 bg-[var(--accent)] rounded-xl flex items-center justify-center font-bold text-white shadow-lg shadow-indigo-500/20">N4</div>
+                                    <div className="w-10 h-10 bg-[var(--accent)] rounded-xl flex items-center justify-center font-bold text-white">N4</div>
                                     <h1 className="font-bold">Nix 4 Pro</h1>
                                 </div>
                                 <div className="space-y-1">
-                                    <button onClick={() => setView('chat')} className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all ${view === 'chat' ? 'sidebar-item-active' : 'hover:bg-white/5 opacity-60'}`}>
+                                    <button onClick={() => { setView('chat'); setIsSidebarOpen(false); }} className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all ${view === 'chat' ? 'sidebar-item-active' : 'hover:bg-white/5 opacity-60'}`}>
                                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/></svg>
                                         <span className="text-sm font-semibold">AI Assistant</span>
                                     </button>
-                                    <button onClick={() => setView('class')} className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all ${view === 'class' ? 'sidebar-item-active' : 'hover:bg-white/5 opacity-60'}`}>
+                                    <button onClick={() => { setView('class'); setIsSidebarOpen(false); }} className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all ${view === 'class' ? 'sidebar-item-active' : 'hover:bg-white/5 opacity-60'}`}>
                                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 14l9-5-9-5-9 5 9 5zM12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z"/></svg>
                                         <span className="text-sm font-semibold">Nix Class</span>
                                     </button>
@@ -295,23 +305,19 @@
                             <div className="flex-1 overflow-y-auto px-4 chat-scroll">
                                 {view === 'chat' ? (
                                     <>
-                                        <p className="px-3 text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-2">Recent Sessions</p>
+                                        <p className="px-3 text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-2">History</p>
                                         {conversations.map(c => (
                                             <button key={c.id} onClick={() => loadConversation(c.id)} className={`w-full text-left p-3 rounded-xl text-sm truncate ${activeConvId === c.id ? 'bg-white/5' : 'opacity-40 hover:opacity-100'}`}>{c.title}</button>
                                         ))}
                                     </>
                                 ) : (
                                     <>
-                                        <div className="flex justify-between items-center px-3 mb-2">
-                                            <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)]">Your Classes</p>
-                                            <button onClick={createClass} className="text-indigo-400 text-xs font-bold hover:underline">+ New</button>
-                                        </div>
+                                        <p className="px-3 text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-2">Enrolled Courses</p>
                                         {myClasses.map(c => (
-                                            <button key={c.id} onClick={() => setSelectedClass(c)} className={`w-full text-left p-3 rounded-xl text-sm truncate ${selectedClass?.id === c.id ? 'bg-white/5' : 'opacity-40 hover:opacity-100'}`}>
-                                                {c.name} {c.role === 'teacher' ? '👑' : '🎓'}
+                                            <button key={c.id} onClick={() => { setSelectedClass(c); setActiveLesson(null); }} className={`w-full text-left p-3 rounded-xl text-sm truncate ${selectedClass?.id === c.id ? 'bg-white/5 text-indigo-400' : 'opacity-40'}`}>
+                                                {c.name} {c.role === 'teacher' ? '👑' : ''}
                                             </button>
                                         ))}
-                                        <button onClick={joinClass} className="w-full mt-4 p-3 border border-dashed border-[var(--border)] rounded-xl text-xs text-center opacity-60">Join with Code</button>
                                     </>
                                 )}
                             </div>
@@ -319,131 +325,148 @@
                     </aside>
 
                     {/* Main Content */}
-                    <main className="flex-1 flex flex-col relative overflow-hidden">
-                        <header className="h-16 flex items-center justify-between px-6 glass-panel shrink-0">
+                    <main className="flex-1 flex flex-col relative overflow-hidden bg-[var(--bg-main)]">
+                        <header className="h-16 flex items-center justify-between px-6 glass-panel shrink-0 z-10">
                             <div className="flex items-center gap-4">
-                                <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="lg:hidden p-2">
-                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16m-7 6h7" strokeWidth="2"/></svg>
-                                </button>
-                                <h2 className="text-sm font-bold">{view === 'chat' ? 'Strategic Intelligence' : 'Nix Classroom'}</h2>
+                                <button onClick={() => setIsSidebarOpen(true)} className="lg:hidden p-2"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16m-7 6h7" strokeWidth="2"/></svg></button>
+                                <h2 className="text-sm font-bold uppercase tracking-widest opacity-60">
+                                    {view === 'chat' ? 'Neural Workspace' : selectedClass ? `COURSE: ${selectedClass.name}` : 'Classroom'}
+                                </h2>
                             </div>
-                            <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="p-2.5 rounded-xl border border-[var(--border)] hover:bg-white/5 transition-all">
-                                {theme === 'dark' ? '☀️' : '🌙'}
-                            </button>
+                            <div className="flex items-center gap-2">
+                                <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="p-2.5 rounded-xl border border-[var(--border)]">{theme === 'dark' ? '☀️' : '🌙'}</button>
+                            </div>
                         </header>
 
-                        <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 md:px-10 py-10 space-y-8">
-                            <div className="max-w-4xl mx-auto pb-64">
+                        <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 md:px-10 py-10 chat-scroll">
+                            <div className="max-w-5xl mx-auto">
                                 {view === 'chat' ? (
-                                    <>
+                                    <div className="space-y-8 pb-40">
                                         {messages.length === 0 && (
-                                            <div className="h-[50vh] flex flex-col items-center justify-center text-center opacity-20">
-                                                <div className="w-20 h-20 bg-indigo-600 rounded-3xl mb-6 shadow-2xl"></div>
-                                                <h3 className="text-xl font-bold">Initiate Analysis</h3>
-                                                <p className="text-xs mt-2">Upload documentation or start a query</p>
+                                            <div className="h-[60vh] flex flex-col items-center justify-center text-center opacity-20">
+                                                <div className="w-20 h-20 bg-indigo-600 rounded-[2rem] mb-6 blur-lg animate-pulse"></div>
+                                                <h3 className="text-2xl font-bold">How can Nix help you today?</h3>
                                             </div>
                                         )}
                                         {messages.map((m, i) => (
-                                            <div key={i} className={`flex gap-4 mb-8 ${m.role === 'user' ? 'flex-row-reverse' : ''}`}>
-                                                <div className={`w-9 h-9 shrink-0 rounded-xl flex items-center justify-center font-black text-[10px] ${m.role === 'user' ? 'bg-[var(--border)]' : 'bg-[var(--accent)] text-white shadow-lg shadow-indigo-500/20'}`}>{m.role === 'user' ? 'ME' : 'N4'}</div>
-                                                <div className="max-w-[85%]">
-                                                    <div className={`p-5 rounded-3xl text-[15px] leading-relaxed ${m.role === 'user' ? 'bg-[var(--bubble-user)] border border-[var(--border)] rounded-tr-none' : 'bg-transparent border-none'}`}>
-                                                        {m.content}
-                                                    </div>
-                                                    {m.file_data && (
-                                                        <div className="mt-2 flex justify-end">
-                                                            <div className="file-badge">
-                                                                <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z"/></svg>
-                                                                {m.file_data.name}
-                                                            </div>
-                                                        </div>
-                                                    )}
+                                            <div key={i} className={`flex gap-4 ${m.role === 'user' ? 'flex-row-reverse' : ''}`}>
+                                                <div className={`w-10 h-10 shrink-0 rounded-2xl flex items-center justify-center font-bold text-xs ${m.role === 'user' ? 'bg-[var(--border)]' : 'bg-indigo-600'}`}>{m.role === 'user' ? 'ME' : 'N4'}</div>
+                                                <div className={`p-6 rounded-[2rem] max-w-[85%] leading-relaxed ${m.role === 'user' ? 'bg-[var(--bubble-user)] border border-[var(--border)] rounded-tr-none' : ''}`}>
+                                                    {m.content}
+                                                    {m.file_data && <div className="mt-4"><span className="file-badge">📎 {m.file_data.name}</span></div>}
                                                 </div>
                                             </div>
                                         ))}
-                                    </>
+                                    </div>
                                 ) : (
-                                    <div className="space-y-8">
+                                    <div className="pb-20">
                                         {!selectedClass ? (
-                                            <div className="text-center py-20 opacity-30">Select or join a class to begin learning</div>
-                                        ) : (
-                                            <>
-                                                <div className="p-8 bg-indigo-600/5 border border-indigo-600/20 rounded-[2rem] relative overflow-hidden">
-                                                    <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-600/10 rounded-full -mr-16 -mt-16 blur-3xl"></div>
-                                                    <h3 className="text-2xl font-extrabold">{selectedClass.name}</h3>
-                                                    <p className="text-sm opacity-60 mt-1">Classroom ID: <span className="font-mono font-bold text-indigo-400">{selectedClass.join_code}</span></p>
-                                                    {selectedClass.role === 'teacher' && (
-                                                        <div className="flex flex-wrap gap-2 mt-6">
-                                                            <button onClick={() => generateClassAI('lesson', prompt("Enter Lesson Topic:"))} className="p-2.5 px-5 bg-[var(--accent)] text-white text-xs font-bold rounded-xl active:scale-95 transition-all">Generate Lesson</button>
-                                                            <button onClick={() => generateClassAI('test', prompt("Enter Quiz Topic:"))} className="p-2.5 px-5 bg-[var(--accent)] text-white text-xs font-bold rounded-xl active:scale-95 transition-all">Generate Quiz</button>
-                                                            <button onClick={() => generateClassAI('mindmap', prompt("Enter Mindmap Topic:"))} className="p-2.5 px-5 bg-[var(--accent)] text-white text-xs font-bold rounded-xl active:scale-95 transition-all">Build Mindmap</button>
-                                                            <button onClick={() => fileInputRef.current.click()} className="p-2.5 px-5 border border-indigo-500/40 text-indigo-400 text-xs font-bold rounded-xl hover:bg-indigo-500/10 transition-all">
-                                                                {selectedFile ? `File: ${selectedFile.name}` : 'Upload Reference'}
-                                                            </button>
+                                            <div className="text-center py-20 opacity-30">Select a course from the sidebar to start learning.</div>
+                                        ) : activeLesson ? (
+                                            <div className="grid lg:grid-cols-3 gap-8 items-start">
+                                                <div className="lg:col-span-2 space-y-6">
+                                                    <button onClick={() => setActiveLesson(null)} className="flex items-center gap-2 text-xs font-bold text-indigo-400 hover:underline mb-4">
+                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M15 19l-7-7 7-7" strokeWidth="2"/></svg> BACK TO COURSE
+                                                    </button>
+                                                    <div className="p-8 bg-white/5 border border-[var(--border)] rounded-[2.5rem]">
+                                                        <div className="flex justify-between items-center mb-6">
+                                                            <span className="bg-indigo-600 text-[10px] font-black px-3 py-1 rounded-full uppercase">{activeLesson.type}</span>
                                                         </div>
-                                                    )}
+                                                        <h3 className="text-3xl font-extrabold mb-6">{activeLesson.title}</h3>
+                                                        <div className="text-lg opacity-80 leading-loose whitespace-pre-wrap">{activeLesson.content}</div>
+                                                    </div>
                                                 </div>
-                                                <div className="grid gap-6">
-                                                    {selectedClass.content?.map((item, idx) => (
-                                                        <div key={idx} className="p-6 bg-white/5 rounded-3xl border border-[var(--border)] hover:border-indigo-500/30 transition-all group">
-                                                            <div className="flex justify-between items-center mb-6">
-                                                                <span className="text-[9px] font-black uppercase tracking-widest bg-indigo-600/20 text-indigo-400 px-3 py-1 rounded-full border border-indigo-500/20">{item.type}</span>
-                                                                <span className="text-xs opacity-40">{new Date(item.created_at).toLocaleDateString()}</span>
+                                                <div className="space-y-6 sticky top-0">
+                                                    <div className="p-6 bg-indigo-600/10 border border-indigo-600/30 rounded-[2rem]">
+                                                        <h4 className="font-bold mb-4 flex items-center gap-2">
+                                                            <span className="p-1 bg-indigo-600 rounded text-xs">AI</span> Ask Nix for Help
+                                                        </h4>
+                                                        <textarea 
+                                                            className="w-full bg-black/40 border border-[var(--border)] rounded-xl p-4 text-sm outline-none resize-none mb-3"
+                                                            rows="3"
+                                                            placeholder="Explain the second paragraph..."
+                                                            value={explanationInput}
+                                                            onChange={(e) => setExplanationInput(e.target.value)}
+                                                        />
+                                                        <button 
+                                                            onClick={askExplanation}
+                                                            className="w-full bg-indigo-600 py-3 rounded-xl font-bold text-sm active:scale-95 transition-all"
+                                                        >
+                                                            Ask Nix
+                                                        </button>
+                                                        {explanationResult && (
+                                                            <div className="mt-6 p-4 bg-white/5 rounded-xl text-sm border-l-2 border-indigo-500 animate-in fade-in duration-500">
+                                                                <p className="font-bold text-[10px] uppercase opacity-40 mb-2">Nix Explains:</p>
+                                                                <div className="opacity-90 italic whitespace-pre-wrap">{explanationResult}</div>
                                                             </div>
-                                                            <h4 className="text-lg font-bold mb-3">{item.title}</h4>
-                                                            <div className="text-[14px] opacity-80 whitespace-pre-wrap leading-relaxed">{item.content}</div>
-                                                            {item.file_attachment && (
-                                                                <div className="mt-6 pt-6 border-t border-[var(--border)] flex items-center gap-2">
-                                                                    <div className="file-badge">
-                                                                        <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M8 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z"/><path d="M6 3a2 2 0 00-2 2v11a2 2 0 002 2h8a2 2 0 002-2V5a2 2 0 00-2-2 3 3 0 01-3 3H9a3 3 0 01-3-3z"/></svg>
-                                                                        Reference: {JSON.parse(item.file_attachment).name}
-                                                                    </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div className="space-y-12">
+                                                <div className="flex justify-between items-center bg-indigo-600 p-10 rounded-[3rem] text-white shadow-2xl shadow-indigo-600/20">
+                                                    <div>
+                                                        <h3 className="text-4xl font-black mb-2">{selectedClass.name}</h3>
+                                                        <p className="opacity-80">Welcome to your personalized AI learning path.</p>
+                                                    </div>
+                                                    <div className="text-right hidden md:block">
+                                                        <p className="text-xs font-black uppercase tracking-widest opacity-60">Join Code</p>
+                                                        <p className="text-3xl font-mono font-bold">{selectedClass.join_code}</p>
+                                                    </div>
+                                                </div>
+
+                                                {selectedClass.role === 'teacher' && (
+                                                    <div className="flex gap-4 overflow-x-auto pb-4">
+                                                        <button onClick={() => generateClassAI('lesson', prompt("Enter Lesson Topic:"))} className="shrink-0 p-4 px-6 bg-white/5 border border-[var(--border)] rounded-2xl font-bold text-xs hover:bg-white/10">+ AI Lesson</button>
+                                                        <button onClick={() => generateClassAI('test', prompt("Enter Quiz Topic:"))} className="shrink-0 p-4 px-6 bg-white/5 border border-[var(--border)] rounded-2xl font-bold text-xs hover:bg-white/10">+ AI Quiz</button>
+                                                        <button onClick={() => generateClassAI('mindmap', prompt("Enter Topic:"))} className="shrink-0 p-4 px-6 bg-white/5 border border-[var(--border)] rounded-2xl font-bold text-xs hover:bg-white/10">+ AI Mindmap</button>
+                                                    </div>
+                                                )}
+
+                                                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                                    {selectedClass.content.map((item, idx) => (
+                                                        <div key={idx} onClick={() => { setActiveLesson(item); setExplanationResult(""); setExplanationInput(""); }} className="lesson-card p-6 bg-white/5 border border-[var(--border)] rounded-3xl cursor-pointer">
+                                                            <div className="flex justify-between items-start mb-6">
+                                                                <span className="text-[10px] font-black px-2 py-0.5 rounded bg-indigo-600/20 text-indigo-400 border border-indigo-500/20 uppercase">{item.type}</span>
+                                                                <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center opacity-40">
+                                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" strokeWidth="2"/></svg>
                                                                 </div>
-                                                            )}
+                                                            </div>
+                                                            <h4 className="text-lg font-bold mb-2 line-clamp-2">{item.title}</h4>
+                                                            <p className="text-sm opacity-40 line-clamp-3 leading-relaxed">Click to open and study this module with AI assistance.</p>
                                                         </div>
                                                     ))}
+                                                    {selectedClass.content.length === 0 && (
+                                                        <div className="col-span-full py-20 text-center opacity-20 italic">No content has been added to this course yet.</div>
+                                                    )}
                                                 </div>
-                                            </>
+                                            </div>
                                         )}
                                     </div>
                                 )}
-                                {isTyping && <div className="flex gap-2 p-6 opacity-30"><div className="w-2 h-2 bg-[var(--accent)] rounded-full animate-bounce"></div><div className="w-2 h-2 bg-[var(--accent)] rounded-full animate-bounce [animation-delay:0.2s]"></div><div className="w-2 h-2 bg-[var(--accent)] rounded-full animate-bounce [animation-delay:0.4s]"></div></div>}
+                                {isTyping && <div className="p-4 opacity-40 animate-pulse text-xs font-bold tracking-widest italic">Nix is processing...</div>}
                             </div>
                         </div>
 
-                        {/* Input Area */}
+                        {/* Global Input (Only for Chat View) */}
                         {view === 'chat' && (
-                            <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-[var(--bg-main)] via-[var(--bg-main)] to-transparent">
+                            <div className="p-6 bg-gradient-to-t from-[var(--bg-main)] via-[var(--bg-main)] to-transparent absolute bottom-0 left-0 right-0">
                                 <div className="max-w-4xl mx-auto">
-                                    {selectedFile && (
-                                        <div className="mb-2 flex justify-start">
-                                            <div className="file-badge py-2 shadow-xl animate-in slide-in-from-bottom-2">
-                                                <span>📎 {selectedFile.name}</span>
-                                                <button onClick={() => setSelectedFile(null)} className="hover:text-red-400 font-black">×</button>
-                                            </div>
-                                        </div>
-                                    )}
-                                    <div className="relative input-glass rounded-[2rem] p-2 flex items-end shadow-2xl transition-all focus-within:ring-2 ring-indigo-500/20">
-                                        <button 
-                                            onClick={() => fileInputRef.current.click()}
-                                            className="w-12 h-12 flex items-center justify-center text-[var(--text-secondary)] hover:text-[var(--accent)] transition-all mb-1 ml-1"
-                                        >
-                                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/></svg>
-                                        </button>
+                                    {selectedFile && <div className="mb-2"><span className="file-badge">📎 {selectedFile.name} <button onClick={() => setSelectedFile(null)} className="ml-2 opacity-50">×</button></span></div>}
+                                    <div className="relative input-glass rounded-[2.5rem] p-2 flex items-end shadow-2xl">
+                                        <button onClick={() => fileInputRef.current.click()} className="p-4 text-[var(--text-secondary)] hover:text-indigo-400 transition-colors"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" strokeWidth="2"/></svg></button>
                                         <textarea 
                                             ref={textareaRef}
                                             rows="1"
                                             value={input}
-                                            onChange={(e) => { setInput(e.target.value); e.target.style.height = 'auto'; e.target.style.height = Math.min(e.target.scrollHeight, 150) + 'px'; }}
-                                            placeholder="Consult Nix 4..."
-                                            className="flex-1 bg-transparent p-4 outline-none resize-none text-[15px] leading-relaxed"
+                                            onChange={(e) => { setInput(e.target.value); e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px'; }}
                                             onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), processQuery())}
+                                            placeholder="Ask Nix anything..."
+                                            className="flex-1 bg-transparent p-4 outline-none resize-none text-[15px]"
                                         />
-                                        <button onClick={processQuery} className="w-12 h-12 flex items-center justify-center bg-[var(--text-primary)] text-[var(--bg-main)] rounded-2xl mb-1 ml-2 transition-all active:scale-90 hover:scale-105 shadow-lg">
-                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7" strokeWidth="3"/></svg>
-                                        </button>
+                                        <button onClick={processQuery} className="w-12 h-12 flex items-center justify-center bg-white text-black rounded-full mb-1 ml-2 active:scale-90 transition-transform"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7" strokeWidth="3"/></svg></button>
                                     </div>
-                                    <p className="text-[9px] text-center mt-4 text-[var(--text-secondary)] font-black uppercase tracking-[0.3em] opacity-30">Secure Intelligence Terminal</p>
                                 </div>
                             </div>
                         )}
