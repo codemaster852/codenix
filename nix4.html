@@ -72,6 +72,19 @@
 
         .rtl { direction: rtl; }
         .ltr { direction: ltr; }
+        
+        .file-badge {
+            background: rgba(99, 102, 241, 0.1);
+            border: 1px solid var(--accent);
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 11px;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--accent);
+            font-weight: 600;
+        }
     </style>
 </head>
 <body>
@@ -89,7 +102,7 @@
 
         const App = () => {
             const [user, setUser] = useState(null);
-            const [view, setView] = useState('chat'); // 'chat' or 'class'
+            const [view, setView] = useState('chat');
             const [theme, setTheme] = useState('dark');
             const [messages, setMessages] = useState([]);
             const [conversations, setConversations] = useState([]);
@@ -97,15 +110,14 @@
             const [input, setInput] = useState("");
             const [isTyping, setIsTyping] = useState(false);
             const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+            const [selectedFile, setSelectedFile] = useState(null);
             
-            // Class Features State
             const [myClasses, setMyClasses] = useState([]);
             const [selectedClass, setSelectedClass] = useState(null);
-            const [isTeacher, setIsTeacher] = useState(false);
-            const [classCode, setClassCode] = useState("");
 
             const scrollRef = useRef(null);
             const textareaRef = useRef(null);
+            const fileInputRef = useRef(null);
 
             useEffect(() => {
                 const init = async () => {
@@ -131,6 +143,12 @@
                 if (data) setConversations(data);
             };
 
+            const loadConversation = async (id) => {
+                setActiveConvId(id);
+                const { data } = await supabaseClient.from('messages').select('*').eq('conversation_id', id).order('created_at', { ascending: true });
+                if (data) setMessages(data);
+            };
+
             const fetchClasses = async (uid) => {
                 const { data: teacherClasses } = await supabaseClient.from('classes').select('*').eq('teacher_id', uid);
                 const { data: joinedClasses } = await supabaseClient.from('class_members').select('classes(*)').eq('user_id', uid);
@@ -139,6 +157,17 @@
                     ...(joinedClasses || []).map(item => ({ ...item.classes, role: 'student' }))
                 ];
                 setMyClasses(combined);
+            };
+
+            const handleFileUpload = (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    setSelectedFile({
+                        name: file.name,
+                        size: (file.size / 1024).toFixed(1) + ' KB',
+                        type: file.type
+                    });
+                }
             };
 
             const createClass = async () => {
@@ -165,48 +194,70 @@
                     ? `Create a structured mindmap for '${topic}'. Write it as a step-by-step hierarchical list (1. Main, 1.1 Subtopic).`
                     : `Generate professional ${type} content for the topic: ${topic}.`;
 
+                const fileInfo = selectedFile ? ` [Attached context from file: ${selectedFile.name}]` : "";
+
                 try {
                     const res = await fetch(API_URL, {
                         method: "POST",
                         headers: { "Content-Type": "application/json", "Authorization": `Bearer ${API_KEY}` },
                         body: JSON.stringify({
                             model: "LongCat-Flash-Chat",
-                            messages: [{ role: "system", content: "Expert Educator mode." }, { role: "user", content: promptMsg }]
+                            messages: [{ role: "system", content: "Expert Educator mode." }, { role: "user", content: promptMsg + fileInfo }]
                         })
                     });
                     const data = await res.json();
                     const aiContent = data.choices[0].message.content;
                     
-                    await supabaseClient.from('class_content').insert([{ class_id: selectedClass.id, type, title: topic, content: aiContent }]);
-                    // Refresh view
-                    const { data: updated } = await supabaseClient.from('class_content').select('*').eq('class_id', selectedClass.id);
+                    await supabaseClient.from('class_content').insert([{ 
+                        class_id: selectedClass.id, 
+                        type, 
+                        title: topic, 
+                        content: aiContent,
+                        file_attachment: selectedFile ? JSON.stringify(selectedFile) : null
+                    }]);
+                    
+                    const { data: updated } = await supabaseClient.from('class_content').select('*').eq('class_id', selectedClass.id).order('created_at', { ascending: false });
                     setSelectedClass({ ...selectedClass, content: updated });
+                    setSelectedFile(null);
                 } finally { setIsTyping(false); }
             };
 
             const processQuery = async () => {
-                if (!input.trim() || isTyping) return;
+                if (!input.trim() && !selectedFile || isTyping) return;
                 const q = input;
+                const f = selectedFile;
                 setInput("");
+                setSelectedFile(null);
+                if(textareaRef.current) textareaRef.current.style.height = 'auto';
                 setIsTyping(true);
 
                 let currentConvId = activeConvId;
                 if (!currentConvId) {
-                    const { data } = await supabaseClient.from('conversations').insert([{ user_id: user.id, title: "New Chat" }]).select().single();
+                    const { data } = await supabaseClient.from('conversations').insert([{ user_id: user.id, title: q.substring(0, 20) || "File Upload" }]).select().single();
                     currentConvId = data.id;
                     setActiveConvId(currentConvId);
                 }
 
-                const userMsg = { conversation_id: currentConvId, role: 'user', content: q };
+                const userMsg = { 
+                    conversation_id: currentConvId, 
+                    role: 'user', 
+                    content: q + (f ? `\n[File Attached: ${f.name}]` : ""),
+                    file_data: f
+                };
                 setMessages(prev => [...prev, userMsg]);
 
                 try {
+                    const systemContext = "You are Nix 4. If the user mentions a file attachment, assume you have processed its text content.";
                     const res = await fetch(API_URL, {
                         method: "POST",
                         headers: { "Content-Type": "application/json", "Authorization": `Bearer ${API_KEY}` },
                         body: JSON.stringify({
                             model: "LongCat-Flash-Chat",
-                            messages: [...messages.map(m => ({ role: m.role, content: m.content })), { role: "user", content: q }]
+                            messages: [
+                                { role: "system", content: systemContext },
+                                ...messages.map(m => ({ role: m.role, content: m.content })), 
+                                { role: "user", content: userMsg.content }
+                            ]
                         })
                     });
                     const data = await res.json();
@@ -219,12 +270,14 @@
 
             return (
                 <div className={`flex h-screen w-full bg-[var(--bg-main)] text-[var(--text-primary)] transition-colors duration-300`}>
+                    <input type="file" ref={fileInputRef} onChange={handleFileUpload} className="hidden" />
+                    
                     {/* Sidebar */}
                     <aside className={`fixed lg:static inset-y-0 left-0 z-50 w-72 bg-[var(--bg-sidebar)] border-r border-[var(--border)] transition-transform lg:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
                         <div className="flex flex-col h-full">
                             <div className="p-6">
                                 <div className="flex items-center gap-3 mb-8">
-                                    <div className="w-10 h-10 bg-[var(--accent)] rounded-xl flex items-center justify-center font-bold text-white">N4</div>
+                                    <div className="w-10 h-10 bg-[var(--accent)] rounded-xl flex items-center justify-center font-bold text-white shadow-lg shadow-indigo-500/20">N4</div>
                                     <h1 className="font-bold">Nix 4 Pro</h1>
                                 </div>
                                 <div className="space-y-1">
@@ -242,9 +295,9 @@
                             <div className="flex-1 overflow-y-auto px-4 chat-scroll">
                                 {view === 'chat' ? (
                                     <>
-                                        <p className="px-3 text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-2">History</p>
+                                        <p className="px-3 text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-2">Recent Sessions</p>
                                         {conversations.map(c => (
-                                            <button key={c.id} onClick={() => { setActiveConvId(c.id); loadConversation(c.id); }} className={`w-full text-left p-3 rounded-xl text-sm truncate ${activeConvId === c.id ? 'bg-white/5' : 'opacity-40 hover:opacity-100'}`}>{c.title}</button>
+                                            <button key={c.id} onClick={() => loadConversation(c.id)} className={`w-full text-left p-3 rounded-xl text-sm truncate ${activeConvId === c.id ? 'bg-white/5' : 'opacity-40 hover:opacity-100'}`}>{c.title}</button>
                                         ))}
                                     </>
                                 ) : (
@@ -274,26 +327,37 @@
                                 </button>
                                 <h2 className="text-sm font-bold">{view === 'chat' ? 'Strategic Intelligence' : 'Nix Classroom'}</h2>
                             </div>
-                            <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="p-2.5 rounded-xl border border-[var(--border)]">
+                            <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="p-2.5 rounded-xl border border-[var(--border)] hover:bg-white/5 transition-all">
                                 {theme === 'dark' ? '☀️' : '🌙'}
                             </button>
                         </header>
 
                         <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 md:px-10 py-10 space-y-8">
-                            <div className="max-w-4xl mx-auto pb-48">
+                            <div className="max-w-4xl mx-auto pb-64">
                                 {view === 'chat' ? (
                                     <>
                                         {messages.length === 0 && (
                                             <div className="h-[50vh] flex flex-col items-center justify-center text-center opacity-20">
-                                                <div className="w-20 h-20 bg-indigo-600 rounded-3xl mb-6"></div>
-                                                <h3 className="text-xl font-bold">What are we building today?</h3>
+                                                <div className="w-20 h-20 bg-indigo-600 rounded-3xl mb-6 shadow-2xl"></div>
+                                                <h3 className="text-xl font-bold">Initiate Analysis</h3>
+                                                <p className="text-xs mt-2">Upload documentation or start a query</p>
                                             </div>
                                         )}
                                         {messages.map((m, i) => (
-                                            <div key={i} className={`flex gap-4 ${m.role === 'user' ? 'flex-row-reverse' : ''}`}>
-                                                <div className={`w-9 h-9 shrink-0 rounded-xl flex items-center justify-center font-black text-[10px] ${m.role === 'user' ? 'bg-[var(--border)]' : 'bg-[var(--accent)] text-white'}`}>{m.role === 'user' ? 'ME' : 'N4'}</div>
-                                                <div className={`p-5 rounded-3xl text-[15px] leading-relaxed ${m.role === 'user' ? 'bg-[var(--bubble-user)] border border-[var(--border)]' : ''}`}>
-                                                    {m.content}
+                                            <div key={i} className={`flex gap-4 mb-8 ${m.role === 'user' ? 'flex-row-reverse' : ''}`}>
+                                                <div className={`w-9 h-9 shrink-0 rounded-xl flex items-center justify-center font-black text-[10px] ${m.role === 'user' ? 'bg-[var(--border)]' : 'bg-[var(--accent)] text-white shadow-lg shadow-indigo-500/20'}`}>{m.role === 'user' ? 'ME' : 'N4'}</div>
+                                                <div className="max-w-[85%]">
+                                                    <div className={`p-5 rounded-3xl text-[15px] leading-relaxed ${m.role === 'user' ? 'bg-[var(--bubble-user)] border border-[var(--border)] rounded-tr-none' : 'bg-transparent border-none'}`}>
+                                                        {m.content}
+                                                    </div>
+                                                    {m.file_data && (
+                                                        <div className="mt-2 flex justify-end">
+                                                            <div className="file-badge">
+                                                                <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z"/></svg>
+                                                                {m.file_data.name}
+                                                            </div>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </div>
                                         ))}
@@ -301,29 +365,41 @@
                                 ) : (
                                     <div className="space-y-8">
                                         {!selectedClass ? (
-                                            <div className="text-center py-20 opacity-30">Select a class to begin</div>
+                                            <div className="text-center py-20 opacity-30">Select or join a class to begin learning</div>
                                         ) : (
                                             <>
-                                                <div className="p-6 bg-indigo-600/5 border border-indigo-600/20 rounded-3xl">
-                                                    <h3 className="text-2xl font-bold">{selectedClass.name}</h3>
-                                                    <p className="text-sm opacity-60">Join Code: <span className="font-mono font-bold text-indigo-400">{selectedClass.join_code}</span></p>
+                                                <div className="p-8 bg-indigo-600/5 border border-indigo-600/20 rounded-[2rem] relative overflow-hidden">
+                                                    <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-600/10 rounded-full -mr-16 -mt-16 blur-3xl"></div>
+                                                    <h3 className="text-2xl font-extrabold">{selectedClass.name}</h3>
+                                                    <p className="text-sm opacity-60 mt-1">Classroom ID: <span className="font-mono font-bold text-indigo-400">{selectedClass.join_code}</span></p>
                                                     {selectedClass.role === 'teacher' && (
-                                                        <div className="flex gap-2 mt-6">
-                                                            <button onClick={() => generateClassAI('lesson', prompt("Topic?"))} className="p-2 px-4 bg-[var(--accent)] text-white text-xs font-bold rounded-lg">Generate Lesson</button>
-                                                            <button onClick={() => generateClassAI('test', prompt("Topic?"))} className="p-2 px-4 bg-[var(--accent)] text-white text-xs font-bold rounded-lg">Generate Quiz</button>
-                                                            <button onClick={() => generateClassAI('mindmap', prompt("Topic?"))} className="p-2 px-4 bg-[var(--accent)] text-white text-xs font-bold rounded-lg">Build Mindmap</button>
+                                                        <div className="flex flex-wrap gap-2 mt-6">
+                                                            <button onClick={() => generateClassAI('lesson', prompt("Enter Lesson Topic:"))} className="p-2.5 px-5 bg-[var(--accent)] text-white text-xs font-bold rounded-xl active:scale-95 transition-all">Generate Lesson</button>
+                                                            <button onClick={() => generateClassAI('test', prompt("Enter Quiz Topic:"))} className="p-2.5 px-5 bg-[var(--accent)] text-white text-xs font-bold rounded-xl active:scale-95 transition-all">Generate Quiz</button>
+                                                            <button onClick={() => generateClassAI('mindmap', prompt("Enter Mindmap Topic:"))} className="p-2.5 px-5 bg-[var(--accent)] text-white text-xs font-bold rounded-xl active:scale-95 transition-all">Build Mindmap</button>
+                                                            <button onClick={() => fileInputRef.current.click()} className="p-2.5 px-5 border border-indigo-500/40 text-indigo-400 text-xs font-bold rounded-xl hover:bg-indigo-500/10 transition-all">
+                                                                {selectedFile ? `File: ${selectedFile.name}` : 'Upload Reference'}
+                                                            </button>
                                                         </div>
                                                     )}
                                                 </div>
-                                                <div className="grid gap-4">
+                                                <div className="grid gap-6">
                                                     {selectedClass.content?.map((item, idx) => (
-                                                        <div key={idx} className="p-6 bg-white/5 rounded-2xl border border-[var(--border)]">
-                                                            <div className="flex justify-between mb-4">
-                                                                <span className="text-[10px] font-black uppercase tracking-widest bg-indigo-600 px-2 py-1 rounded text-white">{item.type}</span>
+                                                        <div key={idx} className="p-6 bg-white/5 rounded-3xl border border-[var(--border)] hover:border-indigo-500/30 transition-all group">
+                                                            <div className="flex justify-between items-center mb-6">
+                                                                <span className="text-[9px] font-black uppercase tracking-widest bg-indigo-600/20 text-indigo-400 px-3 py-1 rounded-full border border-indigo-500/20">{item.type}</span>
                                                                 <span className="text-xs opacity-40">{new Date(item.created_at).toLocaleDateString()}</span>
                                                             </div>
-                                                            <h4 className="font-bold mb-2">{item.title}</h4>
-                                                            <div className="text-sm opacity-80 whitespace-pre-wrap">{item.content}</div>
+                                                            <h4 className="text-lg font-bold mb-3">{item.title}</h4>
+                                                            <div className="text-[14px] opacity-80 whitespace-pre-wrap leading-relaxed">{item.content}</div>
+                                                            {item.file_attachment && (
+                                                                <div className="mt-6 pt-6 border-t border-[var(--border)] flex items-center gap-2">
+                                                                    <div className="file-badge">
+                                                                        <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M8 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z"/><path d="M6 3a2 2 0 00-2 2v11a2 2 0 002 2h8a2 2 0 002-2V5a2 2 0 00-2-2 3 3 0 01-3 3H9a3 3 0 01-3-3z"/></svg>
+                                                                        Reference: {JSON.parse(item.file_attachment).name}
+                                                                    </div>
+                                                                </div>
+                                                            )}
                                                         </div>
                                                     ))}
                                                 </div>
@@ -337,22 +413,37 @@
 
                         {/* Input Area */}
                         {view === 'chat' && (
-                            <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-[var(--bg-main)] to-transparent">
+                            <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-[var(--bg-main)] via-[var(--bg-main)] to-transparent">
                                 <div className="max-w-4xl mx-auto">
-                                    <div className="relative input-glass rounded-[2rem] p-2 flex items-end">
+                                    {selectedFile && (
+                                        <div className="mb-2 flex justify-start">
+                                            <div className="file-badge py-2 shadow-xl animate-in slide-in-from-bottom-2">
+                                                <span>📎 {selectedFile.name}</span>
+                                                <button onClick={() => setSelectedFile(null)} className="hover:text-red-400 font-black">×</button>
+                                            </div>
+                                        </div>
+                                    )}
+                                    <div className="relative input-glass rounded-[2rem] p-2 flex items-end shadow-2xl transition-all focus-within:ring-2 ring-indigo-500/20">
+                                        <button 
+                                            onClick={() => fileInputRef.current.click()}
+                                            className="w-12 h-12 flex items-center justify-center text-[var(--text-secondary)] hover:text-[var(--accent)] transition-all mb-1 ml-1"
+                                        >
+                                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/></svg>
+                                        </button>
                                         <textarea 
                                             ref={textareaRef}
                                             rows="1"
                                             value={input}
                                             onChange={(e) => { setInput(e.target.value); e.target.style.height = 'auto'; e.target.style.height = Math.min(e.target.scrollHeight, 150) + 'px'; }}
                                             placeholder="Consult Nix 4..."
-                                            className="flex-1 bg-transparent p-4 outline-none resize-none text-[15px]"
+                                            className="flex-1 bg-transparent p-4 outline-none resize-none text-[15px] leading-relaxed"
                                             onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), processQuery())}
                                         />
-                                        <button onClick={processQuery} className="w-12 h-12 flex items-center justify-center bg-white text-black rounded-2xl mb-1 ml-2 transition-transform active:scale-90">
+                                        <button onClick={processQuery} className="w-12 h-12 flex items-center justify-center bg-[var(--text-primary)] text-[var(--bg-main)] rounded-2xl mb-1 ml-2 transition-all active:scale-90 hover:scale-105 shadow-lg">
                                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7" strokeWidth="3"/></svg>
                                         </button>
                                     </div>
+                                    <p className="text-[9px] text-center mt-4 text-[var(--text-secondary)] font-black uppercase tracking-[0.3em] opacity-30">Secure Intelligence Terminal</p>
                                 </div>
                             </div>
                         )}
