@@ -2,8 +2,13 @@
 <html lang="en" class="dark">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Nix 4 | by codenix</title>
+    
+    <!-- React & Babel -->
+    <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -11,483 +16,433 @@
     <!-- Supabase JS -->
     <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
     
-    <!-- Icons (Lucide) -->
-    <script src="https://unpkg.com/lucide@latest"></script>
-
     <!-- Markdown Parser -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 
-    <!-- Tailwind Configuration -->
-    <script>
-        tailwind.config = {
-            darkMode: 'class',
-            theme: {
-                extend: {
-                    colors: {
-                        brand: {
-                            purple: '#8b5cf6',
-                            purpleDark: '#6d28d9',
-                            bgLight: '#ffffff',
-                            bgDark: '#0a0a0a',
-                            panelLight: '#f3f4f6',
-                            panelDark: '#171717',
-                        }
-                    },
-                    fontFamily: {
-                        sans: ['Inter', 'ui-sans-serif', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'Helvetica Neue', 'Arial', 'sans-serif'],
-                    }
-                }
-            }
-        }
-    </script>
-
     <style>
-        /* Custom Scrollbar */
-        ::-webkit-scrollbar {
-            width: 8px;
-        }
-        ::-webkit-scrollbar-track {
-            background: transparent;
-        }
-        ::-webkit-scrollbar-thumb {
-            background: #cbd5e1;
-            border-radius: 4px;
-        }
-        .dark ::-webkit-scrollbar-thumb {
-            background: #334155;
-        }
-        ::-webkit-scrollbar-thumb:hover {
-            background: #94a3b8;
-        }
-        .dark ::-webkit-scrollbar-thumb:hover {
-            background: #475569;
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Noto+Sans+Arabic:wght@400;700&display=swap');
+        
+        :root {
+            --bg-primary: #0a0a0a;
+            --text-primary: #e5e7eb;
+            --brand-purple: #8b5cf6;
         }
 
-        /* Markdown Styles */
+        .light-mode {
+            --bg-primary: #ffffff;
+            --text-primary: #111827;
+        }
+
+        body {
+            font-family: 'Inter', 'Noto+Sans+Arabic', sans-serif;
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            overflow: hidden;
+            transition: background-color 0.3s ease;
+        }
+
+        .glass {
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            background: rgba(15, 15, 15, 0.7);
+        }
+        .light-mode .glass {
+            background: rgba(245, 245, 245, 0.7);
+        }
+
+        .chat-container::-webkit-scrollbar { width: 4px; }
+        .chat-container::-webkit-scrollbar-thumb { background: #8b5cf6; border-radius: 10px; }
+
+        .voice-wave {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            height: 60px;
+        }
+
+        .bar {
+            width: 6px;
+            height: 12px;
+            background: #8b5cf6;
+            border-radius: 20px;
+            transition: all 0.2s;
+        }
+
+        .bar-active {
+            animation: wave 1.2s ease-in-out infinite;
+        }
+
+        @keyframes wave {
+            0%, 100% { height: 12px; transform: scaleY(1); }
+            50% { height: 48px; transform: scaleY(1.2); }
+        }
+
+        .message-anim {
+            animation: slideIn 0.3s ease-out forwards;
+        }
+
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .rtl { direction: rtl; }
+        .ltr { direction: ltr; }
+        
         .prose pre {
             background-color: #1e293b;
-            color: #e2e8f0;
             padding: 1rem;
             border-radius: 0.5rem;
             overflow-x: auto;
-            margin-top: 0.5rem;
-            margin-bottom: 0.5rem;
-        }
-        .prose code {
-            font-family: monospace;
-            background-color: rgba(139, 92, 246, 0.15);
-            padding: 0.2rem 0.4rem;
-            border-radius: 0.25rem;
-            color: #8b5cf6;
-        }
-        .prose p { margin-bottom: 0.75rem; }
-        .prose p:last-child { margin-bottom: 0; }
-        
-        /* Auto-resizing textarea */
-        textarea {
-            resize: none;
-            overflow-y: hidden;
-        }
-
-        /* Blinking cursor for typing effect */
-        .typing-indicator::after {
-            content: '▋';
-            animation: blink 1s step-start infinite;
-            color: #8b5cf6;
-        }
-        @keyframes blink {
-            50% { opacity: 0; }
         }
     </style>
 </head>
-<body class="bg-brand-bgLight dark:bg-brand-bgDark text-gray-800 dark:text-gray-200 h-screen flex overflow-hidden transition-colors duration-300">
+<body>
+    <div id="root"></div>
 
-    <!-- Auth Check Overlay -->
-    <div id="auth-overlay" class="fixed inset-0 bg-brand-bgLight dark:bg-brand-bgDark z-50 flex items-center justify-center">
-        <div class="flex flex-col items-center">
-            <i data-lucide="loader-2" class="w-10 h-10 animate-spin text-brand-purple mb-4"></i>
-            <p class="text-lg font-medium">Verifying Session...</p>
-        </div>
-    </div>
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
 
-    <!-- Sidebar -->
-    <aside id="sidebar" class="w-64 bg-brand-panelLight dark:bg-brand-panelDark flex-shrink-0 border-r border-gray-200 dark:border-gray-800 flex flex-col transition-all duration-300 relative z-20">
-        <div class="p-4 flex items-center justify-between">
-            <h1 class="text-xl font-bold flex items-center gap-2 text-brand-purple">
-                <i data-lucide="sparkles"></i>
-                Nix 4
-            </h1>
-            <button id="close-sidebar" class="md:hidden p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded">
-                <i data-lucide="x" class="w-5 h-5"></i>
-            </button>
-        </div>
-        
-        <div class="px-4 pb-2">
-            <button onclick="startNewChat()" class="w-full flex items-center gap-2 bg-brand-purple hover:bg-brand-purpleDark text-white px-4 py-2 rounded-lg transition-colors font-medium">
-                <i data-lucide="plus" class="w-4 h-4"></i>
-                New Chat
-            </button>
-        </div>
-
-        <div class="flex-1 overflow-y-auto p-4">
-            <h2 class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">Recent Chats</h2>
-            <div id="history-list" class="space-y-1">
-                <!-- History items will populate here -->
-            </div>
-        </div>
-
-        <div class="p-4 border-t border-gray-200 dark:border-gray-800 flex items-center justify-between">
-            <div class="flex items-center gap-2">
-                <div class="w-8 h-8 rounded-full bg-brand-purple flex items-center justify-center text-white font-bold">
-                    U
-                </div>
-                <span id="user-email" class="text-sm font-medium truncate max-w-[120px]">User</span>
-            </div>
-            <button id="theme-toggle" class="p-2 text-gray-500 hover:text-brand-purple dark:text-gray-400 dark:hover:text-brand-purple transition-colors rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700">
-                <i data-lucide="moon" id="theme-icon" class="w-5 h-5"></i>
-            </button>
-        </div>
-    </aside>
-
-    <!-- Main Content -->
-    <main class="flex-1 flex flex-col h-full relative">
-        <!-- Mobile Header -->
-        <header class="md:hidden flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-800 bg-brand-bgLight dark:bg-brand-bgDark absolute top-0 w-full z-10">
-            <button id="open-sidebar" class="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded">
-                <i data-lucide="menu" class="w-6 h-6"></i>
-            </button>
-            <span class="font-bold text-brand-purple">Nix 4</span>
-            <div class="w-6"></div> <!-- Spacer -->
-        </header>
-
-        <!-- Chat Area -->
-        <div id="chat-container" class="flex-1 overflow-y-auto p-4 md:p-8 pt-20 md:pt-8 space-y-6 scroll-smooth">
-            
-            <!-- Welcome Screen -->
-            <div id="welcome-screen" class="h-full flex flex-col items-center justify-center text-center max-w-2xl mx-auto opacity-100 transition-opacity duration-300">
-                <div class="w-16 h-16 bg-brand-purple rounded-2xl flex items-center justify-center mb-6 shadow-lg shadow-brand-purple/20">
-                    <i data-lucide="cpu" class="w-8 h-8 text-white"></i>
-                </div>
-                <h2 class="text-3xl font-bold mb-2">How can I help you today?</h2>
-                <p class="text-gray-500 dark:text-gray-400 mb-8">I'm Nix 4 by codenix. I search our specialized knowledge base first, then use advanced external models.</p>
-                
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 w-full">
-                    <button class="suggestion-btn p-4 text-left border border-gray-200 dark:border-gray-800 rounded-xl hover:border-brand-purple dark:hover:border-brand-purple transition-colors bg-brand-panelLight dark:bg-brand-panelDark/50">
-                        <span class="font-medium block mb-1">Explain quantum computing</span>
-                        <span class="text-sm text-gray-500 dark:text-gray-400">in simple terms</span>
-                    </button>
-                    <button class="suggestion-btn p-4 text-left border border-gray-200 dark:border-gray-800 rounded-xl hover:border-brand-purple dark:hover:border-brand-purple transition-colors bg-brand-panelLight dark:bg-brand-panelDark/50">
-                        <span class="font-medium block mb-1">Write a Python script</span>
-                        <span class="text-sm text-gray-500 dark:text-gray-400">to automate daily tasks</span>
-                    </button>
-                </div>
-            </div>
-
-            <!-- Messages will be appended here -->
-            <div id="messages-list" class="max-w-3xl mx-auto space-y-6 pb-24"></div>
-        </div>
-
-        <!-- Input Area -->
-        <div class="p-4 bg-gradient-to-t from-brand-bgLight via-brand-bgLight to-transparent dark:from-brand-bgDark dark:via-brand-bgDark absolute bottom-0 w-full md:w-[calc(100%-16rem)] right-0">
-            <div class="max-w-3xl mx-auto relative group">
-                <textarea 
-                    id="chat-input" 
-                    rows="1" 
-                    placeholder="Message Nix 4..." 
-                    class="w-full bg-brand-panelLight dark:bg-brand-panelDark border border-gray-300 dark:border-gray-700 rounded-2xl pl-4 pr-12 py-3 focus:outline-none focus:ring-2 focus:ring-brand-purple/50 focus:border-brand-purple transition-all shadow-sm max-h-48 text-base"
-                    oninput="this.style.height = ''; this.style.height = Math.min(this.scrollHeight, 192) + 'px'"></textarea>
-                <button id="send-btn" class="absolute right-3 bottom-3 p-1.5 bg-brand-purple text-white rounded-lg hover:bg-brand-purpleDark transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-                    <i data-lucide="send" class="w-4 h-4"></i>
-                </button>
-            </div>
-            <p class="text-center text-xs text-gray-500 mt-2">Nix 4 can make mistakes. Verify important information.</p>
-        </div>
-    </main>
-
-    <script>
-        // Initialize Icons
-        lucide.createIcons();
-
-        // -------------------------------------------------------------------
-        // 1. Configuration & Secrets
-        // -------------------------------------------------------------------
+        // Nix 4 Credentials
         const SUPABASE_URL = 'https://rnlwrngfgvznndlekmrz.supabase.co';
         const SUPABASE_KEY = 'sb_publishable_mtI0_ZBvU_n5oRuqV58QHg_qJt3Gfyt';
-        
         const SHEET_ID = '1i9JYpZzxUHeUg9F6i1AP-mx4OiCiaF2YA3KmWVqwDsU';
         const LONGCAT_API_KEY = 'ak_2rU1Lo7PA23X5Is9wm3m69EY2T37J';
+        const LONGCAT_URL = "https://api.longcat.app/v1/chat/completions";
 
-        // -------------------------------------------------------------------
-        // 2. Authentication (Supabase)
-        // -------------------------------------------------------------------
-        // FIX: Renamed 'supabase' to 'supabaseClient' to avoid conflicting with the global 'window.supabase' object injected by the CDN script.
         const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-        async function verifyAuth() {
-            try {
-                const { data: { session }, error } = await supabaseClient.auth.getSession();
-                
-                if (error || !session) {
-                    // Redirect to auth.html if not logged in
-                    window.location.href = `auth.html?redirect=nix4.html`;
-                } else {
-                    // Logged in
-                    document.getElementById('auth-overlay').style.display = 'none';
-                    document.getElementById('user-email').textContent = session.user.email.split('@')[0];
+        const App = () => {
+            const [uiLang, setUiLang] = useState('en');
+            const [theme, setTheme] = useState('dark');
+            const [messages, setMessages] = useState([]);
+            const [input, setInput] = useState("");
+            const [isTyping, setIsTyping] = useState(false);
+            const [isVoiceMode, setIsVoiceMode] = useState(false);
+            const [voiceStatus, setVoiceStatus] = useState("Idle");
+            const [hasActivatedVoice, setHasActivatedVoice] = useState(false);
+            const [userEmail, setUserEmail] = useState("User");
+            const [isVerifying, setIsVerifying] = useState(true);
+
+            const recognitionRef = useRef(null);
+            const synth = window.speechSynthesis;
+            const scrollRef = useRef(null);
+
+            const translations = {
+                en: {
+                    title: "Nix 4",
+                    welcome: "How can I help you today?",
+                    sub: "I'm Nix 4 by codenix. I search our knowledge base first.",
+                    placeholder: "Message Nix 4...",
+                    startVoice: "Start Session",
+                    endVoice: "End Voice Mode",
+                    listening: "Listening...",
+                    speaking: "Speaking...",
+                    processing: "Processing...",
+                    copy: "Copy",
+                    hear: "Hear",
+                    backToText: "Switch to Typing"
+                },
+                ar: {
+                    title: "نيكس 4",
+                    welcome: "كيف يمكنني مساعدتك اليوم؟",
+                    sub: "أنا نيكس 4 من كودنيكس. أبحث في قاعدة معرفتنا أولاً.",
+                    placeholder: "أرسل رسالة لنيكس 4...",
+                    startVoice: "بدء الجلسة",
+                    endVoice: "إيقاف الوضع الصوتي",
+                    listening: "جاري الاستماع...",
+                    speaking: "جاري التحدث...",
+                    processing: "جاري المعالجة...",
+                    copy: "نسخ",
+                    hear: "استماع",
+                    backToText: "العودة للكتابة"
                 }
-            } catch (err) {
-                console.error("Auth check failed:", err);
-                // Fallback for development/preview environments without valid tokens setup
-                document.getElementById('auth-overlay').style.display = 'none';
-                console.warn("Bypassing strict auth for UI demonstration.");
-            }
-        }
+            };
 
-        // -------------------------------------------------------------------
-        // 3. UI Logic (Theme, Sidebar, Textarea)
-        // -------------------------------------------------------------------
-        const htmlElement = document.documentElement;
-        const themeToggleBtn = document.getElementById('theme-toggle');
-        const themeIcon = document.getElementById('theme-icon');
-        const chatInput = document.getElementById('chat-input');
-        const sendBtn = document.getElementById('send-btn');
-        const messagesList = document.getElementById('messages-list');
-        const welcomeScreen = document.getElementById('welcome-screen');
-        const chatContainer = document.getElementById('chat-container');
+            const t = translations[uiLang];
 
-        // Theme Toggle
-        themeToggleBtn.addEventListener('click', () => {
-            htmlElement.classList.toggle('dark');
-            const isDark = htmlElement.classList.contains('dark');
-            themeIcon.setAttribute('data-lucide', isDark ? 'moon' : 'sun');
-            lucide.createIcons();
-            localStorage.setItem('nix4-theme', isDark ? 'dark' : 'light');
-        });
+            // 1. Auth Logic
+            useEffect(() => {
+                const checkAuth = async () => {
+                    const { data: { session } } = await supabaseClient.auth.getSession();
+                    if (!session) {
+                        window.location.href = `auth.html?redirect=nix4.html`;
+                    } else {
+                        setUserEmail(session.user.email.split('@')[0]);
+                        setIsVerifying(false);
+                    }
+                };
+                checkAuth();
+            }, []);
 
-        // Load Theme
-        if (localStorage.getItem('nix4-theme') === 'light') {
-            htmlElement.classList.remove('dark');
-            themeIcon.setAttribute('data-lucide', 'sun');
-            lucide.createIcons();
-        }
+            // 2. Theme & UI Effects
+            useEffect(() => {
+                document.documentElement.className = theme === 'dark' ? 'dark' : 'light';
+                document.body.className = theme === 'dark' ? 'dark-mode' : 'light-mode';
+            }, [theme]);
 
-        // Sidebar Mobile Toggle
-        const sidebar = document.getElementById('sidebar');
-        document.getElementById('open-sidebar').addEventListener('click', () => {
-            sidebar.classList.remove('-translate-x-full');
-            sidebar.classList.add('absolute', 'h-full');
-        });
-        document.getElementById('close-sidebar').addEventListener('click', () => {
-            sidebar.classList.add('-translate-x-full');
-        });
+            // 3. Speech Recognition Setup
+            useEffect(() => {
+                const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                if (SpeechRecognition) {
+                    recognitionRef.current = new SpeechRecognition();
+                    recognitionRef.current.continuous = false;
+                    recognitionRef.current.interimResults = false;
+                    recognitionRef.current.lang = uiLang === 'ar' ? 'ar-SA' : 'en-US';
 
-        // -------------------------------------------------------------------
-        // 4. Data Retrieval Logic (Google Sheets -> Longcat API)
-        // -------------------------------------------------------------------
+                    recognitionRef.current.onresult = (event) => {
+                        const transcript = event.results[0][0].transcript;
+                        setVoiceStatus(t.processing);
+                        processQuery(transcript);
+                    };
 
-        // Parse CSV text into 2D array
-        function parseCSV(str) {
-            const arr = [];
-            let quote = false;
-            let row = 0, col = 0;
-            for (let c = 0; c < str.length; c++) {
-                let cc = str[c], nc = str[c+1];
-                arr[row] = arr[row] || [];
-                arr[row][col] = arr[row][col] || '';
-                if (cc == '"' && quote && nc == '"') { arr[row][col] += cc; ++c; continue; }
-                if (cc == '"') { quote = !quote; continue; }
-                if (cc == ',' && !quote) { ++col; continue; }
-                if (cc == '\r' && nc == '\n' && !quote) { ++row; col = 0; ++c; continue; }
-                if (cc == '\n' && !quote) { ++row; col = 0; continue; }
-                if (cc == '\r' && !quote) { ++row; col = 0; continue; }
-                arr[row][col] += cc;
-            }
-            return arr;
-        }
+                    recognitionRef.current.onend = () => {
+                        if (isVoiceMode && (voiceStatus === t.listening || voiceStatus === "Idle")) {
+                            startRecognition();
+                        }
+                    };
+                    recognitionRef.current.onerror = () => setVoiceStatus(t.listening);
+                }
+            }, [isVoiceMode, voiceStatus, uiLang]);
 
-        async function fetchFromSheet(query) {
-            try {
-                // Using gviz endpoint which returns CSV easily for public/shared sheets
-                const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv`;
-                const response = await fetch(url);
-                if (!response.ok) return null;
+            useEffect(() => {
+                if (scrollRef.current) {
+                    scrollRef.current.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
+                }
+            }, [messages, isTyping]);
+
+            const startRecognition = () => {
+                try { recognitionRef.current?.start(); } catch (e) {}
+            };
+
+            const isArabicText = (text) => /[\u0600-\u06FF]/.test(text);
+
+            const speak = (text) => {
+                synth.cancel(); 
+                const utterance = new SpeechSynthesisUtterance(text);
+                const voices = synth.getVoices();
+                const textIsArabic = isArabicText(text);
                 
-                const csvText = await response.text();
-                const data = parseCSV(csvText);
-                
-                // Assuming Data format: Col 0 = Question, Col 1 = Answer, Col 2 = Tokens
-                const normalizedQuery = query.toLowerCase().trim();
+                if (textIsArabic) {
+                    utterance.voice = voices.find(v => v.lang.startsWith('ar')) || voices[0];
+                    utterance.lang = 'ar-SA';
+                } else {
+                    utterance.voice = voices.find(v => v.lang.startsWith('en')) || voices[0];
+                    utterance.lang = 'en-US';
+                }
 
-                for (let i = 1; i < data.length; i++) { // Skip header row
-                    if (data[i] && data[i].length >= 2) {
-                        const q = (data[i][0] || "").toLowerCase().trim();
-                        const a = data[i][1];
-                        const tokens = data[i][2] || "0";
+                utterance.onstart = () => setVoiceStatus(t.speaking);
+                utterance.onend = () => {
+                    setVoiceStatus(t.listening);
+                    if (isVoiceMode) setTimeout(() => startRecognition(), 400);
+                };
+                synth.speak(utterance);
+            };
 
-                        // Basic matching (exact or contains)
-                        if (q === normalizedQuery || q.includes(normalizedQuery) || normalizedQuery.includes(q)) {
-                            console.log(`%c[Nix 4 DB] Tokens consumed: ${tokens}`, 'color: #8b5cf6; font-weight: bold;');
-                            return a;
+            const processQuery = async (query) => {
+                if (!query.trim()) return;
+                setMessages(prev => [...prev, { role: 'user', content: query, id: Date.now() }]);
+                setIsTyping(true);
+
+                try {
+                    const local = await checkSheet(query);
+                    let response;
+                    if (local) {
+                        response = local;
+                    } else {
+                        response = await askLongcat(query);
+                    }
+                    
+                    setMessages(prev => [...prev, { role: 'assistant', content: response, id: Date.now() + 1 }]);
+                    if (isVoiceMode) speak(response);
+                    else setVoiceStatus("Idle");
+                } catch (e) {
+                    const err = uiLang === 'ar' ? "عذراً، أواجه مشكلة." : "I'm having a connection issue.";
+                    setMessages(prev => [...prev, { role: 'assistant', content: err, id: Date.now() + 2 }]);
+                    if (isVoiceMode) speak(err);
+                } finally {
+                    setIsTyping(false);
+                }
+            };
+
+            const checkSheet = async (q) => {
+                try {
+                    const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv`;
+                    const res = await fetch(url);
+                    const text = await res.text();
+                    const rows = text.split('\n').map(row => row.split(',').map(cell => cell.replace(/^"|"$/g, '')));
+                    const norm = q.toLowerCase().trim();
+                    
+                    for(let i = 1; i < rows.length; i++) {
+                        const question = (rows[i][0] || "").toLowerCase().trim();
+                        if (question === norm || norm.includes(question)) {
+                            return rows[i][1];
                         }
                     }
-                }
-                return null; // Not found in sheet
-            } catch (error) {
-                console.error("Error fetching from Google Sheets:", error);
-                return null;
-            }
-        }
+                    return null;
+                } catch(e) { return null; }
+            };
 
-        async function fetchFromLongcatAPI(query) {
-            try {
-                // Assuming standard OpenAI-compatible endpoint structure for "longcat api"
-                const endpoint = "https://api.longcat.app/v1/chat/completions";
-                
-                const response = await fetch(endpoint, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${LONGCAT_API_KEY}`
-                    },
+            const askLongcat = async (q) => {
+                const res = await fetch(LONGCAT_URL, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", "Authorization": `Bearer ${LONGCAT_API_KEY}` },
                     body: JSON.stringify({
                         model: "longcat-v1",
-                        messages: [{ role: "user", content: query }]
+                        messages: [{ role: "user", content: q }]
                     })
                 });
+                const data = await res.json();
+                return data.choices[0].message.content;
+            };
 
-                if (response.ok) {
-                    const data = await response.json();
-                    return data.choices[0].message.content;
+            const toggleVoiceMode = () => {
+                if (!isVoiceMode) {
+                    setIsVoiceMode(true);
+                    setHasActivatedVoice(false);
                 } else {
-                    throw new Error("API Response not OK");
+                    setIsVoiceMode(false);
+                    setVoiceStatus("Idle");
+                    synth.cancel();
+                    recognitionRef.current?.stop();
                 }
-            } catch (error) {
-                console.warn("Longcat API call failed. Generating simulated response.");
-                // Simulated response since actual longcat endpoint might not be available
-                return `I couldn't find an answer for "${query}" in our local database, and the external API is currently unreachable. How else can I assist you today?`;
-            }
-        }
+            };
 
-        // -------------------------------------------------------------------
-        // 5. Chat Interface Logic
-        // -------------------------------------------------------------------
+            const activateVoiceSession = () => {
+                setHasActivatedVoice(true);
+                setVoiceStatus(t.listening);
+                const welcome = uiLang === 'ar' ? "مرحباً، أنا نيكس 4. كيف يمكنني مساعدتك؟" : "Hello, I am Nix 4. How can I help you?";
+                setMessages(prev => [...prev, { role: 'assistant', content: welcome, id: Date.now() }]);
+                speak(welcome);
+            };
 
-        function addMessageToUI(role, content, isStreaming = false) {
-            welcomeScreen.style.display = 'none';
-            const messageDiv = document.createElement('div');
-            messageDiv.className = `flex gap-4 p-2 ${role === 'user' ? 'justify-end' : ''}`;
-
-            const innerContent = role === 'user' 
-                ? `
-                <div class="bg-brand-panelLight dark:bg-brand-panelDark max-w-[80%] rounded-2xl px-5 py-3 shadow-sm border border-gray-100 dark:border-gray-800">
-                    <p class="text-[15px] whitespace-pre-wrap">${content}</p>
-                </div>
-                `
-                : `
-                <div class="w-8 h-8 rounded-full bg-brand-purple flex-shrink-0 flex items-center justify-center text-white mt-1 shadow-md">
-                    <i data-lucide="cpu" class="w-5 h-5"></i>
-                </div>
-                <div class="flex-1 max-w-[calc(100%-3rem)] prose prose-purple dark:prose-invert">
-                    <div class="message-content text-[15px] leading-relaxed ${isStreaming ? 'typing-indicator' : ''}">
-                        ${isStreaming ? '' : marked.parse(content)}
+            if (isVerifying) {
+                return (
+                    <div className="h-screen flex items-center justify-center bg-brand-bgDark">
+                        <div className="animate-pulse text-brand-purple font-bold">Verifying Session...</div>
                     </div>
+                );
+            }
+
+            return (
+                <div className={`flex flex-col h-[100dvh] w-full transition-all ${uiLang === 'ar' ? 'rtl' : 'ltr'}`}>
+                    {/* Header */}
+                    <header className="flex items-center justify-between p-4 glass border-b border-white/5 z-50">
+                        <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-lg bg-violet-600 flex items-center justify-center shadow-lg shadow-violet-500/20">
+                                <span className="text-white font-bold text-xs">N4</span>
+                            </div>
+                            <h1 className="font-bold text-sm tracking-widest uppercase text-violet-500">{t.title}</h1>
+                        </div>
+                        <div className="flex items-center gap-4">
+                            <button onClick={() => setUiLang(uiLang === 'en' ? 'ar' : 'en')} className="text-[10px] font-bold uppercase opacity-60 hover:opacity-100">
+                                {uiLang === 'en' ? 'Arabic' : 'English'}
+                            </button>
+                            <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="p-2 hover:bg-white/10 rounded-full">
+                                {theme === 'dark' ? '🌞' : '🌙'}
+                            </button>
+                        </div>
+                    </header>
+
+                    {/* Main Content */}
+                    <main ref={scrollRef} className="flex-1 overflow-y-auto px-4 pt-6 pb-32 chat-container relative">
+                        <div className="max-w-3xl mx-auto space-y-6">
+                            
+                            {messages.length === 0 && !isVoiceMode && (
+                                <div className="h-[60vh] flex flex-col items-center justify-center text-center">
+                                    <div className="w-16 h-16 bg-violet-600 rounded-2xl flex items-center justify-center mb-6 shadow-xl shadow-violet-600/20">
+                                        <span className="text-3xl text-white">✨</span>
+                                    </div>
+                                    <h2 className="text-2xl font-bold mb-2">{t.welcome}</h2>
+                                    <p className="text-sm opacity-50 max-w-sm">{t.sub}</p>
+                                </div>
+                            )}
+
+                            {!isVoiceMode ? (
+                                messages.map((msg) => (
+                                    <div key={msg.id} className={`flex gap-4 message-anim ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
+                                        <div className={`w-8 h-8 rounded-lg flex-shrink-0 flex items-center justify-center text-[10px] font-bold ${msg.role === 'user' ? 'bg-white/10' : 'bg-violet-600 text-white'}`}>
+                                            {msg.role === 'user' ? 'U' : 'N'}
+                                        </div>
+                                        <div className={`max-w-[85%] ${msg.role === 'user' ? 'text-right' : 'text-left'}`}>
+                                            <div className={`p-4 rounded-2xl text-[15px] leading-relaxed shadow-sm ${isArabicText(msg.content) ? 'rtl text-right' : 'ltr text-left'} ${msg.role === 'user' ? 'bg-violet-600/10 border border-violet-500/20' : 'bg-black/20 dark:bg-white/5 border border-white/5'}`}>
+                                                <div dangerouslySetInnerHTML={{ __html: marked.parse(msg.content) }} className="prose prose-invert prose-sm max-w-none prose-p:my-0" />
+                                            </div>
+                                            <div className={`flex gap-3 mt-2 px-1 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
+                                                <button onClick={() => speak(msg.content)} className="text-[9px] uppercase font-bold opacity-40 hover:opacity-100">{t.hear}</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))
+                            ) : (
+                                <div className="h-[60vh] flex flex-col items-center justify-center text-center">
+                                    {!hasActivatedVoice ? (
+                                        <div className="space-y-6">
+                                            <div className="w-24 h-24 bg-violet-600/20 rounded-full flex items-center justify-center mx-auto animate-pulse">
+                                                <span className="text-4xl">🎙️</span>
+                                            </div>
+                                            <h2 className="text-xl font-bold">{t.title} Voice Mode</h2>
+                                            <button onClick={activateVoiceSession} className="bg-violet-600 hover:bg-violet-500 px-10 py-4 rounded-2xl font-bold tracking-widest uppercase shadow-xl shadow-violet-600/30 transition-all active:scale-95">
+                                                {t.startVoice}
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <div className="voice-wave mb-8">
+                                                {[...Array(8)].map((_, i) => (
+                                                    <div key={i} className={`bar ${voiceStatus === t.listening || voiceStatus === t.speaking ? 'bar-active' : ''}`} style={{ animationDelay: `${i * 0.15}s` }}></div>
+                                                ))}
+                                            </div>
+                                            <div className="text-xs font-black tracking-[0.5em] uppercase opacity-40 animate-pulse">{voiceStatus}</div>
+                                            <button onClick={toggleVoiceMode} className="mt-12 px-8 py-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-500 text-[10px] font-bold uppercase tracking-widest hover:bg-red-500 hover:text-white transition-all">
+                                                {t.endVoice}
+                                            </button>
+                                        </>
+                                    )}
+                                </div>
+                            )}
+
+                            {isTyping && !isVoiceMode && (
+                                <div className="flex gap-2 items-center opacity-40">
+                                    <div className="w-1.5 h-1.5 bg-violet-500 rounded-full animate-bounce"></div>
+                                    <div className="w-1.5 h-1.5 bg-violet-500 rounded-full animate-bounce [animation-delay:0.2s]"></div>
+                                    <div className="w-1.5 h-1.5 bg-violet-500 rounded-full animate-bounce [animation-delay:0.4s]"></div>
+                                </div>
+                            )}
+                        </div>
+                    </main>
+
+                    {/* Input Fixed Bottom */}
+                    {!isVoiceMode && (
+                        <div className="fixed bottom-0 left-0 right-0 p-4 pb-8 glass border-t border-white/5">
+                            <div className="max-w-3xl mx-auto flex gap-3">
+                                <button onClick={toggleVoiceMode} className="w-12 h-12 bg-white/5 border border-white/10 rounded-xl flex items-center justify-center hover:bg-violet-600 transition-colors">
+                                    🎙️
+                                </button>
+                                <input 
+                                    type="text"
+                                    value={input}
+                                    onChange={(e) => setInput(e.target.value)}
+                                    placeholder={t.placeholder}
+                                    className={`flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-violet-500/50 text-sm transition-all ${isArabicText(input) ? 'text-right' : 'text-left'}`}
+                                    onKeyDown={(e) => e.key === 'Enter' && processQuery(input) && setInput("")}
+                                />
+                                <button 
+                                    onClick={() => { processQuery(input); setInput(""); }}
+                                    disabled={!input.trim()}
+                                    className="bg-violet-600 disabled:opacity-30 w-12 h-12 rounded-xl flex items-center justify-center shadow-lg shadow-violet-600/20 active:scale-95 transition-all"
+                                >
+                                    <span className={uiLang === 'ar' ? 'rotate-180' : ''}>➡️</span>
+                                </button>
+                            </div>
+                        </div>
+                    )}
                 </div>
-                `;
-            
-            messageDiv.innerHTML = innerContent;
-            messagesList.appendChild(messageDiv);
-            lucide.createIcons();
-            chatContainer.scrollTop = chatContainer.scrollHeight;
-            return messageDiv;
-        }
+            );
+        };
 
-        function typeOutMessage(element, text, speed = 15) {
-            return new Promise((resolve) => {
-                let i = 0;
-                element.innerHTML = ''; // clear initially
-                const contentDiv = element.querySelector('.message-content');
-                
-                function type() {
-                    if (i < text.length) {
-                        // Very basic chunk typing for plain text simulation before markdown parse
-                        contentDiv.innerHTML = marked.parse(text.substring(0, i + 1));
-                        i += 3; // chars per tick
-                        chatContainer.scrollTop = chatContainer.scrollHeight;
-                        setTimeout(type, speed);
-                    } else {
-                        contentDiv.classList.remove('typing-indicator');
-                        contentDiv.innerHTML = marked.parse(text); // Final clean render
-                        resolve();
-                    }
-                }
-                type();
-            });
-        }
-
-        async function handleSend() {
-            const text = chatInput.value.trim();
-            if (!text) return;
-
-            // 1. Add User Message
-            addMessageToUI('user', text);
-            chatInput.value = '';
-            chatInput.style.height = 'auto'; // reset height
-            sendBtn.disabled = true;
-
-            // 2. Setup AI Response Element (Streaming state)
-            const aiMessageEl = addMessageToUI('ai', '', true);
-
-            // 3. Process Query
-            let finalAnswer = "";
-            
-            // Search Google Sheets First
-            const sheetResult = await fetchFromSheet(text);
-            
-            if (sheetResult) {
-                finalAnswer = sheetResult;
-            } else {
-                // Fallback to Longcat API
-                console.log("[Nix 4] Query not found in Google Sheets. Querying Longcat API...");
-                finalAnswer = await fetchFromLongcatAPI(text);
-            }
-
-            // 4. Type out response
-            await typeOutMessage(aiMessageEl, finalAnswer);
-            sendBtn.disabled = false;
-            chatInput.focus();
-        }
-
-        // -------------------------------------------------------------------
-        // 6. Event Listeners
-        // -------------------------------------------------------------------
-        sendBtn.addEventListener('click', handleSend);
-        
-        chatInput.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                handleSend();
-            }
-        });
-
-        // Suggestion buttons
-        document.querySelectorAll('.suggestion-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
-                const text = btn.querySelector('.font-medium').textContent + " " + btn.querySelector('.text-sm').textContent;
-                chatInput.value = text;
-                handleSend();
-            });
-        });
-
-        function startNewChat() {
-            messagesList.innerHTML = '';
-            welcomeScreen.style.display = 'flex';
-        }
-
-        // Initialize App
-        window.addEventListener('DOMContentLoaded', () => {
-            verifyAuth();
-        });
-
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
     </script>
 </body>
 </html>
