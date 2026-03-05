@@ -23,58 +23,25 @@
             --bubble-user: #18181b;
         }
 
-        .light {
-            --bg-main: #f9fafb;
-            --bg-sidebar: #f3f4f6;
-            --accent: #4f46e5;
-            --text-primary: #111827;
-            --text-secondary: #4b5563;
-            --border: rgba(0, 0, 0, 0.08);
-            --glass: rgba(255, 255, 255, 0.8);
-            --bubble-user: #ffffff;
-        }
-
         body {
             font-family: 'Plus Jakarta Sans', 'Noto Sans Arabic', sans-serif;
             background-color: var(--bg-main);
             color: var(--text-primary);
             overflow: hidden;
-            transition: all 0.3s ease;
+            -webkit-font-smoothing: antialiased;
         }
 
-        .glass-panel { background: var(--glass); backdrop-filter: blur(16px); border-bottom: 1px solid var(--border); }
-        .sidebar-item-active { background: rgba(99, 102, 241, 0.1); color: var(--accent); box-shadow: inset 3px 0 0 0 var(--accent); }
+        .glass-panel { background: var(--glass); backdrop-filter: blur(24px); border-bottom: 1px solid var(--border); }
+        .sidebar-item-active { background: rgba(99, 102, 241, 0.1); color: var(--accent); border-right: 2px solid var(--accent); }
         
         .chat-scroll::-webkit-scrollbar { width: 4px; }
-        .chat-scroll::-webkit-scrollbar-thumb { background: rgba(128,128,128,0.2); border-radius: 10px; }
-
-        .quiz-option {
-            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-            border: 1px solid var(--border);
-        }
-        .quiz-option:hover:not(:disabled) {
-            background: rgba(99, 102, 241, 0.1);
-            border-color: var(--accent);
-            transform: scale(1.01);
-        }
+        .chat-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
 
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        .animate-fade { animation: fadeIn 0.4s ease-out forwards; }
+        .animate-fade { animation: fadeIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
 
-        .mindmap-node {
-            position: relative;
-            padding-left: 2rem;
-            margin-bottom: 0.5rem;
-            border-left: 1px solid rgba(99, 102, 241, 0.3);
-        }
-        .mindmap-node::before {
-            content: '';
-            position: absolute;
-            left: 0;
-            top: 0.75rem;
-            width: 1rem;
-            border-bottom: 1px solid rgba(99, 102, 241, 0.3);
-        }
+        .markdown-content p { margin-bottom: 1rem; line-height: 1.7; }
+        .markdown-content ul { list-style: disc; margin-left: 1.5rem; margin-bottom: 1rem; }
     </style>
 </head>
 <body>
@@ -83,8 +50,6 @@
     <script type="text/babel">
         const { useState, useEffect, useRef } = React;
 
-        const SHEET_ID = "1BwS2zO3IGppDo2r_ROZVW74iSmu6aGSyE8j1O63UjbE";
-        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx3YKf3u6KoxvHJc3bBRJzWYg1CPcpHAFXUTTWTh28FR2XcOJlqzcIsJC19_9X7ozH8/exec";
         const SUPABASE_URL = "https://rnlwrngfgvznndlekmrz.supabase.co";
         const SUPABASE_KEY = "sb_publishable_mtI0_ZBvU_n5oRuqV58QHg_qJt3Gfyt";
         const API_KEY = "ak_2OJ4ng6za7b74DP3hu32a6P04XH8J";
@@ -95,7 +60,6 @@
         const App = () => {
             const [user, setUser] = useState(null);
             const [view, setView] = useState('chat');
-            const [theme, setTheme] = useState('dark');
             const [messages, setMessages] = useState([]);
             const [conversations, setConversations] = useState([]);
             const [activeConvId, setActiveConvId] = useState(null);
@@ -106,317 +70,378 @@
             
             const [myClasses, setMyClasses] = useState([]);
             const [selectedClass, setSelectedClass] = useState(null);
-            const [activeLesson, setActiveLesson] = useState(null);
-            
-            const [quizIndex, setQuizIndex] = useState(0);
-            const [score, setScore] = useState(0);
-            const [quizFinished, setQuizFinished] = useState(false);
-            const [showFeedback, setShowFeedback] = useState(null);
+            const [showManualModal, setShowManualModal] = useState(false);
+            const [manualContent, setManualContent] = useState({ type: 'lesson', title: '', content: '' });
 
             const scrollRef = useRef(null);
             const fileInputRef = useRef(null);
 
+            // Auth Check & Initial Load
             useEffect(() => {
                 const init = async () => {
                     const { data: { session } } = await supabaseClient.auth.getSession();
-                    if (!session) { window.location.href = "auth.html"; return; }
+                    if (!session) {
+                        // Use a safe check to ensure auth.html exists or use root
+                        window.location.href = "./auth.html";
+                        return;
+                    }
                     setUser(session.user);
                     fetchConversations(session.user.id);
                     fetchClasses(session.user.id);
                 };
                 init();
+
+                const { data: authListener } = supabaseClient.auth.onAuthStateChange((event, session) => {
+                    if (event === 'SIGNED_OUT') {
+                        window.location.href = "./auth.html";
+                    }
+                    if (session) setUser(session.user);
+                });
+
+                return () => authListener.subscription.unsubscribe();
             }, []);
 
-            useEffect(() => { document.body.className = theme; }, [theme]);
-            useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' }); }, [messages, isTyping]);
+            // Scroll to bottom on new messages
+            useEffect(() => { 
+                if (scrollRef.current) {
+                    scrollRef.current.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
+                }
+            }, [messages, isTyping]);
+
+            // Fetch Conversation Messages
+            useEffect(() => {
+                if (activeConvId) {
+                    fetchMessages(activeConvId);
+                } else {
+                    setMessages([]);
+                }
+            }, [activeConvId]);
 
             const fetchConversations = async (uid) => {
-                const { data } = await supabaseClient.from('conversations').select('*').eq('user_id', uid).order('created_at', { ascending: false });
+                const { data, error } = await supabaseClient
+                    .from('conversations')
+                    .select('*')
+                    .eq('user_id', uid)
+                    .order('created_at', { ascending: false });
                 if (data) setConversations(data);
+            };
+
+            const fetchMessages = async (convId) => {
+                const { data, error } = await supabaseClient
+                    .from('messages')
+                    .select('*')
+                    .eq('conversation_id', convId)
+                    .order('created_at', { ascending: true });
+                if (data) setMessages(data);
             };
 
             const fetchClasses = async (uid) => {
                 const { data: teacherClasses } = await supabaseClient.from('classes').select('*').eq('teacher_id', uid);
-                const { data: joinedClasses } = await supabaseClient.from('class_members').select('classes(*)').eq('user_id', uid);
-                const combined = [
-                    ...(teacherClasses || []).map(c => ({ ...c, role: 'teacher' })),
-                    ...(joinedClasses || []).map(item => ({ ...item.classes, role: 'student' }))
-                ];
-                const enriched = await Promise.all(combined.map(async (cls) => {
+                const enriched = await Promise.all((teacherClasses || []).map(async (cls) => {
                     const { data: content } = await supabaseClient.from('class_content').select('*').eq('class_id', cls.id).order('created_at', { ascending: false });
-                    return { ...cls, content: content || [] };
+                    return { ...cls, role: 'teacher', content: content || [] };
                 }));
                 setMyClasses(enriched);
-            };
-
-            const searchLocalSheet = async (q) => {
-                try {
-                    const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tq=${encodeURIComponent("SELECT A, B")}&headers=0&t=${Date.now()}`;
-                    const res = await fetch(url);
-                    const text = await res.text();
-                    const json = JSON.parse(text.match(/google\.visualization\.Query\.setResponse\(([\s\S\w]+)\);/)[1]);
-                    const queryNorm = q.toLowerCase().trim();
-                    const match = json.table.rows.find(r => r.c && r.c[0] && String(r.c[0].v).toLowerCase().trim() === queryNorm);
-                    return match ? String(match.c[1].v) : null;
-                } catch(e) { return null; }
-            };
-
-            const saveToSheet = (q, a) => {
-                fetch(SCRIPT_URL, { method: "POST", mode: "no-cors", body: JSON.stringify({ values: [[q, a]] }) });
             };
 
             const handleFileUpload = (e) => {
                 const file = e.target.files[0];
                 if (!file) return;
-                
                 const reader = new FileReader();
                 reader.onload = (event) => {
-                    setAttachedFile({
-                        name: file.name,
-                        type: file.type,
-                        base64: event.target.result,
-                        size: (file.size / 1024).toFixed(1) + ' KB'
-                    });
+                    setAttachedFile({ name: file.name, type: file.type, base64: event.target.result });
                 };
-                if (file.type.startsWith('image/')) {
-                    reader.readAsDataURL(file);
-                } else {
-                    reader.readAsText(file);
-                }
+                file.type.startsWith('image/') ? reader.readAsDataURL(file) : reader.readAsText(file);
             };
 
             const processQuery = async () => {
                 if ((!input.trim() && !attachedFile) || isTyping) return;
                 const q = input;
                 const file = attachedFile;
-                setInput("");
-                setAttachedFile(null);
-                setIsTyping(true);
+                setInput(""); setAttachedFile(null); setIsTyping(true);
 
                 let currentConvId = activeConvId;
+                
+                // 1. Create conversation if it doesn't exist
                 if (!currentConvId) {
-                    const { data } = await supabaseClient.from('conversations').insert([{ user_id: user.id, title: q.substring(0, 30) || "File Analysis" }]).select().single();
+                    const { data, error } = await supabaseClient
+                        .from('conversations')
+                        .insert([{ user_id: user.id, title: q.substring(0, 40) || "New Conversation" }])
+                        .select()
+                        .single();
+                    if (error) { console.error(error); setIsTyping(false); return; }
                     currentConvId = data.id;
                     setActiveConvId(currentConvId);
                     fetchConversations(user.id);
                 }
 
-                const displayContent = file ? (q ? `${q}\n[Attached: ${file.name}]` : `[Attached: ${file.name}]`) : q;
-                const userMsg = { conversation_id: currentConvId, role: 'user', content: displayContent };
-                setMessages(prev => [...prev, userMsg]);
+                const userMsgContent = file ? `${q} [Attached: ${file.name}]` : q;
+                
+                // 2. Optimistic UI update
+                const tempUserMsg = { conversation_id: currentConvId, role: 'user', content: userMsgContent };
+                setMessages(prev => [...prev, tempUserMsg]);
 
                 try {
-                    // Check local sheet first ONLY if no file is attached
-                    let finalResponse;
-                    if (!file) {
-                        const localResponse = await searchLocalSheet(q);
-                        if (localResponse) finalResponse = localResponse;
-                    }
-
-                    if (!finalResponse) {
-                        let aiPayload = {
-                            model: "LongCat-Flash-Chat",
-                            messages: [...messages.map(m => ({ role: m.role, content: m.content }))]
-                        };
-
-                        if (file && file.type.startsWith('image/')) {
-                            aiPayload.messages.push({
-                                role: "user",
-                                content: [
-                                    { type: "text", text: q || "Analyze this image." },
+                    // 3. Prepare AI Payload
+                    let aiPayload = {
+                        model: "LongCat-Flash-Chat",
+                        messages: [
+                            ...messages.map(m => ({ role: m.role, content: m.content })),
+                            { 
+                                role: "user", 
+                                content: file && file.type.startsWith('image/') ? [
+                                    { type: "text", text: q || "Describe this image" },
                                     { type: "image_url", image_url: { url: file.base64 } }
-                                ]
-                            });
-                        } else if (file) {
-                            aiPayload.messages.push({
-                                role: "user",
-                                content: `User uploaded a file named ${file.name} with content:\n\n${file.base64}\n\nUser Question: ${q || "Summarize this file."}`
-                            });
-                        } else {
-                            aiPayload.messages.push({ role: "user", content: q });
-                        }
+                                ] : userMsgContent 
+                            }
+                        ]
+                    };
 
-                        const res = await fetch(API_URL, {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json", "Authorization": `Bearer ${API_KEY}` },
-                            body: JSON.stringify(aiPayload)
-                        });
-                        const data = await res.json();
-                        finalResponse = data.choices[0].message.content;
-                        
-                        if (!file) saveToSheet(q, finalResponse);
-                    }
-
-                    const aiMsg = { conversation_id: currentConvId, role: 'assistant', content: finalResponse };
-                    setMessages(prev => [...prev, aiMsg]);
-                    await supabaseClient.from('messages').insert([userMsg, aiMsg]);
-                } catch(e) {
-                    console.error(e);
-                } finally { setIsTyping(false); }
-            };
-
-            const generateClassContent = async (type, topic) => {
-                if (!topic) return;
-                setIsTyping(true);
-                let prompt = type === 'test' ? `Create a 5-question JSON quiz for ${topic}` : `Create a lesson for ${topic}`;
-                if (type === 'mindmap') prompt = `Create a markdown bullet mindmap for ${topic}`;
-
-                try {
                     const res = await fetch(API_URL, {
                         method: "POST",
                         headers: { "Content-Type": "application/json", "Authorization": `Bearer ${API_KEY}` },
-                        body: JSON.stringify({
-                            model: "LongCat-Flash-Chat",
-                            messages: [{ role: "user", content: prompt }]
-                        })
+                        body: JSON.stringify(aiPayload)
                     });
+                    
                     const data = await res.json();
-                    await supabaseClient.from('class_content').insert([{ class_id: selectedClass.id, type, title: topic, content: data.choices[0].message.content }]);
-                    fetchClasses(user.id);
-                } finally { setIsTyping(false); }
+                    const aiResponse = data.choices[0].message.content;
+
+                    const aiMsg = { conversation_id: currentConvId, role: 'assistant', content: aiResponse };
+                    
+                    // 4. Save both messages to DB
+                    await supabaseClient.from('messages').insert([
+                        { ...tempUserMsg, user_id: user.id },
+                        { ...aiMsg, user_id: user.id }
+                    ]);
+
+                    setMessages(prev => [...prev, aiMsg]);
+                } catch(err) {
+                    console.error("AI Error:", err);
+                } finally {
+                    setIsTyping(false);
+                }
             };
 
-            const handleQuizAnswer = (idx, correctIdx) => {
-                if (showFeedback) return;
-                if (idx === correctIdx) { setScore(s => s + 1); setShowFeedback('correct'); } else { setShowFeedback('wrong'); }
-                setTimeout(() => {
-                    setShowFeedback(null);
-                    if (quizIndex < JSON.parse(activeLesson.content).length - 1) setQuizIndex(quizIndex + 1); else setQuizFinished(true);
-                }, 1000);
+            const saveContent = async (type, title, content) => {
+                await supabaseClient.from('class_content').insert([{ class_id: selectedClass.id, type, title, content }]);
+                await fetchClasses(user.id);
+                setShowManualModal(false);
             };
+
+            const startNewChat = () => {
+                setActiveConvId(null);
+                setMessages([]);
+                setView('chat');
+                setIsSidebarOpen(false);
+            };
+
+            const userName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'User';
 
             return (
-                <div className="flex h-screen w-full bg-[var(--bg-main)] text-[var(--text-primary)] transition-all">
-                    
-                    <aside className={`fixed lg:static inset-y-0 left-0 z-50 w-72 bg-[var(--bg-sidebar)] border-r border-[var(--border)] transition-transform lg:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+                <div className="flex h-screen w-full bg-[#0a0a0a] text-white">
+                    {/* Sidebar */}
+                    <aside className={`fixed lg:static inset-y-0 left-0 z-50 w-80 bg-black border-r border-white/5 transition-transform duration-300 lg:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
                         <div className="flex flex-col h-full">
-                            <div className="p-6">
-                                <div className="flex items-center gap-3 mb-8">
-                                    <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center font-bold text-white shadow-lg">N4</div>
-                                    <h1 className="font-bold tracking-tight">Nix 4 Pro</h1>
+                            <div className="p-8">
+                                <div className="flex items-center gap-3 mb-10">
+                                    <div className="w-10 h-10 bg-indigo-600 rounded-2xl flex items-center justify-center font-bold text-lg shadow-lg shadow-indigo-600/20">N4</div>
+                                    <h1 className="font-extrabold text-xl tracking-tight">Nix 4 Pro</h1>
                                 </div>
-                                <button onClick={() => { setActiveConvId(null); setMessages([]); setView('chat'); setIsSidebarOpen(false); }} className="w-full flex items-center justify-center gap-2 p-3.5 mb-6 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 transition-all font-bold text-[10px] uppercase tracking-widest text-indigo-400">
-                                    + New Chat
+                                
+                                <button onClick={startNewChat} className="w-full mb-8 py-3.5 px-4 bg-white/5 hover:bg-white/10 border border-white/5 rounded-2xl flex items-center justify-center gap-2 transition-all group">
+                                    <span className="text-indigo-400 group-hover:scale-110 transition-transform text-xl">+</span>
+                                    <span className="text-xs font-black uppercase tracking-widest text-indigo-400">New Chat</span>
                                 </button>
+
                                 <nav className="space-y-1">
-                                    <button onClick={() => { setView('chat'); setIsSidebarOpen(false); }} className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all ${view === 'chat' ? 'sidebar-item-active' : 'opacity-40 hover:opacity-100 hover:bg-white/5'}`}>
-                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeWidth="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/></svg>
-                                        <span className="text-sm font-semibold">AI Assistant</span>
+                                    <button onClick={() => { setView('chat'); setIsSidebarOpen(false); }} className={`w-full flex items-center gap-4 p-4 rounded-2xl transition-all ${view === 'chat' ? 'bg-white/5 text-indigo-400' : 'opacity-40 hover:opacity-100 hover:bg-white/5'}`}>
+                                        <div className="w-2 h-2 rounded-full bg-current"></div>
+                                        <span className="text-sm font-bold">Intelligence</span>
                                     </button>
-                                    <button onClick={() => { setView('class'); setIsSidebarOpen(false); }} className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all ${view === 'class' ? 'sidebar-item-active' : 'opacity-40 hover:opacity-100 hover:bg-white/5'}`}>
-                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeWidth="2" d="M12 14l9-5-9-5-9 5 9 5z"/></svg>
-                                        <span className="text-sm font-semibold">Nix Class</span>
+                                    <button onClick={() => { setView('class'); setIsSidebarOpen(false); }} className={`w-full flex items-center gap-4 p-4 rounded-2xl transition-all ${view === 'class' ? 'bg-white/5 text-indigo-400' : 'opacity-40 hover:opacity-100 hover:bg-white/5'}`}>
+                                        <div className="w-2 h-2 rounded-full bg-current"></div>
+                                        <span className="text-sm font-bold">Class Mode</span>
                                     </button>
                                 </nav>
                             </div>
-                            <div className="flex-1 overflow-y-auto px-4 chat-scroll">
-                                <p className="px-3 text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-2 mt-4">History</p>
+
+                            <div className="flex-1 overflow-y-auto px-6 chat-scroll pb-10">
+                                <p className="px-4 text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500 mb-4">
+                                    {view === 'chat' ? 'Recent History' : 'Your Classes'}
+                                </p>
                                 <div className="space-y-1">
                                     {view === 'chat' ? conversations.map(c => (
-                                        <button key={c.id} onClick={() => { setActiveConvId(c.id); setView('chat'); fetchConversations(user.id); }} className={`w-full text-left p-3 rounded-xl text-xs truncate ${activeConvId === c.id ? 'bg-indigo-600/20 text-indigo-400' : 'opacity-40 hover:opacity-100'}`}>
+                                        <button key={c.id} onClick={() => { setActiveConvId(c.id); setIsSidebarOpen(false); }} className={`w-full text-left p-4 rounded-2xl text-[13px] truncate transition-all ${activeConvId === c.id ? 'bg-indigo-600/10 text-indigo-400 border-l-2 border-indigo-600' : 'opacity-40 hover:opacity-100 hover:bg-white/5'}`}>
                                             {c.title || "Untitled Chat"}
                                         </button>
                                     )) : myClasses.map(c => (
-                                        <button key={c.id} onClick={() => { setSelectedClass(c); setActiveLesson(null); }} className={`w-full text-left p-3 rounded-xl text-xs truncate ${selectedClass?.id === c.id ? 'bg-indigo-600/20 text-indigo-400' : 'opacity-40 hover:opacity-100'}`}>
+                                        <button key={c.id} onClick={() => setSelectedClass(c)} className={`w-full text-left p-4 rounded-2xl text-[13px] truncate transition-all ${selectedClass?.id === c.id ? 'bg-indigo-600/10 text-indigo-400' : 'opacity-40 hover:opacity-100 hover:bg-white/5'}`}>
                                             {c.name}
                                         </button>
                                     ))}
                                 </div>
                             </div>
+
+                            <div className="p-6 border-t border-white/5 bg-zinc-950/50">
+                                <button onClick={() => supabaseClient.auth.signOut()} className="w-full p-4 rounded-2xl text-xs font-bold opacity-40 hover:opacity-100 hover:bg-red-500/10 hover:text-red-400 transition-all text-left">
+                                    Sign Out
+                                </button>
+                            </div>
                         </div>
                     </aside>
 
-                    <main className="flex-1 flex flex-col relative overflow-hidden bg-[var(--bg-main)]">
-                        <header className="h-16 flex items-center justify-between px-6 glass-panel shrink-0 z-20">
+                    <main className="flex-1 flex flex-col relative overflow-hidden bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-indigo-900/5 via-black to-black">
+                        <header className="h-20 flex items-center justify-between px-8 glass-panel shrink-0 z-20">
                             <div className="flex items-center gap-4">
-                                <button onClick={() => setIsSidebarOpen(true)} className="lg:hidden p-2 text-zinc-400"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16m-7 6h7" strokeWidth="2"/></svg></button>
-                                <h2 className="text-xs font-black uppercase tracking-[0.2em] opacity-40">{view === 'chat' ? 'Intelligent Assistant' : 'Nix Classroom'}</h2>
+                                <button onClick={() => setIsSidebarOpen(true)} className="lg:hidden p-2 text-zinc-400 hover:text-white transition-colors">
+                                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16m-7 6h7" strokeWidth="2" strokeLinecap="round"/></svg>
+                                </button>
+                                <span className="text-[10px] font-black tracking-[0.3em] text-indigo-400 uppercase">{view === 'chat' ? 'Neural Network' : 'Academic Hub'}</span>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <span className="hidden md:block text-[11px] font-bold opacity-40">{userName}</span>
+                                <div className="w-10 h-10 rounded-2xl bg-indigo-600/10 border border-indigo-600/20 flex items-center justify-center font-bold text-indigo-400 shadow-xl">{userName[0]}</div>
                             </div>
                         </header>
 
-                        <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 md:px-10 py-10 chat-scroll">
-                            <div className="max-w-4xl mx-auto space-y-8 pb-40">
-                                {view === 'chat' ? (
-                                    messages.map((m, i) => (
-                                        <div key={i} className={`flex gap-5 animate-fade ${m.role === 'user' ? 'flex-row-reverse' : ''}`}>
-                                            <div className={`w-10 h-10 shrink-0 rounded-2xl flex items-center justify-center font-bold text-[10px] ${m.role === 'user' ? 'bg-white/5' : 'bg-indigo-600 text-white'}`}>{m.role === 'user' ? 'ME' : 'N4'}</div>
-                                            <div className={`p-6 rounded-[2rem] max-w-[80%] leading-relaxed text-[15px] ${m.role === 'user' ? 'bg-[var(--bubble-user)] border border-[var(--border)] rounded-tr-none' : 'bg-white/5 border border-white/5 rounded-tl-none'}`}>
-                                                {m.content}
-                                            </div>
+                        <div ref={scrollRef} className="flex-1 overflow-y-auto px-6 md:px-12 py-12 chat-scroll">
+                            <div className="max-w-4xl mx-auto">
+                                {view === 'chat' && messages.length === 0 && (
+                                    <div className="h-[65vh] flex flex-col items-center justify-center text-center animate-fade">
+                                        <div className="w-24 h-24 bg-indigo-600/5 rounded-[2.5rem] flex items-center justify-center mb-10 border border-indigo-600/10 shadow-2xl">
+                                            <div className="w-12 h-12 bg-indigo-600 rounded-2xl shadow-lg shadow-indigo-600/40"></div>
                                         </div>
-                                    ))
-                                ) : (
-                                    selectedClass ? (
-                                        activeLesson ? (
-                                            <div className="animate-fade">
-                                                <button onClick={() => setActiveLesson(null)} className="mb-8 text-[10px] font-black uppercase tracking-widest text-indigo-400">← Back</button>
-                                                <div className="p-10 bg-white/5 border border-[var(--border)] rounded-[3rem]">
-                                                    <h3 className="text-3xl font-black mb-6">{activeLesson.title}</h3>
-                                                    {activeLesson.type === 'test' ? (
-                                                        !quizFinished ? (
-                                                            <div className="space-y-6">
-                                                                <p className="text-lg mb-8">{JSON.parse(activeLesson.content)[quizIndex].question}</p>
-                                                                <div className="grid gap-3">
-                                                                    {JSON.parse(activeLesson.content)[quizIndex].options.map((opt, oIdx) => (
-                                                                        <button key={oIdx} onClick={() => handleQuizAnswer(oIdx, JSON.parse(activeLesson.content)[quizIndex].correct)} className={`quiz-option p-5 rounded-2xl bg-black/20 text-left ${showFeedback && oIdx === JSON.parse(activeLesson.content)[quizIndex].correct ? 'border-green-500 bg-green-500/10' : ''}`}>{opt}</button>
-                                                                    ))}
-                                                                </div>
-                                                            </div>
-                                                        ) : <div className="text-center py-10">Score: {score} / {JSON.parse(activeLesson.content).length}</div>
-                                                    ) : <div className="whitespace-pre-wrap leading-loose opacity-70">{activeLesson.content}</div>}
+                                        <h2 className="text-5xl md:text-7xl font-black mb-6 tracking-tight leading-[1.1] bg-gradient-to-b from-white via-white to-zinc-600 bg-clip-text text-transparent">
+                                            How can I assist<br/> today, {userName}?
+                                        </h2>
+                                        <p className="text-zinc-500 font-medium text-lg max-w-lg mx-auto leading-relaxed">
+                                            Nix 4 Pro is ready to help you analyze files, generate code, or manage your classes.
+                                        </p>
+                                    </div>
+                                )}
+
+                                {view === 'chat' ? (
+                                    <div className="space-y-10 pb-40">
+                                        {messages.map((m, i) => (
+                                            <div key={i} className={`flex gap-6 ${m.role === 'user' ? 'flex-row-reverse' : ''} animate-fade`}>
+                                                <div className={`w-10 h-10 shrink-0 rounded-2xl flex items-center justify-center font-bold text-[11px] border shadow-sm ${m.role === 'user' ? 'bg-zinc-900 border-zinc-800' : 'bg-indigo-600 border-indigo-500 text-white'}`}>
+                                                    {m.role === 'user' ? 'YOU' : 'N4'}
+                                                </div>
+                                                <div className={`p-8 rounded-[2.5rem] max-w-[85%] leading-relaxed text-[16px] markdown-content ${m.role === 'user' ? 'bg-zinc-900/50 border border-white/5 rounded-tr-none' : 'bg-white/[0.03] border border-white/5 rounded-tl-none shadow-2xl'}`}>
+                                                    {m.content}
                                                 </div>
                                             </div>
-                                        ) : (
-                                            <div className="space-y-12">
-                                                <div className="p-12 bg-indigo-600 rounded-[3.5rem] text-white">
-                                                    <h3 className="text-4xl font-black">{selectedClass.name}</h3>
-                                                    <p className="opacity-70 mt-2">Materials & Quizzes</p>
+                                        ))}
+                                        {isTyping && (
+                                            <div className="flex gap-6 animate-pulse">
+                                                <div className="w-10 h-10 bg-indigo-600 rounded-2xl flex items-center justify-center font-bold text-[11px] text-white">N4</div>
+                                                <div className="p-6 bg-white/5 rounded-[2.5rem] w-32 flex gap-1 justify-center items-center">
+                                                    <div className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce"></div>
+                                                    <div className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce [animation-delay:0.2s]"></div>
+                                                    <div className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce [animation-delay:0.4s]"></div>
                                                 </div>
-                                                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                            </div>
+                                        )}
+                                    </div>
+                                ) : (
+                                    <div className="pb-40 animate-fade">
+                                        {selectedClass ? (
+                                            <div className="space-y-12">
+                                                <div className="p-16 bg-gradient-to-br from-indigo-600 to-indigo-800 rounded-[4rem] text-white shadow-2xl shadow-indigo-600/20">
+                                                    <h3 className="text-5xl font-black tracking-tight">{selectedClass.name}</h3>
+                                                    <div className="mt-6 flex items-center gap-4">
+                                                        <span className="px-4 py-2 bg-white/10 rounded-full text-xs font-bold uppercase tracking-widest border border-white/10">Teacher Dashboard</span>
+                                                    </div>
+                                                </div>
+
+                                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                                    {['lesson', 'mindmap', 'test'].map(type => (
+                                                        <div key={type} className="p-8 bg-zinc-900/40 border border-white/5 rounded-[3rem] hover:border-indigo-600/30 transition-all">
+                                                            <div className="w-12 h-12 bg-indigo-600/10 rounded-2xl flex items-center justify-center mb-6 text-indigo-400 font-bold text-xs uppercase tracking-tighter">
+                                                                {type[0]}
+                                                            </div>
+                                                            <h4 className="text-xl font-bold mb-6 capitalize">{type}s</h4>
+                                                            <div className="space-y-3">
+                                                                <button onClick={() => { setManualContent({ type, title: '', content: '' }); setShowManualModal(true); }} className="w-full p-4 bg-white/5 hover:bg-white/10 rounded-2xl text-[11px] font-black uppercase tracking-widest transition-all">Manual Add</button>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+
+                                                <div className="grid md:grid-cols-2 gap-6">
                                                     {selectedClass.content.map((item, idx) => (
-                                                        <div key={idx} onClick={() => setActiveLesson(item)} className="p-8 bg-white/5 border border-white/5 rounded-[2.5rem] cursor-pointer hover:bg-indigo-600/5 transition-all">
-                                                            <span className="text-[9px] font-black px-2 py-1 bg-indigo-600/20 text-indigo-400 rounded uppercase">{item.type}</span>
-                                                            <h4 className="text-xl font-bold mt-4">{item.title}</h4>
+                                                        <div key={idx} className="p-10 bg-white/[0.02] rounded-[3rem] border border-white/5 hover:bg-white/[0.04] transition-all cursor-pointer">
+                                                            <div className="flex items-center justify-between mb-4">
+                                                                <span className="text-[10px] font-black uppercase text-indigo-400 tracking-widest">{item.type}</span>
+                                                                <span className="text-[10px] opacity-20">{new Date(item.created_at).toLocaleDateString()}</span>
+                                                            </div>
+                                                            <h5 className="text-2xl font-bold tracking-tight">{item.title}</h5>
                                                         </div>
                                                     ))}
                                                 </div>
                                             </div>
-                                        )
-                                    ) : <div className="text-center opacity-20 py-20">Select a course to view lessons.</div>
+                                        ) : (
+                                            <div className="text-center py-40 bg-white/[0.01] rounded-[4rem] border border-dashed border-white/5">
+                                                <p className="text-zinc-600 font-bold uppercase tracking-[0.4em] text-xs">Select a course to manage your workspace</p>
+                                            </div>
+                                        )}
+                                    </div>
                                 )}
                             </div>
                         </div>
 
+                        {/* Input Area */}
                         {view === 'chat' && (
-                            <div className="p-6 bg-gradient-to-t from-[var(--bg-main)] via-[var(--bg-main)] to-transparent absolute bottom-0 left-0 right-0 z-30">
+                            <div className="absolute bottom-0 left-0 right-0 p-8 md:p-12 bg-gradient-to-t from-black via-black/95 to-transparent z-30">
                                 <div className="max-w-4xl mx-auto">
                                     {attachedFile && (
-                                        <div className="mb-3 px-6 py-3 bg-indigo-600/20 border border-indigo-600/30 rounded-2xl flex items-center justify-between animate-fade">
+                                        <div className="mb-4 px-6 py-4 bg-indigo-600/10 border border-indigo-600/20 rounded-2xl flex items-center justify-between animate-fade">
                                             <div className="flex items-center gap-3">
-                                                <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-[10px] font-bold">DOC</div>
-                                                <div className="text-xs">
-                                                    <p className="font-bold truncate max-w-[200px]">{attachedFile.name}</p>
-                                                    <p className="opacity-50">{attachedFile.size}</p>
-                                                </div>
+                                                <div className="text-xl">📎</div>
+                                                <span className="text-xs font-bold text-indigo-400 truncate max-w-xs">{attachedFile.name}</span>
                                             </div>
-                                            <button onClick={() => setAttachedFile(null)} className="p-2 opacity-50 hover:opacity-100">✕</button>
+                                            <button onClick={()=>setAttachedFile(null)} className="text-xs opacity-50 hover:opacity-100 p-2">✕</button>
                                         </div>
                                     )}
-                                    <div className="relative bg-zinc-900/50 backdrop-blur-3xl rounded-[2.5rem] p-2 flex items-center shadow-2xl border border-white/10 ring-1 ring-white/5">
-                                        <button onClick={() => fileInputRef.current.click()} className="w-12 h-12 flex items-center justify-center text-zinc-400 hover:text-white transition-colors">
-                                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 4v16m8-8H4" strokeWidth="2"/></svg>
+                                    <div className="bg-zinc-900/60 backdrop-blur-3xl rounded-[3rem] p-3 flex items-center border border-white/5 shadow-2xl ring-1 ring-white/5 focus-within:ring-indigo-600/30 transition-all">
+                                        <button onClick={() => fileInputRef.current.click()} className="w-14 h-14 flex items-center justify-center opacity-40 hover:opacity-100 hover:scale-110 transition-all text-2xl">
+                                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 4v16m8-8H4" strokeWidth="2.5" strokeLinecap="round"/></svg>
                                         </button>
-                                        <input type="file" ref={fileInputRef} onChange={handleFileUpload} className="hidden" />
+                                        <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileUpload} />
                                         <input 
-                                            value={input}
-                                            onChange={(e) => setInput(e.target.value)}
-                                            onKeyDown={(e) => e.key === 'Enter' && processQuery()}
-                                            placeholder="Message Nix or attach files..."
-                                            className="flex-1 bg-transparent p-5 outline-none text-[15px]"
+                                            value={input} 
+                                            onChange={e => setInput(e.target.value)} 
+                                            onKeyDown={e => e.key === 'Enter' && processQuery()} 
+                                            placeholder="Message Nix Pro or drop a file..." 
+                                            className="flex-1 bg-transparent px-4 outline-none text-lg placeholder:text-zinc-600"
                                         />
-                                        <button onClick={processQuery} className={`w-12 h-12 flex items-center justify-center rounded-full transition-all shadow-xl mr-1 ${isTyping ? 'bg-zinc-800' : 'bg-indigo-600 hover:bg-indigo-500'}`}>
-                                            {isTyping ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> : <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7" strokeWidth="3"/></svg>}
+                                        <button onClick={processQuery} className="w-14 h-14 bg-indigo-600 rounded-[1.5rem] flex items-center justify-center shadow-2xl shadow-indigo-600/40 hover:bg-indigo-500 active:scale-95 transition-all">
+                                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7" strokeWidth="3" strokeLinecap="round" strokejoin="round"/></svg>
                                         </button>
+                                    </div>
+                                    <p className="text-center mt-6 text-[10px] font-bold uppercase tracking-[0.3em] opacity-20">Nix 4 Pro Neural Workspace</p>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Manual Add Modal */}
+                        {showManualModal && (
+                            <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-xl p-8">
+                                <div className="bg-[#0f0f0f] border border-white/10 p-12 rounded-[4rem] w-full max-w-2xl animate-fade shadow-2xl">
+                                    <h3 className="text-3xl font-black mb-8 tracking-tight">Create {manualContent.type}</h3>
+                                    <div className="space-y-6">
+                                        <div>
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-2 block">Content Title</label>
+                                            <input placeholder="Ex: Advanced Quantum Mechanics" value={manualContent.title} onChange={e => setManualContent({...manualContent, title: e.target.value})} className="w-full bg-white/5 border border-white/5 p-5 rounded-2xl outline-none focus:border-indigo-600/50 transition-all"/>
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-2 block">Detailed Body</label>
+                                            <textarea placeholder="Enter full text or structured JSON..." rows="8" value={manualContent.content} onChange={e => setManualContent({...manualContent, content: e.target.value})} className="w-full bg-white/5 border border-white/5 p-5 rounded-3xl outline-none focus:border-indigo-600/50 transition-all chat-scroll"></textarea>
+                                        </div>
+                                    </div>
+                                    <div className="flex gap-4 mt-10">
+                                        <button onClick={() => setShowManualModal(false)} className="flex-1 p-5 bg-white/5 hover:bg-white/10 rounded-2xl font-black text-xs uppercase tracking-widest transition-all">Cancel</button>
+                                        <button onClick={() => saveContent(manualContent.type, manualContent.title, manualContent.content)} className="flex-1 p-5 bg-indigo-600 hover:bg-indigo-500 rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-xl shadow-indigo-600/20">Publish Content</button>
                                     </div>
                                 </div>
                             </div>
