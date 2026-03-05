@@ -39,18 +39,21 @@
             background-color: var(--bg-main);
             color: var(--text-primary);
             overflow: hidden;
+            -webkit-tap-highlight-color: transparent;
             transition: background-color 0.3s ease, color 0.3s ease;
         }
 
         .glass-panel {
             background: var(--glass);
             backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
             border-bottom: 1px solid var(--border);
         }
 
         .input-glass {
             background: var(--glass);
             backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
             border: 1px solid var(--border);
         }
 
@@ -68,13 +71,26 @@
             animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
         }
 
-        @keyframes slideUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(12px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .sidebar-transition {
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        textarea {
+            scrollbar-width: none;
+            -ms-overflow-style: none;
+        }
+        textarea::-webkit-scrollbar { display: none; }
 
         .rtl { direction: rtl; }
         .ltr { direction: ltr; }
     </style>
 </head>
-<body>
+<body class="dark">
     <div id="root"></div>
 
     <script type="text/babel">
@@ -84,121 +100,127 @@
         const SUPABASE_KEY = "sb_publishable_mtI0_ZBvU_n5oRuqV58QHg_qJt3Gfyt";
         const API_KEY = "ak_2OJ4ng6za7b74DP3hu32a6P04XH8J";
         const API_URL = "https://api.longcat.chat/openai/v1/chat/completions";
+        const SHEET_ID = "1BwS2zO3IGppDo2r_ROZVW74iSmu6aGSyE8j1O63UjbE";
+        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx3YKf3u6KoxvHJc3bBRJzWYg1CPcpHAFXUTTWTh28FR2XcOJlqzcIsJC19_9X7ozH8/exec";
 
         const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
         const App = () => {
             const [user, setUser] = useState(null);
-            const [view, setView] = useState('chat'); // 'chat' or 'class'
+            const [uiLang, setUiLang] = useState('en');
             const [theme, setTheme] = useState('dark');
             const [messages, setMessages] = useState([]);
             const [conversations, setConversations] = useState([]);
             const [activeConvId, setActiveConvId] = useState(null);
             const [input, setInput] = useState("");
             const [isTyping, setIsTyping] = useState(false);
+            const [showSettings, setShowSettings] = useState(false);
             const [isSidebarOpen, setIsSidebarOpen] = useState(false);
             
-            // Class Features State
-            const [myClasses, setMyClasses] = useState([]);
-            const [selectedClass, setSelectedClass] = useState(null);
-            const [isTeacher, setIsTeacher] = useState(false);
-            const [classCode, setClassCode] = useState("");
-
             const scrollRef = useRef(null);
             const textareaRef = useRef(null);
 
             useEffect(() => {
-                const init = async () => {
+                const checkUser = async () => {
                     const { data: { session } } = await supabaseClient.auth.getSession();
-                    if (!session) { window.location.href = "auth.html"; return; }
-                    setUser(session.user);
-                    fetchConversations(session.user.id);
-                    fetchClasses(session.user.id);
+                    if (!session) {
+                        window.location.href = "auth.html";
+                    } else {
+                        setUser(session.user);
+                        fetchConversations(session.user.id);
+                    }
                 };
-                init();
+                checkUser();
             }, []);
 
-            useEffect(() => { document.body.className = theme; }, [theme]);
+            useEffect(() => {
+                document.body.className = theme;
+            }, [theme]);
 
             useEffect(() => {
                 if (scrollRef.current) {
-                    scrollRef.current.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
+                    scrollRef.current.scrollTo({
+                        top: scrollRef.current.scrollHeight,
+                        behavior: 'smooth'
+                    });
                 }
             }, [messages, isTyping]);
 
-            const fetchConversations = async (uid) => {
-                const { data } = await supabaseClient.from('conversations').select('*').eq('user_id', uid).order('created_at', { ascending: false });
-                if (data) setConversations(data);
+            const fetchConversations = async (userId) => {
+                const { data, error } = await supabaseClient
+                    .from('conversations')
+                    .select('*')
+                    .eq('user_id', userId)
+                    .order('created_at', { ascending: false });
+                if (!error) setConversations(data);
             };
 
-            const fetchClasses = async (uid) => {
-                const { data: teacherClasses } = await supabaseClient.from('classes').select('*').eq('teacher_id', uid);
-                const { data: joinedClasses } = await supabaseClient.from('class_members').select('classes(*)').eq('user_id', uid);
-                const combined = [
-                    ...(teacherClasses || []).map(c => ({ ...c, role: 'teacher' })),
-                    ...(joinedClasses || []).map(item => ({ ...item.classes, role: 'student' }))
-                ];
-                setMyClasses(combined);
+            const loadConversation = async (id) => {
+                setActiveConvId(id);
+                setIsSidebarOpen(false);
+                const { data, error } = await supabaseClient
+                    .from('messages')
+                    .select('*')
+                    .eq('conversation_id', id)
+                    .order('created_at', { ascending: true });
+                if (!error) setMessages(data);
             };
 
-            const createClass = async () => {
-                const name = prompt("Enter Class Name:");
-                if (!name) return;
-                const code = Math.random().toString(36).substring(2, 8).toUpperCase();
-                const { data } = await supabaseClient.from('classes').insert([{ teacher_id: user.id, name, join_code: code }]).select().single();
-                if (data) setMyClasses([{ ...data, role: 'teacher' }, ...myClasses]);
-            };
-
-            const joinClass = async () => {
-                const code = prompt("Enter Join Code:");
-                if (!code) return;
-                const { data: cls } = await supabaseClient.from('classes').select('id').eq('join_code', code.toUpperCase()).single();
-                if (!cls) return alert("Invalid code");
-                await supabaseClient.from('class_members').insert([{ class_id: cls.id, user_id: user.id }]);
-                fetchClasses(user.id);
-            };
-
-            const generateClassAI = async (type, topic) => {
-                if (!topic) return;
-                setIsTyping(true);
-                const promptMsg = type === 'mindmap' 
-                    ? `Create a structured mindmap for '${topic}'. Write it as a step-by-step hierarchical list (1. Main, 1.1 Subtopic).`
-                    : `Generate professional ${type} content for the topic: ${topic}.`;
-
+            const generateTitle = async (query, context = "") => {
                 try {
                     const res = await fetch(API_URL, {
                         method: "POST",
                         headers: { "Content-Type": "application/json", "Authorization": `Bearer ${API_KEY}` },
                         body: JSON.stringify({
                             model: "LongCat-Flash-Chat",
-                            messages: [{ role: "system", content: "Expert Educator mode." }, { role: "user", content: promptMsg }]
+                            messages: [
+                                { role: "system", content: "Summarize the chat in exactly 2 words. No punctuation." }, 
+                                { role: "user", content: `Query: ${query}` }
+                            ],
+                            max_tokens: 10
                         })
                     });
                     const data = await res.json();
-                    const aiContent = data.choices[0].message.content;
-                    
-                    await supabaseClient.from('class_content').insert([{ class_id: selectedClass.id, type, title: topic, content: aiContent }]);
-                    // Refresh view
-                    const { data: updated } = await supabaseClient.from('class_content').select('*').eq('class_id', selectedClass.id);
-                    setSelectedClass({ ...selectedClass, content: updated });
-                } finally { setIsTyping(false); }
+                    return data.choices[0].message.content.replace(/[".]/g, '').trim();
+                } catch (e) { return "Active Chat"; }
+            };
+
+            const updateConversationTitle = async (id, newTitle) => {
+                const { error } = await supabaseClient
+                    .from('conversations')
+                    .update({ title: newTitle })
+                    .eq('id', id);
+                if (!error) {
+                    setConversations(prev => prev.map(c => c.id === id ? { ...c, title: newTitle } : c));
+                }
             };
 
             const processQuery = async () => {
-                if (!input.trim() || isTyping) return;
-                const q = input;
-                setInput("");
-                setIsTyping(true);
+                if (!input.trim() || !user || isTyping) return;
 
+                const q = input;
                 let currentConvId = activeConvId;
-                if (!currentConvId) {
-                    const { data } = await supabaseClient.from('conversations').insert([{ user_id: user.id, title: "New Chat" }]).select().single();
+                const isFirstMsg = !currentConvId;
+                
+                if (isFirstMsg) {
+                    const { data, error } = await supabaseClient
+                        .from('conversations')
+                        .insert([{ user_id: user.id, title: "Drafting..." }])
+                        .select()
+                        .single();
+                    if (error) return;
                     currentConvId = data.id;
                     setActiveConvId(currentConvId);
+                    setConversations([data, ...conversations]);
                 }
 
                 const userMsg = { conversation_id: currentConvId, role: 'user', content: q };
                 setMessages(prev => [...prev, userMsg]);
+                setInput("");
+                if(textareaRef.current) textareaRef.current.style.height = 'auto';
+                setIsTyping(true);
+
+                await supabaseClient.from('messages').insert([userMsg]);
 
                 try {
                     const res = await fetch(API_URL, {
@@ -206,157 +228,214 @@
                         headers: { "Content-Type": "application/json", "Authorization": `Bearer ${API_KEY}` },
                         body: JSON.stringify({
                             model: "LongCat-Flash-Chat",
-                            messages: [...messages.map(m => ({ role: m.role, content: m.content })), { role: "user", content: q }]
+                            messages: [
+                                { role: "system", content: "You are Nix 4, a world-class AI assistant. Provide expert-level, concise responses." },
+                                ...messages.map(m => ({ role: m.role, content: m.content })),
+                                { role: "user", content: q }
+                            ]
                         })
                     });
                     const data = await res.json();
-                    const aiTxt = data.choices[0].message.content;
-                    const aiMsg = { conversation_id: currentConvId, role: 'assistant', content: aiTxt };
+                    const aiResponseText = data.choices[0].message.content;
+
+                    const aiMsg = { conversation_id: currentConvId, role: 'assistant', content: aiResponseText };
                     setMessages(prev => [...prev, aiMsg]);
-                    await supabaseClient.from('messages').insert([userMsg, aiMsg]);
-                } finally { setIsTyping(false); }
+                    await supabaseClient.from('messages').insert([aiMsg]);
+
+                    if (messages.length <= 2) {
+                        const newTitle = await generateTitle(q);
+                        await updateConversationTitle(currentConvId, newTitle);
+                    }
+                } catch (e) { console.error(e); } 
+                finally { setIsTyping(false); }
             };
 
-            return (
-                <div className={`flex h-screen w-full bg-[var(--bg-main)] text-[var(--text-primary)] transition-colors duration-300`}>
-                    {/* Sidebar */}
-                    <aside className={`fixed lg:static inset-y-0 left-0 z-50 w-72 bg-[var(--bg-sidebar)] border-r border-[var(--border)] transition-transform lg:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-                        <div className="flex flex-col h-full">
-                            <div className="p-6">
-                                <div className="flex items-center gap-3 mb-8">
-                                    <div className="w-10 h-10 bg-[var(--accent)] rounded-xl flex items-center justify-center font-bold text-white">N4</div>
-                                    <h1 className="font-bold">Nix 4 Pro</h1>
-                                </div>
-                                <div className="space-y-1">
-                                    <button onClick={() => setView('chat')} className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all ${view === 'chat' ? 'sidebar-item-active' : 'hover:bg-white/5 opacity-60'}`}>
-                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/></svg>
-                                        <span className="text-sm font-semibold">AI Assistant</span>
-                                    </button>
-                                    <button onClick={() => setView('class')} className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all ${view === 'class' ? 'sidebar-item-active' : 'hover:bg-white/5 opacity-60'}`}>
-                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 14l9-5-9-5-9 5 9 5zM12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z"/></svg>
-                                        <span className="text-sm font-semibold">Nix Class</span>
-                                    </button>
-                                </div>
+            const handleSignOut = async () => {
+                await supabaseClient.auth.signOut();
+                window.location.href = "auth.html";
+            };
+
+            const isArabic = (text) => /[\u0600-\u06FF]/.test(text);
+
+            const SidebarContent = () => (
+                <div className="flex flex-col h-full bg-[var(--bg-sidebar)]">
+                    <div className="p-6">
+                        <button 
+                            onClick={() => { setActiveConvId(null); setMessages([]); setIsSidebarOpen(false); }}
+                            className="w-full flex items-center gap-3 p-4 rounded-2xl bg-[var(--accent)] text-white font-bold hover:scale-[1.02] transition-all shadow-lg shadow-indigo-500/20 active:scale-95"
+                        >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M12 4v16m8-8H4"/></svg>
+                            <span className="text-sm">New Session</span>
+                        </button>
+                    </div>
+                    
+                    <div className="flex-1 overflow-y-auto px-4 py-2 chat-scroll space-y-1">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] px-3 mb-4 opacity-50">Conversation History</p>
+                        {conversations.map(conv => (
+                            <button 
+                                key={conv.id}
+                                onClick={() => loadConversation(conv.id)}
+                                className={`w-full text-left p-3 px-4 rounded-xl text-sm font-medium truncate transition-all ${activeConvId === conv.id ? 'sidebar-item-active' : 'text-[var(--text-secondary)] hover:bg-[var(--border)]'}`}
+                            >
+                                {conv.title}
+                            </button>
+                        ))}
+                    </div>
+
+                    <div className="p-6 border-t border-[var(--border)]">
+                        <div className="flex items-center gap-4 p-3 bg-[var(--border)] rounded-2xl">
+                            <div className="w-10 h-10 rounded-xl bg-[var(--accent)] text-white flex items-center justify-center font-black text-sm">
+                                {user?.email?.[0].toUpperCase()}
                             </div>
-                            
-                            <div className="flex-1 overflow-y-auto px-4 chat-scroll">
-                                {view === 'chat' ? (
-                                    <>
-                                        <p className="px-3 text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-2">History</p>
-                                        {conversations.map(c => (
-                                            <button key={c.id} onClick={() => { setActiveConvId(c.id); loadConversation(c.id); }} className={`w-full text-left p-3 rounded-xl text-sm truncate ${activeConvId === c.id ? 'bg-white/5' : 'opacity-40 hover:opacity-100'}`}>{c.title}</button>
-                                        ))}
-                                    </>
-                                ) : (
-                                    <>
-                                        <div className="flex justify-between items-center px-3 mb-2">
-                                            <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)]">Your Classes</p>
-                                            <button onClick={createClass} className="text-indigo-400 text-xs font-bold hover:underline">+ New</button>
-                                        </div>
-                                        {myClasses.map(c => (
-                                            <button key={c.id} onClick={() => setSelectedClass(c)} className={`w-full text-left p-3 rounded-xl text-sm truncate ${selectedClass?.id === c.id ? 'bg-white/5' : 'opacity-40 hover:opacity-100'}`}>
-                                                {c.name} {c.role === 'teacher' ? '👑' : '🎓'}
-                                            </button>
-                                        ))}
-                                        <button onClick={joinClass} className="w-full mt-4 p-3 border border-dashed border-[var(--border)] rounded-xl text-xs text-center opacity-60">Join with Code</button>
-                                    </>
-                                )}
+                            <div className="flex-1 min-w-0">
+                                <p className="text-xs font-bold truncate opacity-90">{user?.email}</p>
+                                <p className="text-[10px] text-[var(--text-secondary)] font-medium">Enterprise Tier</p>
                             </div>
+                            <button onClick={() => setShowSettings(true)} className="p-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors">
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                            </button>
                         </div>
+                    </div>
+                </div>
+            );
+
+            return (
+                <div className={`flex h-[100dvh] w-full bg-[var(--bg-main)] ${uiLang === 'ar' ? 'rtl' : 'ltr'}`}>
+                    {/* PC Sidebar */}
+                    <aside className="hidden lg:flex w-72 border-r border-[var(--border)] flex-col shrink-0">
+                        <SidebarContent />
                     </aside>
 
-                    {/* Main Content */}
-                    <main className="flex-1 flex flex-col relative overflow-hidden">
-                        <header className="h-16 flex items-center justify-between px-6 glass-panel shrink-0">
+                    {/* Mobile Sidebar */}
+                    <div className={`fixed inset-0 z-50 lg:hidden ${isSidebarOpen ? 'visible' : 'invisible'}`}>
+                        <div className={`absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity ${isSidebarOpen ? 'opacity-100' : 'opacity-0'}`} onClick={() => setIsSidebarOpen(false)} />
+                        <div className={`absolute left-0 top-0 bottom-0 w-80 sidebar-transition ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+                            <SidebarContent />
+                        </div>
+                    </div>
+
+                    <main className="flex-1 flex flex-col relative min-w-0">
+                        {/* Header */}
+                        <header className="flex items-center justify-between h-16 px-4 lg:px-10 glass-panel z-10 shrink-0">
                             <div className="flex items-center gap-4">
-                                <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="lg:hidden p-2">
-                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16m-7 6h7" strokeWidth="2"/></svg>
+                                <button onClick={() => setIsSidebarOpen(true)} className="lg:hidden p-2 -ml-2 text-[var(--text-secondary)]">
+                                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16m-7 6h7"/></svg>
                                 </button>
-                                <h2 className="text-sm font-bold">{view === 'chat' ? 'Strategic Intelligence' : 'Nix Classroom'}</h2>
+                                <div className="flex items-center gap-3">
+                                    <div className="w-9 h-9 rounded-xl bg-[var(--accent)] flex items-center justify-center shadow-lg shadow-indigo-500/20">
+                                        <span className="text-[10px] font-black text-white">N4</span>
+                                    </div>
+                                    <h2 className="text-sm font-bold truncate max-w-[150px] md:max-w-none">
+                                        {activeConvId ? conversations.find(c => c.id === activeConvId)?.title : 'Nix 4'}
+                                    </h2>
+                                </div>
                             </div>
-                            <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="p-2.5 rounded-xl border border-[var(--border)]">
-                                {theme === 'dark' ? '☀️' : '🌙'}
-                            </button>
+                            <div className="flex items-center gap-3">
+                                <button 
+                                    onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+                                    className="p-2.5 rounded-xl border border-[var(--border)] hover:bg-[var(--border)] transition-all"
+                                >
+                                    {theme === 'dark' ? (
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m12.728 0l-.707-.707M6.343 6.343l-.707-.707M12 5a7 7 0 100 14 7 7 0 000-14z" strokeWidth="2" strokeLinecap="round"/></svg>
+                                    ) : (
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" strokeWidth="2" strokeLinecap="round"/></svg>
+                                    )}
+                                </button>
+                            </div>
                         </header>
 
-                        <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 md:px-10 py-10 space-y-8">
+                        {/* Chat Window */}
+                        <div ref={scrollRef} className="flex-1 overflow-y-auto chat-scroll px-4 md:px-12 py-8 space-y-10">
                             <div className="max-w-4xl mx-auto pb-48">
-                                {view === 'chat' ? (
-                                    <>
-                                        {messages.length === 0 && (
-                                            <div className="h-[50vh] flex flex-col items-center justify-center text-center opacity-20">
-                                                <div className="w-20 h-20 bg-indigo-600 rounded-3xl mb-6"></div>
-                                                <h3 className="text-xl font-bold">What are we building today?</h3>
-                                            </div>
-                                        )}
-                                        {messages.map((m, i) => (
-                                            <div key={i} className={`flex gap-4 ${m.role === 'user' ? 'flex-row-reverse' : ''}`}>
-                                                <div className={`w-9 h-9 shrink-0 rounded-xl flex items-center justify-center font-black text-[10px] ${m.role === 'user' ? 'bg-[var(--border)]' : 'bg-[var(--accent)] text-white'}`}>{m.role === 'user' ? 'ME' : 'N4'}</div>
-                                                <div className={`p-5 rounded-3xl text-[15px] leading-relaxed ${m.role === 'user' ? 'bg-[var(--bubble-user)] border border-[var(--border)]' : ''}`}>
-                                                    {m.content}
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </>
-                                ) : (
-                                    <div className="space-y-8">
-                                        {!selectedClass ? (
-                                            <div className="text-center py-20 opacity-30">Select a class to begin</div>
-                                        ) : (
-                                            <>
-                                                <div className="p-6 bg-indigo-600/5 border border-indigo-600/20 rounded-3xl">
-                                                    <h3 className="text-2xl font-bold">{selectedClass.name}</h3>
-                                                    <p className="text-sm opacity-60">Join Code: <span className="font-mono font-bold text-indigo-400">{selectedClass.join_code}</span></p>
-                                                    {selectedClass.role === 'teacher' && (
-                                                        <div className="flex gap-2 mt-6">
-                                                            <button onClick={() => generateClassAI('lesson', prompt("Topic?"))} className="p-2 px-4 bg-[var(--accent)] text-white text-xs font-bold rounded-lg">Generate Lesson</button>
-                                                            <button onClick={() => generateClassAI('test', prompt("Topic?"))} className="p-2 px-4 bg-[var(--accent)] text-white text-xs font-bold rounded-lg">Generate Quiz</button>
-                                                            <button onClick={() => generateClassAI('mindmap', prompt("Topic?"))} className="p-2 px-4 bg-[var(--accent)] text-white text-xs font-bold rounded-lg">Build Mindmap</button>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                                <div className="grid gap-4">
-                                                    {selectedClass.content?.map((item, idx) => (
-                                                        <div key={idx} className="p-6 bg-white/5 rounded-2xl border border-[var(--border)]">
-                                                            <div className="flex justify-between mb-4">
-                                                                <span className="text-[10px] font-black uppercase tracking-widest bg-indigo-600 px-2 py-1 rounded text-white">{item.type}</span>
-                                                                <span className="text-xs opacity-40">{new Date(item.created_at).toLocaleDateString()}</span>
-                                                            </div>
-                                                            <h4 className="font-bold mb-2">{item.title}</h4>
-                                                            <div className="text-sm opacity-80 whitespace-pre-wrap">{item.content}</div>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            </>
-                                        )}
+                                {messages.length === 0 && (
+                                    <div className="h-[60vh] flex flex-col items-center justify-center text-center">
+                                        <div className="w-24 h-24 rounded-[2.5rem] bg-[var(--accent)] flex items-center justify-center text-5xl mb-8 shadow-2xl animate-pulse">✦</div>
+                                        <h1 className="text-3xl font-extrabold tracking-tight mb-4">Strategic Intelligence</h1>
+                                        <p className="text-[var(--text-secondary)] text-sm max-w-xs mx-auto leading-relaxed">
+                                            How can I assist your workflow today? I'm optimized for analysis and creative coding.
+                                        </p>
                                     </div>
                                 )}
-                                {isTyping && <div className="flex gap-2 p-6 opacity-30"><div className="w-2 h-2 bg-[var(--accent)] rounded-full animate-bounce"></div><div className="w-2 h-2 bg-[var(--accent)] rounded-full animate-bounce [animation-delay:0.2s]"></div><div className="w-2 h-2 bg-[var(--accent)] rounded-full animate-bounce [animation-delay:0.4s]"></div></div>}
+                                {messages.map((msg, i) => (
+                                    <div key={i} className={`flex gap-4 md:gap-8 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
+                                        <div className={`w-10 h-10 rounded-xl flex-shrink-0 flex items-center justify-center text-[10px] font-black mt-1 ${msg.role === 'user' ? 'bg-[var(--border)]' : 'bg-[var(--accent)] text-white shadow-lg shadow-indigo-500/20'}`}>
+                                            {msg.role === 'user' ? 'USER' : 'N4'}
+                                        </div>
+                                        <div className={`message-bubble ${isArabic(msg.content) ? 'rtl' : 'ltr'}`}>
+                                            <div className={`p-5 md:p-6 rounded-[2rem] text-[15px] leading-relaxed tracking-tight ${msg.role === 'user' ? 'bg-[var(--bubble-user)] border border-[var(--border)] rounded-tr-none' : 'bg-transparent border-none'}`}>
+                                                <div className="whitespace-pre-wrap">{msg.content}</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                                {isTyping && (
+                                    <div className="flex gap-2.5 px-16 opacity-50">
+                                        <div className="w-1.5 h-1.5 bg-[var(--accent)] rounded-full animate-bounce"></div>
+                                        <div className="w-1.5 h-1.5 bg-[var(--accent)] rounded-full animate-bounce [animation-delay:0.2s]"></div>
+                                        <div className="w-1.5 h-1.5 bg-[var(--accent)] rounded-full animate-bounce [animation-delay:0.4s]"></div>
+                                    </div>
+                                )}
                             </div>
                         </div>
 
-                        {/* Input Area */}
-                        {view === 'chat' && (
-                            <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-[var(--bg-main)] to-transparent">
-                                <div className="max-w-4xl mx-auto">
-                                    <div className="relative input-glass rounded-[2rem] p-2 flex items-end">
-                                        <textarea 
-                                            ref={textareaRef}
-                                            rows="1"
-                                            value={input}
-                                            onChange={(e) => { setInput(e.target.value); e.target.style.height = 'auto'; e.target.style.height = Math.min(e.target.scrollHeight, 150) + 'px'; }}
-                                            placeholder="Consult Nix 4..."
-                                            className="flex-1 bg-transparent p-4 outline-none resize-none text-[15px]"
-                                            onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), processQuery())}
-                                        />
-                                        <button onClick={processQuery} className="w-12 h-12 flex items-center justify-center bg-white text-black rounded-2xl mb-1 ml-2 transition-transform active:scale-90">
-                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7" strokeWidth="3"/></svg>
+                        {/* Input Area (Pinned) */}
+                        <div className="absolute bottom-0 left-0 right-0 p-4 md:p-8 bg-gradient-to-t from-[var(--bg-main)] via-[var(--bg-main)] to-transparent pointer-events-none">
+                            <div className="max-w-4xl mx-auto pointer-events-auto">
+                                <div className="relative input-glass rounded-[2rem] overflow-hidden focus-within:ring-2 ring-[var(--accent)] ring-opacity-30 transition-all shadow-2xl">
+                                    <textarea 
+                                        ref={textareaRef}
+                                        rows="1"
+                                        value={input}
+                                        onChange={(e) => {
+                                            setInput(e.target.value);
+                                            e.target.style.height = 'auto';
+                                            e.target.style.height = Math.min(e.target.scrollHeight, 200) + 'px';
+                                        }}
+                                        placeholder="Type your message..."
+                                        className="w-full bg-transparent p-5 pr-16 text-[15px] outline-none resize-none max-h-[200px] leading-relaxed"
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter' && !e.shiftKey) {
+                                                e.preventDefault();
+                                                processQuery();
+                                            }
+                                        }}
+                                    />
+                                    <div className="absolute right-3 bottom-3">
+                                        <button 
+                                            onClick={processQuery}
+                                            disabled={!input.trim() || isTyping}
+                                            className="w-11 h-11 flex items-center justify-center bg-[var(--text-primary)] text-[var(--bg-main)] rounded-2xl hover:scale-105 active:scale-95 transition-all disabled:opacity-20 shadow-xl"
+                                        >
+                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 10l7-7m0 0l7 7m-7-7v18"/></svg>
                                         </button>
                                     </div>
                                 </div>
+                                <p className="text-[9px] text-center mt-4 text-[var(--text-secondary)] font-black uppercase tracking-[0.3em] opacity-40">Nix 4 Next-Gen AI System</p>
                             </div>
-                        )}
+                        </div>
                     </main>
+
+                    {/* Settings Modal */}
+                    {showSettings && (
+                        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/80 backdrop-blur-xl">
+                            <div className="w-full max-w-sm bg-[var(--bg-main)] border border-[var(--border)] rounded-[2.5rem] p-10 shadow-2xl">
+                                <div className="flex justify-between items-center mb-10">
+                                    <h3 className="text-xl font-black">Workspace</h3>
+                                    <button onClick={() => setShowSettings(false)} className="p-2 bg-[var(--border)] rounded-xl"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12" strokeWidth="2" strokeLinecap="round"/></svg></button>
+                                </div>
+                                <div className="space-y-6">
+                                    <div className="space-y-3">
+                                        <label className="text-[10px] font-black uppercase tracking-widest opacity-50">Interface Language</label>
+                                        <div className="grid grid-cols-2 gap-2 bg-[var(--border)] p-1 rounded-2xl">
+                                            <button onClick={() => setUiLang('en')} className={`p-3 rounded-xl text-xs font-bold ${uiLang === 'en' ? 'bg-[var(--accent)] text-white' : ''}`}>English</button>
+                                            <button onClick={() => setUiLang('ar')} className={`p-3 rounded-xl text-xs font-bold ${uiLang === 'ar' ? 'bg-[var(--accent)] text-white' : ''}`}>العربية</button>
+                                        </div>
+                                    </div>
+                                    <button onClick={handleSignOut} className="w-full p-4 rounded-2xl border border-red-500/20 text-red-500 text-xs font-bold hover:bg-red-500 hover:text-white transition-all">Terminate Session</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
             );
         };
