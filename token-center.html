@@ -18,6 +18,14 @@
         .plan-card:hover { border-color: #6366f1; transform: scale(1.02); }
         .streak-dot { width: 8px; height: 8px; border-radius: 50%; background: #334155; }
         .streak-dot.active { background: #3b82f6; box-shadow: 0 0 8px #3b82f6; }
+        
+        /* Pulse animation when points update from DB */
+        @keyframes pulse-update {
+            0% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.1); opacity: 0.7; color: #60a5fa; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .points-updated { animation: pulse-update 0.5s ease-out; }
     </style>
 </head>
 <body class="min-h-screen pb-12">
@@ -47,8 +55,11 @@
                 <div class="absolute top-0 right-0 p-4 opacity-10 text-6xl"><i class="fas fa-coins"></i></div>
                 <span class="text-slate-400 text-sm font-medium uppercase tracking-wider">Your Balance</span>
                 <div class="flex items-baseline space-x-2">
-                    <span id="point-balance" class="text-5xl font-black gradient-text">0</span>
+                    <span id="point-balance" class="text-5xl font-black gradient-text transition-all duration-300">0</span>
                     <span class="text-xl font-semibold text-slate-300">PTS</span>
+                </div>
+                <div id="sync-status" class="text-[10px] text-slate-500 mt-2 flex items-center">
+                    <i class="fas fa-circle text-emerald-500 mr-1 text-[6px]"></i> Live Database Sync Active
                 </div>
             </div>
         </div>
@@ -210,7 +221,7 @@
                 currentUser = session.user;
                 document.getElementById('user-email').textContent = currentUser.email;
                 
-                // Sequence is important
+                // Sequence is important: Fetch, then Listen
                 await fetchUserData();
                 setupRealtimeListener();
             } catch (err) {
@@ -220,7 +231,6 @@
 
         async function fetchUserData() {
             try {
-                // Use regular select without single() first to avoid 406/coercion errors if row doesn't exist
                 const { data, error } = await supabaseClient
                     .from('profiles')
                     .select('*')
@@ -230,7 +240,6 @@
 
                 if (!data || data.length === 0) {
                     console.log("No profile found, creating one...");
-                    // If no profile exists, create it manually
                     const { data: newData, error: insertError } = await supabaseClient
                         .from('profiles')
                         .insert([{ 
@@ -254,38 +263,66 @@
             }
         }
 
+        /**
+         * Setup Realtime Listener
+         * This ensures any change in the DB table (manual or via API)
+         * updates the website UI instantly.
+         */
         function setupRealtimeListener() {
             if (realtimeSubscription || !currentUser) return;
 
+            console.log("Setting up Realtime listener for user:", currentUser.id);
+
             realtimeSubscription = supabaseClient
-                .channel('profile_updates')
+                .channel('profile-db-sync')
                 .on(
                     'postgres_changes', 
                     { 
-                        event: 'UPDATE', 
+                        event: '*', // Listen to ALL events (INSERT, UPDATE, DELETE)
                         schema: 'public', 
                         table: 'profiles', 
                         filter: `id=eq.${currentUser.id}` 
                     }, 
                     (payload) => {
-                        console.log('Realtime Update Received:', payload.new);
-                        userData = payload.new;
-                        updateUI(userData);
+                        console.log('Database Change Detected:', payload);
+                        
+                        // Handle updates or inserts
+                        if (payload.new) {
+                            userData = payload.new;
+                            updateUI(userData, true); // true indicates a live update
+                        }
                     }
                 )
-                .subscribe();
+                .subscribe((status) => {
+                    const statusEl = document.getElementById('sync-status');
+                    if (status === 'SUBSCRIBED') {
+                        statusEl.innerHTML = '<i class="fas fa-circle text-emerald-500 mr-1 text-[6px]"></i> Live Database Sync Active';
+                    } else {
+                        statusEl.innerHTML = '<i class="fas fa-circle text-red-500 mr-1 text-[6px]"></i> Sync Reconnecting...';
+                    }
+                });
         }
 
-        function updateUI(data) {
+        function updateUI(data, isLiveUpdate = false) {
             if (!data) return;
             
-            // Update Balance
             const balanceEl = document.getElementById('point-balance');
             if (balanceEl) {
-                balanceEl.textContent = (data.points || 0).toLocaleString();
+                const oldVal = balanceEl.textContent.replace(/,/g, '');
+                const newVal = (data.points || 0).toString();
+
+                // Only update and animate if the number actually changed in the DB
+                if (oldVal !== newVal) {
+                    balanceEl.textContent = (data.points || 0).toLocaleString();
+                    
+                    if (isLiveUpdate) {
+                        balanceEl.classList.add('points-updated');
+                        setTimeout(() => balanceEl.classList.remove('points-updated'), 500);
+                    }
+                }
             }
             
-            // Streak UI
+            // Streak UI sync
             const dots = document.querySelectorAll('.streak-dot');
             dots.forEach((dot, index) => {
                 if (index < (data.streak || 0)) {
@@ -295,19 +332,24 @@
                 }
             });
 
-            // Daily Checkin Button
+            // Daily Checkin Button sync
             const btn = document.getElementById('checkin-btn');
-            if (btn && data.last_checkin) {
-                const lastDate = new Date(data.last_checkin).toDateString();
-                const today = new Date().toDateString();
-                if (lastDate === today) {
-                    btn.disabled = true;
-                    btn.textContent = "Checked In";
-                    btn.classList.add('opacity-50', 'cursor-not-allowed');
+            if (btn) {
+                if (data.last_checkin) {
+                    const lastDate = new Date(data.last_checkin).toDateString();
+                    const today = new Date().toDateString();
+                    if (lastDate === today) {
+                        btn.disabled = true;
+                        btn.textContent = "Checked In";
+                        btn.classList.add('opacity-50', 'cursor-not-allowed');
+                    } else {
+                        btn.disabled = false;
+                        btn.textContent = "Check In";
+                        btn.classList.remove('opacity-50', 'cursor-not-allowed');
+                    }
                 } else {
                     btn.disabled = false;
                     btn.textContent = "Check In";
-                    btn.classList.remove('opacity-50', 'cursor-not-allowed');
                 }
             }
         }
@@ -322,7 +364,6 @@
             if (lastCheckin && lastCheckin.toDateString() === today) return;
 
             let newStreak = (userData.streak || 0) + 1;
-            
             if (lastCheckin) {
                 const diffTime = Math.abs(now - lastCheckin);
                 const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
@@ -330,23 +371,16 @@
             }
 
             let pointsReward = 50;
-            let tokenBonus = 0;
-            let bonusMsg = "";
-
-            if (newStreak === 7) {
-                tokenBonus = 300;
-                bonusMsg = " + 7-Day Bonus: 300 Tokens!";
-                newStreak = 0; 
-            }
+            let tokenBonus = (newStreak === 7) ? 300 : 0;
+            if (newStreak === 8) newStreak = 1;
 
             try {
-                // Optimistic UI update while waiting for DB
-                const updatedPoints = (userData.points || 0) + pointsReward;
-                
+                // We DON'T update the UI here manually anymore. 
+                // We update the DB, and let the Realtime Listener push the update back to us.
                 const { error } = await supabaseClient
                     .from('profiles')
                     .update({
-                        points: updatedPoints,
+                        points: (userData.points || 0) + pointsReward,
                         streak: newStreak,
                         last_checkin: now.toISOString(),
                         daily_credits: (userData.daily_credits || 1000) + tokenBonus
@@ -355,10 +389,10 @@
 
                 if (error) throw error;
 
-                showModal("Daily Check-in", `You earned 50 points!${bonusMsg}`, "fa-calendar-check text-yellow-400");
+                showModal("Success", `Points sent to database!`, "fa-check-circle text-emerald-400");
             } catch (err) {
                 console.error("Checkin error:", err.message);
-                showModal("Check-in Error", "Failed to update points. Please try again.", "fa-triangle-exclamation text-red-400");
+                showModal("Error", "Failed to contact database.", "fa-exclamation-triangle text-red-400");
             }
         }
 
@@ -370,8 +404,7 @@
                 showModal("Insufficient Points", `You need ${cost} points for the ${planType} plan.`, "fa-circle-xmark text-red-500");
                 return;
             }
-
-            showModal("Verification Pending", `Our team will activate the ${planType} plan within 24 hours.`, "fa-clock text-blue-400");
+            showModal("Verification Pending", `Request sent. DB will update once verified.`, "fa-clock text-blue-400");
         }
 
         function showModal(title, msg, iconClass) {
@@ -388,9 +421,7 @@
         }
 
         async function signOut() {
-            if (realtimeSubscription) {
-                supabaseClient.removeChannel(realtimeSubscription);
-            }
+            if (realtimeSubscription) supabaseClient.removeChannel(realtimeSubscription);
             await supabaseClient.auth.signOut();
             window.location.reload();
         }
