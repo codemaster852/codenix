@@ -198,6 +198,7 @@
 
         let currentUser = null;
         let userData = null;
+        let realtimeSubscription = null;
 
         async function checkSession() {
             try {
@@ -209,6 +210,7 @@
                 currentUser = session.user;
                 document.getElementById('user-email').textContent = currentUser.email;
                 fetchUserData();
+                setupRealtimeListener();
             } catch (err) {
                 console.error("Session check error:", err);
             }
@@ -216,7 +218,6 @@
 
         async function fetchUserData() {
             try {
-                // Now using 'profiles' table as per the new SQL schema
                 const { data, error } = await supabaseClient
                     .from('profiles')
                     .select('*')
@@ -231,9 +232,38 @@
             }
         }
 
+        // REALTIME LISTENER: This ensures the UI updates instantly when the DB changes
+        function setupRealtimeListener() {
+            if (realtimeSubscription) return;
+
+            realtimeSubscription = supabaseClient
+                .channel('public:profiles')
+                .on(
+                    'postgres_changes', 
+                    { 
+                        event: 'UPDATE', 
+                        schema: 'public', 
+                        table: 'profiles', 
+                        filter: `id=eq.${currentUser.id}` 
+                    }, 
+                    (payload) => {
+                        console.log('Realtime Update Received:', payload.new);
+                        userData = payload.new;
+                        updateUI(userData);
+                    }
+                )
+                .subscribe();
+        }
+
         function updateUI(data) {
             if (!data) return;
-            document.getElementById('point-balance').textContent = (data.points || 0).toLocaleString();
+            
+            // Update Balance
+            const balanceEl = document.getElementById('point-balance');
+            if (balanceEl) {
+                // Animate balance change slightly for better UX
+                balanceEl.textContent = (data.points || 0).toLocaleString();
+            }
             
             // Streak UI
             const dots = document.querySelectorAll('.streak-dot');
@@ -253,6 +283,9 @@
                 if (lastDate === today) {
                     btn.disabled = true;
                     btn.textContent = "Checked In";
+                } else {
+                    btn.disabled = false;
+                    btn.textContent = "Check In";
                 }
             }
         }
@@ -285,7 +318,8 @@
             }
 
             try {
-                const { data, error } = await supabaseClient
+                // Update Supabase - Realtime listener will handle the UI update
+                const { error } = await supabaseClient
                     .from('profiles')
                     .update({
                         points: (userData.points || 0) + pointsReward,
@@ -293,14 +327,10 @@
                         last_checkin: now.toISOString(),
                         daily_credits: (userData.daily_credits || 1000) + tokenBonus
                     })
-                    .eq('id', currentUser.id)
-                    .select()
-                    .single();
+                    .eq('id', currentUser.id);
 
                 if (error) throw error;
 
-                userData = data;
-                updateUI(userData);
                 showModal("Daily Check-in", `You earned 50 points!${bonusMsg}`, "fa-calendar-check text-yellow-400");
             } catch (err) {
                 console.error("Checkin error:", err.message);
@@ -333,6 +363,7 @@
         }
 
         async function signOut() {
+            if (realtimeSubscription) supabaseClient.removeChannel(realtimeSubscription);
             await supabaseClient.auth.signOut();
             window.location.reload();
         }
