@@ -209,7 +209,9 @@
                 }
                 currentUser = session.user;
                 document.getElementById('user-email').textContent = currentUser.email;
-                fetchUserData();
+                
+                // Sequence is important
+                await fetchUserData();
                 setupRealtimeListener();
             } catch (err) {
                 console.error("Session check error:", err);
@@ -218,26 +220,45 @@
 
         async function fetchUserData() {
             try {
+                // Use regular select without single() first to avoid 406/coercion errors if row doesn't exist
                 const { data, error } = await supabaseClient
                     .from('profiles')
                     .select('*')
-                    .eq('id', currentUser.id)
-                    .single();
+                    .eq('id', currentUser.id);
 
                 if (error) throw error;
-                userData = data;
+
+                if (!data || data.length === 0) {
+                    console.log("No profile found, creating one...");
+                    // If no profile exists, create it manually
+                    const { data: newData, error: insertError } = await supabaseClient
+                        .from('profiles')
+                        .insert([{ 
+                            id: currentUser.id, 
+                            points: 0, 
+                            streak: 0, 
+                            daily_credits: 1000,
+                            tier: 'Free Tier'
+                        }])
+                        .select();
+                    
+                    if (insertError) throw insertError;
+                    userData = newData[0];
+                } else {
+                    userData = data[0];
+                }
+                
                 updateUI(userData);
             } catch (err) {
                 console.error("Fetch user data error:", err.message);
             }
         }
 
-        // REALTIME LISTENER: This ensures the UI updates instantly when the DB changes
         function setupRealtimeListener() {
-            if (realtimeSubscription) return;
+            if (realtimeSubscription || !currentUser) return;
 
             realtimeSubscription = supabaseClient
-                .channel('public:profiles')
+                .channel('profile_updates')
                 .on(
                     'postgres_changes', 
                     { 
@@ -261,7 +282,6 @@
             // Update Balance
             const balanceEl = document.getElementById('point-balance');
             if (balanceEl) {
-                // Animate balance change slightly for better UX
                 balanceEl.textContent = (data.points || 0).toLocaleString();
             }
             
@@ -283,9 +303,11 @@
                 if (lastDate === today) {
                     btn.disabled = true;
                     btn.textContent = "Checked In";
+                    btn.classList.add('opacity-50', 'cursor-not-allowed');
                 } else {
                     btn.disabled = false;
                     btn.textContent = "Check In";
+                    btn.classList.remove('opacity-50', 'cursor-not-allowed');
                 }
             }
         }
@@ -318,11 +340,13 @@
             }
 
             try {
-                // Update Supabase - Realtime listener will handle the UI update
+                // Optimistic UI update while waiting for DB
+                const updatedPoints = (userData.points || 0) + pointsReward;
+                
                 const { error } = await supabaseClient
                     .from('profiles')
                     .update({
-                        points: (userData.points || 0) + pointsReward,
+                        points: updatedPoints,
                         streak: newStreak,
                         last_checkin: now.toISOString(),
                         daily_credits: (userData.daily_credits || 1000) + tokenBonus
@@ -334,6 +358,7 @@
                 showModal("Daily Check-in", `You earned 50 points!${bonusMsg}`, "fa-calendar-check text-yellow-400");
             } catch (err) {
                 console.error("Checkin error:", err.message);
+                showModal("Check-in Error", "Failed to update points. Please try again.", "fa-triangle-exclamation text-red-400");
             }
         }
 
@@ -363,7 +388,9 @@
         }
 
         async function signOut() {
-            if (realtimeSubscription) supabaseClient.removeChannel(realtimeSubscription);
+            if (realtimeSubscription) {
+                supabaseClient.removeChannel(realtimeSubscription);
+            }
             await supabaseClient.auth.signOut();
             window.location.reload();
         }
