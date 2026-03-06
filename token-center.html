@@ -16,6 +16,8 @@
         .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 10px 15px -3px rgba(59, 130, 246, 0.5); }
         .plan-card { transition: all 0.3s ease; }
         .plan-card:hover { border-color: #6366f1; transform: scale(1.02); }
+        .streak-dot { width: 8px; height: 8px; border-radius: 50%; background: #334155; }
+        .streak-dot.active { background: #3b82f6; box-shadow: 0 0 8px #3b82f6; }
     </style>
 </head>
 <body class="min-h-screen pb-12">
@@ -56,7 +58,36 @@
             <h2 class="text-2xl font-bold mb-6 flex items-center">
                 <i class="fas fa-bolt text-yellow-400 mr-3"></i> Earn Points
             </h2>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <!-- NEW Task: Daily Check-in -->
+                <div class="glass p-6 rounded-2xl border-l-4 border-yellow-500 flex flex-col justify-between">
+                    <div>
+                        <div class="flex justify-between items-start mb-4">
+                            <div class="bg-yellow-500/20 p-3 rounded-xl text-yellow-400">
+                                <i class="fas fa-calendar-check fa-lg"></i>
+                            </div>
+                            <span class="bg-yellow-500 text-white text-xs px-2 py-1 rounded-full font-bold">+50 PTS</span>
+                        </div>
+                        <h3 class="text-lg font-bold mb-2">Daily Sign-in</h3>
+                        <p class="text-xs text-slate-400 mb-4">Check in every day to earn points. Reach 7 days for a token bonus!</p>
+                        
+                        <div class="flex space-x-2 mb-6" id="streak-container">
+                            <div class="streak-dot"></div>
+                            <div class="streak-dot"></div>
+                            <div class="streak-dot"></div>
+                            <div class="streak-dot"></div>
+                            <div class="streak-dot"></div>
+                            <div class="streak-dot"></div>
+                            <div class="streak-dot"></div>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <button id="checkin-btn" onclick="handleCheckIn()" class="w-full text-center py-2 px-4 rounded-xl border border-yellow-500/50 text-yellow-400 hover:bg-yellow-500 hover:text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed">Check In</button>
+                        <p class="text-[10px] text-center mt-2 text-slate-500">7-Day Bonus: 300 Tokens</p>
+                    </div>
+                </div>
+
                 <!-- Task 1 -->
                 <div class="glass p-6 rounded-2xl border-l-4 border-blue-500">
                     <div class="flex justify-between items-start mb-4">
@@ -166,18 +197,17 @@
     </div>
 
     <script>
-        // Configuration
         const SUPABASE_URL = "https://rnlwrngfgvznndlekmrz.supabase.co";
-        const SUPABASE_KEY = "sb_publishable_mtI0_ZBvU_n5oRuqV58QHg_qJt3Gfyt"; // Provided key
-        const supabase = typeof supabase !== 'undefined' ? supabase : supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        const SUPABASE_KEY = "sb_publishable_mtI0_ZBvU_n5oRuqV58QHg_qJt3Gfyt";
+
+        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
         let currentUser = null;
-        let userPoints = 0;
+        let userData = null;
 
         async function checkSession() {
-            const { data: { session } } = await supabase.auth.getSession();
+            const { data: { session } } = await supabaseClient.auth.getSession();
             if (!session) {
-                // Redirect to auth with current path as redirect param
                 const currentPath = window.location.href;
                 window.location.href = `auth.html?redirect=${encodeURIComponent(currentPath)}`;
                 return;
@@ -189,21 +219,29 @@
 
         async function fetchUserData() {
             try {
-                const { data, error } = await supabase
+                const { data, error } = await supabaseClient
                     .from('user_stats')
                     .select('*')
                     .eq('id', currentUser.id)
                     .single();
 
                 if (error && error.code === 'PGRST116') {
-                    // Create user if not exists
-                    const { data: newData } = await supabase
+                    const { data: newData } = await supabaseClient
                         .from('user_stats')
-                        .insert([{ id: currentUser.id, points: 0, plan: 'free', credits: 1000 }])
+                        .insert([{ 
+                            id: currentUser.id, 
+                            points: 0, 
+                            plan: 'free', 
+                            daily_credits: 1000,
+                            streak: 0,
+                            last_checkin: null 
+                        }])
                         .select()
                         .single();
+                    userData = newData;
                     updateUI(newData);
                 } else {
+                    userData = data;
                     updateUI(data);
                 }
             } catch (err) {
@@ -212,8 +250,84 @@
         }
 
         function updateUI(data) {
-            userPoints = data.points || 0;
-            document.getElementById('point-balance').textContent = userPoints.toLocaleString();
+            if (!data) return;
+            document.getElementById('point-balance').textContent = (data.points || 0).toLocaleString();
+            
+            // Update Streak UI
+            const dots = document.querySelectorAll('.streak-dot');
+            dots.forEach((dot, index) => {
+                if (index < data.streak) {
+                    dot.classList.add('active');
+                } else {
+                    dot.classList.remove('active');
+                }
+            });
+
+            // Check if user can check in today
+            const btn = document.getElementById('checkin-btn');
+            if (data.last_checkin) {
+                const lastDate = new Date(data.last_checkin).toDateString();
+                const today = new Date().toDateString();
+                if (lastDate === today) {
+                    btn.disabled = true;
+                    btn.textContent = "Checked In";
+                }
+            }
+        }
+
+        async function handleCheckIn() {
+            if (!userData) return;
+
+            const now = new Date();
+            const today = now.toDateString();
+            const lastCheckin = userData.last_checkin ? new Date(userData.last_checkin) : null;
+            
+            if (lastCheckin && lastCheckin.toDateString() === today) return;
+
+            // Calculate streak
+            let newStreak = (userData.streak || 0) + 1;
+            
+            // Check if streak was broken (missed more than 1 day)
+            if (lastCheckin) {
+                const diffTime = Math.abs(now - lastCheckin);
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                if (diffDays > 1) {
+                    newStreak = 1; // Reset to 1 if more than 24h passed since end of last checkin day
+                }
+            }
+
+            // Reward Logic
+            let pointsReward = 50;
+            let tokenBonus = 0;
+            let bonusMsg = "";
+
+            if (newStreak === 7) {
+                tokenBonus = 300;
+                bonusMsg = " + 7-Day Bonus: 300 Tokens!";
+                newStreak = 0; // Reset streak after completion
+            }
+
+            try {
+                const { data, error } = await supabaseClient
+                    .from('user_stats')
+                    .update({
+                        points: userData.points + pointsReward,
+                        streak: newStreak,
+                        last_checkin: now.toISOString(),
+                        daily_credits: (userData.daily_credits || 0) + tokenBonus
+                    })
+                    .eq('id', currentUser.id)
+                    .select()
+                    .single();
+
+                if (!error) {
+                    userData = data;
+                    updateUI(data);
+                    showModal("Daily Check-in", `You earned 50 points!${bonusMsg}`, "fa-calendar-check text-yellow-400");
+                }
+            } catch (err) {
+                console.error("Checkin error:", err);
+            }
         }
 
         async function selectPlan(planType) {
@@ -221,12 +335,11 @@
             if (planType === 'premium') cost = 600;
             if (planType === 'vip') cost = 1000;
 
-            if (userPoints < cost) {
+            if (userData.points < cost) {
                 showModal("Insufficient Points", `You need ${cost} points for the ${planType} plan. Complete tasks above to earn more!`, "fa-circle-xmark text-red-500");
                 return;
             }
 
-            // Verification logic placeholder
             showModal("Verification Pending", `Our team will verify your points balance and activate the ${planType} plan within 24 hours.`, "fa-clock text-blue-400");
         }
 
@@ -244,7 +357,7 @@
         }
 
         async function signOut() {
-            await supabase.auth.signOut();
+            await supabaseClient.auth.signOut();
             window.location.reload();
         }
 
