@@ -59,7 +59,7 @@
                 <i class="fas fa-bolt text-yellow-400 mr-3"></i> Earn Points
             </h2>
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <!-- NEW Task: Daily Check-in -->
+                <!-- Task: Daily Check-in -->
                 <div class="glass p-6 rounded-2xl border-l-4 border-yellow-500 flex flex-col justify-between">
                     <div>
                         <div class="flex justify-between items-start mb-4">
@@ -200,33 +200,41 @@
         const SUPABASE_URL = "https://rnlwrngfgvznndlekmrz.supabase.co";
         const SUPABASE_KEY = "sb_publishable_mtI0_ZBvU_n5oRuqV58QHg_qJt3Gfyt";
 
+        // Global Supabase Client
         const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
         let currentUser = null;
         let userData = null;
 
         async function checkSession() {
-            const { data: { session } } = await supabaseClient.auth.getSession();
-            if (!session) {
-                const currentPath = window.location.href;
-                window.location.href = `auth.html?redirect=${encodeURIComponent(currentPath)}`;
-                return;
+            try {
+                const { data: { session }, error } = await supabaseClient.auth.getSession();
+                if (error || !session) {
+                    const currentPath = window.location.href;
+                    window.location.href = `auth.html?redirect=${encodeURIComponent(currentPath)}`;
+                    return;
+                }
+                currentUser = session.user;
+                document.getElementById('user-email').textContent = currentUser.email;
+                fetchUserData();
+            } catch (err) {
+                console.error("Session check error:", err);
             }
-            currentUser = session.user;
-            document.getElementById('user-email').textContent = currentUser.email;
-            fetchUserData();
         }
 
         async function fetchUserData() {
             try {
+                // Simplified query to avoid 400/406 errors caused by complex selections or missing RLS
                 const { data, error } = await supabaseClient
                     .from('user_stats')
                     .select('*')
-                    .eq('id', currentUser.id)
-                    .single();
+                    .eq('id', currentUser.id);
 
-                if (error && error.code === 'PGRST116') {
-                    const { data: newData } = await supabaseClient
+                if (error) throw error;
+
+                if (!data || data.length === 0) {
+                    // Create user if not exists
+                    const { data: newData, error: insertError } = await supabaseClient
                         .from('user_stats')
                         .insert([{ 
                             id: currentUser.id, 
@@ -236,27 +244,31 @@
                             streak: 0,
                             last_checkin: null 
                         }])
-                        .select()
-                        .single();
-                    userData = newData;
-                    updateUI(newData);
+                        .select();
+                    
+                    if (insertError) throw insertError;
+                    userData = newData[0];
+                    updateUI(userData);
                 } else {
-                    userData = data;
-                    updateUI(data);
+                    userData = data[0];
+                    updateUI(userData);
                 }
             } catch (err) {
-                console.error("Fetch error:", err);
+                console.error("Fetch user data error:", err.message);
+                // Fallback UI for testing if DB is unreachable/misconfigured
+                updateUI({ points: 0, streak: 0 });
             }
         }
 
         function updateUI(data) {
             if (!data) return;
-            document.getElementById('point-balance').textContent = (data.points || 0).toLocaleString();
+            const balanceEl = document.getElementById('point-balance');
+            if (balanceEl) balanceEl.textContent = (data.points || 0).toLocaleString();
             
             // Update Streak UI
             const dots = document.querySelectorAll('.streak-dot');
             dots.forEach((dot, index) => {
-                if (index < data.streak) {
+                if (index < (data.streak || 0)) {
                     dot.classList.add('active');
                 } else {
                     dot.classList.remove('active');
@@ -265,7 +277,7 @@
 
             // Check if user can check in today
             const btn = document.getElementById('checkin-btn');
-            if (data.last_checkin) {
+            if (btn && data.last_checkin) {
                 const lastDate = new Date(data.last_checkin).toDateString();
                 const today = new Date().toDateString();
                 if (lastDate === today) {
@@ -276,7 +288,7 @@
         }
 
         async function handleCheckIn() {
-            if (!userData) return;
+            if (!userData || !currentUser) return;
 
             const now = new Date();
             const today = now.toDateString();
@@ -287,16 +299,14 @@
             // Calculate streak
             let newStreak = (userData.streak || 0) + 1;
             
-            // Check if streak was broken (missed more than 1 day)
             if (lastCheckin) {
                 const diffTime = Math.abs(now - lastCheckin);
                 const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
                 if (diffDays > 1) {
-                    newStreak = 1; // Reset to 1 if more than 24h passed since end of last checkin day
+                    newStreak = 1; 
                 }
             }
 
-            // Reward Logic
             let pointsReward = 50;
             let tokenBonus = 0;
             let bonusMsg = "";
@@ -304,33 +314,35 @@
             if (newStreak === 7) {
                 tokenBonus = 300;
                 bonusMsg = " + 7-Day Bonus: 300 Tokens!";
-                newStreak = 0; // Reset streak after completion
+                newStreak = 0; 
             }
 
             try {
                 const { data, error } = await supabaseClient
                     .from('user_stats')
                     .update({
-                        points: userData.points + pointsReward,
+                        points: (userData.points || 0) + pointsReward,
                         streak: newStreak,
                         last_checkin: now.toISOString(),
                         daily_credits: (userData.daily_credits || 0) + tokenBonus
                     })
                     .eq('id', currentUser.id)
-                    .select()
-                    .single();
+                    .select();
 
-                if (!error) {
-                    userData = data;
-                    updateUI(data);
+                if (error) throw error;
+
+                if (data && data.length > 0) {
+                    userData = data[0];
+                    updateUI(userData);
                     showModal("Daily Check-in", `You earned 50 points!${bonusMsg}`, "fa-calendar-check text-yellow-400");
                 }
             } catch (err) {
-                console.error("Checkin error:", err);
+                console.error("Checkin error:", err.message);
             }
         }
 
         async function selectPlan(planType) {
+            if (!userData) return;
             let cost = 0;
             if (planType === 'premium') cost = 600;
             if (planType === 'vip') cost = 1000;
