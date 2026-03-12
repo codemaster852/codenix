@@ -26,7 +26,7 @@
 <body class="bg-[#0f172a] text-slate-100 font-sans min-h-screen">
 
     <!-- Loading Overlay -->
-    <div id="loading-overlay" class="fixed inset-0 z-50 bg-[#0f172a] flex items-center justify-center">
+    <div id="loading-overlay" class="fixed inset-0 z-50 bg-[#0f172a] flex items-center justify-center transition-opacity duration-500">
         <div class="text-center">
             <i class="fas fa-sync fa-spin text-4xl text-purple-500 mb-4"></i>
             <p class="text-slate-400 font-mono">Verifying Neural Clearance...</p>
@@ -68,9 +68,9 @@
                     
                     <!-- Tabs -->
                     <div class="flex gap-2 mb-6">
-                        <button onclick="switchTab('manual')" id="tab-manual" class="flex-1 py-2 text-[10px] font-bold rounded-lg bg-purple-600 text-white shadow-lg uppercase tracking-wider">Manual</button>
-                        <button onclick="switchTab('import')" id="tab-import" class="flex-1 py-2 text-[10px] font-bold rounded-lg bg-slate-700/50 text-slate-400 hover:bg-slate-700 uppercase tracking-wider">Import</button>
-                        <button onclick="switchTab('chat')" id="tab-chat" class="flex-1 py-2 text-[10px] font-bold rounded-lg bg-slate-700/50 text-slate-400 hover:bg-slate-700 uppercase tracking-wider">Chat</button>
+                        <button onclick="switchTab('manual')" id="tab-manual" class="flex-1 py-2 text-[10px] font-bold rounded-lg bg-purple-600 text-white shadow-lg uppercase tracking-wider transition-all">Manual</button>
+                        <button onclick="switchTab('import')" id="tab-import" class="flex-1 py-2 text-[10px] font-bold rounded-lg bg-slate-700/50 text-slate-400 hover:bg-slate-700 uppercase tracking-wider transition-all">Import</button>
+                        <button onclick="switchTab('chat')" id="tab-chat" class="flex-1 py-2 text-[10px] font-bold rounded-lg bg-slate-700/50 text-slate-400 hover:bg-slate-700 uppercase tracking-wider transition-all">Chat</button>
                     </div>
 
                     <!-- Manual Form -->
@@ -82,8 +82,8 @@
                             <option>Projects</option>
                             <option>Preferences</option>
                         </select>
-                        <input id="mem-date" type="text" placeholder="Date [YYYY-MM-DD] or [unknown]" class="w-full bg-slate-900/80 border border-slate-700 rounded-lg p-3 text-sm focus:border-purple-500 outline-none text-slate-200">
-                        <textarea id="mem-content" placeholder="Describe the memory..." class="w-full bg-slate-900/80 border border-slate-700 rounded-lg p-3 text-sm h-32 focus:border-purple-500 outline-none resize-none text-slate-200"></textarea>
+                        <input id="mem-date" type="text" placeholder="Date [YYYY-MM-DD]" class="w-full bg-slate-900/80 border border-slate-700 rounded-lg p-3 text-sm focus:border-purple-500 outline-none text-slate-200">
+                        <textarea id="mem-content" placeholder="What should Nix 4 remember about you?" class="w-full bg-slate-900/80 border border-slate-700 rounded-lg p-3 text-sm h-32 focus:border-purple-500 outline-none resize-none text-slate-200"></textarea>
                         <button onclick="addManualMemory()" class="w-full bg-purple-600 hover:bg-purple-500 py-3 rounded-lg font-bold transition-all shadow-lg shadow-purple-900/20 active:scale-95">
                             Store Memory
                         </button>
@@ -100,16 +100,20 @@
                     <!-- Chat Notice -->
                     <div id="panel-chat" class="py-8 text-center space-y-4 hidden animate-fade-in">
                         <i class="fas fa-comment-alt text-3xl text-slate-700"></i>
-                        <p class="text-sm text-slate-400 px-4">Automatic memory indexing is active during live conversations.</p>
+                        <p class="text-sm text-slate-400 px-4">The Neural Monitor is syncing with your chat logs. Nix 4 will automatically extract memories from future conversations.</p>
+                        <div class="flex items-center justify-center gap-2">
+                             <div class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                             <span class="text-[10px] text-slate-500 font-mono uppercase">Monitor Active</span>
+                        </div>
                     </div>
                 </div>
 
-                <div class="bg-slate-800/40 border border-slate-700 p-4 rounded-2xl flex items-center justify-between border-l-4 border-l-blue-500">
+                <div class="bg-slate-800/40 border border-slate-700 p-4 rounded-2xl flex items-center justify-between border-l-4 border-l-purple-500">
                     <div>
-                        <p class="text-[10px] text-slate-500 uppercase font-bold">Secure Access</p>
-                        <p class="text-sm font-mono text-blue-400">Supabase Auth Verified</p>
+                        <p class="text-[10px] text-slate-500 uppercase font-bold">Cloud Sync</p>
+                        <p class="text-sm font-mono text-purple-400">Supabase Connected</p>
                     </div>
-                    <i class="fas fa-link text-blue-500"></i>
+                    <i class="fas fa-bolt text-purple-500"></i>
                 </div>
             </div>
 
@@ -121,14 +125,14 @@
                             <i class="fas fa-brain text-purple-400"></i> Memory Vault
                         </h2>
                         <div class="flex gap-2">
-                            <button onclick="syncData()" class="p-2 bg-slate-800 border border-slate-700 rounded-lg hover:bg-slate-700 transition-colors">
+                            <button onclick="fetchMemories()" class="p-2 bg-slate-800 border border-slate-700 rounded-lg hover:bg-slate-700 transition-colors" title="Force Refresh">
                                 <i class="fas fa-sync-alt text-slate-400"></i>
                             </button>
                         </div>
                     </div>
 
                     <div id="memories-container" class="flex-1 overflow-y-auto space-y-4 pr-2 custom-scrollbar">
-                        <!-- Memories will be injected here -->
+                        <!-- Memories injected here -->
                     </div>
                 </div>
             </div>
@@ -140,153 +144,172 @@
         <div id="toast-icon-bg" class="p-2 rounded-lg bg-green-500/20 text-green-400">
             <i id="toast-icon" class="fas fa-check"></i>
         </div>
-        <p id="toast-message" class="text-sm font-medium">Message here</p>
+        <p id="toast-message" class="text-sm font-medium">Processing...</p>
     </div>
 
-    <!-- Firebase SDKs -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getFirestore, collection, addDoc, onSnapshot, query, doc, deleteDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-
-        // CONFIGURATION
+    <script>
+        // SUPABASE CONFIGURATION
         const SUPABASE_URL = "https://rnlwrngfgvznndlekmrz.supabase.co";
         const SUPABASE_KEY = "sb_publishable_mtI0_ZBvU_n5oRuqV58QHg_qJt3Gfyt";
-        const firebaseConfig = JSON.parse(__firebase_config);
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'nix-4-memory';
 
-        // GLOBAL STATE
         let supabaseClient = null;
-        let db = null;
-        let auth = null;
-        let currentSupabaseUser = null;
+        let currentUserId = null;
         let systemEnabled = true;
 
-        // INITIALIZATION
         async function init() {
             try {
-                // Initialize Supabase
+                // Initialize Supabase Client
                 supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
                 
-                // Check Session
+                // Get Auth Session
                 const { data: { session }, error } = await supabaseClient.auth.getSession();
+                
                 if (error || !session) {
+                    // If no session, redirect or handle auth (assumes auth.html exists or handles redirect)
+                    console.log("No active session found.");
                     const currentUrl = window.location.href;
                     window.location.href = `auth.html?redirectTo=${encodeURIComponent(currentUrl)}`;
                     return;
                 }
-                currentSupabaseUser = session.user;
+
+                currentUserId = session.user.id;
                 document.getElementById('user-display').innerText = session.user.email || session.user.id;
 
-                // Initialize Firebase
-                const app = initializeApp(firebaseConfig);
-                db = getFirestore(app);
-                auth = getAuth(app);
-
-                // Sign in anonymously for Firebase Firestore access
-                await signInAnonymously(auth);
-
-                // Setup Listeners
-                setupFirestoreListener();
+                // Load Memories
+                await fetchMemories();
                 
-                // Hide Loader
-                document.getElementById('loading-overlay').classList.add('hidden');
+                // Setup Real-time listener
+                setupSubscription();
+                
+                // Hide Loading UI
+                const loader = document.getElementById('loading-overlay');
+                loader.style.opacity = '0';
+                setTimeout(() => loader.classList.add('hidden'), 500);
+
             } catch (err) {
-                console.error("Init error:", err);
-                showToast("System initialization failed", "error");
+                console.error("Initialization error:", err);
+                showToast("Connection failed", "error");
             }
         }
 
-        // FIRESTORE LISTENER
-        function setupFirestoreListener() {
-            const memoryCollection = collection(db, 'artifacts', appId, 'users', currentSupabaseUser.id, 'memories');
-            const q = query(memoryCollection);
+        // DATABASE: Fetch from user_memories
+        async function fetchMemories() {
+            if (!currentUserId) return;
+            
+            const { data, error } = await supabaseClient
+                .from('user_memories')
+                .select('*')
+                .eq('user_id', currentUserId)
+                .order('created_at', { ascending: false });
 
-            onSnapshot(q, (snapshot) => {
-                const memories = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                // Sort by creation date
-                memories.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
-                renderMemories(memories);
-            }, (err) => {
-                console.error("Firestore error:", err);
-            });
+            if (error) {
+                console.error("Fetch error:", error);
+                showToast("Error loading vault", "error");
+                return;
+            }
+            renderMemories(data);
         }
 
-        // RENDER UI
+        // DATABASE: Subscribe to changes
+        function setupSubscription() {
+            supabaseClient
+                .channel('memory-updates')
+                .on('postgres_changes', { 
+                    event: '*', 
+                    schema: 'public', 
+                    table: 'user_memories',
+                    filter: `user_id=eq.${currentUserId}` 
+                }, (payload) => {
+                    fetchMemories();
+                })
+                .subscribe();
+        }
+
+        // UI: Render List
         function renderMemories(memories) {
             const container = document.getElementById('memories-container');
-            if (memories.length === 0) {
+            if (!memories || memories.length === 0) {
                 container.innerHTML = `
-                    <div class="flex flex-col items-center justify-center h-64 text-slate-500">
-                        <i class="fas fa-brain text-4xl mb-4 opacity-20"></i>
-                        <p class="italic">The vault is currently empty.</p>
+                    <div class="flex flex-col items-center justify-center h-64 text-slate-600">
+                        <i class="fas fa-brain text-5xl mb-4 opacity-10"></i>
+                        <p class="italic text-sm">Neural repository is currently empty.</p>
                     </div>
                 `;
                 return;
             }
 
             container.innerHTML = memories.map(mem => `
-                <div class="bg-slate-900/50 p-4 rounded-xl border border-slate-700/50 hover:border-purple-500/30 transition-all group relative animate-fade-in">
-                    <div class="flex justify-between items-start mb-2">
-                        <div class="flex items-center gap-2">
-                            <span class="text-[9px] bg-slate-700 text-slate-300 px-2 py-0.5 rounded uppercase font-bold tracking-tighter">
+                <div class="bg-slate-900/40 p-5 rounded-xl border border-slate-700/50 hover:border-purple-500/40 transition-all group animate-fade-in">
+                    <div class="flex justify-between items-start mb-3">
+                        <div class="flex items-center gap-3">
+                            <span class="text-[10px] bg-purple-900/30 text-purple-300 border border-purple-500/20 px-2 py-0.5 rounded uppercase font-bold tracking-widest">
                                 ${mem.category || 'General'}
                             </span>
                             <span class="text-[10px] text-slate-500 font-mono">
-                                ${mem.dateLabel || '[unknown]'}
+                                ${mem.date_label || '[unknown]'}
                             </span>
                         </div>
-                        <button onclick="window.deleteMemory('${mem.id}')" class="text-slate-600 hover:text-red-400 transition-colors">
-                            <i class="fas fa-trash-alt"></i>
+                        <button onclick="deleteMemory('${mem.id}')" class="text-slate-700 hover:text-red-400 transition-colors p-1">
+                            <i class="fas fa-trash-alt text-xs"></i>
                         </button>
                     </div>
-                    <p class="text-sm text-slate-300 leading-relaxed pr-6">${mem.content}</p>
-                    <div class="mt-3 flex items-center gap-4 text-[10px] text-slate-600 font-mono">
-                        <span class="flex items-center gap-1"><i class="fas fa-user text-[8px]"></i> ${mem.source || 'manual'}</span>
-                        ${mem.createdAt ? `<span>Stored: ${new Date(mem.createdAt.seconds * 1000).toLocaleDateString()}</span>` : ''}
+                    <p class="text-sm text-slate-300 leading-relaxed">${mem.content}</p>
+                    <div class="mt-4 pt-3 border-t border-slate-800/50 flex items-center justify-between text-[9px] text-slate-600 font-mono uppercase tracking-tighter">
+                        <div class="flex gap-4">
+                            <span>Source: ${mem.source || 'manual'}</span>
+                            <span>Stored: ${new Date(mem.created_at).toLocaleDateString()}</span>
+                        </div>
+                        <i class="fas fa-shield-alt opacity-20"></i>
                     </div>
                 </div>
             `).join('');
         }
 
-        // ACTIONS
+        // ACTIONS: Add Memory
         window.addManualMemory = async () => {
             const content = document.getElementById('mem-content').value;
             const category = document.getElementById('mem-category').value;
             const date = document.getElementById('mem-date').value;
 
-            if (!systemEnabled || !content.trim()) return;
+            if (!systemEnabled) {
+                showToast("System is disabled", "error");
+                return;
+            }
+            if (!content.trim()) return;
 
-            try {
-                const memoryCollection = collection(db, 'artifacts', appId, 'users', currentSupabaseUser.id, 'memories');
-                await addDoc(memoryCollection, {
-                    category,
-                    dateLabel: date || '[unknown]',
-                    content,
-                    source: 'manual',
-                    createdAt: serverTimestamp(),
-                    supabaseId: currentSupabaseUser.id
-                });
-                
+            const { error } = await supabaseClient
+                .from('user_memories')
+                .insert([{
+                    user_id: currentUserId,
+                    content: content.trim(),
+                    category: category,
+                    date_label: date.trim() || '[unknown]',
+                    source: 'manual'
+                }]);
+
+            if (error) {
+                showToast("Save failed", "error");
+            } else {
                 document.getElementById('mem-content').value = '';
                 document.getElementById('mem-date').value = '';
-                showToast("Memory stored successfully");
-            } catch (err) {
-                showToast("Failed to save memory", "error");
+                showToast("Neural link established");
             }
         };
 
+        // ACTIONS: Delete
         window.deleteMemory = async (id) => {
-            if (!confirm("Are you sure you want to purge this memory?")) return;
-            try {
-                const docRef = doc(db, 'artifacts', appId, 'users', currentSupabaseUser.id, 'memories', id);
-                await deleteDoc(docRef);
-                showToast("Memory purged");
-            } catch (err) {
-                showToast("Failed to delete", "error");
-            }
+            if (!confirm("Confirm neural purge?")) return;
+            
+            const { error } = await supabaseClient
+                .from('user_memories')
+                .delete()
+                .eq('id', id);
+
+            if (error) showToast("Deletion failed", "error");
+            else showToast("Memory purged");
         };
 
+        // ACTIONS: Import
         window.processImport = async () => {
             const payload = document.getElementById('import-payload').value;
             if (!systemEnabled || !payload.trim()) return;
@@ -297,44 +320,41 @@
             sections.forEach(section => {
                 const lines = section.split('\n');
                 const title = lines[0].trim();
-                let cat = "";
+                let cat = "General";
+                
                 if (/Instructions/i.test(title)) cat = "Instructions";
                 else if (/Identity/i.test(title)) cat = "Identity";
                 else if (/Career/i.test(title)) cat = "Career";
                 else if (/Projects/i.test(title)) cat = "Projects";
                 else if (/Preferences/i.test(title)) cat = "Preferences";
 
-                if (cat) {
-                    lines.slice(1).forEach(line => {
-                        const match = line.match(/^\[(.*?)\]\s*-\s*(.*)/);
-                        if (match) {
-                            batch.push({
-                                category: cat,
-                                dateLabel: `[${match[1]}]`,
-                                content: match[2].trim(),
-                                source: 'import',
-                                createdAt: serverTimestamp(),
-                                supabaseId: currentSupabaseUser.id
-                            });
-                        }
-                    });
-                }
+                lines.slice(1).forEach(line => {
+                    const match = line.match(/^\[(.*?)\]\s*-\s*(.*)/);
+                    if (match) {
+                        batch.push({
+                            user_id: currentUserId,
+                            category: cat,
+                            date_label: `[${match[1]}]`,
+                            content: match[2].trim(),
+                            source: 'import'
+                        });
+                    }
+                });
             });
 
             if (batch.length > 0) {
-                try {
-                    const memoryCollection = collection(db, 'artifacts', appId, 'users', currentSupabaseUser.id, 'memories');
-                    await Promise.all(batch.map(m => addDoc(memoryCollection, m)));
+                const { error } = await supabaseClient.from('user_memories').insert(batch);
+                if (error) showToast("Import failed", "error");
+                else {
                     document.getElementById('import-payload').value = '';
-                    showToast(`Imported ${batch.length} entries`);
-                } catch (err) {
-                    showToast("Import failed", "error");
+                    showToast(`Synced ${batch.length} nodes`);
                 }
             } else {
-                showToast("No valid entries found", "error");
+                showToast("Invalid format", "error");
             }
         };
 
+        // UI HELPERS
         window.handleLogout = async () => {
             await supabaseClient.auth.signOut();
             window.location.href = 'auth.html';
@@ -362,14 +382,12 @@
         window.switchTab = (tabId) => {
             ['manual', 'import', 'chat'].forEach(id => {
                 document.getElementById(`panel-${id}`).classList.add('hidden');
-                document.getElementById(`tab-${id}`).className = "flex-1 py-2 text-[10px] font-bold rounded-lg bg-slate-700/50 text-slate-400 hover:bg-slate-700 uppercase tracking-wider";
+                document.getElementById(`tab-${id}`).className = "flex-1 py-2 text-[10px] font-bold rounded-lg bg-slate-700/50 text-slate-400 hover:bg-slate-700 uppercase tracking-wider transition-all";
             });
             
             document.getElementById(`panel-${tabId}`).classList.remove('hidden');
-            document.getElementById(`tab-${tabId}`).className = "flex-1 py-2 text-[10px] font-bold rounded-lg bg-purple-600 text-white shadow-lg uppercase tracking-wider";
+            document.getElementById(`tab-${tabId}`).className = "flex-1 py-2 text-[10px] font-bold rounded-lg bg-purple-600 text-white shadow-lg uppercase tracking-wider transition-all";
         };
-
-        window.syncData = () => showToast("Syncing neural patterns...");
 
         function showToast(message, type = 'success') {
             const toast = document.getElementById('toast');
@@ -381,18 +399,18 @@
             if (type === 'success') {
                 icon.className = "fas fa-check";
                 iconBg.className = "p-2 rounded-lg bg-green-500/20 text-green-400";
-                toast.classList.replace('border-red-500/50', 'border-green-500/50');
+                toast.style.borderColor = "rgba(34, 197, 94, 0.4)";
             } else {
                 icon.className = "fas fa-exclamation-triangle";
                 iconBg.className = "p-2 rounded-lg bg-red-500/20 text-red-400";
-                toast.classList.replace('border-green-500/50', 'border-red-500/50');
+                toast.style.borderColor = "rgba(239, 68, 68, 0.4)";
             }
 
             toast.classList.replace('toast-hidden', 'toast-visible');
             setTimeout(() => toast.classList.replace('toast-visible', 'toast-hidden'), 3000);
         }
 
-        // Start App
+        // ENTRY
         document.addEventListener('DOMContentLoaded', init);
     </script>
 </body>
