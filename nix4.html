@@ -88,6 +88,16 @@
 
         .rtl { direction: rtl; }
         .ltr { direction: ltr; }
+        
+        /* Memory Pulse Animation */
+        .memory-active {
+            animation: memoryPulse 2s infinite;
+        }
+        @keyframes memoryPulse {
+            0% { color: var(--text-secondary); }
+            50% { color: var(--accent); }
+            100% { color: var(--text-secondary); }
+        }
     </style>
 </head>
 <body class="dark">
@@ -115,10 +125,12 @@
             const [showSettings, setShowSettings] = useState(false);
             const [isSidebarOpen, setIsSidebarOpen] = useState(false);
             
-            // File Upload State
+            // Memory State
+            const [memoryEnabled, setMemoryEnabled] = useState(true);
+            const [userMemories, setUserMemories] = useState([]);
+            
             const [attachedFiles, setAttachedFiles] = useState([]);
             const fileInputRef = useRef(null);
-            
             const scrollRef = useRef(null);
             const textareaRef = useRef(null);
 
@@ -130,6 +142,7 @@
                     } else {
                         setUser(session.user);
                         fetchConversations(session.user.id);
+                        fetchUserMemory(session.user.id);
                     }
                 };
                 checkUser();
@@ -147,6 +160,42 @@
                     });
                 }
             }, [messages, isTyping]);
+
+            const fetchUserMemory = async (userId) => {
+                const { data, error } = await supabaseClient
+                    .from('user_memories')
+                    .select('content')
+                    .eq('user_id', userId)
+                    .order('created_at', { ascending: false })
+                    .limit(5);
+                if (!error && data) setUserMemories(data.map(m => m.content));
+            };
+
+            const saveNewMemory = async (userId, content) => {
+                if (!memoryEnabled) return;
+                // AI-driven extraction: Logic to summarize key user facts
+                try {
+                    const res = await fetch(API_URL, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${API_KEY}` },
+                        body: JSON.stringify({
+                            model: "LongCat-Flash-Chat",
+                            messages: [
+                                { role: "system", content: "Extract ONE short, factual piece of information about the user from this message. Format: 'User likes X' or 'User is Y'. If nothing new or relevant, reply 'NONE'." },
+                                { role: "user", content: content }
+                            ],
+                            max_tokens: 30
+                        })
+                    });
+                    const data = await res.json();
+                    const extracted = data.choices[0].message.content;
+                    
+                    if (extracted && extracted !== "NONE") {
+                        await supabaseClient.from('user_memories').insert([{ user_id: userId, content: extracted }]);
+                        setUserMemories(prev => [extracted, ...prev].slice(0, 5));
+                    }
+                } catch (e) { console.error("Memory Update Error", e); }
+            };
 
             const fetchConversations = async (userId) => {
                 const { data, error } = await supabaseClient
@@ -200,7 +249,6 @@
             const handleFileUpload = (e) => {
                 const files = Array.from(e.target.files);
                 setAttachedFiles(prev => [...prev, ...files]);
-                // Reset input so same file can be selected again
                 if (fileInputRef.current) fileInputRef.current.value = "";
             };
 
@@ -222,7 +270,7 @@
 
                 let currentQuery = input;
                 const filesToProcess = [...attachedFiles];
-                setAttachedFiles([]); // Clear UI immediately
+                setAttachedFiles([]); 
 
                 let currentConvId = activeConvId;
                 const isFirstMsg = !currentConvId;
@@ -239,7 +287,6 @@
                     setConversations([data, ...conversations]);
                 }
 
-                // If files are present, read them and append to query
                 let contextFromFiles = "";
                 if (filesToProcess.length > 0) {
                     for (const file of filesToProcess) {
@@ -251,6 +298,11 @@
                         }
                     }
                 }
+
+                // Inject Memory into System Prompt if enabled
+                const memoryPrompt = (memoryEnabled && userMemories.length > 0) 
+                    ? `[Memory: You remember these facts about the user: ${userMemories.join(', ')}. Use this to personalize your response.]`
+                    : "";
 
                 const fullContent = currentQuery + (contextFromFiles ? `\n\n[System: The user attached the following files:]\n${contextFromFiles}` : "");
 
@@ -269,7 +321,7 @@
                         body: JSON.stringify({
                             model: "LongCat-Flash-Chat",
                             messages: [
-                                { role: "system", content: "You are Nix 4, a world-class AI assistant. Provide expert-level, concise responses. You can see the content of uploaded files if provided." },
+                                { role: "system", content: `You are Nix 4, a world-class AI assistant. Provide expert-level, concise responses. ${memoryPrompt}` },
                                 ...messages.map(m => ({ role: m.role, content: m.content })),
                                 { role: "user", content: fullContent }
                             ]
@@ -281,6 +333,9 @@
                     const aiMsg = { conversation_id: currentConvId, role: 'assistant', content: aiResponseText };
                     setMessages(prev => [...prev, aiMsg]);
                     await supabaseClient.from('messages').insert([aiMsg]);
+
+                    // Update memory with latest user input
+                    saveNewMemory(user.id, currentQuery);
 
                     if (messages.length <= 2) {
                         const newTitle = await generateTitle(currentQuery || "File Analysis");
@@ -341,12 +396,10 @@
 
             return (
                 <div className={`flex h-[100dvh] w-full bg-[var(--bg-main)] ${uiLang === 'ar' ? 'rtl' : 'ltr'}`}>
-                    {/* PC Sidebar */}
                     <aside className="hidden lg:flex w-72 border-r border-[var(--border)] flex-col shrink-0">
                         <SidebarContent />
                     </aside>
 
-                    {/* Mobile Sidebar */}
                     <div className={`fixed inset-0 z-50 lg:hidden ${isSidebarOpen ? 'visible' : 'invisible'}`}>
                         <div className={`absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity ${isSidebarOpen ? 'opacity-100' : 'opacity-0'}`} onClick={() => setIsSidebarOpen(false)} />
                         <div className={`absolute left-0 top-0 bottom-0 w-80 sidebar-transition ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
@@ -355,7 +408,6 @@
                     </div>
 
                     <main className="flex-1 flex flex-col relative min-w-0">
-                        {/* Header */}
                         <header className="flex items-center justify-between h-16 px-4 lg:px-10 glass-panel z-10 shrink-0">
                             <div className="flex items-center gap-4">
                                 <button onClick={() => setIsSidebarOpen(true)} className="lg:hidden p-2 -ml-2 text-[var(--text-secondary)]">
@@ -365,9 +417,17 @@
                                     <div className="w-9 h-9 rounded-xl bg-[var(--accent)] flex items-center justify-center shadow-lg shadow-indigo-500/20">
                                         <span className="text-[10px] font-black text-white">N4</span>
                                     </div>
-                                    <h2 className="text-sm font-bold truncate max-w-[150px] md:max-w-none">
-                                        {activeConvId ? conversations.find(c => c.id === activeConvId)?.title : 'Nix 4'}
-                                    </h2>
+                                    <div className="flex flex-col">
+                                        <h2 className="text-sm font-bold truncate max-w-[150px] md:max-w-none">
+                                            {activeConvId ? conversations.find(c => c.id === activeConvId)?.title : 'Nix 4'}
+                                        </h2>
+                                        {memoryEnabled && (
+                                            <span className="text-[9px] font-bold text-[var(--accent)] flex items-center gap-1 memory-active">
+                                                <svg className="w-2 h-2" fill="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/></svg>
+                                                Memory Active
+                                            </span>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
                             <div className="flex items-center gap-3">
@@ -384,15 +444,17 @@
                             </div>
                         </header>
 
-                        {/* Chat Window */}
                         <div ref={scrollRef} className="flex-1 overflow-y-auto chat-scroll px-4 md:px-12 py-8 space-y-10">
                             <div className="max-w-4xl mx-auto pb-48">
                                 {messages.length === 0 && (
                                     <div className="h-[60vh] flex flex-col items-center justify-center text-center">
                                         <div className="w-24 h-24 rounded-[2.5rem] bg-[var(--accent)] flex items-center justify-center text-5xl mb-8 shadow-2xl animate-pulse">✦</div>
-                                        <h1 className="text-3xl font-extrabold tracking-tight mb-4">Strategic Intelligence</h1>
+                                        <h1 className="text-3xl font-extrabold tracking-tight mb-2">Nix 4 Personal Workspace</h1>
+                                        {memoryEnabled && (
+                                            <p className="text-[var(--accent)] text-[10px] font-black uppercase tracking-widest mb-4">Memory enabled: I'll remember our chats</p>
+                                        )}
                                         <p className="text-[var(--text-secondary)] text-sm max-w-xs mx-auto leading-relaxed">
-                                            How can I assist your workflow today? I'm optimized for analysis and creative coding.
+                                            Personalized via long-term memory and secure enterprise analysis.
                                         </p>
                                     </div>
                                 )}
@@ -418,11 +480,8 @@
                             </div>
                         </div>
 
-                        {/* Input Area (Pinned) */}
                         <div className="absolute bottom-0 left-0 right-0 p-4 md:p-8 bg-gradient-to-t from-[var(--bg-main)] via-[var(--bg-main)] to-transparent pointer-events-none">
                             <div className="max-w-4xl mx-auto pointer-events-auto">
-                                
-                                {/* File Pills Preview */}
                                 {attachedFiles.length > 0 && (
                                     <div className="flex flex-wrap gap-2 mb-3">
                                         {attachedFiles.map((file, idx) => (
@@ -454,25 +513,12 @@
                                             }
                                         }}
                                     />
-                                    
-                                    {/* Upload Button */}
                                     <div className="absolute left-3 bottom-3">
-                                        <input 
-                                            type="file" 
-                                            ref={fileInputRef} 
-                                            onChange={handleFileUpload} 
-                                            className="hidden" 
-                                            multiple
-                                        />
-                                        <button 
-                                            onClick={() => fileInputRef.current?.click()}
-                                            className="w-11 h-11 flex items-center justify-center text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--border)] rounded-2xl transition-all"
-                                        >
+                                        <input type="file" ref={fileInputRef} onChange={handleFileUpload} className="hidden" multiple />
+                                        <button onClick={() => fileInputRef.current?.click()} className="w-11 h-11 flex items-center justify-center text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--border)] rounded-2xl transition-all">
                                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/></svg>
                                         </button>
                                     </div>
-
-                                    {/* Send Button */}
                                     <div className="absolute right-3 bottom-3">
                                         <button 
                                             onClick={processQuery}
@@ -488,7 +534,6 @@
                         </div>
                     </main>
 
-                    {/* Settings Modal */}
                     {showSettings && (
                         <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/80 backdrop-blur-xl">
                             <div className="w-full max-w-sm bg-[var(--bg-main)] border border-[var(--border)] rounded-[2.5rem] p-10 shadow-2xl">
@@ -497,6 +542,16 @@
                                     <button onClick={() => setShowSettings(false)} className="p-2 bg-[var(--border)] rounded-xl"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12" strokeWidth="2" strokeLinecap="round"/></svg></button>
                                 </div>
                                 <div className="space-y-6">
+                                    <div className="space-y-3">
+                                        <label className="text-[10px] font-black uppercase tracking-widest opacity-50">Memory Settings</label>
+                                        <button 
+                                            onClick={() => window.location.href = "memory.html"}
+                                            className="w-full flex items-center justify-between p-4 bg-[var(--border)] rounded-2xl hover:bg-[var(--accent)] hover:text-white transition-all group"
+                                        >
+                                            <span className="text-xs font-bold">Manage Memory</span>
+                                            <svg className="w-4 h-4 opacity-50 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"/></svg>
+                                        </button>
+                                    </div>
                                     <div className="space-y-3">
                                         <label className="text-[10px] font-black uppercase tracking-widest opacity-50">Interface Language</label>
                                         <div className="grid grid-cols-2 gap-2 bg-[var(--border)] p-1 rounded-2xl">
