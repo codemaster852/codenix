@@ -1,373 +1,450 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nix 4 | Memory Center</title>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <style>
-        :root {
-            --nix-purple: #8b5cf6;
-            --nix-dark: #0f172a;
-        }
-        body {
-            background-color: var(--nix-dark);
-            color: #f8fafc;
-            font-family: 'Inter', system-ui, sans-serif;
-        }
-        .nix-card {
-            background: rgba(30, 41, 59, 0.7);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-        }
-        .nix-gradient-text {
-            background: linear-gradient(to right, #a78bfa, #f472b6);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-        .custom-scroll::-webkit-scrollbar {
-            width: 6px;
-        }
-        .custom-scroll::-webkit-scrollbar-thumb {
-            background: #334155;
-            border-radius: 10px;
-        }
-        .switch {
-            position: relative;
-            display: inline-block;
-            width: 60px;
-            height: 34px;
-        }
-        .switch input { opacity: 0; width: 0; height: 0; }
-        .slider {
-            position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
-            background-color: #334155; transition: .4s; border-radius: 34px;
-        }
-        .slider:before {
-            position: absolute; content: ""; height: 26px; width: 26px; left: 4px; bottom: 4px;
-            background-color: white; transition: .4s; border-radius: 50%;
-        }
-        input:checked + .slider { background-color: var(--nix-purple); }
-        input:checked + .slider:before { transform: translateX(26px); }
-    </style>
-</head>
-<body class="min-h-screen p-4 md:p-8">
+import React, { useState, useEffect } from 'react';
+import { initializeApp } from 'firebase/app';
+import { 
+  getFirestore, 
+  collection, 
+  addDoc, 
+  onSnapshot, 
+  query, 
+  doc, 
+  deleteDoc, 
+  serverTimestamp
+} from 'firebase/firestore';
+import { 
+  getAuth, 
+  signInWithCustomToken, 
+  signInAnonymously, 
+  onAuthStateChanged 
+} from 'firebase/auth';
+import { 
+  Brain, 
+  PlusCircle, 
+  Link as LinkIcon, 
+  Trash2, 
+  RefreshCcw, 
+  Download, 
+  Check, 
+  AlertCircle,
+  MessageSquare,
+  User,
+  LogOut
+} from 'lucide-react';
 
-    <div class="max-w-6xl mx-auto">
-        <!-- Header -->
-        <header class="flex flex-col md:flex-row justify-between items-center mb-12 gap-6">
-            <div>
-                <h1 class="text-4xl font-bold nix-gradient-text mb-2">Memory Center</h1>
-                <p class="text-slate-400">Core neural interface for the <span class="text-white font-mono">Nix 4</span> intelligence model.</p>
+// --- Supabase Configuration (Using CDN for compatibility) ---
+const SUPABASE_URL = "https://rnlwrngfgvznndlekmrz.supabase.co";
+const SUPABASE_KEY = "sb_publishable_mtI0_ZBvU_n5oRuqV58QHg_qJt3Gfyt";
+
+// Dynamic script loader for Supabase
+const loadSupabase = () => {
+  return new Promise((resolve) => {
+    if (window.supabase) return resolve(window.supabase);
+    const script = document.createElement('script');
+    script.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
+    script.onload = () => resolve(window.supabase);
+    document.head.appendChild(script);
+  });
+};
+
+// --- Firebase Configuration ---
+const firebaseConfig = JSON.parse(__firebase_config);
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+const appId = typeof __app_id !== 'undefined' ? __app_id : 'nix-4-memory';
+
+export default function App() {
+  const [user, setUser] = useState(null);
+  const [supabaseUser, setSupabaseUser] = useState(null);
+  const [supabaseClient, setSupabaseClient] = useState(null);
+  const [memories, setMemories] = useState([]);
+  const [activeTab, setActiveTab] = useState('manual');
+  const [systemEnabled, setSystemEnabled] = useState(true);
+  const [loading, setLoading] = useState(true);
+  const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
+  
+  // Form States
+  const [manualCategory, setManualCategory] = useState('Instructions');
+  const [manualDate, setManualDate] = useState('');
+  const [manualContent, setManualContent] = useState('');
+  const [importPayload, setImportPayload] = useState('');
+
+  // (1) Handle Supabase Auth Check & Firebase Link
+  useEffect(() => {
+    const initAuth = async () => {
+      try {
+        const sb = await loadSupabase();
+        const client = sb.createClient(SUPABASE_URL, SUPABASE_KEY);
+        setSupabaseClient(client);
+
+        // Check current session
+        const { data: { session }, error } = await client.auth.getSession();
+        
+        if (error || !session) {
+          // Redirect to auth.html if no session exists
+          const currentUrl = window.location.href;
+          window.location.href = `auth.html?redirectTo=${encodeURIComponent(currentUrl)}`;
+          return;
+        }
+
+        setSupabaseUser(session.user);
+
+        // Initialize Firebase Auth
+        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+          await signInWithCustomToken(auth, __initial_auth_token);
+        } else {
+          await signInAnonymously(auth);
+        }
+      } catch (err) {
+        console.error("Initialization error:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    initAuth();
+
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  // (2) Handle Firestore Real-time Updates
+  useEffect(() => {
+    if (!supabaseUser || !user) return;
+
+    const memoryCollection = collection(db, 'artifacts', appId, 'users', supabaseUser.id, 'memories');
+    const q = query(memoryCollection);
+
+    const unsubscribe = onSnapshot(q, 
+      (snapshot) => {
+        const mems = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        setMemories(mems.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)));
+      },
+      (error) => {
+        console.error("Firestore error:", error);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [user, supabaseUser]);
+
+  const handleLogout = async () => {
+    if (supabaseClient) {
+      await supabaseClient.auth.signOut();
+      window.location.href = 'auth.html';
+    }
+  };
+
+  const showToast = (message, type = 'success') => {
+    setToast({ show: true, message, type });
+    setTimeout(() => setToast(prev => ({ ...prev, show: false })), 3000);
+  };
+
+  const addManualMemory = async () => {
+    if (!systemEnabled || !supabaseUser || !manualContent.trim()) return;
+
+    try {
+      const memoryCollection = collection(db, 'artifacts', appId, 'users', supabaseUser.id, 'memories');
+      await addDoc(memoryCollection, {
+        category: manualCategory,
+        dateLabel: manualDate || '[unknown]',
+        content: manualContent,
+        source: 'manual',
+        createdAt: serverTimestamp(),
+        supabaseId: supabaseUser.id
+      });
+      setManualContent('');
+      setManualDate('');
+      showToast("Memory stored successfully");
+    } catch (err) {
+      showToast("Failed to save memory", "error");
+    }
+  };
+
+  const deleteMemory = async (id) => {
+    if (!supabaseUser) return;
+    try {
+      const docRef = doc(db, 'artifacts', appId, 'users', supabaseUser.id, 'memories', id);
+      await deleteDoc(docRef);
+      showToast("Memory purged");
+    } catch (err) {
+      showToast("Failed to delete", "error");
+    }
+  };
+
+  const processImport = async () => {
+    if (!systemEnabled || !supabaseUser || !importPayload.trim()) return;
+
+    const sections = importPayload.split(/##?\s+/);
+    const newMemories = [];
+    
+    sections.forEach(section => {
+      const lines = section.split('\n');
+      const title = lines[0].trim();
+      let cat = "";
+      if (/Instructions/i.test(title)) cat = "Instructions";
+      else if (/Identity/i.test(title)) cat = "Identity";
+      else if (/Career/i.test(title)) cat = "Career";
+      else if (/Projects/i.test(title)) cat = "Projects";
+      else if (/Preferences/i.test(title)) cat = "Preferences";
+
+      if (cat) {
+        lines.slice(1).forEach(line => {
+          const match = line.match(/^\[(.*?)\]\s*-\s*(.*)/);
+          if (match) {
+            newMemories.push({
+              category: cat,
+              dateLabel: `[${match[1]}]`,
+              content: match[2].trim(),
+              source: 'import',
+              createdAt: serverTimestamp(),
+              supabaseId: supabaseUser.id
+            });
+          }
+        });
+      }
+    });
+
+    if (newMemories.length > 0) {
+      try {
+        const memoryCollection = collection(db, 'artifacts', appId, 'users', supabaseUser.id, 'memories');
+        await Promise.all(newMemories.map(m => addDoc(memoryCollection, m)));
+        setImportPayload('');
+        showToast(`Imported ${newMemories.length} entries`);
+      } catch (err) {
+        showToast("Import failed", "error");
+      }
+    } else {
+      showToast("No valid entries found", "error");
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#0f172a] flex items-center justify-center">
+        <div className="text-center">
+          <RefreshCcw className="w-12 h-12 text-purple-500 animate-spin mx-auto mb-4" />
+          <p className="text-slate-400 font-mono">Verifying Neural Clearance...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-[#0f172a] text-slate-100 p-4 md:p-8 font-sans">
+      <div className="max-w-6xl mx-auto">
+        {/* Header */}
+        <header className="flex flex-col md:flex-row justify-between items-center mb-12 gap-6">
+          <div>
+            <h1 className="text-4xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent mb-2">
+              Memory Center
+            </h1>
+            <div className="flex items-center gap-3 text-slate-400">
+              <p className="text-sm">
+                Interface: <span className="text-white font-mono">Nix 4</span>
+              </p>
+              <span className="w-1 h-1 bg-slate-700 rounded-full"></span>
+              <p className="text-xs font-mono text-purple-400">
+                {supabaseUser?.email || "Authenticated User"}
+              </p>
+              <button 
+                onClick={handleLogout}
+                className="ml-2 hover:text-red-400 transition-colors"
+                title="Sign Out"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
             </div>
-            <div class="flex items-center gap-4 bg-slate-800/50 p-4 rounded-2xl border border-slate-700">
-                <span id="memoryStatusLabel" class="font-medium text-purple-400">System: Enabled</span>
-                <label class="switch">
-                    <input type="checkbox" id="systemToggle" checked>
-                    <span class="slider"></span>
-                </label>
-            </div>
+          </div>
+          
+          <div className="flex items-center gap-4 bg-slate-800/50 p-4 rounded-2xl border border-slate-700">
+            <span className={`font-medium ${systemEnabled ? 'text-purple-400' : 'text-slate-500'}`}>
+              System: {systemEnabled ? 'Enabled' : 'Disabled'}
+            </span>
+            <button 
+              onClick={() => setSystemEnabled(!systemEnabled)}
+              className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors ${systemEnabled ? 'bg-purple-600' : 'bg-slate-700'}`}
+            >
+              <span className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${systemEnabled ? 'translate-x-7' : 'translate-x-1'}`} />
+            </button>
+          </div>
         </header>
 
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            <!-- Left Column: Add Memory -->
-            <div class="lg:col-span-1 flex flex-col gap-6">
-                <div class="nix-card p-6 rounded-2xl">
-                    <h2 class="text-xl font-semibold mb-4 flex items-center gap-2">
-                        <i class="fas fa-plus-circle text-purple-400"></i> Add Memory
-                    </h2>
-                    
-                    <div class="space-y-4">
-                        <div class="flex gap-2">
-                            <button onclick="switchTab('manual')" class="flex-1 py-2 text-xs font-bold rounded-lg transition-all tab-btn bg-purple-600 text-white" id="tab-manual">MANUAL</button>
-                            <button onclick="switchTab('import')" class="flex-1 py-2 text-xs font-bold rounded-lg transition-all tab-btn bg-slate-700 text-slate-400" id="tab-import">IMPORT</button>
-                            <button onclick="switchTab('chat')" class="flex-1 py-2 text-xs font-bold rounded-lg transition-all tab-btn bg-slate-700 text-slate-400" id="tab-chat">CHAT</button>
-                        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Add Memory Column */}
+          <div className="lg:col-span-1 space-y-6">
+            <div className="bg-slate-800/40 backdrop-blur-md border border-slate-700 p-6 rounded-2xl">
+              <h2 className="text-xl font-semibold mb-6 flex items-center gap-2">
+                <PlusCircle className="text-purple-400 w-5 h-5" /> Add Memory
+              </h2>
+              
+              <div className="flex gap-2 mb-6">
+                {['manual', 'import', 'chat'].map(tab => (
+                  <button
+                    key={tab}
+                    onClick={() => setActiveTab(tab)}
+                    className={`flex-1 py-2 text-[10px] font-bold rounded-lg transition-all uppercase tracking-wider ${
+                      activeTab === tab ? 'bg-purple-600 text-white shadow-lg' : 'bg-slate-700/50 text-slate-400 hover:bg-slate-700'
+                    }`}
+                  >
+                    {tab}
+                  </button>
+                ))}
+              </div>
 
-                        <!-- Manual Add -->
-                        <div id="panel-manual" class="space-y-3">
-                            <select id="manualCategory" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-sm focus:outline-none focus:border-purple-500">
-                                <option>Instructions</option>
-                                <option>Identity</option>
-                                <option>Career</option>
-                                <option>Projects</option>
-                                <option>Preferences</option>
-                            </select>
-                            <input type="text" id="manualDate" placeholder="Date [YYYY-MM-DD] or [unknown]" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-sm focus:outline-none focus:border-purple-500">
-                            <textarea id="manualContent" placeholder="Describe the memory..." class="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-sm h-32 focus:outline-none focus:border-purple-500"></textarea>
-                            <button onclick="addManualMemory()" class="w-full bg-purple-600 hover:bg-purple-500 py-3 rounded-lg font-bold transition-all shadow-lg shadow-purple-900/20">Store Memory</button>
-                        </div>
-
-                        <!-- Import Add -->
-                        <div id="panel-import" class="hidden space-y-3">
-                            <div class="bg-slate-900/50 p-3 rounded-lg border border-slate-700/50">
-                                <p class="text-[10px] text-slate-500 uppercase font-bold mb-2">Prompt for other provider:</p>
-                                <div class="relative">
-                                    <pre id="promptText" class="text-[11px] text-purple-300 whitespace-pre-wrap leading-tight h-24 overflow-y-auto bg-black/30 p-2 rounded">Export all of my stored memories and any context you've learned about me from past conversations. Preserve my words verbatim where possible, especially for instructions and preferences.
-
-## Categories (output in this order):
-
-1. **Instructions**: Rules I've explicitly asked you to follow going forward — tone, format, style, "always do X", "never do Y", and corrections to your behavior. Only include rules from stored memories, not from conversations.
-
-2. **Identity**: Name, age, location, education, family, relationships, languages, and personal interests.
-
-3. **Career**: Current and past roles, companies, and general skill areas.
-
-4. **Projects**: Projects I meaningfully built or committed to. Ideally ONE entry per project. Include what it does, current status, and any key decisions. Use the project name or a short descriptor as the first words of the entry.
-
-5. **Preferences**: Opinions, tastes, and working-style preferences that apply broadly.
-
-## Format:
-
-Use section headers for each category. Within each category, list one entry per line, sorted by oldest date first. Format each line as:
-
-[YYYY-MM-DD] - Entry content here.
-
-If no date is known, use [unknown] instead.
-
-## Output:
-- Wrap the entire export in a single code block for easy copying.
-- After the code block, state whether this is the complete set or if more remain.</pre>
-                                    <button onclick="copyPrompt()" class="absolute top-1 right-1 bg-purple-500/20 p-1 rounded text-[10px] hover:bg-purple-500/40">Copy</button>
-                                </div>
-                            </div>
-                            <textarea id="importPayload" placeholder="Paste the provider's response block here..." class="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-sm h-40 focus:outline-none focus:border-purple-500 font-mono text-[11px]"></textarea>
-                            <button onclick="processImport()" class="w-full bg-indigo-600 hover:bg-indigo-500 py-3 rounded-lg font-bold transition-all">Process Import</button>
-                        </div>
-
-                        <!-- Chat Add -->
-                        <div id="panel-chat" class="hidden space-y-3 text-center py-6">
-                            <i class="fas fa-comments text-4xl text-slate-700 mb-2"></i>
-                            <p class="text-sm text-slate-400">Memory is automatically indexed via conversation logs when enabled.</p>
-                            <button class="text-xs text-purple-400 hover:underline">View recent log extractions</button>
-                        </div>
-                    </div>
+              {activeTab === 'manual' && (
+                <div className="space-y-4 animate-in fade-in duration-300">
+                  <select 
+                    value={manualCategory}
+                    onChange={(e) => setManualCategory(e.target.value)}
+                    className="w-full bg-slate-900/80 border border-slate-700 rounded-lg p-3 text-sm focus:border-purple-500 outline-none"
+                  >
+                    <option>Instructions</option>
+                    <option>Identity</option>
+                    <option>Career</option>
+                    <option>Projects</option>
+                    <option>Preferences</option>
+                  </select>
+                  <input 
+                    type="text" 
+                    value={manualDate}
+                    onChange={(e) => setManualDate(e.target.value)}
+                    placeholder="Date [YYYY-MM-DD] or [unknown]"
+                    className="w-full bg-slate-900/80 border border-slate-700 rounded-lg p-3 text-sm focus:border-purple-500 outline-none"
+                  />
+                  <textarea 
+                    value={manualContent}
+                    onChange={(e) => setManualContent(e.target.value)}
+                    placeholder="Describe the memory..."
+                    className="w-full bg-slate-900/80 border border-slate-700 rounded-lg p-3 text-sm h-32 focus:border-purple-500 outline-none resize-none"
+                  />
+                  <button 
+                    onClick={addManualMemory}
+                    className="w-full bg-purple-600 hover:bg-purple-500 py-3 rounded-lg font-bold transition-all shadow-lg shadow-purple-900/20 active:scale-95"
+                  >
+                    Store Memory
+                  </button>
                 </div>
+              )}
 
-                <div class="nix-card p-4 rounded-2xl flex items-center justify-between border-l-4 border-l-blue-500">
-                    <div>
-                        <p class="text-xs text-slate-400 uppercase font-bold">API Connection</p>
-                        <p class="text-sm font-mono text-blue-400">Longcat API Active</p>
-                    </div>
-                    <i class="fas fa-link text-blue-500"></i>
+              {activeTab === 'import' && (
+                <div className="space-y-4 animate-in fade-in duration-300">
+                  <textarea 
+                    value={importPayload}
+                    onChange={(e) => setImportPayload(e.target.value)}
+                    placeholder="Paste the provider's response here..."
+                    className="w-full bg-slate-900/80 border border-slate-700 rounded-lg p-3 text-sm h-40 focus:border-purple-500 outline-none font-mono text-xs"
+                  />
+                  <button 
+                    onClick={processImport}
+                    className="w-full bg-indigo-600 hover:bg-indigo-500 py-3 rounded-lg font-bold transition-all"
+                  >
+                    Process Import
+                  </button>
                 </div>
+              )}
+
+              {activeTab === 'chat' && (
+                <div className="py-8 text-center space-y-4 animate-in fade-in duration-300">
+                  <MessageSquare className="w-10 h-10 text-slate-700 mx-auto" />
+                  <p className="text-sm text-slate-400 px-4">
+                    Automatic memory indexing is active during live conversations.
+                  </p>
+                </div>
+              )}
             </div>
 
-            <!-- Right Column: Memory Vault -->
-            <div class="lg:col-span-2 flex flex-col gap-6">
-                <div class="nix-card p-6 rounded-2xl flex-1 flex flex-col">
-                    <div class="flex justify-between items-center mb-6">
-                        <h2 class="text-xl font-semibold flex items-center gap-2">
-                            <i class="fas fa-brain text-purple-400"></i> Memory Vault
-                        </h2>
-                        <div class="flex gap-2">
-                            <button onclick="refreshMemories()" class="p-2 bg-slate-800 rounded-lg hover:bg-slate-700"><i class="fas fa-sync-alt text-xs"></i></button>
-                            <button onclick="exportToCSV()" class="p-2 bg-slate-800 rounded-lg hover:bg-slate-700"><i class="fas fa-download text-xs"></i></button>
-                        </div>
-                    </div>
-
-                    <div id="memoryList" class="flex-1 overflow-y-auto custom-scroll space-y-4 pr-2" style="max-height: 600px;">
-                        <!-- Memories loaded here -->
-                        <div class="text-center py-20 text-slate-500">
-                            <div class="animate-pulse">Accessing Supabase database...</div>
-                        </div>
-                    </div>
-                </div>
+            <div className="bg-slate-800/40 border border-slate-700 p-4 rounded-2xl flex items-center justify-between border-l-4 border-l-blue-500">
+              <div>
+                <p className="text-[10px] text-slate-500 uppercase font-bold">Secure Access</p>
+                <p className="text-sm font-mono text-blue-400">Supabase Auth Verified</p>
+              </div>
+              <LinkIcon className="text-blue-500 w-5 h-5" />
             </div>
-        </div>
-    </div>
+          </div>
 
-    <!-- Notification system -->
-    <div id="toast" class="fixed bottom-8 right-8 bg-slate-800 border border-slate-700 p-4 rounded-xl shadow-2xl transition-all transform translate-y-24 opacity-0 flex items-center gap-3">
-        <div id="toastIcon" class="bg-purple-500/20 text-purple-400 p-2 rounded-lg">
-            <i class="fas fa-check"></i>
-        </div>
-        <p id="toastMessage" class="text-sm font-medium"></p>
-    </div>
+          {/* Memory Vault Column */}
+          <div className="lg:col-span-2 flex flex-col h-full">
+            <div className="bg-slate-800/40 backdrop-blur-md border border-slate-700 p-6 rounded-2xl flex-1 flex flex-col min-h-[500px]">
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-xl font-semibold flex items-center gap-2">
+                  <Brain className="text-purple-400 w-6 h-6" /> Memory Vault
+                </h2>
+                <div className="flex gap-2">
+                  <button onClick={() => showToast("Syncing...")} className="p-2 bg-slate-800 border border-slate-700 rounded-lg hover:bg-slate-700 transition-colors">
+                    <RefreshCcw className="w-4 h-4 text-slate-400" />
+                  </button>
+                  <button className="p-2 bg-slate-800 border border-slate-700 rounded-lg hover:bg-slate-700 transition-colors">
+                    <Download className="w-4 h-4 text-slate-400" />
+                  </button>
+                </div>
+              </div>
 
-    <script>
-        // Configuration
-        const SUPABASE_URL = "https://rnlwrngfgvznndlekmrz.supabase.co";
-        const SUPABASE_KEY = "sb_publishable_mtI0_ZBvU_n5oRuqV58QHg_qJt3Gfyt"; // Provided key
-        const LONGCAT_API = "ak_2rU1Lo7PA23X5Is9wm3m69EY2T37J";
-
-        // Initialize Supabase Client
-        // Renamed variable to 'supabaseClient' to avoid SyntaxError with globally imported 'supabase' object
-        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-
-        // State Management
-        let systemEnabled = true;
-
-        // UI Initialization
-        document.addEventListener('DOMContentLoaded', () => {
-            refreshMemories();
-            
-            document.getElementById('systemToggle').addEventListener('change', function(e) {
-                systemEnabled = e.target.checked;
-                const label = document.getElementById('memoryStatusLabel');
-                label.textContent = systemEnabled ? 'System: Enabled' : 'System: Disabled';
-                label.className = systemEnabled ? 'font-medium text-purple-400' : 'font-medium text-slate-500';
-                showToast(systemEnabled ? "Memory retrieval active" : "Memory system offline", "info");
-            });
-        });
-
-        // Tabs Logic
-        function switchTab(tab) {
-            ['manual', 'import', 'chat'].forEach(t => {
-                document.getElementById(`panel-${t}`).classList.add('hidden');
-                document.getElementById(`tab-${t}`).classList.remove('bg-purple-600', 'text-white');
-                document.getElementById(`tab-${t}`).classList.add('bg-slate-700', 'text-slate-400');
-            });
-            document.getElementById(`panel-${tab}`).classList.remove('hidden');
-            document.getElementById(`tab-${tab}`).classList.add('bg-purple-600', 'text-white');
-            document.getElementById(`tab-${tab}`).classList.remove('bg-slate-700', 'text-slate-400');
-        }
-
-        // Fetch Memories
-        async function refreshMemories() {
-            const list = document.getElementById('memoryList');
-            const { data, error } = await supabaseClient
-                .from('nix4_memories')
-                .select('*')
-                .order('created_at', { ascending: false });
-
-            if (error) {
-                list.innerHTML = `<div class="p-8 text-center text-red-400">Error connecting to Supabase. Please ensure the nix4_memories table is created.</div>`;
-                return;
-            }
-
-            if (!data || data.length === 0) {
-                list.innerHTML = `<div class="p-20 text-center text-slate-500 italic">No memories found in the vault.</div>`;
-                return;
-            }
-
-            list.innerHTML = data.map(mem => `
-                <div class="bg-slate-800/40 p-4 rounded-xl border border-slate-700/50 hover:border-slate-500 transition-all group">
-                    <div class="flex justify-between items-start mb-2">
-                        <div class="flex items-center gap-2">
-                            <span class="text-[10px] bg-slate-700 text-slate-300 px-2 py-0.5 rounded uppercase font-bold tracking-wider">${mem.category}</span>
-                            <span class="text-[10px] text-slate-500 font-mono">${mem.date_label || '[unknown]'}</span>
+              <div className="flex-1 overflow-y-auto space-y-4 pr-2 custom-scrollbar">
+                {memories.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-64 text-slate-500">
+                    <Brain className="w-12 h-12 mb-4 opacity-20" />
+                    <p className="italic">The vault is currently empty.</p>
+                  </div>
+                ) : (
+                  memories.map(mem => (
+                    <div 
+                      key={mem.id} 
+                      className="bg-slate-900/50 p-4 rounded-xl border border-slate-700/50 hover:border-purple-500/30 transition-all group relative"
+                    >
+                      <div className="flex justify-between items-start mb-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[9px] bg-slate-700 text-slate-300 px-2 py-0.5 rounded uppercase font-bold tracking-tighter">
+                            {mem.category}
+                          </span>
+                          <span className="text-[10px] text-slate-500 font-mono">
+                            {mem.dateLabel}
+                          </span>
                         </div>
-                        <button onclick="deleteMemory('${mem.id}')" class="text-slate-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <i class="fas fa-trash-alt text-xs"></i>
+                        <button 
+                          onClick={() => deleteMemory(mem.id)}
+                          className="text-slate-600 hover:text-red-400 transition-colors"
+                        >
+                          <Trash2 className="w-4 h-4" />
                         </button>
+                      </div>
+                      <p className="text-sm text-slate-300 leading-relaxed pr-6">{mem.content}</p>
+                      <div className="mt-3 flex items-center gap-4 text-[10px] text-slate-600 font-mono">
+                        <span className="flex items-center gap-1"><User className="w-3 h-3" /> {mem.source}</span>
+                        {mem.createdAt && (
+                          <span>Stored: {new Date(mem.createdAt.seconds * 1000).toLocaleDateString()}</span>
+                        )}
+                      </div>
                     </div>
-                    <p class="text-sm text-slate-300 leading-relaxed">${mem.content}</p>
-                    <div class="mt-2 text-[10px] text-slate-600 flex items-center gap-1">
-                        <i class="fas fa-fingerprint"></i> Source: ${mem.source}
-                    </div>
-                </div>
-            `).join('');
-        }
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
 
-        // Add Manual Memory
-        async function addManualMemory() {
-            if (!systemEnabled) {
-                showToast("Cannot add memory: System Disabled", "error");
-                return;
-            }
+      {/* Toast Notification */}
+      <div className={`fixed bottom-8 right-8 z-50 transition-all transform duration-500 flex items-center gap-3 p-4 rounded-xl shadow-2xl border ${
+        toast.show ? 'translate-y-0 opacity-100' : 'translate-y-24 opacity-0'
+      } ${toast.type === 'success' ? 'bg-slate-800 border-green-500/50' : 'bg-slate-800 border-red-500/50'}`}>
+        <div className={`p-2 rounded-lg ${toast.type === 'success' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+          {toast.type === 'success' ? <Check className="w-5 h-5" /> : <AlertCircle className="w-5 h-5" />}
+        </div>
+        <p className="text-sm font-medium">{toast.message}</p>
+      </div>
 
-            const category = document.getElementById('manualCategory').value;
-            const date_label = document.getElementById('manualDate').value || '[unknown]';
-            const content = document.getElementById('manualContent').value;
-
-            if (!content) return;
-
-            const { error } = await supabaseClient
-                .from('nix4_memories')
-                .insert([{ category, date_label, content, source: 'manual' }]);
-
-            if (error) {
-                showToast("Database Error", "error");
-            } else {
-                document.getElementById('manualContent').value = '';
-                showToast("Memory stored successfully");
-                refreshMemories();
-            }
-        }
-
-        // Import Logic
-        function copyPrompt() {
-            const prompt = document.getElementById('promptText').innerText;
-            
-            navigator.clipboard.writeText(prompt);
-            showToast("Prompt copied to clipboard");
-        }
-
-        async function processImport() {
-            if (!systemEnabled) return;
-            const raw = document.getElementById('importPayload').value;
-            if (!raw) return;
-
-            const memories = [];
-            const sections = raw.split(/##?\s+/);
-            
-            sections.forEach(section => {
-                const lines = section.split('\n');
-                const title = lines[0].trim();
-                
-                // Identify category from title
-                let cat = "";
-                if (title.includes("Instructions")) cat = "Instructions";
-                else if (title.includes("Identity")) cat = "Identity";
-                else if (title.includes("Career")) cat = "Career";
-                else if (title.includes("Projects")) cat = "Projects";
-                else if (title.includes("Preferences")) cat = "Preferences";
-
-                if (cat) {
-                    lines.slice(1).forEach(line => {
-                        const match = line.match(/^\[(.*?)\]\s*-\s*(.*)/);
-                        if (match) {
-                            memories.push({
-                                category: cat,
-                                date_label: `[${match[1]}]`,
-                                content: match[2].trim(),
-                                source: 'import'
-                            });
-                        }
-                    });
-                }
-            });
-
-            if (memories.length > 0) {
-                const { error } = await supabaseClient.from('nix4_memories').insert(memories);
-                if (error) showToast("Import Failed", "error");
-                else {
-                    showToast(`Imported ${memories.length} memories`);
-                    document.getElementById('importPayload').value = '';
-                    refreshMemories();
-                }
-            } else {
-                showToast("No valid entries found", "error");
-            }
-        }
-
-        // Utils
-        async function deleteMemory(id) {
-            const { error } = await supabaseClient.from('nix4_memories').delete().eq('id', id);
-            if (!error) refreshMemories();
-        }
-
-        function showToast(msg, type = "success") {
-            const toast = document.getElementById('toast');
-            const toastMsg = document.getElementById('toastMessage');
-            const icon = document.getElementById('toastIcon');
-            
-            toastMsg.textContent = msg;
-            icon.className = type === 'success' ? 'bg-green-500/20 text-green-400 p-2 rounded-lg' : 'bg-red-500/20 text-red-400 p-2 rounded-lg';
-            
-            toast.classList.remove('translate-y-24', 'opacity-0');
-            setTimeout(() => {
-                toast.classList.add('translate-y-24', 'opacity-0');
-            }, 3000);
-        }
-
-        function exportToCSV() {
-            showToast("Generating CSV Export...");
-            // Standard JS CSV download logic
-        }
-    </script>
-</body>
-</html>
+      <style dangerouslySetInnerHTML={{ __html: `
+        .custom-scrollbar::-webkit-scrollbar { width: 5px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #475569; }
+      `}} />
+    </div>
+  );
+}
