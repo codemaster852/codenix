@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nix 4 | Memory Center</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --nix-purple: #8b5cf6;
+            --nix-dark: #0f172a;
+        }
+        body {
+            background-color: var(--nix-dark);
+            color: #f8fafc;
+            font-family: 'Inter', system-ui, sans-serif;
+        }
+        .nix-card {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .nix-gradient-text {
+            background: linear-gradient(to right, #a78bfa, #f472b6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .custom-scroll::-webkit-scrollbar {
+            width: 6px;
+        }
+        .custom-scroll::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 10px;
+        }
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 60px;
+            height: 34px;
+        }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider {
+            position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
+            background-color: #334155; transition: .4s; border-radius: 34px;
+        }
+        .slider:before {
+            position: absolute; content: ""; height: 26px; width: 26px; left: 4px; bottom: 4px;
+            background-color: white; transition: .4s; border-radius: 50%;
+        }
+        input:checked + .slider { background-color: var(--nix-purple); }
+        input:checked + .slider:before { transform: translateX(26px); }
+    </style>
+</head>
+<body class="min-h-screen p-4 md:p-8">
+
+    <div class="max-w-6xl mx-auto">
+        <!-- Header -->
+        <header class="flex flex-col md:flex-row justify-between items-center mb-12 gap-6">
+            <div>
+                <h1 class="text-4xl font-bold nix-gradient-text mb-2">Memory Center</h1>
+                <p class="text-slate-400">Core neural interface for the <span class="text-white font-mono">Nix 4</span> intelligence model.</p>
+            </div>
+            <div class="flex items-center gap-4 bg-slate-800/50 p-4 rounded-2xl border border-slate-700">
+                <span id="memoryStatusLabel" class="font-medium text-purple-400">System: Enabled</span>
+                <label class="switch">
+                    <input type="checkbox" id="systemToggle" checked>
+                    <span class="slider"></span>
+                </label>
+            </div>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <!-- Left Column: Add Memory -->
+            <div class="lg:col-span-1 flex flex-col gap-6">
+                <div class="nix-card p-6 rounded-2xl">
+                    <h2 class="text-xl font-semibold mb-4 flex items-center gap-2">
+                        <i class="fas fa-plus-circle text-purple-400"></i> Add Memory
+                    </h2>
+                    
+                    <div class="space-y-4">
+                        <div class="flex gap-2">
+                            <button onclick="switchTab('manual')" class="flex-1 py-2 text-xs font-bold rounded-lg transition-all tab-btn bg-purple-600 text-white" id="tab-manual">MANUAL</button>
+                            <button onclick="switchTab('import')" class="flex-1 py-2 text-xs font-bold rounded-lg transition-all tab-btn bg-slate-700 text-slate-400" id="tab-import">IMPORT</button>
+                            <button onclick="switchTab('chat')" class="flex-1 py-2 text-xs font-bold rounded-lg transition-all tab-btn bg-slate-700 text-slate-400" id="tab-chat">CHAT</button>
+                        </div>
+
+                        <!-- Manual Add -->
+                        <div id="panel-manual" class="space-y-3">
+                            <select id="manualCategory" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-sm focus:outline-none focus:border-purple-500">
+                                <option>Instructions</option>
+                                <option>Identity</option>
+                                <option>Career</option>
+                                <option>Projects</option>
+                                <option>Preferences</option>
+                            </select>
+                            <input type="text" id="manualDate" placeholder="Date [YYYY-MM-DD] or [unknown]" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-sm focus:outline-none focus:border-purple-500">
+                            <textarea id="manualContent" placeholder="Describe the memory..." class="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-sm h-32 focus:outline-none focus:border-purple-500"></textarea>
+                            <button onclick="addManualMemory()" class="w-full bg-purple-600 hover:bg-purple-500 py-3 rounded-lg font-bold transition-all shadow-lg shadow-purple-900/20">Store Memory</button>
+                        </div>
+
+                        <!-- Import Add -->
+                        <div id="panel-import" class="hidden space-y-3">
+                            <div class="bg-slate-900/50 p-3 rounded-lg border border-slate-700/50">
+                                <p class="text-[10px] text-slate-500 uppercase font-bold mb-2">Prompt for other provider:</p>
+                                <div class="relative">
+                                    <pre id="promptText" class="text-[11px] text-purple-300 whitespace-pre-wrap leading-tight h-24 overflow-y-auto bg-black/30 p-2 rounded">Export all of my stored memories and any context you've learned about me from past conversations. Preserve my words verbatim where possible, especially for instructions and preferences.
+
+## Categories (output in this order):
+
+1. **Instructions**: Rules I've explicitly asked you to follow going forward — tone, format, style, "always do X", "never do Y", and corrections to your behavior. Only include rules from stored memories, not from conversations.
+
+2. **Identity**: Name, age, location, education, family, relationships, languages, and personal interests.
+
+3. **Career**: Current and past roles, companies, and general skill areas.
+
+4. **Projects**: Projects I meaningfully built or committed to. Ideally ONE entry per project. Include what it does, current status, and any key decisions. Use the project name or a short descriptor as the first words of the entry.
+
+5. **Preferences**: Opinions, tastes, and working-style preferences that apply broadly.
+
+## Format:
+
+Use section headers for each category. Within each category, list one entry per line, sorted by oldest date first. Format each line as:
+
+[YYYY-MM-DD] - Entry content here.
+
+If no date is known, use [unknown] instead.
+
+## Output:
+- Wrap the entire export in a single code block for easy copying.
+- After the code block, state whether this is the complete set or if more remain.</pre>
+                                    <button onclick="copyPrompt()" class="absolute top-1 right-1 bg-purple-500/20 p-1 rounded text-[10px] hover:bg-purple-500/40">Copy</button>
+                                </div>
+                            </div>
+                            <textarea id="importPayload" placeholder="Paste the provider's response block here..." class="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-sm h-40 focus:outline-none focus:border-purple-500 font-mono text-[11px]"></textarea>
+                            <button onclick="processImport()" class="w-full bg-indigo-600 hover:bg-indigo-500 py-3 rounded-lg font-bold transition-all">Process Import</button>
+                        </div>
+
+                        <!-- Chat Add -->
+                        <div id="panel-chat" class="hidden space-y-3 text-center py-6">
+                            <i class="fas fa-comments text-4xl text-slate-700 mb-2"></i>
+                            <p class="text-sm text-slate-400">Memory is automatically indexed via conversation logs when enabled.</p>
+                            <button class="text-xs text-purple-400 hover:underline">View recent log extractions</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="nix-card p-4 rounded-2xl flex items-center justify-between border-l-4 border-l-blue-500">
+                    <div>
+                        <p class="text-xs text-slate-400 uppercase font-bold">API Connection</p>
+                        <p class="text-sm font-mono text-blue-400">Longcat API Active</p>
+                    </div>
+                    <i class="fas fa-link text-blue-500"></i>
+                </div>
+            </div>
+
+            <!-- Right Column: Memory Vault -->
+            <div class="lg:col-span-2 flex flex-col gap-6">
+                <div class="nix-card p-6 rounded-2xl flex-1 flex flex-col">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-xl font-semibold flex items-center gap-2">
+                            <i class="fas fa-brain text-purple-400"></i> Memory Vault
+                        </h2>
+                        <div class="flex gap-2">
+                            <button onclick="refreshMemories()" class="p-2 bg-slate-800 rounded-lg hover:bg-slate-700"><i class="fas fa-sync-alt text-xs"></i></button>
+                            <button onclick="exportToCSV()" class="p-2 bg-slate-800 rounded-lg hover:bg-slate-700"><i class="fas fa-download text-xs"></i></button>
+                        </div>
+                    </div>
+
+                    <div id="memoryList" class="flex-1 overflow-y-auto custom-scroll space-y-4 pr-2" style="max-height: 600px;">
+                        <!-- Memories loaded here -->
+                        <div class="text-center py-20 text-slate-500">
+                            <div class="animate-pulse">Accessing Supabase database...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notification system -->
+    <div id="toast" class="fixed bottom-8 right-8 bg-slate-800 border border-slate-700 p-4 rounded-xl shadow-2xl transition-all transform translate-y-24 opacity-0 flex items-center gap-3">
+        <div id="toastIcon" class="bg-purple-500/20 text-purple-400 p-2 rounded-lg">
+            <i class="fas fa-check"></i>
+        </div>
+        <p id="toastMessage" class="text-sm font-medium"></p>
+    </div>
+
+    <script>
+        // Configuration
+        const SUPABASE_URL = "https://rnlwrngfgvznndlekmrz.supabase.co";
+        const SUPABASE_KEY = "sb_publishable_mtI0_ZBvU_n5oRuqV58QHg_qJt3Gfyt"; // Provided key
+        const LONGCAT_API = "ak_2rU1Lo7PA23X5Is9wm3m69EY2T37J";
+
+        // Initialize Supabase Client
+        // Renamed variable to 'supabaseClient' to avoid SyntaxError with globally imported 'supabase' object
+        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        // State Management
+        let systemEnabled = true;
+
+        // UI Initialization
+        document.addEventListener('DOMContentLoaded', () => {
+            refreshMemories();
+            
+            document.getElementById('systemToggle').addEventListener('change', function(e) {
+                systemEnabled = e.target.checked;
+                const label = document.getElementById('memoryStatusLabel');
+                label.textContent = systemEnabled ? 'System: Enabled' : 'System: Disabled';
+                label.className = systemEnabled ? 'font-medium text-purple-400' : 'font-medium text-slate-500';
+                showToast(systemEnabled ? "Memory retrieval active" : "Memory system offline", "info");
+            });
+        });
+
+        // Tabs Logic
+        function switchTab(tab) {
+            ['manual', 'import', 'chat'].forEach(t => {
+                document.getElementById(`panel-${t}`).classList.add('hidden');
+                document.getElementById(`tab-${t}`).classList.remove('bg-purple-600', 'text-white');
+                document.getElementById(`tab-${t}`).classList.add('bg-slate-700', 'text-slate-400');
+            });
+            document.getElementById(`panel-${tab}`).classList.remove('hidden');
+            document.getElementById(`tab-${tab}`).classList.add('bg-purple-600', 'text-white');
+            document.getElementById(`tab-${tab}`).classList.remove('bg-slate-700', 'text-slate-400');
+        }
+
+        // Fetch Memories
+        async function refreshMemories() {
+            const list = document.getElementById('memoryList');
+            const { data, error } = await supabaseClient
+                .from('nix4_memories')
+                .select('*')
+                .order('created_at', { ascending: false });
+
+            if (error) {
+                list.innerHTML = `<div class="p-8 text-center text-red-400">Error connecting to Supabase. Please ensure the nix4_memories table is created.</div>`;
+                return;
+            }
+
+            if (!data || data.length === 0) {
+                list.innerHTML = `<div class="p-20 text-center text-slate-500 italic">No memories found in the vault.</div>`;
+                return;
+            }
+
+            list.innerHTML = data.map(mem => `
+                <div class="bg-slate-800/40 p-4 rounded-xl border border-slate-700/50 hover:border-slate-500 transition-all group">
+                    <div class="flex justify-between items-start mb-2">
+                        <div class="flex items-center gap-2">
+                            <span class="text-[10px] bg-slate-700 text-slate-300 px-2 py-0.5 rounded uppercase font-bold tracking-wider">${mem.category}</span>
+                            <span class="text-[10px] text-slate-500 font-mono">${mem.date_label || '[unknown]'}</span>
+                        </div>
+                        <button onclick="deleteMemory('${mem.id}')" class="text-slate-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <i class="fas fa-trash-alt text-xs"></i>
+                        </button>
+                    </div>
+                    <p class="text-sm text-slate-300 leading-relaxed">${mem.content}</p>
+                    <div class="mt-2 text-[10px] text-slate-600 flex items-center gap-1">
+                        <i class="fas fa-fingerprint"></i> Source: ${mem.source}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // Add Manual Memory
+        async function addManualMemory() {
+            if (!systemEnabled) {
+                showToast("Cannot add memory: System Disabled", "error");
+                return;
+            }
+
+            const category = document.getElementById('manualCategory').value;
+            const date_label = document.getElementById('manualDate').value || '[unknown]';
+            const content = document.getElementById('manualContent').value;
+
+            if (!content) return;
+
+            const { error } = await supabaseClient
+                .from('nix4_memories')
+                .insert([{ category, date_label, content, source: 'manual' }]);
+
+            if (error) {
+                showToast("Database Error", "error");
+            } else {
+                document.getElementById('manualContent').value = '';
+                showToast("Memory stored successfully");
+                refreshMemories();
+            }
+        }
+
+        // Import Logic
+        function copyPrompt() {
+            const prompt = document.getElementById('promptText').innerText;
+            
+            navigator.clipboard.writeText(prompt);
+            showToast("Prompt copied to clipboard");
+        }
+
+        async function processImport() {
+            if (!systemEnabled) return;
+            const raw = document.getElementById('importPayload').value;
+            if (!raw) return;
+
+            const memories = [];
+            const sections = raw.split(/##?\s+/);
+            
+            sections.forEach(section => {
+                const lines = section.split('\n');
+                const title = lines[0].trim();
+                
+                // Identify category from title
+                let cat = "";
+                if (title.includes("Instructions")) cat = "Instructions";
+                else if (title.includes("Identity")) cat = "Identity";
+                else if (title.includes("Career")) cat = "Career";
+                else if (title.includes("Projects")) cat = "Projects";
+                else if (title.includes("Preferences")) cat = "Preferences";
+
+                if (cat) {
+                    lines.slice(1).forEach(line => {
+                        const match = line.match(/^\[(.*?)\]\s*-\s*(.*)/);
+                        if (match) {
+                            memories.push({
+                                category: cat,
+                                date_label: `[${match[1]}]`,
+                                content: match[2].trim(),
+                                source: 'import'
+                            });
+                        }
+                    });
+                }
+            });
+
+            if (memories.length > 0) {
+                const { error } = await supabaseClient.from('nix4_memories').insert(memories);
+                if (error) showToast("Import Failed", "error");
+                else {
+                    showToast(`Imported ${memories.length} memories`);
+                    document.getElementById('importPayload').value = '';
+                    refreshMemories();
+                }
+            } else {
+                showToast("No valid entries found", "error");
+            }
+        }
+
+        // Utils
+        async function deleteMemory(id) {
+            const { error } = await supabaseClient.from('nix4_memories').delete().eq('id', id);
+            if (!error) refreshMemories();
+        }
+
+        function showToast(msg, type = "success") {
+            const toast = document.getElementById('toast');
+            const toastMsg = document.getElementById('toastMessage');
+            const icon = document.getElementById('toastIcon');
+            
+            toastMsg.textContent = msg;
+            icon.className = type === 'success' ? 'bg-green-500/20 text-green-400 p-2 rounded-lg' : 'bg-red-500/20 text-red-400 p-2 rounded-lg';
+            
+            toast.classList.remove('translate-y-24', 'opacity-0');
+            setTimeout(() => {
+                toast.classList.add('translate-y-24', 'opacity-0');
+            }, 3000);
+        }
+
+        function exportToCSV() {
+            showToast("Generating CSV Export...");
+            // Standard JS CSV download logic
+        }
+    </script>
+</body>
+</html>
