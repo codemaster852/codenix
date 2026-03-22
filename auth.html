@@ -120,7 +120,7 @@
             border-color: var(--brand-purple);
         }
 
-        .signup-only { 
+        .signup-only, .forgot-only { 
             display: none; 
             animation: fadeIn 0.4s ease forwards;
         }
@@ -200,8 +200,8 @@
                     <p id="auth-subtitle" class="text-zinc-500 text-sm mt-2 font-medium">Sign in to your AI workspace</p>
                 </div>
 
-                <!-- Social Auth -->
-                <div class="space-y-3">
+                <!-- Social Auth (Hidden in Forgot Password mode) -->
+                <div id="social-auth-section" class="space-y-3">
                     <button type="button" id="google-btn" class="btn-secondary w-full py-2.5 px-4 rounded-2xl flex items-center justify-center text-sm font-bold group">
                         <div class="social-icon-wrapper group-hover:scale-110 transition-transform duration-300">
                             <svg width="20" height="20" viewBox="0 0 48 48">
@@ -225,10 +225,11 @@
                     </button>
                 </div>
 
-                <div class="divider">or use email</div>
+                <div id="email-divider" class="divider">or use email</div>
 
                 <!-- Form -->
                 <form id="auth-form" class="space-y-4">
+                    <!-- Signup Only Fields -->
                     <div class="signup-only">
                         <div class="input-group">
                             <input type="text" id="fullname" class="input-field w-full py-4 rounded-2xl text-sm" placeholder="Full Name">
@@ -240,14 +241,20 @@
                         </div>
                     </div>
                     
+                    <!-- Shared Email Field -->
                     <div class="input-group">
                         <input type="email" id="email" required class="input-field w-full py-4 rounded-2xl text-sm" placeholder="Developer Email">
                         <i class="fa-solid fa-envelope input-icon"></i>
                     </div>
 
-                    <div class="input-group">
+                    <!-- Password Field (Hidden in Forgot Password mode) -->
+                    <div id="password-group" class="input-group">
                         <input type="password" id="password" required class="input-field w-full py-4 rounded-2xl text-sm" placeholder="Password">
                         <i class="fa-solid fa-lock input-icon"></i>
+                        <!-- Forgot Password Link -->
+                        <div class="flex justify-end mt-2">
+                            <button type="button" id="forgot-password-trigger" class="text-[10px] font-bold text-zinc-500 hover:text-purple-400 transition-colors uppercase tracking-widest">Forgot Password?</button>
+                        </div>
                     </div>
 
                     <div id="message-box" class="hidden p-4 rounded-2xl text-xs font-bold uppercase tracking-wider text-center"></div>
@@ -257,7 +264,7 @@
                     </button>
                 </form>
 
-                <!-- Toggle -->
+                <!-- Toggle Navigation -->
                 <div class="mt-8 pt-8 border-t border-zinc-800/50 text-center">
                     <p class="text-zinc-500 text-xs font-bold uppercase tracking-widest">
                         <span id="toggle-text">New to the studio?</span>
@@ -282,28 +289,83 @@
         const googleBtn = document.getElementById('google-btn');
         const githubBtn = document.getElementById('github-btn');
         const toggleBtn = document.getElementById('toggle-auth');
+        const forgotBtn = document.getElementById('forgot-password-trigger');
         const signupFields = document.querySelectorAll('.signup-only');
+        const passwordGroup = document.getElementById('password-group');
+        const socialAuthSection = document.getElementById('social-auth-section');
+        const emailDivider = document.getElementById('email-divider');
         const msgBox = document.getElementById('message-box');
-        let isLogin = true;
+        
+        // Mode Management
+        let mode = 'login'; // login, signup, forgot
 
+        // Fix Duplicate Domain Issue (Mobile/Redirect Fix)
         const getRedirectUrl = () => {
             const params = new URLSearchParams(window.location.search);
             const redirectParam = params.get('redirect');
             if (redirectParam) return redirectParam;
-            return 'portal.html';
+            
+            // Construct safe origin
+            let origin = window.location.origin;
+            if (origin.endsWith('/')) origin = origin.slice(0, -1);
+            
+            return `${origin}/portal.html`;
+        };
+
+        // UI Toggler
+        const updateUI = () => {
+            msgBox.classList.add('hidden');
+            
+            if (mode === 'login') {
+                document.getElementById('auth-title').innerText = 'Codenix AI Studio';
+                document.getElementById('auth-subtitle').innerText = 'Sign in to your AI workspace';
+                submitBtn.innerText = 'Initialize Session';
+                document.getElementById('toggle-text').innerText = "New to the studio?";
+                toggleBtn.innerText = 'Create Account';
+                
+                signupFields.forEach(f => f.style.display = 'none');
+                passwordGroup.style.display = 'block';
+                socialAuthSection.style.display = 'block';
+                emailDivider.style.display = 'flex';
+                document.getElementById('password').required = true;
+            } else if (mode === 'signup') {
+                document.getElementById('auth-title').innerText = 'Create Account';
+                document.getElementById('auth-subtitle').innerText = 'Begin your journey with Codenix';
+                submitBtn.innerText = 'Register Profile';
+                document.getElementById('toggle-text').innerText = "Already a member?";
+                toggleBtn.innerText = 'Sign In';
+                
+                signupFields.forEach(f => f.style.display = 'block');
+                passwordGroup.style.display = 'block';
+                socialAuthSection.style.display = 'block';
+                emailDivider.style.display = 'flex';
+                document.getElementById('password').required = true;
+            } else if (mode === 'forgot') {
+                document.getElementById('auth-title').innerText = 'Reset Access';
+                document.getElementById('auth-subtitle').innerText = 'Enter email to receive recovery link';
+                submitBtn.innerText = 'Send Recovery Link';
+                document.getElementById('toggle-text').innerText = "Remembered it?";
+                toggleBtn.innerText = 'Sign In';
+                
+                signupFields.forEach(f => f.style.display = 'none');
+                passwordGroup.style.display = 'none';
+                socialAuthSection.style.display = 'none';
+                emailDivider.style.display = 'none';
+                document.getElementById('password').required = false;
+            }
         };
 
         toggleBtn.addEventListener('click', (e) => {
             e.preventDefault();
-            isLogin = !isLogin;
-            document.getElementById('auth-title').innerText = isLogin ? 'Codenix AI Studio' : 'Create Account';
-            document.getElementById('auth-subtitle').innerText = isLogin ? 'Sign in to your AI workspace' : 'Begin your journey with Codenix';
-            submitBtn.innerText = isLogin ? 'Initialize Session' : 'Register Profile';
-            document.getElementById('toggle-text').innerText = isLogin ? "New to the studio?" : "Already a member?";
-            toggleBtn.innerText = isLogin ? 'Create Account' : 'Sign In';
-            
-            signupFields.forEach(f => f.style.display = isLogin ? 'none' : 'block');
-            msgBox.classList.add('hidden');
+            if (mode === 'login') mode = 'signup';
+            else mode = 'login';
+            updateUI();
+        });
+
+        forgotBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            mode = 'forgot';
+            updateUI();
         });
 
         authForm.addEventListener('submit', async (e) => {
@@ -318,21 +380,31 @@
 
             try {
                 let result;
-                if (isLogin) {
+                if (mode === 'login') {
                     result = await supabaseClient.auth.signInWithPassword({ email, password });
-                } else {
+                } else if (mode === 'signup') {
                     result = await supabaseClient.auth.signUp({ 
                         email, password,
                         options: { 
                             data: { full_name: fullName, username: username },
-                            emailRedirectTo: window.location.origin + '/' + getRedirectUrl()
+                            emailRedirectTo: getRedirectUrl()
                         }
                     });
+                } else if (mode === 'forgot') {
+                    result = await supabaseClient.auth.resetPasswordForEmail(email, {
+                        redirectTo: getRedirectUrl()
+                    });
+                    if (!result.error) {
+                        showMessage("Recovery link sent! Check your inbox.", "success");
+                        submitBtn.disabled = false;
+                        submitBtn.innerText = 'Sent';
+                        return;
+                    }
                 }
 
                 if (result.error) throw result.error;
                 
-                if (!isLogin && result.data.user && result.data.session === null) {
+                if (mode === 'signup' && result.data.user && result.data.session === null) {
                     showMessage("Check your email for confirmation.", "success");
                 } else {
                     window.location.href = getRedirectUrl();
@@ -341,7 +413,9 @@
                 showMessage(err.message, "error");
             } finally {
                 submitBtn.disabled = false;
-                submitBtn.innerText = isLogin ? 'Initialize Session' : 'Register Profile';
+                if (mode === 'login') submitBtn.innerText = 'Initialize Session';
+                else if (mode === 'signup') submitBtn.innerText = 'Register Profile';
+                else if (mode === 'forgot') submitBtn.innerText = 'Send Recovery Link';
             }
         });
 
@@ -351,7 +425,7 @@
                 const { error } = await supabaseClient.auth.signInWithOAuth({
                     provider: provider,
                     options: {
-                        redirectTo: window.location.origin + '/' + getRedirectUrl()
+                        redirectTo: getRedirectUrl()
                     }
                 });
                 if (error) throw error;
