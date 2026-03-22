@@ -17,7 +17,7 @@
             --brand-white: #fafafa;
         }
 
-        /* --- PROFESSIONAL TRIANGLE CURSOR --- */
+        /* --- SYSTEM-STYLE PURPLE CURSOR --- */
         * { cursor: none !important; }
 
         #cursor-container {
@@ -28,26 +28,24 @@
             will-change: transform;
         }
 
-        #cursor-triangle {
-            width: 0;
-            height: 0;
-            border-left: 8px solid transparent;
-            border-right: 8px solid transparent;
-            border-bottom: 16px solid var(--brand-purple);
-            transition: transform 0.15s cubic-bezier(0.175, 0.885, 0.32, 1.275), border-bottom-color 0.3s ease;
-            filter: drop-shadow(0 0 8px rgba(147, 51, 234, 0.4));
+        /* Custom SVG Arrow to match system pointer exactly */
+        .custom-pointer {
+            width: 24px;
+            height: 24px;
+            fill: var(--brand-purple);
+            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
+            transition: transform 0.1s ease, fill 0.3s ease;
         }
 
         /* Cursor States */
-        .cursor-active #cursor-triangle { 
-            transform: scale(0.8) rotate(15deg); 
-            border-bottom-color: var(--brand-purple-light);
+        .cursor-active .custom-pointer { 
+            transform: scale(0.9);
+            fill: var(--brand-purple-light);
         }
         
-        .cursor-hovering #cursor-triangle { 
-            transform: scale(1.4); 
-            border-bottom-color: #fff;
-            filter: drop-shadow(0 0 12px rgba(255, 255, 255, 0.6));
+        .cursor-hovering .custom-pointer { 
+            fill: #fff;
+            filter: drop-shadow(0 0 8px var(--brand-purple));
         }
 
         body { 
@@ -106,14 +104,9 @@
             transition: border-color 0.5s ease;
         }
 
-        .glass-card:hover {
-            border-color: rgba(147, 51, 234, 0.3);
-        }
+        .glass-card:hover { border-color: rgba(147, 51, 234, 0.3); }
 
-        .input-group {
-            position: relative;
-            margin-bottom: 1rem;
-        }
+        .input-group { position: relative; margin-bottom: 1rem; }
 
         .input-field {
             background: rgba(255, 255, 255, 0.02);
@@ -141,17 +134,13 @@
             transition: color 0.3s ease;
         }
 
-        .input-field:focus + .input-icon {
-            color: var(--brand-purple-light);
-        }
+        .input-field:focus + .input-icon { color: var(--brand-purple-light); }
 
         .btn-primary {
             background: linear-gradient(135deg, #9333ea 0%, #7e22ce 100%);
             transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1);
             color: white;
             letter-spacing: 0.025em;
-            position: relative;
-            overflow: hidden;
         }
 
         .btn-primary:hover:not(:disabled) {
@@ -235,9 +224,11 @@
     <div class="glow" style="top: -10%; right: -10%;"></div>
     <div class="glow" style="bottom: -10%; left: -10%;"></div>
 
-    <!-- Professional Custom Triangle Cursor -->
+    <!-- System-style Purple Cursor -->
     <div id="cursor-container">
-        <div id="cursor-triangle"></div>
+        <svg class="custom-pointer" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path d="M7 2l12 11.2-5.8.1 3.3 5.7-2.1 1.2-3.3-5.7-4.1 3.5V2z"/>
+        </svg>
     </div>
 
     <div class="main-wrapper">
@@ -321,12 +312,9 @@
     </div>
 
     <script>
-        // --- HIGH-PERFORMANCE CUSTOM TRIANGLE CURSOR ---
+        // --- HIGH-PERFORMANCE SYSTEM-STYLE CURSOR ---
         const cursorContainer = document.getElementById('cursor-container');
-        const triangle = document.getElementById('cursor-triangle');
-        
-        let mouseX = 0; let mouseY = 0;
-        let currentX = 0; let currentY = 0;
+        let mouseX = 0, mouseY = 0, currentX = 0, currentY = 0;
 
         document.addEventListener('mousemove', (e) => {
             mouseX = e.clientX;
@@ -334,16 +322,10 @@
         });
 
         function animateCursor() {
-            // Smoothler interpolation for movement
-            currentX += (mouseX - currentX) * 0.25;
-            currentY += (mouseY - currentY) * 0.25;
-
-            // Optional: Slight rotation based on horizontal movement speed
-            const dx = mouseX - currentX;
-            const rotation = dx * 0.2;
-
-            cursorContainer.style.transform = `translate(${currentX - 8}px, ${currentY - 8}px) rotate(${rotation}deg)`;
-
+            // Tight interpolation for a responsive "real cursor" feel
+            currentX += (mouseX - currentX) * 0.4;
+            currentY += (mouseY - currentY) * 0.4;
+            cursorContainer.style.transform = `translate(${currentX}px, ${currentY}px)`;
             requestAnimationFrame(animateCursor);
         }
         animateCursor();
@@ -371,10 +353,14 @@
         const msgBox = document.getElementById('message-box');
         let isLogin = true;
 
-        const getRedirectUrl = () => {
+        // FIXED: Mobile redirection logic to prevent double domains
+        const getSafeRedirectUrl = () => {
             const params = new URLSearchParams(window.location.search);
             const redirectParam = params.get('redirect');
-            return redirectParam || 'portal.html';
+            if (!redirectParam) return window.location.origin + '/portal.html';
+            
+            // If it's already a full URL, return it, otherwise prepend origin
+            return redirectParam.startsWith('http') ? redirectParam : window.location.origin + (redirectParam.startsWith('/') ? '' : '/') + redirectParam;
         };
 
         toggleBtn.addEventListener('click', (e) => {
@@ -385,7 +371,6 @@
             submitBtn.innerText = isLogin ? 'Continue to Studio' : 'Finalize Registration';
             document.getElementById('toggle-text').innerText = isLogin ? "New to the studio?" : "Already a member?";
             toggleBtn.innerText = isLogin ? 'Create Account' : 'Sign In';
-            
             signupFields.forEach(f => f.style.display = isLogin ? 'none' : 'block');
             msgBox.classList.add('hidden');
         });
@@ -409,7 +394,7 @@
                         email, password,
                         options: { 
                             data: { full_name: fullName, username: username },
-                            emailRedirectTo: window.location.origin + '/' + getRedirectUrl()
+                            emailRedirectTo: getSafeRedirectUrl()
                         }
                     });
                 }
@@ -419,7 +404,7 @@
                 if (!isLogin && result.data.user && result.data.session === null) {
                     showMessage("Verification email sent to your inbox.", "success");
                 } else {
-                    window.location.href = getRedirectUrl();
+                    window.location.href = getSafeRedirectUrl();
                 }
             } catch (err) {
                 showMessage(err.message, "error");
@@ -433,7 +418,7 @@
             try {
                 const { error } = await supabaseClient.auth.signInWithOAuth({
                     provider: provider,
-                    options: { redirectTo: window.location.origin + '/' + getRedirectUrl() }
+                    options: { redirectTo: getSafeRedirectUrl() }
                 });
                 if (error) throw error;
             } catch (err) {
@@ -454,7 +439,7 @@
 
         async function checkSession() {
             const { data: { session } } = await supabaseClient.auth.getSession();
-            if (session) window.location.href = getRedirectUrl();
+            if (session) window.location.href = getSafeRedirectUrl();
         }
         checkSession();
     </script>
