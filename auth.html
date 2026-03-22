@@ -219,6 +219,7 @@
                 <div id="email-divider" class="divider">or use email</div>
 
                 <form id="auth-form" class="space-y-4">
+                    <!-- Signup Only Fields -->
                     <div class="signup-only">
                         <div class="input-group">
                             <input type="text" id="fullname" class="input-field w-full py-4 rounded-2xl text-sm interactive" placeholder="Full Name">
@@ -230,16 +231,26 @@
                         </div>
                     </div>
                     
+                    <!-- Email Group (Hidden in Update Mode) -->
                     <div class="input-group email-group">
-                        <input type="email" id="email" required class="input-field w-full py-4 rounded-2xl text-sm interactive" placeholder="Developer Email">
+                        <input type="email" id="email" class="input-field w-full py-4 rounded-2xl text-sm interactive" placeholder="Developer Email">
                         <i class="fa-solid fa-envelope input-icon"></i>
                     </div>
 
+                    <!-- Password Group -->
                     <div id="password-group" class="input-group">
-                        <input type="password" id="password" required class="input-field w-full py-4 rounded-2xl text-sm interactive" placeholder="Password">
+                        <input type="password" id="password" class="input-field w-full py-4 rounded-2xl text-sm interactive" placeholder="Password">
                         <i class="fa-solid fa-lock input-icon"></i>
                         <div class="flex justify-end mt-2 forgot-trigger-wrapper">
                             <button type="button" id="forgot-password-trigger" class="text-[10px] font-bold text-zinc-500 hover:text-purple-400 transition-colors uppercase tracking-widest interactive">Forgot Password?</button>
+                        </div>
+                    </div>
+
+                    <!-- Update Only Field (Confirm New Password) -->
+                    <div class="update-only">
+                        <div class="input-group">
+                            <input type="password" id="confirm-password" class="input-field w-full py-4 rounded-2xl text-sm interactive" placeholder="Confirm New Password">
+                            <i class="fa-solid fa-shield-halved input-icon"></i>
                         </div>
                     </div>
 
@@ -290,6 +301,7 @@
         const toggleBtn = document.getElementById('toggle-auth');
         const forgotBtn = document.getElementById('forgot-password-trigger');
         const signupFields = document.querySelectorAll('.signup-only');
+        const updateFields = document.querySelectorAll('.update-only');
         const passwordGroup = document.getElementById('password-group');
         const socialAuthSection = document.getElementById('social-auth-section');
         const emailDivider = document.getElementById('email-divider');
@@ -298,12 +310,18 @@
         const toggleWrapper = document.getElementById('toggle-wrapper');
         const forgotWrapper = document.querySelector('.forgot-trigger-wrapper');
         
+        // Input elements
+        const emailInput = document.getElementById('email');
+        const passwordInput = document.getElementById('password');
+        const confirmPasswordInput = document.getElementById('confirm-password');
+        const fullNameInput = document.getElementById('fullname');
+        const usernameInput = document.getElementById('username');
+
         let mode = 'login';
 
-        // Check if we are in recovery mode from the URL hash (Supabase standard)
         const checkRecoveryMode = () => {
             const hash = window.location.hash;
-            if (hash && hash.includes('type=recovery')) {
+            if (hash && (hash.includes('type=recovery') || hash.includes('access_token='))) {
                 mode = 'update';
                 updateUI();
             }
@@ -320,8 +338,10 @@
 
         const updateUI = () => {
             msgBox.classList.add('hidden');
-            // Reset visibility for all groups
+            
+            // Default states for all elements
             signupFields.forEach(f => f.style.display = 'none');
+            updateFields.forEach(f => f.style.display = 'none');
             passwordGroup.style.display = 'block';
             socialAuthSection.style.display = 'block';
             emailDivider.style.display = 'flex';
@@ -329,14 +349,22 @@
             toggleWrapper.style.display = 'block';
             forgotWrapper.style.display = 'flex';
 
+            // Reset required attributes to prevent "not focusable" errors
+            emailInput.required = false;
+            passwordInput.required = false;
+            confirmPasswordInput.required = false;
+            fullNameInput.required = false;
+            usernameInput.required = false;
+
             if (mode === 'login') {
                 document.getElementById('auth-title').innerText = 'Codenix AI Studio';
                 document.getElementById('auth-subtitle').innerText = 'Sign in to your AI workspace';
                 submitBtn.innerText = 'Initialize Session';
                 document.getElementById('toggle-text').innerText = "New to the studio?";
                 toggleBtn.innerText = 'Create Account';
-                signupFields.forEach(f => f.style.display = 'none');
-                document.getElementById('password').required = true;
+                emailInput.required = true;
+                passwordInput.required = true;
+                passwordInput.placeholder = 'Password';
             } else if (mode === 'signup') {
                 document.getElementById('auth-title').innerText = 'Create Account';
                 document.getElementById('auth-subtitle').innerText = 'Begin your journey with Codenix';
@@ -344,7 +372,11 @@
                 document.getElementById('toggle-text').innerText = "Already a member?";
                 toggleBtn.innerText = 'Sign In';
                 signupFields.forEach(f => f.style.display = 'block');
-                document.getElementById('password').required = true;
+                emailInput.required = true;
+                passwordInput.required = true;
+                fullNameInput.required = true;
+                usernameInput.required = true;
+                passwordInput.placeholder = 'Password';
             } else if (mode === 'forgot') {
                 document.getElementById('auth-title').innerText = 'Reset Access';
                 document.getElementById('auth-subtitle').innerText = 'Enter email to recover account';
@@ -354,7 +386,7 @@
                 passwordGroup.style.display = 'none';
                 socialAuthSection.style.display = 'none';
                 emailDivider.style.display = 'none';
-                document.getElementById('password').required = false;
+                emailInput.required = true;
             } else if (mode === 'update') {
                 document.getElementById('auth-title').innerText = 'Update Password';
                 document.getElementById('auth-subtitle').innerText = 'Set a new secure password for your account';
@@ -364,8 +396,10 @@
                 emailDivider.style.display = 'none';
                 toggleWrapper.style.display = 'none';
                 forgotWrapper.style.display = 'none';
-                document.getElementById('password').placeholder = 'New Password';
-                document.getElementById('password').required = true;
+                updateFields.forEach(f => f.style.display = 'block');
+                passwordInput.placeholder = 'New Password';
+                passwordInput.required = true;
+                confirmPasswordInput.required = true;
             }
             updateInteractiveListeners();
         };
@@ -384,8 +418,15 @@
 
         authForm.addEventListener('submit', async (e) => {
             e.preventDefault();
-            const email = document.getElementById('email').value;
-            const password = document.getElementById('password').value;
+            const email = emailInput.value;
+            const password = passwordInput.value;
+            const confirmPassword = confirmPasswordInput.value;
+
+            if (mode === 'update' && password !== confirmPassword) {
+                showMessage("Passwords do not match", "error");
+                return;
+            }
+
             submitBtn.disabled = true;
             const originalBtnText = submitBtn.innerText;
             submitBtn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i>';
@@ -398,14 +439,14 @@
                     result = await supabaseClient.auth.signUp({ 
                         email, password,
                         options: { 
-                            data: { full_name: document.getElementById('fullname').value, username: document.getElementById('username').value },
-                            emailRedirectTo: window.location.href // Redirect back here for confirmation
+                            data: { full_name: fullNameInput.value, username: usernameInput.value },
+                            emailRedirectTo: window.location.href
                         }
                     });
                     if (!result.error) showMessage("Verification email sent!", "success");
                 } else if (mode === 'forgot') {
                     result = await supabaseClient.auth.resetPasswordForEmail(email, { 
-                        redirectTo: window.location.href // This link will trigger the recovery mode UI
+                        redirectTo: window.location.href
                     });
                     if (!result.error) showMessage("Recovery link sent!", "success");
                 } else if (mode === 'update') {
@@ -453,7 +494,6 @@
 
         async function checkSession() {
             const { data: { session } } = await supabaseClient.auth.getSession();
-            // Only redirect automatically if we aren't trying to update a password
             if (session && mode !== 'update') {
                 window.location.href = getRedirectUrl();
             }
