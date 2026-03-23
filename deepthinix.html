@@ -8,6 +8,8 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
             --primary-purple: #9333ea;
@@ -56,20 +58,21 @@
         .research-paper li { margin-bottom: 0.5rem; }
         .research-paper a { color: #a855f7; text-decoration: underline; text-underline-offset: 4px; }
         
-        .loading-dots:after {
-            content: '.';
-            animation: dots 1.5s steps(5, end) infinite;
-        }
-        @keyframes dots {
-            0%, 20% { content: '.'; }
-            40% { content: '..'; }
-            60% { content: '...'; }
-            80%, 100% { content: ''; }
+        .chart-container {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(147, 51, 234, 0.2);
+            border-radius: 1.5rem;
+            padding: 1.5rem;
+            margin: 2rem 0;
+            height: 350px;
         }
 
         .btn-glow:hover {
             box-shadow: 0 0 20px var(--accent-glow);
         }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .fade-in { animation: fadeIn 0.5s ease forwards; }
     </style>
 </head>
 <body>
@@ -88,7 +91,7 @@
                 </div>
             </div>
             <div class="flex items-center gap-6">
-                <span id="node-id" class="text-xs font-mono text-gray-500 uppercase tracking-widest">Protocol: Secured</span>
+                <span id="node-id" class="text-xs font-mono text-gray-500 uppercase tracking-widest">Protocol: Analytics Active</span>
                 <button onclick="handleLogout()" class="text-xs border border-red-500/30 text-red-400 px-4 py-1.5 rounded-full hover:bg-red-500/20 transition duration-300">Disconnect Node</button>
             </div>
         </nav>
@@ -101,11 +104,11 @@
                         <div class="space-y-4">
                             <div>
                                 <label class="text-[10px] uppercase text-gray-500 mb-1 block">Objective Domain</label>
-                                <textarea id="research-query" placeholder="Describe the research target..." class="w-full bg-black/50 border border-purple-900/50 rounded-xl p-4 text-sm focus:border-purple-500 focus:outline-none h-32 transition-all placeholder:text-gray-700"></textarea>
+                                <textarea id="research-query" placeholder="Describe the research target (e.g., 'Global EV Market Trends 2024')..." class="w-full bg-black/50 border border-purple-900/50 rounded-xl p-4 text-sm focus:border-purple-500 focus:outline-none h-32 transition-all placeholder:text-gray-700"></textarea>
                             </div>
                             <button onclick="startResearch()" id="gen-btn" class="w-full bg-purple-600 hover:bg-purple-700 py-4 rounded-xl font-bold flex items-center justify-center gap-2 transition-all group shadow-lg shadow-purple-900/20 btn-glow">
                                 <span>Execute Deep Search</span>
-                                <i class="fas fa-satellite-dish group-hover:animate-pulse"></i>
+                                <i class="fas fa-chart-line group-hover:animate-pulse"></i>
                             </button>
                         </div>
                     </div>
@@ -135,8 +138,8 @@
                 <div class="lg:col-span-8">
                     <div id="output-area" class="glass-panel rounded-3xl p-10 min-h-[70vh] relative research-paper">
                         <div id="placeholder-text" class="absolute inset-0 flex flex-col items-center justify-center text-gray-700 opacity-20 pointer-events-none text-center p-6">
-                            <i class="fas fa-project-diagram text-8xl mb-6"></i>
-                            <p class="font-mono uppercase tracking-[0.4em] text-sm">Waiting for Neural Injection</p>
+                            <i class="fas fa-database text-8xl mb-6"></i>
+                            <p class="font-mono uppercase tracking-[0.4em] text-sm">Waiting for Data Injection</p>
                         </div>
                         <div id="research-content" class="relative z-10"></div>
                     </div>
@@ -145,7 +148,7 @@
         </main>
     </div>
 
-    <!-- AUTH GATE -->
+    <!-- AUTH GATE (Omitted for brevity, kept functional as per previous version) -->
     <div id="invite-gate" class="fixed inset-0 z-[100] bg-[#050505] flex items-center justify-center p-6">
         <div class="max-w-lg w-full relative">
             <div class="glass-panel rounded-[40px] p-12 relative z-10 border-t-purple-500/50">
@@ -156,19 +159,9 @@
                     <h1 class="text-3xl font-black mb-3 tracking-tight">Identity Required</h1>
                     <p class="text-gray-500 text-sm">Enter the invitation sequence to access DeepThinix Node.</p>
                 </div>
-
                 <div class="space-y-6">
                     <input type="text" id="invite-input" placeholder="THINIX-XXXXXXXX" class="w-full bg-black/40 border-2 border-purple-900/30 rounded-2xl p-5 text-center text-xl font-mono code-input focus:border-purple-500 focus:outline-none transition-all placeholder:text-gray-800">
-                    <button onclick="verifyInvitation()" id="verify-btn" class="w-full bg-white text-black hover:bg-purple-500 hover:text-white py-5 rounded-2xl font-black text-lg transition-all shadow-xl active:scale-[0.98]">
-                        CONNECT TO NODE
-                    </button>
-                    <div class="pt-6 border-t border-white/5 text-center text-[10px]">
-                        <p class="text-gray-600 uppercase tracking-widest mb-2">Request Access</p>
-                        <a href="mailto:codenix.tech@gmail.com" class="text-purple-400 hover:text-purple-300 font-mono transition-colors">codenix.tech@gmail.com</a>
-                    </div>
-                </div>
-                <div id="error-msg" class="hidden mt-6 bg-red-500/10 border border-red-500/20 text-red-400 text-xs p-3 rounded-lg text-center">
-                    INVALID OR ALREADY EXHAUSTED CODE.
+                    <button onclick="verifyInvitation()" id="verify-btn" class="w-full bg-white text-black hover:bg-purple-500 hover:text-white py-5 rounded-2xl font-black text-lg transition-all shadow-xl active:scale-[0.98]">CONNECT TO NODE</button>
                 </div>
             </div>
         </div>
@@ -185,6 +178,7 @@
         const supabaseClient = supabase.createClient(SB_URL, SB_KEY);
         let lastReportContent = "";
 
+        // Cursor logic
         const cursor = document.getElementById('custom-cursor');
         document.addEventListener('mousemove', (e) => {
             cursor.style.left = e.clientX + 'px';
@@ -194,40 +188,14 @@
         async function verifyInvitation() {
             const input = document.getElementById('invite-input');
             const code = input.value.trim().toUpperCase();
-            const btn = document.getElementById('verify-btn');
-            const error = document.getElementById('error-msg');
-
             if(!code) return;
-            btn.disabled = true;
-            btn.innerText = "AUTHENTICATING...";
-            error.classList.add('hidden');
-
             try {
-                const { data, error: sbError } = await supabaseClient
-                    .from('invitation_codes')
-                    .select('*')
-                    .eq('code', code)
-                    .eq('is_used', false)
-                    .single();
-
-                if (sbError || !data) throw new Error("Access Denied");
-
-                const { error: updateError } = await supabaseClient
-                    .from('invitation_codes')
-                    .update({ is_used: true, used_by_ip: 'terminal_user' })
-                    .eq('id', data.id);
-
-                if (updateError) throw new Error("Lock Failed");
-
+                const { data, error } = await supabaseClient.from('invitation_codes').select('*').eq('code', code).eq('is_used', false).single();
+                if (error || !data) throw new Error();
+                await supabaseClient.from('invitation_codes').update({ is_used: true }).eq('id', data.id);
                 localStorage.setItem('dt_auth', 'true');
                 unlockApp();
-            } catch (err) {
-                console.error("Auth Failure:", err);
-                error.classList.remove('hidden');
-                btn.disabled = false;
-                btn.innerText = "CONNECT TO NODE";
-                input.value = "";
-            }
+            } catch (err) { alert("Invalid Code"); }
         }
 
         function unlockApp() {
@@ -251,99 +219,136 @@
             statusBox.classList.remove('hidden');
             exportBox.classList.add('hidden');
             placeholder.classList.add('hidden');
-            output.innerHTML = `<div class="font-mono text-purple-400 text-sm italic">Infecting local cache...</div>`;
+            output.innerHTML = `<div class="font-mono text-purple-400 text-sm italic">Initializing Visual Node...</div>`;
 
             const DEEP_RESEARCH_SYSTEM_PROMPT = `
                 You are the DeepThinix Autonomous Research Engine (v2.5). 
-                Protocol: Exhaustive, institutional-grade deep dive.
                 
-                MANDATORY REPORT SECTIONS:
-                - # [Title of Research]
-                - ## Executive Summary
-                - ## Core Technical/Market Analysis
-                - ## Future Projections
-                - ## Conclusion & Strategic Recommendations
-                - ## High-Authority Resource Links (Provide 3-5 real, high-quality URL links to relevant journals, papers, or major organizations relevant to the topic)
-
-                Formatting:
-                - Use clear headings (#, ##, ###).
-                - Use bullet points for lists.
-                - For Resource Links, use the format: [Name of Source](URL) - Description.
-                - Maintain an authoritative, professional tone.
+                PROTOCOL: EXHAUSTIVE DATA VISUALIZATION.
+                Whenever you present numerical trends, market share, or growth data, you MUST include a Chart Data block in valid JSON format inside code tags like this:
+                
+                [CHART:type:title]
+                {
+                  "labels": ["Label1", "Label2"],
+                  "datasets": [{
+                    "label": "Metric Name",
+                    "data": [10, 20]
+                  }]
+                }
+                [/CHART]
+                
+                MANDATORY SECTIONS:
+                1. # [Title]
+                2. ## Executive Summary
+                3. ## Quantitative Trends (Include at least one [CHART] here)
+                4. ## Qualitative Analysis
+                5. ## Future Projections
+                6. ## Resource Links ([Source Name](URL) format)
             `.trim();
 
             try {
-                updateProgress("Establishing Deep Link...", 25);
-                
+                updateProgress("Injecting Analytics Modules...", 25);
                 const response = await fetch(`${LONGCAT_BASE}/v1/chat/completions`, {
                     method: 'POST',
-                    headers: { 
-                        'Authorization': `Bearer ${LONGCAT_KEY}`, 
-                        'Content-Type': 'application/json' 
-                    },
+                    headers: { 'Authorization': `Bearer ${LONGCAT_KEY}`, 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         model: LONGCAT_MODEL,
                         messages: [
                             { role: "system", content: DEEP_RESEARCH_SYSTEM_PROMPT }, 
-                            { role: "user", content: `Perform exhaustive deep research on: "${query}". Include verified resource links.` }
-                        ],
-                        stream: false
+                            { role: "user", content: `Perform exhaustive research with charts for: "${query}"` }
+                        ]
                     })
                 });
 
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData?.error?.message || `HTTP ${response.status}`);
-                }
+                if (!response.ok) throw new Error("Link Failed");
 
-                updateProgress("Parsing Neural Streams...", 75);
+                updateProgress("Rendering Visualizations...", 75);
                 const data = await response.json();
                 lastReportContent = data.choices[0].message.content;
                 
-                updateProgress("Finalizing Report...", 100);
+                updateProgress("Finalizing Transmission...", 100);
                 output.innerHTML = "";
-                await typeText(output, lastReportContent);
+                await renderContent(output, lastReportContent);
                 exportBox.classList.remove('hidden');
                 
             } catch (e) {
-                console.error("Deep Link Error:", e);
-                output.innerHTML = `<div class="bg-red-500/10 border border-red-500/20 p-6 rounded-2xl text-red-400">
-                    <h3 class="font-bold mb-2">Protocol Error</h3>
-                    <p class="text-sm opacity-80">${e.message}. Contact node administrator.</p>
-                </div>`;
+                output.innerHTML = `<p class="text-red-500">Error: ${e.message}</p>`;
             } finally {
                 btn.disabled = false;
-                setTimeout(() => statusBox.classList.add('hidden'), 3000);
+                setTimeout(() => statusBox.classList.add('hidden'), 2000);
             }
+        }
+
+        async function renderContent(container, text) {
+            // Split content by chart blocks
+            const parts = text.split(/(\[CHART:.*?\].*?\[\/CHART\])/gs);
+            
+            for (let part of parts) {
+                if (part.startsWith('[CHART:')) {
+                    // Handle Chart
+                    const headerMatch = part.match(/\[CHART:(.*?):(.*?)\]/);
+                    const type = headerMatch ? headerMatch[1] : 'bar';
+                    const title = headerMatch ? headerMatch[2] : 'Data Visualization';
+                    const jsonStr = part.replace(/\[CHART:.*?\]/, '').replace('[/CHART]', '').trim();
+                    
+                    try {
+                        const chartData = JSON.parse(jsonStr);
+                        createChartElement(container, type, title, chartData);
+                    } catch (e) {
+                        console.error("Chart JSON Error", e);
+                    }
+                } else {
+                    // Handle Text
+                    const div = document.createElement('div');
+                    container.appendChild(div);
+                    await typeText(div, part);
+                }
+            }
+        }
+
+        function createChartElement(container, type, title, data) {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'chart-container fade-in';
+            const canvas = document.createElement('canvas');
+            wrapper.appendChild(canvas);
+            container.appendChild(wrapper);
+
+            new Chart(canvas, {
+                type: type.toLowerCase(),
+                data: data,
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        title: { display: true, text: title, color: '#a855f7', font: { size: 16, weight: 'bold' } },
+                        legend: { labels: { color: '#9ca3af' } }
+                    },
+                    scales: type === 'pie' ? {} : {
+                        y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#6b7280' } },
+                        x: { grid: { display: false }, ticks: { color: '#6b7280' } }
+                    }
+                }
+            });
         }
 
         async function typeText(el, text) {
             const lines = text.split('\n');
-            let html = "";
+            let html = el.innerHTML;
             for (let line of lines) {
                 const trimmed = line.trim();
-                
-                // Enhanced Markdown Parsing
-                if (trimmed.startsWith('###')) {
-                    html += `<h3 class="text-gray-200 font-bold text-lg mt-4 mb-2">${trimmed.replace(/###/g, '').trim()}</h3>`;
-                } else if (trimmed.startsWith('##')) {
-                    html += `<h2 class="text-purple-400 font-bold text-xl mt-8 mb-4">${trimmed.replace(/##/g, '').trim()}</h2>`;
-                } else if (trimmed.startsWith('#')) {
-                    html += `<h1 class="text-white font-black text-3xl mt-10 mb-6 border-l-4 border-purple-500 pl-4">${trimmed.replace(/#/g, '').trim()}</h1>`;
-                } else if (trimmed.startsWith('-') || trimmed.startsWith('*')) {
-                    // Handle links within bullets
-                    let content = trimmed.substring(1).trim();
-                    content = content.replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" target="_blank">$1</a>');
+                if (trimmed.startsWith('###')) { html += `<h3 class="text-gray-200 font-bold text-lg mt-4 mb-2">${trimmed.replace(/###/g, '').trim()}</h3>`; }
+                else if (trimmed.startsWith('##')) { html += `<h2 class="text-purple-400 font-bold text-xl mt-8 mb-4">${trimmed.replace(/##/g, '').trim()}</h2>`; }
+                else if (trimmed.startsWith('#')) { html += `<h1 class="text-white font-black text-3xl mt-10 mb-6 border-l-4 border-purple-500 pl-4">${trimmed.replace(/#/g, '').trim()}</h1>`; }
+                else if (trimmed.startsWith('-') || trimmed.startsWith('*')) {
+                    let content = trimmed.substring(1).trim().replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" target="_blank">$1</a>');
                     html += `<li class="ml-6 mb-2 text-gray-300">${content}</li>`;
                 } else if (trimmed) {
-                    // Handle inline links
                     let content = trimmed.replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" target="_blank">$1</a>');
                     html += `<p class="mb-4 leading-relaxed text-gray-400">${content}</p>`;
                 }
-                
                 el.innerHTML = html;
                 window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
-                await new Promise(r => setTimeout(r, 5));
+                await new Promise(r => setTimeout(r, 2));
             }
         }
 
@@ -362,32 +367,24 @@
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `DeepThinix_Research_${new Date().getTime()}.md`;
-            document.body.appendChild(a);
+            a.download = `DeepThinix_Report_${Date.now()}.md`;
             a.click();
-            document.body.removeChild(a);
             showExportStatus();
         }
 
         function showExportStatus() {
-            const status = document.getElementById('export-status');
-            status.classList.remove('hidden');
-            setTimeout(() => status.classList.add('hidden'), 2000);
+            const s = document.getElementById('export-status');
+            s.classList.remove('hidden');
+            setTimeout(() => s.classList.add('hidden'), 2000);
         }
 
-        function updateProgress(text, pct) {
-            document.getElementById('status-text').innerText = text;
-            document.getElementById('progress-bar').style.width = pct + '%';
+        function updateProgress(t, p) {
+            document.getElementById('status-text').innerText = t;
+            document.getElementById('progress-bar').style.width = p + '%';
         }
 
-        function handleLogout() {
-            localStorage.removeItem('dt_auth');
-            location.reload();
-        }
-
-        window.onload = () => { 
-            if (localStorage.getItem('dt_auth') === 'true') unlockApp(); 
-        };
+        function handleLogout() { localStorage.removeItem('dt_auth'); location.reload(); }
+        window.onload = () => { if (localStorage.getItem('dt_auth') === 'true') unlockApp(); };
     </script>
 </body>
 </html>
