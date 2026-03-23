@@ -12,19 +12,20 @@
         
         :root { --primary: #8b5cf6; --primary-dark: #6d28d9; }
         
-        /* Custom Purple Cursor */
+        /* Custom Purple Triangle Cursor */
         * { cursor: none !important; }
         #custom-cursor {
-            width: 20px;
-            height: 20px;
-            background: rgba(139, 92, 246, 0.5);
-            border: 2px solid #8b5cf6;
-            border-radius: 50%;
+            width: 0;
+            height: 0;
+            border-left: 10px solid transparent;
+            border-right: 10px solid transparent;
+            border-bottom: 20px solid rgba(139, 92, 246, 0.6);
             position: fixed;
             pointer-events: none;
             z-index: 9999;
-            transition: transform 0.1s ease-out;
-            box-shadow: 0 0 15px rgba(139, 92, 246, 0.8);
+            transition: transform 0.05s ease-out;
+            filter: drop-shadow(0 0 8px rgba(139, 92, 246, 0.8));
+            transform-origin: center;
         }
         #cursor-dot {
             width: 4px;
@@ -151,40 +152,51 @@
         const SUPABASE_KEY = "sb_publishable_mtI0_ZBvU_n5oRuqV58QHg_qJt3Gfyt";
         const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-        // Custom Cursor Logic
+        // Custom Triangle Cursor Logic
         const cursor = document.getElementById('custom-cursor');
         const dot = document.getElementById('cursor-dot');
         
         document.addEventListener('mousemove', (e) => {
-            cursor.style.left = e.clientX - 10 + 'px';
-            cursor.style.top = e.clientY - 10 + 'px';
-            dot.style.left = e.clientX - 2 + 'px';
-            dot.style.top = e.clientY - 2 + 'px';
+            cursor.style.left = (e.clientX - 10) + 'px';
+            cursor.style.top = (e.clientY - 15) + 'px';
+            cursor.style.transform = 'rotate(-25deg)';
+            dot.style.left = e.clientX + 'px';
+            dot.style.top = e.clientY + 'px';
         });
 
         async function checkVerification() {
             const fingerprint = localStorage.getItem('thinix_fingerprint');
+            console.log("Checking fingerprint:", fingerprint);
+
             if (!fingerprint) { 
+                console.log("No fingerprint found, redirecting to auth.");
                 window.location.href = 'auth.html'; 
                 return; 
             }
 
             try {
+                // Try selecting without maybeSingle first to debug
                 const { data, error } = await supabaseClient
                     .from('verified_sessions')
                     .select('*')
-                    .eq('device_fingerprint', fingerprint)
-                    .maybeSingle(); // Better error handling for missing rows
+                    .eq('device_fingerprint', fingerprint);
                 
-                if (error || !data) {
+                if (error) {
+                    console.error("Supabase query error:", error.message);
+                    return;
+                }
+
+                if (!data || data.length === 0) {
+                    console.log("Fingerprint not found in DB, redirecting to auth.");
                     localStorage.removeItem('thinix_fingerprint');
                     window.location.href = 'auth.html';
                 } else {
+                    console.log("Fingerprint verified. Welcome.");
                     document.getElementById('main-app').style.display = 'block';
                 }
             } catch (err) {
-                console.error("Supabase connection error:", err);
-                window.location.href = 'auth.html';
+                console.error("Supabase connection catch block:", err);
+                // Don't redirect immediately on network error to allow retries
             }
         }
 
@@ -300,7 +312,8 @@
             window.location.href = 'auth.html';
         }
 
-        window.onload = checkVerification;
+        // Initialize checking on load
+        window.addEventListener('load', checkVerification);
     </script>
 </body>
 </html>
