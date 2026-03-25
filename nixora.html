@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
-    <title>Nixora | Social Hub</title>
+    <title>Nixora | Social Hub Pro</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -19,6 +19,9 @@
         .rtl { direction: rtl; }
         @keyframes pulse { 0% { transform: scale(1); opacity: 0.5; } 50% { transform: scale(1.2); opacity: 0.8; } 100% { transform: scale(1); opacity: 0.5; } }
         .calling-anim { animation: pulse 2s infinite; }
+        .post-media { border-radius: 8px; max-height: 400px; width: 100%; object-fit: cover; margin-top: 10px; }
+        .search-container input:focus { width: 240px; }
+        .search-container input { transition: width 0.3s ease; }
     </style>
 </head>
 <body class="overflow-x-hidden">
@@ -36,82 +39,117 @@
     <header id="main-header" class="fixed top-0 left-0 right-0 h-14 bg-white shadow-sm flex items-center justify-between px-4 z-50 hidden-section">
         <div class="flex items-center gap-2 w-1/4">
             <div class="nx-logo cursor-pointer select-none" onclick="showView('home')">nx</div>
+            <div class="relative search-container hidden md:block">
+                <input type="text" id="global-search" oninput="handleSearch(this.value)" placeholder="Search Nixora..." class="bg-gray-100 rounded-full px-4 py-1.5 text-sm w-48 outline-none border focus:border-blue-400">
+                <div id="search-results" class="absolute top-10 left-0 w-64 bg-white shadow-xl rounded-lg hidden-section border p-2 z-[70]"></div>
+            </div>
         </div>
         
         <div class="flex items-center justify-center flex-1 h-full">
-            <div onclick="showView('home')" class="nav-icon active" id="nav-home"><i class="fa-solid fa-house"></i></div>
-            <div onclick="showView('messages')" class="nav-icon" id="nav-messages"><i class="fa-solid fa-message"></i></div>
-            <div onclick="showView('ai')" class="nav-icon" id="nav-ai"><i class="fa-solid fa-cat"></i></div>
+            <div onclick="showView('home')" class="nav-icon active" id="nav-home"><i class="fa-solid fa-house text-xl"></i></div>
+            <div onclick="showView('messages')" class="nav-icon" id="nav-messages"><i class="fa-solid fa-message text-xl"></i></div>
+            <div onclick="showView('ai')" class="nav-icon" id="nav-ai"><i class="fa-solid fa-cat text-xl"></i></div>
+            <div onclick="showProfileView()" class="nav-icon" id="nav-profile"><i class="fa-solid fa-user text-xl"></i></div>
         </div>
 
         <div class="flex items-center justify-end gap-3 w-1/4">
             <div class="relative">
                 <div onclick="toggleNotifications()" class="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center cursor-pointer hover:bg-gray-200">
-                    <i class="fa-solid fa-bell"></i>
+                    <i class="fa-solid fa-bell text-lg"></i>
                     <span id="notif-badge" class="hidden absolute -top-1 -right-1 bg-red-500 text-white text-[10px] w-5 h-5 rounded-full flex items-center justify-center border-2 border-white"></span>
                 </div>
-                <div id="notif-dropdown" class="absolute top-12 right-0 bg-white shadow-2xl rounded-lg border hidden-section z-[60] p-2 w-80">
-                    <h3 id="txt-notif-title" class="font-bold p-2 text-lg">Notifications</h3>
-                    <div id="notif-list" class="max-h-64 overflow-y-auto"></div>
-                </div>
             </div>
-            <img id="my-avatar-nav" class="w-9 h-9 rounded-full cursor-pointer object-cover border">
+            <img id="my-avatar-nav" onclick="showProfileView()" class="w-10 h-10 rounded-full cursor-pointer object-cover border-2 border-transparent hover:border-blue-400 transition">
         </div>
     </header>
 
     <!-- Main Content -->
     <div id="app-screen" class="pt-14 flex justify-center min-h-screen hidden-section">
         <!-- Sidebar -->
-        <aside class="hidden xl:block fixed left-0 w-72 h-full p-4 space-y-1">
-            <div class="flex items-center gap-3 p-3 hover:bg-gray-200 rounded-lg cursor-pointer">
-                <img id="my-avatar-side" class="w-9 h-9 rounded-full object-cover">
-                <span id="my-name-side" class="font-semibold"></span>
+        <aside class="hidden xl:block fixed left-0 w-72 h-full p-4 space-y-1 overflow-y-auto">
+            <div onclick="showProfileView()" class="flex items-center gap-3 p-3 hover:bg-gray-200 rounded-lg cursor-pointer">
+                <img id="my-avatar-side" class="w-10 h-10 rounded-full object-cover shadow-sm">
+                <span id="my-name-side" class="font-bold text-gray-800"></span>
             </div>
             <hr class="my-4">
-            <h3 id="txt-labs" class="px-3 text-gray-500 font-bold text-sm uppercase">Nixora Labs</h3>
-            <div class="flex items-center gap-3 p-3 bg-blue-50 text-blue-700 rounded-lg cursor-pointer" onclick="showView('ai')">
-                <div class="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center"><i class="fa-solid fa-cat"></i></div>
-                <span id="txt-longcat">Longcat AI</span>
+            <h3 id="txt-labs" class="px-3 text-gray-500 font-bold text-xs tracking-wider uppercase">Nixora Labs</h3>
+            <div class="flex items-center gap-3 p-3 bg-blue-50 text-blue-700 rounded-lg cursor-pointer mb-2" onclick="showView('ai')">
+                <div class="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center shadow-inner"><i class="fa-solid fa-cat"></i></div>
+                <span class="font-semibold">LongCat Omni AI</span>
             </div>
             <div id="users-discovery" class="mt-6 space-y-2">
-                <h3 id="txt-discovery" class="px-3 text-gray-500 font-bold text-sm uppercase">Discover Users</h3>
+                <div class="flex justify-between items-center px-3">
+                    <h3 id="txt-discovery" class="text-gray-500 font-bold text-xs tracking-wider uppercase">Suggested Users</h3>
+                </div>
                 <div id="users-list" class="space-y-1"></div>
             </div>
         </aside>
 
         <main class="w-full max-w-[680px] px-2 py-4 pb-20">
             <!-- View: Home -->
-            <div id="view-home" class="space-y-5">
+            <div id="view-home" class="space-y-5 animate-in fade-in duration-500">
                 <div class="card p-4 space-y-3">
                     <div class="flex gap-3">
                         <img id="input-avatar" class="w-10 h-10 rounded-full object-cover">
-                        <div onclick="openPostModal()" id="txt-think" class="flex-1 bg-[#f0f2f5] rounded-full px-4 flex items-center text-gray-500 cursor-pointer">What's on your mind?</div>
+                        <div onclick="openPostModal()" id="txt-think" class="flex-1 bg-[#f0f2f5] hover:bg-gray-200 transition rounded-full px-4 flex items-center text-gray-500 cursor-pointer">What's on your mind?</div>
+                    </div>
+                    <div class="flex border-t pt-2 mt-2">
+                        <button onclick="openPostModal('video')" class="flex-1 flex items-center justify-center gap-2 py-2 hover:bg-gray-100 rounded text-gray-600 font-semibold"><i class="fa-solid fa-video text-red-500"></i> Video</button>
+                        <button onclick="openPostModal('image')" class="flex-1 flex items-center justify-center gap-2 py-2 hover:bg-gray-100 rounded text-gray-600 font-semibold"><i class="fa-solid fa-image text-green-500"></i> Photo</button>
                     </div>
                 </div>
                 <div id="feed-container" class="space-y-4"></div>
             </div>
 
+            <!-- View: Profile -->
+            <div id="view-profile" class="hidden-section space-y-4">
+                <div class="card overflow-hidden">
+                    <div class="h-48 bg-gradient-to-r from-blue-400 to-indigo-500"></div>
+                    <div class="px-4 pb-4 -mt-16 flex flex-col items-center">
+                        <img id="profile-view-avatar" class="w-32 h-32 rounded-full border-4 border-white shadow-lg object-cover bg-white">
+                        <h2 id="profile-view-name" class="text-2xl font-bold mt-2"></h2>
+                        <p class="text-gray-500">Professional Nixora Explorer</p>
+                        <div class="flex gap-6 mt-4 w-full justify-center border-t border-b py-3">
+                            <div class="text-center"><p class="font-bold" id="stat-posts">0</p><p class="text-xs text-gray-500 uppercase">Posts</p></div>
+                            <div class="text-center"><p class="font-bold">1.2k</p><p class="text-xs text-gray-500 uppercase">Followers</p></div>
+                            <div class="text-center"><p class="font-bold">480</p><p class="text-xs text-gray-500 uppercase">Following</p></div>
+                        </div>
+                    </div>
+                </div>
+                <div id="profile-feed" class="space-y-4"></div>
+            </div>
+
             <!-- View: Messages -->
             <div id="view-messages" class="hidden-section h-[85vh]">
                 <div class="card h-full flex overflow-hidden">
-                    <div class="w-1/3 border-r flex flex-col">
-                        <div class="p-4 font-bold border-b" id="txt-chats">Chats</div>
+                    <div class="w-full md:w-1/3 border-r flex flex-col bg-white">
+                        <div class="p-4 font-bold border-b text-xl flex justify-between items-center">
+                            <span id="txt-chats">Chats</span>
+                            <i class="fa-solid fa-edit text-blue-500 cursor-pointer"></i>
+                        </div>
                         <div id="chat-threads" class="flex-1 overflow-y-auto"></div>
                     </div>
-                    <div class="flex-1 flex flex-col bg-gray-50">
+                    <div class="hidden md:flex flex-1 flex flex-col bg-gray-50 relative">
                         <div id="chat-header" class="p-4 bg-white border-b flex justify-between items-center hidden-section">
-                            <div class="flex items-center gap-2">
-                                <img id="chat-target-avatar" class="w-8 h-8 rounded-full">
-                                <span id="chat-target-name" class="font-bold"></span>
+                            <div class="flex items-center gap-3">
+                                <img id="chat-target-avatar" class="w-10 h-10 rounded-full object-cover">
+                                <div><span id="chat-target-name" class="font-bold block"></span><span class="text-xs text-green-500 font-bold">Online</span></div>
                             </div>
-                            <button onclick="startUserCall()" class="text-blue-600 p-2 hover:bg-blue-50 rounded-full"><i class="fa-solid fa-phone"></i></button>
+                            <div class="flex gap-2">
+                                <button onclick="startUserCall()" class="w-9 h-9 flex items-center justify-center text-blue-600 hover:bg-blue-50 rounded-full transition"><i class="fa-solid fa-phone"></i></button>
+                                <button class="w-9 h-9 flex items-center justify-center text-blue-600 hover:bg-blue-50 rounded-full transition"><i class="fa-solid fa-video"></i></button>
+                            </div>
                         </div>
                         <div id="chat-messages" class="flex-1 overflow-y-auto p-4 space-y-3">
-                            <div class="h-full flex items-center justify-center text-gray-400 italic" id="txt-select-chat">Select a user to start messaging</div>
+                            <div class="h-full flex flex-col items-center justify-center text-gray-400 space-y-4">
+                                <div class="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center"><i class="fa-solid fa-comments text-3xl"></i></div>
+                                <p id="txt-select-chat">Select a conversation to start messaging</p>
+                            </div>
                         </div>
-                        <div id="chat-input-area" class="p-3 bg-white border-t flex gap-2 hidden-section">
+                        <div id="chat-input-area" class="p-3 bg-white border-t flex gap-2 hidden-section items-center">
+                            <button class="text-blue-500 p-2"><i class="fa-solid fa-plus-circle text-xl"></i></button>
                             <input id="msg-input" type="text" placeholder="Type a message..." class="flex-1 bg-gray-100 rounded-full px-4 py-2 outline-none">
-                            <button onclick="sendMessage()" class="text-blue-600 px-2"><i class="fa-solid fa-paper-plane text-xl"></i></button>
+                            <button onclick="sendMessage()" class="bg-blue-600 text-white w-10 h-10 rounded-full flex items-center justify-center shadow-md hover:bg-blue-700 transition"><i class="fa-solid fa-paper-plane"></i></button>
                         </div>
                     </div>
                 </div>
@@ -119,17 +157,28 @@
 
             <!-- View: AI -->
             <div id="view-ai" class="hidden-section h-[80vh]">
-                <div class="card h-full flex flex-col overflow-hidden border-2 border-blue-200">
+                <div class="card h-full flex flex-col overflow-hidden border-2 border-blue-400 shadow-2xl">
                     <div class="p-4 border-b bg-blue-600 text-white flex justify-between items-center">
                         <div class="flex items-center gap-3">
-                            <i class="fa-solid fa-cat text-2xl"></i>
-                            <div><p class="font-bold">Longcat AI (Nix4)</p><p class="text-xs opacity-80" id="txt-ai-status">Online - AI Core</p></div>
+                            <div class="w-10 h-10 bg-white rounded-full flex items-center justify-center text-blue-600 shadow-lg"><i class="fa-solid fa-cat text-2xl"></i></div>
+                            <div>
+                                <p class="font-bold">LongCat Omni-2603</p>
+                                <div class="flex items-center gap-1.5"><span class="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span><p class="text-[10px] opacity-80 uppercase tracking-widest font-bold">Omni-Modal Core Active</p></div>
+                            </div>
+                        </div>
+                        <i class="fa-solid fa-microchip opacity-50 text-xl"></i>
+                    </div>
+                    <div id="ai-chat-window" class="flex-1 overflow-y-auto p-4 space-y-4 bg-[#f8fafc]">
+                        <div class="flex justify-start">
+                            <div class="max-w-[80%] p-3 rounded-2xl bg-white border shadow-sm text-sm">
+                                Hello! I am the <strong>LongCat Omni-2603</strong> engine. I can process text, images, and video. How can I assist your Nixora experience today?
+                            </div>
                         </div>
                     </div>
-                    <div id="ai-chat-window" class="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50"></div>
                     <div class="p-4 border-t flex gap-2 bg-white">
-                        <input id="ai-input" type="text" placeholder="Talk to AI..." class="flex-1 border rounded-full px-4 py-2 outline-none">
-                        <button onclick="sendAiMessage()" class="bg-blue-600 text-white w-10 h-10 rounded-full"><i class="fa-solid fa-paper-plane"></i></button>
+                        <button class="text-gray-400 hover:text-blue-500 transition"><i class="fa-solid fa-paperclip text-lg"></i></button>
+                        <input id="ai-input" type="text" placeholder="Query the Omni engine..." class="flex-1 bg-gray-50 border rounded-full px-4 py-2 outline-none focus:ring-2 ring-blue-100">
+                        <button onclick="sendAiMessage()" class="bg-blue-600 text-white w-10 h-10 rounded-full shadow-lg hover:scale-110 transition active:scale-95 flex items-center justify-center"><i class="fa-solid fa-bolt"></i></button>
                     </div>
                 </div>
             </div>
@@ -138,54 +187,84 @@
 
     <!-- Voice Call Screen -->
     <div id="voice-call" class="fixed inset-0 bg-slate-900 z-[4000] flex flex-col items-center justify-center p-6 hidden-section text-white">
-        <div class="text-center space-y-8">
+        <div class="text-center space-y-8 w-full max-w-sm">
             <div class="relative flex items-center justify-center">
+                <div class="absolute w-56 h-56 bg-blue-500/10 rounded-full animate-ping"></div>
                 <div class="absolute w-48 h-48 bg-blue-500/20 rounded-full calling-anim"></div>
-                <img id="call-avatar" class="w-32 h-32 rounded-full border-4 border-blue-500 z-10 object-cover">
+                <img id="call-avatar" class="w-32 h-32 rounded-full border-4 border-blue-500 z-10 object-cover shadow-2xl">
             </div>
             <div>
                 <h2 id="call-name" class="text-3xl font-bold">Calling...</h2>
-                <p id="call-status" class="text-blue-400 font-mono mt-2">Connecting to secure peer...</p>
+                <div class="flex items-center justify-center gap-2 text-blue-400 font-mono mt-2">
+                    <span id="call-status">Connecting Peer</span>
+                    <span class="flex gap-1"><span class="w-1 h-1 bg-blue-400 rounded-full animate-bounce"></span><span class="w-1 h-1 bg-blue-400 rounded-full animate-bounce delay-75"></span><span class="w-1 h-1 bg-blue-400 rounded-full animate-bounce delay-150"></span></span>
+                </div>
             </div>
-            <div class="flex gap-8">
-                <button onclick="endVoiceCall()" class="w-20 h-20 bg-red-500 rounded-full flex items-center justify-center text-3xl shadow-2xl hover:bg-red-600 transition">
+            <div class="flex gap-6 justify-center">
+                <button class="w-14 h-14 bg-gray-700/50 rounded-full flex items-center justify-center hover:bg-gray-600 transition"><i class="fa-solid fa-microphone-slash"></i></button>
+                <button onclick="endVoiceCall()" class="w-20 h-20 bg-red-500 rounded-full flex items-center justify-center text-3xl shadow-2xl hover:bg-red-600 transition ring-8 ring-red-500/20">
                     <i class="fa-solid fa-phone-slash"></i>
                 </button>
+                <button class="w-14 h-14 bg-gray-700/50 rounded-full flex items-center justify-center hover:bg-gray-600 transition"><i class="fa-solid fa-volume-high"></i></button>
             </div>
         </div>
     </div>
 
     <!-- Post Modal -->
-    <div id="post-modal" class="fixed inset-0 z-[100] bg-black/50 flex items-center justify-center hidden-section">
-        <div class="card w-full max-w-[500px] p-4 space-y-4 mx-4">
-            <div class="flex justify-between items-center border-b pb-2">
+    <div id="post-modal" class="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center hidden-section">
+        <div class="card w-full max-w-[550px] overflow-hidden animate-in zoom-in duration-200 shadow-2xl">
+            <div class="flex justify-between items-center p-4 border-b">
                 <h2 class="text-xl font-bold" id="txt-create-post">Create Post</h2>
-                <button onclick="closePostModal()" class="text-gray-500 text-2xl">&times;</button>
+                <button onclick="closePostModal()" class="w-8 h-8 flex items-center justify-center bg-gray-100 rounded-full text-gray-500 hover:bg-gray-200 transition">&times;</button>
             </div>
-            <textarea id="post-input" class="w-full text-lg resize-none outline-none min-h-[120px]" placeholder="What's happening?"></textarea>
-            <button onclick="publishPost()" class="w-full bg-blue-600 text-white font-bold py-2 rounded-lg" id="btn-post">Post</button>
+            <div class="p-4 space-y-4">
+                <div class="flex items-center gap-3">
+                    <img id="post-modal-avatar" class="w-11 h-11 rounded-full object-cover">
+                    <div><p id="post-modal-name" class="font-bold"></p><p class="text-xs bg-gray-100 px-2 py-0.5 rounded-full inline-block font-bold">Public</p></div>
+                </div>
+                <textarea id="post-input" class="w-full text-xl resize-none outline-none min-h-[150px] placeholder:text-gray-400" placeholder="What's happening?"></textarea>
+                
+                <div id="media-preview-container" class="hidden-section border rounded-xl p-2 bg-gray-50 relative">
+                    <img id="image-preview" class="max-h-48 w-full object-cover rounded-lg hidden-section">
+                    <video id="video-preview" class="max-h-48 w-full rounded-lg hidden-section" controls></video>
+                    <button onclick="clearMedia()" class="absolute top-4 right-4 bg-black/50 text-white w-6 h-6 rounded-full flex items-center justify-center">&times;</button>
+                </div>
+
+                <div class="flex items-center justify-between border rounded-lg p-3">
+                    <span class="font-bold text-gray-600">Add to your post</span>
+                    <div class="flex gap-4">
+                        <label class="cursor-pointer text-green-500 hover:scale-110 transition"><i class="fa-solid fa-image text-xl"></i><input type="file" class="hidden" accept="image/*" onchange="previewMedia(this, 'image')"></label>
+                        <label class="cursor-pointer text-red-500 hover:scale-110 transition"><i class="fa-solid fa-video text-xl"></i><input type="file" class="hidden" accept="video/*" onchange="previewMedia(this, 'video')"></label>
+                        <i class="fa-solid fa-user-tag text-blue-400 cursor-pointer"></i>
+                        <i class="fa-solid fa-location-dot text-orange-400 cursor-pointer"></i>
+                    </div>
+                </div>
+            </div>
+            <div class="p-4">
+                <button onclick="publishPost()" class="w-full bg-blue-600 text-white font-bold py-2.5 rounded-lg hover:bg-blue-700 transition shadow-lg" id="btn-post">Post</button>
+            </div>
         </div>
     </div>
 
-    <div id="toast" class="fixed bottom-10 left-1/2 -translate-x-1/2 bg-gray-900 text-white px-6 py-3 rounded-full text-sm font-bold shadow-xl opacity-0 transition-opacity z-[5000] pointer-events-none"></div>
+    <div id="toast" class="fixed bottom-10 left-1/2 -translate-x-1/2 bg-gray-900/90 backdrop-blur text-white px-8 py-3 rounded-full text-sm font-bold shadow-2xl opacity-0 transition-all duration-300 z-[5000] pointer-events-none transform translate-y-10"></div>
 
     <script>
-        const apiKey = ""; 
+        const apiKey = "ak_2rU1Lo7PA23X5Is9wm3m69EY2T37J"; 
         const SUPABASE_URL = "https://rnlwrngfgvznndlekmrz.supabase.co";
         const SUPABASE_KEY = "sb_publishable_mtI0_ZBvU_n5oRuqV58QHg_qJt3Gfyt";
         const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
         let currentUser = null, userProfile = null, activeChatId = null;
-        let allUsers = [], currentLang = 'en';
+        let allUsers = [], currentLang = 'en', mediaToUpload = { type: null, data: null };
 
         const i18n = {
             en: {
-                login: "Enter Nixora", slogan: "The Future of Professional Connection", think: "What's on your mind?", labs: "Nixora Labs", longcat: "Longcat AI", discovery: "Discover Users",
-                chats: "Chats", selectChat: "Select a user to start messaging", aiStatus: "Online - AI Core", createPost: "Create Post", post: "Post", notif: "Notifications"
+                login: "Enter Nixora", slogan: "The Future of Professional Connection", think: "What's on your mind?", labs: "Nixora Labs", discovery: "Suggested Users",
+                chats: "Chats", selectChat: "Select a conversation to start messaging", createPost: "Create Post", post: "Post", notif: "Notifications"
             },
             ar: {
-                login: "دخول نيكسورا", slogan: "مستقبل التواصل المهني", think: "بم تفكر؟", labs: "مختبرات نيكسورا", longcat: "لونج كات AI", discovery: "اكتشف المستخدمين",
-                chats: "المحادثات", selectChat: "اختر مستخدماً لبدء المراسلة", aiStatus: "متصل - النواة الذكية", createPost: "إنشاء منشور", post: "نشر", notif: "الإشعارات"
+                login: "دخول نيكسورا", slogan: "مستقبل التواصل المهني", think: "بم تفكر؟", labs: "مختبرات نيكسورا", discovery: "مستخدمون مقترحون",
+                chats: "المحادثات", selectChat: "اختر محادثة لبدء المراسلة", createPost: "إنشاء منشور", post: "نشر", notif: "الإشعارات"
             }
         };
 
@@ -199,14 +278,11 @@
             document.getElementById('txt-slogan').innerText = t.slogan;
             document.getElementById('txt-think').innerText = t.think;
             document.getElementById('txt-labs').innerText = t.labs;
-            document.getElementById('txt-longcat').innerText = t.longcat;
             document.getElementById('txt-discovery').innerText = t.discovery;
             document.getElementById('txt-chats').innerText = t.chats;
             document.getElementById('txt-select-chat').innerText = t.selectChat;
-            document.getElementById('txt-ai-status').innerText = t.aiStatus;
             document.getElementById('txt-create-post').innerText = t.createPost;
             document.getElementById('btn-post').innerText = t.post;
-            document.getElementById('txt-notif-title').innerText = t.notif;
             document.getElementById('post-input').placeholder = t.think;
         }
 
@@ -230,64 +306,185 @@
             const seed = currentUser.id.slice(0, 5);
             userProfile = { 
                 id: currentUser.id,
-                display_name: "User_" + seed, 
+                display_name: "Explorer_" + seed, 
                 avatar_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${seed}` 
             };
 
-            // Sync profile
             await supabaseClient.from('profiles_social').upsert({
                 id: currentUser.id,
                 display_name: userProfile.display_name,
                 avatar_url: userProfile.avatar_url
             });
 
-            ['my-avatar-nav', 'my-avatar-side', 'input-avatar'].forEach(id => {
+            ['my-avatar-nav', 'my-avatar-side', 'input-avatar', 'post-modal-avatar'].forEach(id => {
                 const el = document.getElementById(id);
                 if(el) el.src = userProfile.avatar_url;
             });
             document.getElementById('my-name-side').innerText = userProfile.display_name;
+            document.getElementById('post-modal-name').innerText = userProfile.display_name;
 
             loadFeed();
             loadUsers();
             subscribeToMessages();
+            subscribeToPosts();
         }
+
+        // --- FEED & POSTS ---
+
+        async function loadFeed() {
+            const { data: posts } = await supabaseClient.from('posts_social').select('*, profiles_social(*)').order('created_at', { ascending: false });
+            renderPosts(posts, 'feed-container');
+        }
+
+        function renderPosts(posts, targetId) {
+            const container = document.getElementById(targetId);
+            container.innerHTML = (posts || []).map(p => `
+                <div class="card p-4 space-y-3 post-item" data-id="${p.id}">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-2 cursor-pointer" onclick="showProfileView('${p.user_id}')">
+                            <img src="${p.profiles_social?.avatar_url}" class="w-10 h-10 rounded-full">
+                            <div><p class="font-bold hover:underline">${p.profiles_social?.display_name}</p><p class="text-[10px] text-gray-500 font-bold uppercase">${new Date(p.created_at).toLocaleDateString()}</p></div>
+                        </div>
+                        <i class="fa-solid fa-ellipsis text-gray-400"></i>
+                    </div>
+                    <p class="text-gray-800 text-[15px] leading-relaxed">${p.content}</p>
+                    ${renderMedia(p.media_url, p.media_type)}
+                    <div class="flex items-center justify-between pt-2 border-t text-sm text-gray-500 font-bold">
+                        <div class="flex items-center gap-1"><i class="fa-solid fa-heart text-red-500"></i> <span id="likes-${p.id}">${p.likes || 0}</span></div>
+                        <div class="flex gap-4"><span>${(p.comments || []).length} comments</span><span>12 shares</span></div>
+                    </div>
+                    <div class="flex border-t pt-1 mt-1">
+                        <button onclick="handleLike('${p.id}')" class="flex-1 flex items-center justify-center gap-2 py-2 hover:bg-gray-100 rounded transition"><i class="fa-regular fa-heart"></i> Like</button>
+                        <button onclick="focusComment('${p.id}')" class="flex-1 flex items-center justify-center gap-2 py-2 hover:bg-gray-100 rounded transition"><i class="fa-regular fa-comment"></i> Comment</button>
+                        <button class="flex-1 flex items-center justify-center gap-2 py-2 hover:bg-gray-100 rounded transition"><i class="fa-solid fa-share-nodes"></i> Share</button>
+                    </div>
+                    <div id="comments-box-${p.id}" class="space-y-2 mt-2 hidden-section">
+                        <div id="comments-list-${p.id}" class="max-h-40 overflow-y-auto space-y-2 text-sm bg-gray-50 p-2 rounded-lg">
+                            ${(p.comments || []).map(c => `<div><strong>${c.name}:</strong> ${c.text}</div>`).join('')}
+                        </div>
+                        <div class="flex gap-2">
+                            <input id="comment-input-${p.id}" type="text" placeholder="Write a comment..." class="flex-1 bg-gray-100 rounded-full px-4 py-1.5 text-xs outline-none">
+                            <button onclick="addComment('${p.id}')" class="text-blue-500 font-bold text-xs">Post</button>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function renderMedia(url, type) {
+            if(!url) return '';
+            if(type === 'video') return `<video src="${url}" controls class="post-media shadow-sm"></video>`;
+            return `<img src="${url}" class="post-media shadow-sm">`;
+        }
+
+        function focusComment(id) {
+            const box = document.getElementById(`comments-box-${id}`);
+            box.classList.toggle('hidden-section');
+        }
+
+        async function handleLike(id) {
+            const { data } = await supabaseClient.from('posts_social').select('likes').eq('id', id).single();
+            await supabaseClient.from('posts_social').update({ likes: (data.likes || 0) + 1 }).eq('id', id);
+        }
+
+        async function addComment(id) {
+            const input = document.getElementById(`comment-input-${id}`);
+            const text = input.value.trim();
+            if(!text) return;
+
+            const { data } = await supabaseClient.from('posts_social').select('comments').eq('id', id).single();
+            const comments = data.comments || [];
+            comments.push({ name: userProfile.display_name, text: text, date: new Date() });
+
+            await supabaseClient.from('posts_social').update({ comments: comments }).eq('id', id);
+            input.value = '';
+        }
+
+        function subscribeToPosts() {
+            supabaseClient.channel('posts_realtime').on('postgres_changes', { event: '*', table: 'posts_social' }, () => {
+                loadFeed();
+                if(document.getElementById('view-profile').classList.contains('hidden-section') === false) {
+                    const profileId = document.getElementById('profile-view-avatar').dataset.uid;
+                    if(profileId) showProfileView(profileId);
+                }
+            }).subscribe();
+        }
+
+        // --- SEARCH ENGINE ---
+
+        async function handleSearch(val) {
+            const resBox = document.getElementById('search-results');
+            if(!val.trim()) { resBox.classList.add('hidden-section'); return; }
+            
+            const results = allUsers.filter(u => u.display_name.toLowerCase().includes(val.toLowerCase()));
+            resBox.classList.remove('hidden-section');
+            
+            if(results.length === 0) {
+                resBox.innerHTML = `<p class="p-2 text-xs text-gray-500">No users found for "${val}"</p>`;
+                return;
+            }
+
+            resBox.innerHTML = results.map(u => `
+                <div onclick="showProfileView('${u.id}')" class="flex items-center gap-3 p-2 hover:bg-blue-50 rounded-lg cursor-pointer">
+                    <img src="${u.avatar_url}" class="w-8 h-8 rounded-full">
+                    <span class="text-sm font-bold text-gray-700">${u.display_name}</span>
+                </div>
+            `).join('');
+        }
+
+        // --- PROFILER ---
+
+        async function showProfileView(uid = currentUser.id) {
+            showView('profile');
+            document.getElementById('search-results').classList.add('hidden-section');
+            
+            const user = (uid === currentUser.id) ? userProfile : allUsers.find(u => u.id === uid);
+            if(!user) return;
+
+            document.getElementById('profile-view-avatar').src = user.avatar_url;
+            document.getElementById('profile-view-avatar').dataset.uid = user.id;
+            document.getElementById('profile-view-name').innerText = user.display_name;
+
+            const { data: posts } = await supabaseClient.from('posts_social').select('*, profiles_social(*)').eq('user_id', uid).order('created_at', { ascending: false });
+            document.getElementById('stat-posts').innerText = posts?.length || 0;
+            renderPosts(posts, 'profile-feed');
+        }
+
+        // --- MESSAGING & CALLS ---
 
         async function loadUsers() {
             const { data } = await supabaseClient.from('profiles_social').select('*').neq('id', currentUser.id);
             allUsers = data || [];
+            
             const list = document.getElementById('users-list');
-            list.innerHTML = allUsers.map(u => `
-                <div onclick="startChat('${u.id}')" class="flex items-center gap-3 p-2 hover:bg-gray-200 rounded-lg cursor-pointer transition">
-                    <img src="${u.avatar_url}" class="w-8 h-8 rounded-full">
-                    <span class="text-sm font-medium">${u.display_name}</span>
+            list.innerHTML = allUsers.slice(0, 5).map(u => `
+                <div onclick="showProfileView('${u.id}')" class="flex items-center justify-between p-2 hover:bg-gray-200 rounded-lg cursor-pointer transition">
+                    <div class="flex items-center gap-3">
+                        <img src="${u.avatar_url}" class="w-9 h-9 rounded-full border">
+                        <span class="text-sm font-bold text-gray-700">${u.display_name}</span>
+                    </div>
+                    <button onclick="event.stopPropagation(); startChat('${u.id}')" class="text-blue-500 p-2"><i class="fa-solid fa-message"></i></button>
                 </div>
             `).join('');
-        }
 
-        async function loadFeed() {
-            const { data: posts } = await supabaseClient.from('posts_social').select('*, profiles_social(*)').order('created_at', { ascending: false });
-            const container = document.getElementById('feed-container');
-            container.innerHTML = (posts || []).map(p => `
-                <div class="card p-4 space-y-3">
-                    <div class="flex items-center gap-2">
-                        <img src="${p.profiles_social?.avatar_url}" class="w-10 h-10 rounded-full">
-                        <div><p class="font-bold">${p.profiles_social?.display_name}</p><p class="text-xs text-gray-500">${new Date(p.created_at).toLocaleTimeString()}</p></div>
+            const threads = document.getElementById('chat-threads');
+            threads.innerHTML = allUsers.map(u => `
+                <div onclick="startChat('${u.id}')" class="flex items-center gap-3 p-3 hover:bg-gray-100 cursor-pointer border-b">
+                    <div class="relative">
+                        <img src="${u.avatar_url}" class="w-12 h-12 rounded-full">
+                        <span class="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white rounded-full"></span>
                     </div>
-                    <p>${p.content}</p>
-                    <hr>
-                    <div class="flex gap-4 font-bold text-sm text-gray-500">
-                        <button class="flex-1 py-1 hover:bg-gray-100 rounded">Like</button>
-                        <button onclick="startChat('${p.user_id}')" class="flex-1 py-1 hover:bg-gray-100 rounded">Message</button>
+                    <div class="flex-1">
+                        <p class="font-bold text-gray-800">${u.display_name}</p>
+                        <p class="text-xs text-gray-500 truncate">Tap to open conversation</p>
                     </div>
                 </div>
             `).join('');
         }
-
-        // --- MESSAGING SYSTEM ---
 
         async function startChat(userId) {
             showView('messages');
-            const user = allUsers.find(u => u.id === userId) || { display_name: "External User", avatar_url: "https://api.dicebear.com/7.x/avataaars/svg?seed=ext" };
+            const user = allUsers.find(u => u.id === userId) || userProfile;
             activeChatId = userId;
             
             document.getElementById('chat-header').classList.remove('hidden-section');
@@ -299,6 +496,7 @@
         }
 
         async function loadMessages() {
+            if(!activeChatId) return;
             const { data } = await supabaseClient.from('messages_social')
                 .select('*')
                 .or(`and(sender_id.eq.${currentUser.id},receiver_id.eq.${activeChatId}),and(sender_id.eq.${activeChatId},receiver_id.eq.${currentUser.id})`)
@@ -307,11 +505,12 @@
             const win = document.getElementById('chat-messages');
             win.innerHTML = (data || []).map(m => `
                 <div class="flex ${m.sender_id === currentUser.id ? 'justify-end' : 'justify-start'}">
-                    <div class="max-w-[70%] p-2 px-4 rounded-2xl ${m.sender_id === currentUser.id ? 'bg-blue-600 text-white' : 'bg-white shadow-sm'}">
-                        ${m.content}
+                    <div class="max-w-[75%] p-2.5 px-4 rounded-2xl shadow-sm ${m.sender_id === currentUser.id ? 'bg-blue-600 text-white' : 'bg-white border'}">
+                        <p class="text-sm">${m.content}</p>
+                        <p class="text-[9px] mt-1 opacity-60 text-right">${new Date(m.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p>
                     </div>
                 </div>
-            `).join('') || `<div class="text-center text-gray-400 py-10">Start the conversation...</div>`;
+            `).join('') || `<div class="text-center text-gray-400 py-10 italic">Your secure session with this user has started.</div>`;
             win.scrollTop = win.scrollHeight;
         }
 
@@ -330,19 +529,13 @@
         }
 
         function subscribeToMessages() {
-            supabaseClient.channel('messages_realtime')
-                .on('postgres_changes', { event: 'INSERT', table: 'messages_social' }, (payload) => {
-                    if(payload.new.receiver_id === currentUser.id || payload.new.sender_id === currentUser.id) {
-                        if(activeChatId === payload.new.sender_id || activeChatId === payload.new.receiver_id) {
-                            loadMessages();
-                        } else if(payload.new.receiver_id === currentUser.id) {
-                            showToast("New message from another user!");
-                        }
-                    }
-                }).subscribe();
+            supabaseClient.channel('messages_realtime').on('postgres_changes', { event: 'INSERT', table: 'messages_social' }, (payload) => {
+                if(payload.new.receiver_id === currentUser.id || payload.new.sender_id === currentUser.id) {
+                    if(activeChatId === payload.new.sender_id || activeChatId === payload.new.receiver_id) loadMessages();
+                    else if(payload.new.receiver_id === currentUser.id) showToast("New Message Received");
+                }
+            }).subscribe();
         }
-
-        // --- VOICE CALLS ---
 
         function startUserCall() {
             if(!activeChatId) return;
@@ -350,73 +543,132 @@
             document.getElementById('voice-call').classList.remove('hidden-section');
             document.getElementById('call-avatar').src = user?.avatar_url;
             document.getElementById('call-name').innerText = user?.display_name;
-            document.getElementById('call-status').innerText = "Ringing peer...";
             
-            // Simulating real-time signal
             setTimeout(() => {
-                document.getElementById('call-status').innerText = "Connected Securely";
-                playSignal();
-            }, 2500);
+                document.getElementById('call-status').innerText = "Established";
+                const synth = window.speechSynthesis;
+                const utter = new SpeechSynthesisUtterance("Connecting you to a human peer. Channel is end-to-end encrypted.");
+                utter.lang = currentLang === 'ar' ? 'ar-SA' : 'en-US';
+                synth.speak(utter);
+            }, 3000);
         }
 
-        function playSignal() {
-            const synth = window.speechSynthesis;
-            const utter = new SpeechSynthesisUtterance("Connection established. Encrypted audio streaming active.");
-            utter.lang = currentLang === 'ar' ? 'ar-SA' : 'en-US';
-            synth.speak(utter);
-        }
+        function endVoiceCall() { document.getElementById('voice-call').classList.add('hidden-section'); }
 
-        function endVoiceCall() {
-            document.getElementById('voice-call').classList.add('hidden-section');
-        }
-
-        // --- AI STUFF ---
+        // --- LONG CAT OMNI AI ---
 
         async function sendAiMessage() {
             const input = document.getElementById('ai-input');
             const val = input.value.trim();
             if(!val) return;
+            
             appendAiChat("user", val);
             input.value = '';
             
-            const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    contents: [{ parts: [{ text: val }] }],
-                    systemInstruction: { parts: [{ text: "You are Nixora's Longcat AI. Be long, cat-like, and professional." }] }
-                })
-            });
-            const data = await res.json();
-            appendAiChat("ai", data.candidates[0].content.parts[0].text);
+            try {
+                const response = await fetch("https://api.longcat.chat/openai/v1/chat/completions", {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${apiKey}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        model: "LongCat-Flash-Omni-2603",
+                        messages: [
+                            { role: "system", content: [{ type: "text", text: "You are the Nixora Omni Engine. Expert in professional networking and advanced technology." }] },
+                            { role: "user", content: [{ type: "text", text: val }] }
+                        ],
+                        stream: false
+                    })
+                });
+                
+                const data = await response.json();
+                const aiText = data.choices[0].message.content;
+                appendAiChat("ai", aiText);
+            } catch (err) {
+                appendAiChat("ai", "I'm having trouble connecting to the Omni Core. Please try again later.");
+            }
         }
 
         function appendAiChat(role, text) {
             const win = document.getElementById('ai-chat-window');
             const div = document.createElement('div');
             div.className = `flex ${role === 'user' ? 'justify-end' : 'justify-start'}`;
-            div.innerHTML = `<div class="max-w-[80%] p-3 rounded-xl ${role === 'user' ? 'bg-blue-600 text-white' : 'bg-white border shadow-sm'}">${text}</div>`;
+            div.innerHTML = `<div class="max-w-[85%] p-3 rounded-2xl ${role === 'user' ? 'bg-blue-600 text-white shadow-md' : 'bg-white border shadow-sm'} text-sm leading-relaxed">${text}</div>`;
             win.appendChild(div);
             win.scrollTop = win.scrollHeight;
         }
 
-        // --- UI UTILS ---
+        // --- UI LOGIC ---
 
         function showView(view) {
             document.querySelectorAll('.nav-icon').forEach(el => el.classList.remove('active'));
-            ['home', 'ai', 'messages'].forEach(v => document.getElementById(`view-${v}`).classList.add('hidden-section'));
+            ['home', 'ai', 'messages', 'profile'].forEach(v => {
+                const el = document.getElementById(`view-${v}`);
+                if(el) el.classList.add('hidden-section');
+            });
             document.getElementById(`view-${view}`).classList.remove('hidden-section');
-            document.getElementById(`nav-${view}`).classList.add('active');
+            const nav = document.getElementById(`nav-${view}`);
+            if(nav) nav.classList.add('active');
         }
 
-        function openPostModal() { document.getElementById('post-modal').classList.remove('hidden-section'); }
-        function closePostModal() { document.getElementById('post-modal').classList.add('hidden-section'); }
-        function showToast(msg) { const t = document.getElementById('toast'); t.innerText = msg; t.style.opacity = '1'; setTimeout(() => t.style.opacity = '0', 3000); }
+        function openPostModal(type = null) { 
+            document.getElementById('post-modal').classList.remove('hidden-section'); 
+            if(type) {
+                showToast(`Attach ${type} selected`);
+            }
+        }
+        function closePostModal() { document.getElementById('post-modal').classList.add('hidden-section'); clearMedia(); }
+        function showToast(msg) { 
+            const t = document.getElementById('toast'); 
+            t.innerText = msg; 
+            t.classList.remove('opacity-0', 'translate-y-10');
+            setTimeout(() => t.classList.add('opacity-0', 'translate-y-10'), 3000); 
+        }
+
+        function previewMedia(input, type) {
+            if (input.files && input.files[0]) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    mediaToUpload = { type: type, data: e.target.result };
+                    document.getElementById('media-preview-container').classList.remove('hidden-section');
+                    if(type === 'image') {
+                        document.getElementById('image-preview').src = e.target.result;
+                        document.getElementById('image-preview').classList.remove('hidden-section');
+                        document.getElementById('video-preview').classList.add('hidden-section');
+                    } else {
+                        document.getElementById('video-preview').src = e.target.result;
+                        document.getElementById('video-preview').classList.remove('hidden-section');
+                        document.getElementById('image-preview').classList.add('hidden-section');
+                    }
+                }
+                reader.readAsDataURL(input.files[0]);
+            }
+        }
+
+        function clearMedia() {
+            mediaToUpload = { type: null, data: null };
+            document.getElementById('media-preview-container').classList.add('hidden-section');
+            document.getElementById('image-preview').src = '';
+            document.getElementById('video-preview').src = '';
+            document.getElementById('post-input').value = '';
+        }
+
         async function publishPost() {
             const content = document.getElementById('post-input').value.trim();
-            if(!content) return;
-            await supabaseClient.from('posts_social').insert([{ user_id: currentUser.id, content: content }]);
-            closePostModal(); loadFeed(); showToast("Shared!");
+            if(!content && !mediaToUpload.data) return;
+            
+            await supabaseClient.from('posts_social').insert([{ 
+                user_id: currentUser.id, 
+                content: content,
+                media_url: mediaToUpload.data,
+                media_type: mediaToUpload.type,
+                likes: 0,
+                comments: []
+            }]);
+            
+            closePostModal(); 
+            showToast("Shared with the Nixora network!");
         }
 
         window.onload = checkSession;
