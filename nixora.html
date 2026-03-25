@@ -153,14 +153,16 @@
                         <div id="chat-main" class="hidden flex-1 flex flex-col h-full">
                             <div class="p-4 border-b flex items-center justify-between">
                                 <div class="flex items-center gap-3">
-                                    <img id="active-chat-img" class="w-10 h-10 rounded-full">
+                                    <img id="active-chat-img" class="w-10 h-10 rounded-full object-cover">
                                     <p id="active-chat-name" class="font-bold"></p>
                                 </div>
                             </div>
                             <div id="chat-window" class="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50"></div>
                             <div class="p-4 border-t flex items-center gap-3">
-                                <input id="msg-input" type="text" placeholder="Aa" class="flex-1 bg-gray-100 rounded-full px-4 py-2 outline-none">
-                                <button onclick="sendDirectMessage()" class="text-blue-600 text-2xl"><i class="fa-solid fa-paper-plane"></i></button>
+                                <form onsubmit="event.preventDefault(); sendDirectMessage();" class="flex-1 flex gap-3">
+                                    <input id="msg-input" type="text" placeholder="Aa" class="flex-1 bg-gray-100 rounded-full px-4 py-2 outline-none">
+                                    <button type="submit" class="text-blue-600 text-2xl"><i class="fa-solid fa-paper-plane"></i></button>
+                                </form>
                             </div>
                         </div>
                     </div>
@@ -222,6 +224,7 @@
 
         let currentUser = null, userProfile = null, activeChatId = null, activePostId = null, pendingImageData = null;
         let allProfiles = [];
+        let chatInterval = null;
 
         // --- AUTH ---
         async function checkSession() {
@@ -301,18 +304,20 @@
 
         // --- FEED & POSTS ---
         async function loadFeed() {
-            const { data: posts } = await supabaseClient.from('posts_social').select('*, profiles_social(*)').order('created_at', { ascending: false });
+            const { data: posts, error } = await supabaseClient.from('posts_social').select('*, profiles_social(*)').order('created_at', { ascending: false });
+            if (error) console.error("Error loading feed:", error);
             const container = document.getElementById('feed-container');
             container.innerHTML = (posts || []).map(p => renderPost(p)).join('');
         }
 
         function renderPost(post) {
+            const profile = post.profiles_social || { avatar_url: '', display_name: 'Unknown User' };
             return `
                 <div class="card p-4 space-y-3 animate-pop">
                     <div class="flex items-center gap-2">
-                        <img src="${post.profiles_social.avatar_url}" class="w-10 h-10 rounded-full border">
+                        <img src="${profile.avatar_url}" class="w-10 h-10 rounded-full border object-cover">
                         <div>
-                            <p class="font-bold">${post.profiles_social.display_name}</p>
+                            <p class="font-bold">${profile.display_name}</p>
                             <p class="text-xs text-gray-500">${new Date(post.created_at).toLocaleTimeString()}</p>
                         </div>
                     </div>
@@ -334,8 +339,13 @@
             const btn = document.getElementById('post-btn');
             btn.disabled = true; btn.innerText = "...";
 
-            await supabaseClient.from('posts_social').insert([{ user_id: currentUser.id, content, image_url: pendingImageData }]);
-            closePostModal(); loadFeed(); showToast("Post shared!");
+            const { error } = await supabaseClient.from('posts_social').insert([{ user_id: currentUser.id, content, image_url: pendingImageData }]);
+            if (error) {
+                console.error("Post failed:", error);
+                showToast("Post failed to send.");
+            } else {
+                closePostModal(); loadFeed(); showToast("Post shared!");
+            }
             btn.disabled = false; btn.innerText = "Post";
         }
 
@@ -346,7 +356,7 @@
             const { data: comments } = await supabaseClient.from('comments_social').select('*, profiles_social(*)').eq('post_id', postId).order('created_at', {ascending: true});
             document.getElementById('comments-list').innerHTML = (comments || []).map(c => `
                 <div class="flex gap-2">
-                    <img src="${c.profiles_social.avatar_url}" class="w-8 h-8 rounded-full">
+                    <img src="${c.profiles_social.avatar_url}" class="w-8 h-8 rounded-full object-cover">
                     <div class="bg-gray-100 p-2 px-3 rounded-2xl flex-1 text-sm">
                         <p class="font-bold">${c.profiles_social.display_name}</p>
                         <p>${c.content}</p>
@@ -359,16 +369,17 @@
             const input = document.getElementById('comment-input');
             const val = input.value.trim();
             if(!val || !activePostId) return;
-            await supabaseClient.from('comments_social').insert([{ post_id: activePostId, user_id: currentUser.id, content: val }]);
+            const { error } = await supabaseClient.from('comments_social').insert([{ post_id: activePostId, user_id: currentUser.id, content: val }]);
+            if (error) showToast("Comment failed.");
             input.value = ''; openComments(activePostId);
         }
 
         // --- MESSAGING ---
         async function loadMessages() {
-            const { data } = await supabaseClient.from('profiles_social').select('*').neq('id', currentUser.id).limit(10);
+            const { data } = await supabaseClient.from('profiles_social').select('*').neq('id', currentUser.id).limit(20);
             document.getElementById('chat-list').innerHTML = (data || []).map(p => `
                 <div onclick="openChat('${p.id}')" class="flex items-center gap-3 p-3 hover:bg-gray-100 cursor-pointer">
-                    <img src="${p.avatar_url}" class="w-12 h-12 rounded-full border">
+                    <img src="${p.avatar_url}" class="w-12 h-12 rounded-full border object-cover">
                     <div class="flex-1 min-w-0">
                         <p class="font-bold truncate">${p.display_name}</p>
                         <p class="text-xs text-gray-500">Active now</p>
@@ -384,34 +395,68 @@
             document.getElementById('chat-main').classList.remove('hidden');
             document.getElementById('active-chat-img').src = p.avatar_url;
             document.getElementById('active-chat-name').innerText = p.display_name;
+            
+            // Clear existing interval
+            if (chatInterval) clearInterval(chatInterval);
+            
             fetchMessages();
+            // Poll for new messages every 3 seconds
+            chatInterval = setInterval(fetchMessages, 3000);
         }
 
         async function fetchMessages() {
-            if(!activeChatId) return;
-            const { data } = await supabaseClient.from('messages_social').select('*')
-                .or(`and(sender_id.eq.${currentUser.id},receiver_id.eq.${activeChatId}),and(sender_id.eq.${activeChatId},receiver_id.eq.${currentUser.id})`)
-                .order('created_at', { ascending: true });
-            const win = document.getElementById('chat-window');
-            win.innerHTML = (data || []).map(m => `
-                <div class="flex ${m.sender_id === currentUser.id ? 'justify-end' : 'justify-start'}">
-                    <div class="max-w-[80%] p-3 rounded-2xl ${m.sender_id === currentUser.id ? 'bg-blue-600 text-white' : 'bg-white'} shadow-sm">
-                        <p class="text-sm">${m.content}</p>
+            if(!activeChatId || !currentUser) return;
+            
+            try {
+                // Modified query to prevent 400 Bad Request error by avoiding specific column selection in complex filters
+                const { data, error } = await supabaseClient
+                    .from('messages_social')
+                    .select('*')
+                    .or(`and(sender_id.eq.${currentUser.id},receiver_id.eq.${activeChatId}),and(sender_id.eq.${activeChatId},receiver_id.eq.${currentUser.id})`)
+                    .order('created_at', { ascending: true });
+
+                if (error) throw error;
+
+                const win = document.getElementById('chat-window');
+                const html = (data || []).map(m => `
+                    <div class="flex ${m.sender_id === currentUser.id ? 'justify-end' : 'justify-start'}">
+                        <div class="max-w-[80%] p-3 rounded-2xl ${m.sender_id === currentUser.id ? 'bg-blue-600 text-white shadow-md' : 'bg-white border'} shadow-sm">
+                            <p class="text-sm">${m.content}</p>
+                            <span class="text-[10px] opacity-70 block mt-1">${new Date(m.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                        </div>
                     </div>
-                </div>
-            `).join('');
-            win.scrollTop = win.scrollHeight;
+                `).join('');
+                
+                // Only update and scroll if content changed
+                if (win.innerHTML !== html) {
+                    win.innerHTML = html;
+                    win.scrollTop = win.scrollHeight;
+                }
+            } catch (err) {
+                console.error("Chat Fetch Error:", err);
+            }
         }
 
         async function sendDirectMessage() {
             const input = document.getElementById('msg-input');
-            if(!input.value.trim() || !activeChatId) return;
-            await supabaseClient.from('messages_social').insert([{ sender_id: currentUser.id, receiver_id: activeChatId, content: input.value.trim() }]);
-            input.value = ''; fetchMessages();
+            const val = input.value.trim();
+            if(!val || !activeChatId) return;
+            
+            const msgObj = { sender_id: currentUser.id, receiver_id: activeChatId, content: val };
+            input.value = '';
+            
+            const { error } = await supabaseClient.from('messages_social').insert([msgObj]);
+            if (error) {
+                console.error("Send failed:", error);
+                showToast("Message failed to send.");
+            } else {
+                fetchMessages();
+            }
         }
 
         // --- UI UTILS ---
         function showView(view) {
+            if (chatInterval) { clearInterval(chatInterval); chatInterval = null; }
             document.querySelectorAll('.nav-icon').forEach(el => el.classList.remove('active'));
             ['home', 'shorts', 'messages', 'pages'].forEach(v => {
                 const el = document.getElementById(`view-${v}`);
@@ -474,9 +519,9 @@
         }
 
         function loadShorts() {
-            document.getElementById('shorts-container').innerHTML = [1,2].map(i => `
+            document.getElementById('shorts-container').innerHTML = [1,2,3,4].map(i => `
                 <div class="short-card shadow-2xl">
-                    <img src="https://picsum.photos/seed/${i*5}/400/700" class="w-full h-full object-cover opacity-80">
+                    <img src="https://picsum.photos/seed/${i*7}/400/700" class="w-full h-full object-cover opacity-80">
                     <div class="absolute bottom-4 left-4 text-white">
                         <p class="font-bold">@nix_creator_${i}</p>
                         <p class="text-sm">#NixoraShorts #Trending</p>
@@ -486,10 +531,10 @@
         }
 
         function loadStories() {
-            document.getElementById('stories-container').innerHTML = [1,2,3].map(i => `
-                <div class="relative min-w-[120px] h-48 rounded-xl bg-gray-200 shadow overflow-hidden">
-                    <img src="https://picsum.photos/seed/story${i}/200/300" class="h-full w-full object-cover">
-                    <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=${i}" class="absolute top-2 left-2 w-8 h-8 rounded-full border-2 border-blue-600">
+            document.getElementById('stories-container').innerHTML = [1,2,3,4,5].map(i => `
+                <div class="relative min-w-[120px] h-48 rounded-xl bg-gray-200 shadow overflow-hidden cursor-pointer">
+                    <img src="https://picsum.photos/seed/story${i}/200/300" class="h-full w-full object-cover hover:scale-110 transition duration-500">
+                    <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=${i+10}" class="absolute top-2 left-2 w-8 h-8 rounded-full border-2 border-blue-600 object-cover bg-white">
                 </div>
             `).join('');
         }
