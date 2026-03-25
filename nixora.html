@@ -199,8 +199,8 @@
 
         async function checkNixPulse() {
             const post = await callLongCat("Give a quick futuristic tech tip.");
-            // Defensive: Try sending null for media_type to bypass restrictive constraints
-            await supabaseClient.from('posts_social').insert([{ user_id: NIX_ID, content: post, media_type: null }]);
+            // Send 'text' in lowercase to match SQL convention
+            await supabaseClient.from('posts_social').insert([{ user_id: NIX_ID, content: post, media_type: 'text' }]);
             loadFeed();
         }
 
@@ -227,22 +227,19 @@
                     if (!error) mediaUrl = supabaseClient.storage.from('Nixora').getPublicUrl(data.path).data.publicUrl;
                 }
 
-                // If no file, try sending media_type as null to satisfy unknown constraints
                 const postPayload = {
                     user_id: currentUser.id,
                     content: content,
-                    media_type: selectedFile ? (selectedFile.type.startsWith('image') ? 'IMAGE' : 'VIDEO') : null
+                    media_type: selectedFile ? (selectedFile.type.startsWith('image') ? 'image' : 'video') : 'text'
                 };
                 if (mediaUrl) postPayload.media_url = mediaUrl;
 
                 const { error } = await supabaseClient.from('posts_social').insert([postPayload]);
                 
                 if (error) {
-                    console.error("DB Error:", error);
-                    // Fallback: If null failed, try "TEXT" one last time
-                    if (postPayload.media_type === null) {
-                        await supabaseClient.from('posts_social').insert([{...postPayload, media_type: 'TEXT'}]);
-                    }
+                    console.error("Critical Post Error:", error.message);
+                    alert("Post failed. Check if your SQL constraint allows 'text' types.");
+                    return;
                 }
                 
                 if (content.toLowerCase().includes(`@${NIX_USERNAME}`)) {
@@ -264,7 +261,7 @@
             setTimeout(async () => {
                 const prompt = `A user tagged you in: "${userContent}". Reply wittily.`;
                 const reply = await callLongCat(prompt);
-                await supabaseClient.from('posts_social').insert([{ user_id: NIX_ID, content: reply, media_type: null }]);
+                await supabaseClient.from('posts_social').insert([{ user_id: NIX_ID, content: reply, media_type: 'text' }]);
                 loadFeed();
             }, 1500);
         }
