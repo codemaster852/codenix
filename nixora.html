@@ -18,7 +18,6 @@
         .nav-icon.active { color: var(--nx-blue); border-bottom: 3px solid var(--nx-blue); border-radius: 0; }
         
         .card { background: var(--nx-card); border-radius: 10px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
-        .story-circle { border: 3px solid var(--nx-blue); padding: 2px; border-radius: 50%; width: 44px; height: 44px; }
         
         .short-card { aspect-ratio: 9/16; width: 100%; max-width: 320px; border-radius: 12px; background: #000; position: relative; overflow: hidden; }
         
@@ -27,6 +26,9 @@
         
         @keyframes pop { 0% { transform: scale(0.95); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
         .animate-pop { animation: pop 0.2s ease-out forwards; }
+
+        /* Notification Dropdown */
+        #notif-dropdown { width: 360px; max-height: 450px; overflow-y: auto; }
     </style>
 </head>
 <body class="overflow-x-hidden">
@@ -46,7 +48,9 @@
             <div class="nx-logo cursor-pointer select-none" onclick="showView('home')">nx</div>
             <div class="relative hidden lg:block">
                 <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
-                <input type="text" placeholder="Search Nixora..." class="bg-[#f0f2f5] rounded-full pl-10 pr-4 py-2 outline-none w-64 border border-transparent focus:border-blue-400">
+                <input type="text" id="global-search" oninput="handleSearch(this.value)" placeholder="Search Nixora..." class="bg-[#f0f2f5] rounded-full pl-10 pr-4 py-2 outline-none w-64 border border-transparent focus:border-blue-400">
+                <!-- Search Results -->
+                <div id="search-results" class="absolute top-12 left-0 w-full bg-white shadow-xl rounded-lg border hidden-section max-h-64 overflow-y-auto z-[60]"></div>
             </div>
         </div>
         
@@ -58,48 +62,50 @@
         </div>
 
         <div class="flex items-center justify-end gap-3 w-1/4">
-            <div class="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center cursor-pointer hover:bg-gray-200" title="Notifications"><i class="fa-solid fa-bell"></i></div>
-            <img id="my-avatar-nav" onclick="openProfile(currentUser.id)" class="w-9 h-9 rounded-full cursor-pointer object-cover border hover:opacity-80 transition">
+            <div class="relative">
+                <div onclick="toggleNotifications()" class="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center cursor-pointer hover:bg-gray-200">
+                    <i class="fa-solid fa-bell"></i>
+                    <span id="notif-badge" class="hidden absolute top-0 right-0 bg-red-500 text-white text-[10px] w-4 h-4 rounded-full flex items-center justify-center">2</span>
+                </div>
+                <div id="notif-dropdown" class="absolute top-12 right-0 bg-white shadow-2xl rounded-lg border hidden-section z-[60] p-2">
+                    <h3 class="font-bold p-2 text-lg">Notifications</h3>
+                    <div id="notif-list" class="space-y-1">
+                        <p class="text-center text-gray-500 py-4 text-sm">No new notifications</p>
+                    </div>
+                </div>
+            </div>
+            <img id="my-avatar-nav" class="w-9 h-9 rounded-full cursor-pointer object-cover border hover:opacity-80 transition">
         </div>
     </header>
 
     <!-- CONTENT WRAPPER -->
     <div id="app-screen" class="pt-14 flex justify-center min-h-screen hidden-section">
         
-        <!-- SIDEBARS (DESKTOP) -->
         <aside class="hidden xl:block fixed left-0 w-72 h-full p-4 space-y-1 overflow-y-auto">
-            <div class="sidebar-item flex items-center gap-3 p-3 hover:bg-gray-200 rounded-lg cursor-pointer" onclick="openProfile(currentUser.id)">
+            <div class="flex items-center gap-3 p-3 hover:bg-gray-200 rounded-lg cursor-pointer">
                 <img id="my-avatar-side" class="w-9 h-9 rounded-full object-cover">
                 <span id="my-name-side" class="font-semibold"></span>
             </div>
-            <div class="sidebar-item flex items-center gap-3 p-3 hover:bg-gray-200 rounded-lg cursor-pointer" onclick="showView('messages')">
+            <div class="flex items-center gap-3 p-3 hover:bg-gray-200 rounded-lg cursor-pointer" onclick="showView('messages')">
                 <i class="fa-solid fa-user-group text-blue-500 w-8 text-center"></i>
                 <span class="font-medium">Friends</span>
             </div>
-            <div class="sidebar-item flex items-center gap-3 p-3 hover:bg-gray-200 rounded-lg cursor-pointer" onclick="showView('pages')">
+            <div class="flex items-center gap-3 p-3 hover:bg-gray-200 rounded-lg cursor-pointer" onclick="showView('pages')">
                 <i class="fa-solid fa-flag text-orange-500 w-8 text-center"></i>
                 <span class="font-medium">Pages</span>
             </div>
-            <div class="sidebar-item flex items-center gap-3 p-3 hover:bg-gray-200 rounded-lg cursor-pointer">
-                <i class="fa-solid fa-clock-rotate-left text-blue-400 w-8 text-center"></i>
-                <span class="font-medium">Memories</span>
-            </div>
             <hr class="my-4">
-            <h3 class="px-3 text-gray-500 font-bold text-sm">Shortcuts</h3>
-            <div class="sidebar-item flex items-center gap-3 p-3 hover:bg-gray-200 rounded-lg cursor-pointer">
+            <h3 class="px-3 text-gray-500 font-bold text-sm">Nixora Labs</h3>
+            <div class="flex items-center gap-3 p-3 hover:bg-gray-200 rounded-lg cursor-pointer">
                 <div class="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center text-blue-600"><i class="fa-solid fa-robot"></i></div>
-                <span class="font-medium">Nixora AI Beta</span>
+                <span class="font-medium">Nixora AI</span>
             </div>
         </aside>
 
-        <!-- MAIN FEED -->
         <main class="w-full max-w-[680px] px-2 py-4 pb-20">
-            
             <!-- VIEW: HOME -->
             <div id="view-home" class="space-y-5 animate-pop">
-                <!-- Stories Tray -->
                 <div class="flex gap-3 overflow-x-auto no-scrollbar pb-2">
-                    <!-- Create Story -->
                     <div class="relative min-w-[120px] h-48 rounded-xl bg-white shadow border overflow-hidden cursor-pointer group" onclick="triggerFileUpload('story-upload')">
                         <img id="my-avatar-story" class="h-32 w-full object-cover group-hover:scale-105 transition duration-500">
                         <div class="absolute bottom-0 left-0 right-0 h-16 bg-white flex flex-col items-center justify-center">
@@ -111,7 +117,6 @@
                     <div id="stories-container" class="flex gap-3"></div>
                 </div>
 
-                <!-- Composer -->
                 <div class="card p-4 space-y-3">
                     <div class="flex gap-3">
                         <img id="input-avatar" class="w-10 h-10 rounded-full object-cover">
@@ -119,7 +124,7 @@
                     </div>
                     <hr>
                     <div class="flex justify-between px-2">
-                        <button onclick="triggerFileUpload('post-image-upload')" class="flex items-center gap-2 hover:bg-gray-100 py-2 px-4 rounded-lg transition text-gray-600 font-semibold"><i class="fa-solid fa-image text-green-500"></i> Photo</button>
+                        <button onclick="openPostModal()" class="flex items-center gap-2 hover:bg-gray-100 py-2 px-4 rounded-lg transition text-gray-600 font-semibold"><i class="fa-solid fa-image text-green-500"></i> Photo</button>
                         <button onclick="openPostModal()" class="flex items-center gap-2 hover:bg-gray-100 py-2 px-4 rounded-lg transition text-gray-600 font-semibold"><i class="fa-solid fa-video text-red-500"></i> Video</button>
                         <button onclick="openPostModal()" class="flex items-center gap-2 hover:bg-gray-100 py-2 px-4 rounded-lg transition text-gray-600 font-semibold"><i class="fa-solid fa-face-smile text-yellow-500"></i> Activity</button>
                     </div>
@@ -133,46 +138,29 @@
                 <div class="flex flex-col items-center gap-6" id="shorts-container"></div>
             </div>
 
-            <!-- VIEW: PROFILE -->
-            <div id="view-profile" class="hidden-section animate-pop">
-                <div id="profile-content"></div>
-            </div>
-
             <!-- VIEW: MESSAGES -->
             <div id="view-messages" class="hidden-section h-[80vh] animate-pop">
                 <div class="card h-full flex overflow-hidden">
                     <div class="w-1/3 border-r bg-gray-50 flex flex-col">
-                        <div class="p-4 flex justify-between items-center">
-                            <h2 class="text-2xl font-bold">Chats</h2>
-                            <i class="fa-solid fa-pen-to-square bg-gray-200 p-2 rounded-full cursor-pointer"></i>
-                        </div>
+                        <div class="p-4"><h2 class="text-2xl font-bold">Chats</h2></div>
                         <div id="chat-list" class="flex-1 overflow-y-auto no-scrollbar"></div>
                     </div>
                     <div id="chat-active" class="flex-1 flex flex-col bg-white">
-                        <div id="chat-placeholder" class="flex-1 flex flex-col items-center justify-center text-gray-400 opacity-60">
+                        <div id="chat-placeholder" class="flex-1 flex flex-col items-center justify-center text-gray-400">
                             <div class="nx-logo text-6xl mb-4">nx</div>
-                            <p class="font-medium">Encrypted Nixora Messaging</p>
+                            <p>Select a friend to message</p>
                         </div>
                         <div id="chat-main" class="hidden flex-1 flex flex-col h-full">
                             <div class="p-4 border-b flex items-center justify-between">
                                 <div class="flex items-center gap-3">
                                     <img id="active-chat-img" class="w-10 h-10 rounded-full">
-                                    <div>
-                                        <p id="active-chat-name" class="font-bold leading-none"></p>
-                                        <span class="text-xs text-green-500 font-medium">Active now</span>
-                                    </div>
-                                </div>
-                                <div class="flex gap-5 text-blue-600 text-xl pr-2">
-                                    <i class="fa-solid fa-phone cursor-pointer"></i>
-                                    <i class="fa-solid fa-video cursor-pointer"></i>
-                                    <i class="fa-solid fa-circle-info cursor-pointer"></i>
+                                    <p id="active-chat-name" class="font-bold"></p>
                                 </div>
                             </div>
                             <div id="chat-window" class="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50"></div>
                             <div class="p-4 border-t flex items-center gap-3">
-                                <i class="fa-solid fa-circle-plus text-blue-600 text-xl cursor-pointer"></i>
                                 <input id="msg-input" type="text" placeholder="Aa" class="flex-1 bg-gray-100 rounded-full px-4 py-2 outline-none">
-                                <button onclick="sendDirectMessage()" class="text-blue-600 text-2xl hover:scale-110 transition"><i class="fa-solid fa-paper-plane"></i></button>
+                                <button onclick="sendDirectMessage()" class="text-blue-600 text-2xl"><i class="fa-solid fa-paper-plane"></i></button>
                             </div>
                         </div>
                     </div>
@@ -181,78 +169,50 @@
 
             <!-- VIEW: PAGES -->
             <div id="view-pages" class="hidden-section animate-pop">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div class="card p-6 flex flex-col items-center text-center space-y-4">
-                        <div class="w-16 h-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-2xl"><i class="fa-solid fa-plus"></i></div>
-                        <h3 class="text-xl font-bold">Create Page</h3>
-                        <p class="text-gray-500 text-sm">Build a professional presence for your brand or organization.</p>
-                        <button class="bg-blue-600 text-white w-full py-2 rounded-lg font-bold">Get Started</button>
-                    </div>
-                    <div class="card p-6 flex flex-col items-center text-center space-y-4">
-                        <div class="w-16 h-16 bg-orange-100 text-orange-600 rounded-full flex items-center justify-center text-2xl"><i class="fa-solid fa-flag"></i></div>
-                        <h3 class="text-xl font-bold">Discover</h3>
-                        <p class="text-gray-500 text-sm">Follow industry leaders and pages you might like.</p>
-                        <button class="bg-gray-200 w-full py-2 rounded-lg font-bold">See Suggestions</button>
-                    </div>
+                <div class="card p-10 text-center">
+                    <i class="fa-solid fa-flag text-6xl text-orange-400 mb-4"></i>
+                    <h2 class="text-2xl font-bold">Your Pages</h2>
+                    <p class="text-gray-500">You haven't created any pages yet.</p>
                 </div>
             </div>
-
         </main>
     </div>
 
-    <!-- CREATE POST MODAL -->
+    <!-- MODALS & DRAWERS -->
     <div id="post-modal" class="fixed inset-0 z-[100] bg-white/80 backdrop-blur-md flex items-center justify-center hidden-section">
-        <div class="card w-full max-w-[500px] shadow-2xl animate-pop">
-            <div class="flex items-center justify-between p-4 border-b">
-                <div class="w-8"></div>
+        <div class="card w-full max-w-[500px] shadow-2xl animate-pop p-4 space-y-4">
+            <div class="flex justify-between items-center border-b pb-2">
                 <h2 class="text-xl font-bold">Create Post</h2>
-                <button onclick="closePostModal()" class="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center"><i class="fa-solid fa-xmark"></i></button>
+                <button onclick="closePostModal()" class="text-gray-500 text-2xl">&times;</button>
             </div>
-            <div class="p-4 space-y-4">
-                <div class="flex items-center gap-3">
-                    <img id="post-modal-avatar" class="w-10 h-10 rounded-full object-cover">
-                    <div>
-                        <p id="post-modal-name" class="font-bold"></p>
-                        <div class="bg-gray-100 text-xs px-2 py-1 rounded flex items-center gap-1 font-bold"><i class="fa-solid fa-earth-americas"></i> Public <i class="fa-solid fa-caret-down"></i></div>
-                    </div>
-                </div>
-                <textarea id="post-input" placeholder="What's on your mind?" class="w-full text-xl resize-none outline-none min-h-[150px] p-2" oninput="togglePostBtn()"></textarea>
-                
-                <div id="post-preview-area" class="hidden">
-                    <img id="post-img-preview" class="w-full rounded-lg max-h-64 object-cover">
-                </div>
-
-                <div class="border rounded-xl p-3 flex items-center justify-between">
-                    <span class="font-bold text-sm">Add to your post</span>
-                    <div class="flex gap-5 text-xl">
-                        <i class="fa-solid fa-image text-green-500 cursor-pointer" onclick="triggerFileUpload('post-image-upload')"></i>
-                        <i class="fa-solid fa-user-tag text-blue-500 cursor-pointer"></i>
-                        <i class="fa-solid fa-location-dot text-red-500 cursor-pointer"></i>
-                    </div>
-                </div>
-                <button id="post-btn" onclick="publishPost()" disabled class="w-full bg-blue-600 text-white font-bold py-2 rounded-lg disabled:opacity-50 transition hover:bg-blue-700">Post</button>
+            <textarea id="post-input" placeholder="What's on your mind?" class="w-full text-xl resize-none outline-none min-h-[150px]" oninput="togglePostBtn()"></textarea>
+            <div id="post-preview-area" class="hidden relative">
+                <img id="post-img-preview" class="w-full rounded-lg max-h-64 object-cover border">
+                <button onclick="removePostImage()" class="absolute top-2 right-2 bg-black/50 text-white w-8 h-8 rounded-full">&times;</button>
             </div>
+            <div class="border rounded-lg p-3 flex justify-between items-center">
+                <span class="font-bold text-sm">Add to your post</span>
+                <i class="fa-solid fa-image text-green-500 text-xl cursor-pointer" onclick="triggerFileUpload('post-image-upload')"></i>
+            </div>
+            <button id="post-btn" onclick="publishPost()" disabled class="w-full bg-blue-600 text-white font-bold py-2 rounded-lg disabled:opacity-50">Post</button>
         </div>
         <input type="file" id="post-image-upload" class="hidden" accept="image/*" onchange="previewPostImage(this)">
     </div>
 
-    <!-- COMMENTS DRAWER -->
     <div id="comment-drawer" class="fixed inset-0 z-[150] bg-black/40 flex items-end justify-center hidden-section">
-        <div class="bg-white w-full max-w-[600px] rounded-t-2xl p-4 h-[60vh] flex flex-col animate-pop">
-            <div class="flex justify-between items-center pb-4 border-b">
+        <div class="bg-white w-full max-w-[600px] rounded-t-2xl p-4 h-[70vh] flex flex-col">
+            <div class="flex justify-between items-center border-b pb-2">
                 <h3 class="font-bold">Comments</h3>
-                <i class="fa-solid fa-xmark cursor-pointer p-2" onclick="closeComments()"></i>
+                <button onclick="closeComments()" class="text-2xl">&times;</button>
             </div>
-            <div id="comments-list" class="flex-1 overflow-y-auto p-4 space-y-4"></div>
-            <div class="pt-4 border-t flex items-center gap-2">
-                <img id="comment-avatar" class="w-8 h-8 rounded-full">
+            <div id="comments-list" class="flex-1 overflow-y-auto py-4 space-y-4"></div>
+            <div class="pt-4 border-t flex gap-2">
                 <input id="comment-input" type="text" placeholder="Write a comment..." class="flex-1 bg-gray-100 rounded-full px-4 py-2 outline-none">
                 <button onclick="submitComment()" class="text-blue-600 font-bold">Post</button>
             </div>
         </div>
     </div>
 
-    <!-- TOAST NOTIFICATION -->
     <div id="toast" class="fixed bottom-10 left-1/2 -translate-x-1/2 bg-gray-900 text-white px-6 py-3 rounded-full text-sm font-bold shadow-xl opacity-0 transition-opacity z-[5000] pointer-events-none"></div>
 
     <script>
@@ -260,13 +220,10 @@
         const SUPABASE_KEY = "sb_publishable_mtI0_ZBvU_n5oRuqV58QHg_qJt3Gfyt";
         const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-        let currentUser = null;
-        let userProfile = null;
-        let activeChatId = null;
-        let activePostId = null;
-        let pendingImageData = null;
+        let currentUser = null, userProfile = null, activeChatId = null, activePostId = null, pendingImageData = null;
+        let allProfiles = [];
 
-        // --- AUTH & INIT ---
+        // --- AUTH ---
         async function checkSession() {
             const { data: { session } } = await supabaseClient.auth.getSession();
             if (!session) {
@@ -275,10 +232,7 @@
                 currentUser = session.user;
                 const { data: profile } = await supabaseClient.from('profiles_social').select('*').eq('id', currentUser.id).maybeSingle();
                 if (!profile) await setupInitialProfile();
-                else {
-                    userProfile = profile;
-                    initApp();
-                }
+                else { userProfile = profile; initApp(); }
             }
         }
 
@@ -292,140 +246,83 @@
             const { data } = await supabaseClient.from('profiles_social').insert({
                 id: currentUser.id,
                 username: `nix_${seed}`,
-                display_name: `User ${seed}`,
-                avatar_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${seed}`,
-                is_locked: false
+                display_name: `Nixora User ${seed}`,
+                avatar_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${seed}`
             }).select().single();
             userProfile = data;
-            location.reload();
+            initApp();
         }
 
-        function initApp() {
+        // --- INIT ---
+        async function initApp() {
             document.getElementById('auth-screen').classList.add('hidden-section');
             document.getElementById('app-screen').classList.remove('hidden-section');
             document.getElementById('main-header').classList.remove('hidden-section');
 
-            const avatars = ['my-avatar-nav', 'my-avatar-side', 'input-avatar', 'post-modal-avatar', 'comment-avatar', 'my-avatar-story'];
-            avatars.forEach(id => {
+            ['my-avatar-nav', 'my-avatar-side', 'input-avatar', 'my-avatar-story'].forEach(id => {
                 const el = document.getElementById(id);
                 if(el) el.src = userProfile.avatar_url;
             });
-            
             document.getElementById('my-name-side').innerText = userProfile.display_name;
             document.getElementById('my-first-name').innerText = userProfile.display_name.split(' ')[0];
-            
+
             loadFeed();
             loadShorts();
             loadMessages();
             loadStories();
+            fetchAllProfiles();
         }
 
-        // --- UI NAVIGATION ---
-        function showView(view) {
-            document.querySelectorAll('.nav-icon').forEach(el => el.classList.remove('active'));
-            ['home', 'shorts', 'profile', 'messages', 'pages'].forEach(v => {
-                const el = document.getElementById(`view-${v}`);
-                if(el) el.classList.add('hidden-section');
-            });
-
-            document.getElementById(`view-${view}`).classList.remove('hidden-section');
-            const navBtn = document.getElementById(`nav-${view}`);
-            if(navBtn) navBtn.classList.add('active');
-            window.scrollTo(0, 0);
+        async function fetchAllProfiles() {
+            const { data } = await supabaseClient.from('profiles_social').select('*');
+            allProfiles = data || [];
         }
 
-        function openPostModal() {
-            document.getElementById('post-modal').classList.remove('hidden-section');
-            document.getElementById('post-input').focus();
-        }
-
-        function closePostModal() {
-            document.getElementById('post-modal').classList.add('hidden-section');
-            document.getElementById('post-preview-area').classList.add('hidden');
-            document.getElementById('post-input').value = '';
-            pendingImageData = null;
-        }
-
-        function togglePostBtn() {
-            const input = document.getElementById('post-input').value.trim();
-            document.getElementById('post-btn').disabled = !input && !pendingImageData;
-        }
-
-        // --- FILE HANDLING ---
-        function triggerFileUpload(id) { document.getElementById(id).click(); }
-
-        function previewPostImage(input) {
-            if (input.files && input.files[0]) {
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    pendingImageData = e.target.result;
-                    document.getElementById('post-img-preview').src = pendingImageData;
-                    document.getElementById('post-preview-area').classList.remove('hidden');
-                    togglePostBtn();
-                };
-                reader.readAsDataURL(input.files[0]);
-            }
-        }
-
-        // --- FEED & INTERACTION ---
-        async function loadFeed() {
-            const { data: posts } = await supabaseClient.from('posts_social')
-                .select('*, profiles_social(*)')
-                .order('created_at', { ascending: false });
-
-            const container = document.getElementById('feed-container');
-            container.innerHTML = '';
+        // --- SEARCH ---
+        function handleSearch(val) {
+            const resBox = document.getElementById('search-results');
+            if(!val.trim()) { resBox.classList.add('hidden-section'); return; }
             
-            for (const post of (posts || [])) {
-                // Check privacy
-                if (post.profiles_social.is_locked && post.user_id !== currentUser.id) {
-                    const { data: isFriend } = await supabaseClient.from('follows_social')
-                        .select('*').match({ follower_id: currentUser.id, following_id: post.user_id }).maybeSingle();
-                    if(!isFriend) continue;
-                }
-
-                const { count: likes } = await supabaseClient.from('likes_social').select('*', { count: 'exact', head: true }).eq('post_id', post.id);
-                const { count: comments } = await supabaseClient.from('comments_social').select('*', { count: 'exact', head: true }).eq('post_id', post.id);
-                const { data: myLike } = await supabaseClient.from('likes_social').select('*').match({post_id: post.id, user_id: currentUser.id}).maybeSingle();
-                
-                container.innerHTML += renderPost(post, likes || 0, comments || 0, !!myLike);
-            }
+            const filtered = allProfiles.filter(p => p.display_name.toLowerCase().includes(val.toLowerCase()));
+            resBox.innerHTML = filtered.map(p => `
+                <div onclick="openProfileSearch('${p.id}')" class="flex items-center gap-3 p-3 hover:bg-gray-100 cursor-pointer">
+                    <img src="${p.avatar_url}" class="w-8 h-8 rounded-full">
+                    <span class="font-medium">${p.display_name}</span>
+                </div>
+            `).join('') || '<p class="p-3 text-gray-500 text-sm">No users found</p>';
+            resBox.classList.remove('hidden-section');
         }
 
-        function renderPost(post, likes, comments, isLiked) {
-            const p = post.profiles_social;
+        function openProfileSearch(id) {
+            document.getElementById('global-search').value = '';
+            document.getElementById('search-results').classList.add('hidden-section');
+            showToast(`Profile ${id} selected`);
+        }
+
+        // --- FEED & POSTS ---
+        async function loadFeed() {
+            const { data: posts } = await supabaseClient.from('posts_social').select('*, profiles_social(*)').order('created_at', { ascending: false });
+            const container = document.getElementById('feed-container');
+            container.innerHTML = (posts || []).map(p => renderPost(p)).join('');
+        }
+
+        function renderPost(post) {
             return `
                 <div class="card p-4 space-y-3 animate-pop">
-                    <div class="flex items-center justify-between">
-                        <div class="flex items-center gap-2">
-                            <img src="${p.avatar_url}" onclick="openProfile('${p.id}')" class="w-10 h-10 rounded-full border cursor-pointer hover:opacity-80">
-                            <div>
-                                <p class="font-bold cursor-pointer hover:underline" onclick="openProfile('${p.id}')">${p.display_name}</p>
-                                <p class="text-xs text-gray-500">${new Date(post.created_at).toLocaleDateString()} • <i class="fa-solid fa-earth-americas"></i></p>
-                            </div>
+                    <div class="flex items-center gap-2">
+                        <img src="${post.profiles_social.avatar_url}" class="w-10 h-10 rounded-full border">
+                        <div>
+                            <p class="font-bold">${post.profiles_social.display_name}</p>
+                            <p class="text-xs text-gray-500">${new Date(post.created_at).toLocaleTimeString()}</p>
                         </div>
-                        <i class="fa-solid fa-ellipsis text-gray-400 cursor-pointer"></i>
                     </div>
-                    <p class="text-[15px]">${post.content}</p>
+                    <p>${post.content}</p>
                     ${post.image_url ? `<img src="${post.image_url}" class="w-full rounded-lg max-h-96 object-cover border">` : ''}
-                    <div class="flex justify-between text-gray-500 text-sm font-medium">
-                        <div class="flex items-center gap-1"><i class="fa-solid fa-thumbs-up text-blue-500 bg-blue-50 p-1 rounded-full text-[10px]"></i> ${likes}</div>
-                        <div class="flex gap-3">
-                            <span class="hover:underline cursor-pointer" onclick="openComments('${post.id}')">${comments} comments</span>
-                            <span class="hover:underline cursor-pointer">12 shares</span>
-                        </div>
-                    </div>
                     <hr>
-                    <div class="flex text-gray-600 font-bold text-sm">
-                        <button onclick="toggleLike('${post.id}')" class="flex-1 py-2 rounded-lg hover:bg-gray-100 transition flex items-center justify-center gap-2 ${isLiked ? 'text-blue-600' : ''}">
-                            <i class="${isLiked ? 'fa-solid' : 'fa-regular'} fa-thumbs-up"></i> Like
-                        </button>
-                        <button onclick="openComments('${post.id}')" class="flex-1 py-2 rounded-lg hover:bg-gray-100 transition flex items-center justify-center gap-2">
-                            <i class="fa-regular fa-comment"></i> Comment
-                        </button>
-                        <button onclick="sharePost('${post.id}')" class="flex-1 py-2 rounded-lg hover:bg-gray-100 transition flex items-center justify-center gap-2">
-                            <i class="fa-solid fa-share"></i> Share
-                        </button>
+                    <div class="flex gap-4 font-bold text-sm text-gray-600">
+                        <button onclick="toggleLike('${post.id}')" class="flex-1 py-2 hover:bg-gray-100 rounded-lg"><i class="fa-regular fa-thumbs-up"></i> Like</button>
+                        <button onclick="openComments('${post.id}')" class="flex-1 py-2 hover:bg-gray-100 rounded-lg"><i class="fa-regular fa-comment"></i> Comment</button>
+                        <button onclick="sharePost('${post.id}')" class="flex-1 py-2 hover:bg-gray-100 rounded-lg"><i class="fa-solid fa-share"></i> Share</button>
                     </div>
                 </div>
             `;
@@ -433,139 +330,48 @@
 
         async function publishPost() {
             const content = document.getElementById('post-input').value.trim();
+            if(!content && !pendingImageData) return;
             const btn = document.getElementById('post-btn');
-            btn.disabled = true;
-            btn.innerText = "Publishing...";
+            btn.disabled = true; btn.innerText = "...";
 
-            const { data: newPost, error } = await supabaseClient.from('posts_social').insert([{ 
-                user_id: currentUser.id, 
-                content,
-                image_url: pendingImageData // In a real app, upload to storage first
-            }]).select();
-
-            if(!error) {
-                showToast("Post published successfully!");
-                closePostModal();
-                loadFeed();
-            }
-            btn.disabled = false;
-            btn.innerText = "Post";
-        }
-
-        async function toggleLike(postId) {
-            const { data: existing } = await supabaseClient.from('likes_social').select('*').match({ user_id: currentUser.id, post_id: postId }).maybeSingle();
-            if (existing) await supabaseClient.from('likes_social').delete().match({ user_id: currentUser.id, post_id: postId });
-            else await supabaseClient.from('likes_social').insert([{ user_id: currentUser.id, post_id: postId }]);
-            loadFeed();
+            await supabaseClient.from('posts_social').insert([{ user_id: currentUser.id, content, image_url: pendingImageData }]);
+            closePostModal(); loadFeed(); showToast("Post shared!");
+            btn.disabled = false; btn.innerText = "Post";
         }
 
         // --- COMMENTS ---
         async function openComments(postId) {
             activePostId = postId;
             document.getElementById('comment-drawer').classList.remove('hidden-section');
-            const { data: comments } = await supabaseClient.from('comments_social')
-                .select('*, profiles_social(*)')
-                .eq('post_id', postId)
-                .order('created_at', { ascending: true });
-
-            const list = document.getElementById('comments-list');
-            list.innerHTML = (comments || []).map(c => `
+            const { data: comments } = await supabaseClient.from('comments_social').select('*, profiles_social(*)').eq('post_id', postId).order('created_at', {ascending: true});
+            document.getElementById('comments-list').innerHTML = (comments || []).map(c => `
                 <div class="flex gap-2">
-                    <img src="${c.profiles_social.avatar_url}" class="w-8 h-8 rounded-full border">
-                    <div class="bg-gray-100 p-2 px-3 rounded-2xl flex-1">
-                        <p class="font-bold text-xs">${c.profiles_social.display_name}</p>
-                        <p class="text-sm">${c.content}</p>
+                    <img src="${c.profiles_social.avatar_url}" class="w-8 h-8 rounded-full">
+                    <div class="bg-gray-100 p-2 px-3 rounded-2xl flex-1 text-sm">
+                        <p class="font-bold">${c.profiles_social.display_name}</p>
+                        <p>${c.content}</p>
                     </div>
                 </div>
-            `).join('') || '<p class="text-center text-gray-400 py-10">Be the first to comment!</p>';
+            `).join('') || '<p class="text-center text-gray-400">No comments yet</p>';
         }
-
-        function closeComments() { document.getElementById('comment-drawer').classList.add('hidden-section'); }
 
         async function submitComment() {
-            const content = document.getElementById('comment-input').value.trim();
-            if(!content || !activePostId) return;
-            await supabaseClient.from('comments_social').insert([{ post_id: activePostId, user_id: currentUser.id, content }]);
-            document.getElementById('comment-input').value = '';
-            openComments(activePostId);
-            loadFeed();
-        }
-
-        // --- STORIES ---
-        let localStories = [];
-        async function loadStories() {
-            const container = document.getElementById('stories-container');
-            // Mock dynamic stories
-            const mocks = [
-                { name: 'Elena', img: 'https://picsum.photos/seed/ele/200/300', av: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Elena' },
-                { name: 'Nixora Ads', img: 'https://picsum.photos/seed/nx/200/300', av: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Ads' }
-            ];
-            
-            container.innerHTML = mocks.map(s => `
-                <div class="relative min-w-[120px] h-48 rounded-xl bg-gray-200 shadow overflow-hidden cursor-pointer group">
-                    <img src="${s.img}" class="h-full w-full object-cover group-hover:scale-105 transition duration-500">
-                    <div class="absolute inset-0 bg-black/20"></div>
-                    <img src="${s.av}" class="absolute top-2 left-2 w-10 h-10 rounded-full border-4 border-blue-600">
-                    <span class="absolute bottom-2 left-2 text-white text-xs font-bold">${s.name}</span>
-                </div>
-            `).join('') + localStories.map(s => `
-                 <div class="relative min-w-[120px] h-48 rounded-xl bg-gray-200 shadow overflow-hidden">
-                    <img src="${s}" class="h-full w-full object-cover">
-                    <div class="absolute inset-0 bg-black/20"></div>
-                    <img src="${userProfile.avatar_url}" class="absolute top-2 left-2 w-10 h-10 rounded-full border-4 border-blue-600">
-                    <span class="absolute bottom-2 left-2 text-white text-xs font-bold">Your Story</span>
-                </div>
-            `).join('');
-        }
-
-        function createStory(input) {
-            if (input.files && input.files[0]) {
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    localStories.unshift(e.target.result);
-                    loadStories();
-                    showToast("Story shared!");
-                };
-                reader.readAsDataURL(input.files[0]);
-            }
-        }
-
-        // --- SHORTS ---
-        function loadShorts() {
-            const container = document.getElementById('shorts-container');
-            const mockShorts = [
-                { user: 'DigitalCreator', tag: 'Productivity', img: 'https://picsum.photos/seed/tech/400/700' },
-                { user: 'NixoraTravel', tag: 'Vibes', img: 'https://picsum.photos/seed/nature/400/700' }
-            ];
-            container.innerHTML = mockShorts.map(s => `
-                <div class="short-card shadow-2xl">
-                    <img src="${s.img}" class="w-full h-full object-cover opacity-80">
-                    <div class="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/80 to-transparent text-white">
-                        <p class="font-bold flex items-center gap-2"><img src="https://api.dicebear.com/7.x/avataaars/svg?seed=${s.user}" class="w-8 h-8 rounded-full"> @${s.user}</p>
-                        <p class="text-sm mt-2">#NixoraShorts #${s.tag}</p>
-                    </div>
-                    <div class="absolute right-4 bottom-20 flex flex-col gap-6 text-white text-2xl">
-                        <div class="flex flex-col items-center"><i class="fa-solid fa-heart"></i><span class="text-xs mt-1">1.2k</span></div>
-                        <div class="flex flex-col items-center"><i class="fa-solid fa-comment"></i><span class="text-xs mt-1">45</span></div>
-                        <div class="flex flex-col items-center"><i class="fa-solid fa-share"></i><span class="text-xs mt-1">Share</span></div>
-                    </div>
-                </div>
-            `).join('');
+            const input = document.getElementById('comment-input');
+            const val = input.value.trim();
+            if(!val || !activePostId) return;
+            await supabaseClient.from('comments_social').insert([{ post_id: activePostId, user_id: currentUser.id, content: val }]);
+            input.value = ''; openComments(activePostId);
         }
 
         // --- MESSAGING ---
         async function loadMessages() {
-            const { data: profiles } = await supabaseClient.from('profiles_social').select('*').neq('id', currentUser.id).limit(10);
-            const list = document.getElementById('chat-list');
-            list.innerHTML = (profiles || []).map(p => `
-                <div onclick="openChat('${p.id}')" class="flex items-center gap-3 p-3 hover:bg-gray-100 cursor-pointer transition">
-                    <div class="relative">
-                        <img src="${p.avatar_url}" class="w-12 h-12 rounded-full border">
-                        <div class="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white rounded-full"></div>
-                    </div>
+            const { data } = await supabaseClient.from('profiles_social').select('*').neq('id', currentUser.id).limit(10);
+            document.getElementById('chat-list').innerHTML = (data || []).map(p => `
+                <div onclick="openChat('${p.id}')" class="flex items-center gap-3 p-3 hover:bg-gray-100 cursor-pointer">
+                    <img src="${p.avatar_url}" class="w-12 h-12 rounded-full border">
                     <div class="flex-1 min-w-0">
                         <p class="font-bold truncate">${p.display_name}</p>
-                        <p class="text-sm text-gray-500 truncate">Tap to chat on Nixora</p>
+                        <p class="text-xs text-gray-500">Active now</p>
                     </div>
                 </div>
             `).join('');
@@ -578,25 +384,19 @@
             document.getElementById('chat-main').classList.remove('hidden');
             document.getElementById('active-chat-img').src = p.avatar_url;
             document.getElementById('active-chat-name').innerText = p.display_name;
-            
-            fetchChatHistory();
-            
-            // Subscriptions in real apps would go here
-            supabaseClient.channel('realtime_chats').on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages_social' }, fetchChatHistory).subscribe();
+            fetchMessages();
         }
 
-        async function fetchChatHistory() {
+        async function fetchMessages() {
             if(!activeChatId) return;
-            const { data: msgs } = await supabaseClient.from('messages_social')
-                .select('*')
+            const { data } = await supabaseClient.from('messages_social').select('*')
                 .or(`and(sender_id.eq.${currentUser.id},receiver_id.eq.${activeChatId}),and(sender_id.eq.${activeChatId},receiver_id.eq.${currentUser.id})`)
                 .order('created_at', { ascending: true });
-
             const win = document.getElementById('chat-window');
-            win.innerHTML = (msgs || []).map(m => `
+            win.innerHTML = (data || []).map(m => `
                 <div class="flex ${m.sender_id === currentUser.id ? 'justify-end' : 'justify-start'}">
-                    <div class="max-w-[75%] p-3 rounded-2xl ${m.sender_id === currentUser.id ? 'bg-blue-600 text-white rounded-br-none' : 'bg-white shadow-sm rounded-bl-none'}">
-                        <p class="text-[15px]">${m.content}</p>
+                    <div class="max-w-[80%] p-3 rounded-2xl ${m.sender_id === currentUser.id ? 'bg-blue-600 text-white' : 'bg-white'} shadow-sm">
+                        <p class="text-sm">${m.content}</p>
                     </div>
                 </div>
             `).join('');
@@ -605,25 +405,97 @@
 
         async function sendDirectMessage() {
             const input = document.getElementById('msg-input');
-            const content = input.value.trim();
-            if(!content || !activeChatId) return;
-            await supabaseClient.from('messages_social').insert([{ sender_id: currentUser.id, receiver_id: activeChatId, content }]);
-            input.value = '';
-            fetchChatHistory();
+            if(!input.value.trim() || !activeChatId) return;
+            await supabaseClient.from('messages_social').insert([{ sender_id: currentUser.id, receiver_id: activeChatId, content: input.value.trim() }]);
+            input.value = ''; fetchMessages();
         }
 
-        // --- UTILS ---
+        // --- UI UTILS ---
+        function showView(view) {
+            document.querySelectorAll('.nav-icon').forEach(el => el.classList.remove('active'));
+            ['home', 'shorts', 'messages', 'pages'].forEach(v => {
+                const el = document.getElementById(`view-${v}`);
+                if(el) el.classList.add('hidden-section');
+            });
+            document.getElementById(`view-${view}`).classList.remove('hidden-section');
+            const btn = document.getElementById(`nav-${view}`);
+            if(btn) btn.classList.add('active');
+        }
+
+        function toggleNotifications() {
+            const dd = document.getElementById('notif-dropdown');
+            dd.classList.toggle('hidden-section');
+            if(!dd.classList.contains('hidden-section')) {
+                document.getElementById('notif-badge').classList.add('hidden');
+                document.getElementById('notif-list').innerHTML = `
+                    <div class="flex items-center gap-3 p-2 hover:bg-gray-100 rounded cursor-pointer">
+                        <div class="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center text-blue-600"><i class="fa-solid fa-heart"></i></div>
+                        <div><p class="text-sm"><b>Elena</b> liked your post.</p><span class="text-xs text-blue-600">2m ago</span></div>
+                    </div>
+                    <div class="flex items-center gap-3 p-2 hover:bg-gray-100 rounded cursor-pointer">
+                        <div class="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center text-green-600"><i class="fa-solid fa-user-plus"></i></div>
+                        <div><p class="text-sm"><b>Nixora Bot</b> followed you.</p><span class="text-xs text-blue-600">1h ago</span></div>
+                    </div>
+                `;
+            }
+        }
+
+        function openPostModal() { document.getElementById('post-modal').classList.remove('hidden-section'); }
+        function closePostModal() { document.getElementById('post-modal').classList.add('hidden-section'); }
+        function closeComments() { document.getElementById('comment-drawer').classList.add('hidden-section'); }
+
+        function triggerFileUpload(id) { document.getElementById(id).click(); }
+        function previewPostImage(input) {
+            if (input.files && input.files[0]) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    pendingImageData = e.target.result;
+                    document.getElementById('post-img-preview').src = pendingImageData;
+                    document.getElementById('post-preview-area').classList.remove('hidden');
+                    togglePostBtn();
+                };
+                reader.readAsDataURL(input.files[0]);
+            }
+        }
+        function removePostImage() {
+            pendingImageData = null;
+            document.getElementById('post-preview-area').classList.add('hidden');
+            togglePostBtn();
+        }
+        function togglePostBtn() {
+            const input = document.getElementById('post-input').value.trim();
+            document.getElementById('post-btn').disabled = !input && !pendingImageData;
+        }
+
         function showToast(msg) {
             const t = document.getElementById('toast');
-            t.innerText = msg;
-            t.style.opacity = '1';
+            t.innerText = msg; t.style.opacity = '1';
             setTimeout(() => t.style.opacity = '0', 3000);
         }
 
-        function sharePost(id) {
-            const url = window.location.href + '?post=' + id;
-            navigator.clipboard.writeText(url);
-            showToast("Post link copied to clipboard!");
+        function loadShorts() {
+            document.getElementById('shorts-container').innerHTML = [1,2].map(i => `
+                <div class="short-card shadow-2xl">
+                    <img src="https://picsum.photos/seed/${i*5}/400/700" class="w-full h-full object-cover opacity-80">
+                    <div class="absolute bottom-4 left-4 text-white">
+                        <p class="font-bold">@nix_creator_${i}</p>
+                        <p class="text-sm">#NixoraShorts #Trending</p>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function loadStories() {
+            document.getElementById('stories-container').innerHTML = [1,2,3].map(i => `
+                <div class="relative min-w-[120px] h-48 rounded-xl bg-gray-200 shadow overflow-hidden">
+                    <img src="https://picsum.photos/seed/story${i}/200/300" class="h-full w-full object-cover">
+                    <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=${i}" class="absolute top-2 left-2 w-8 h-8 rounded-full border-2 border-blue-600">
+                </div>
+            `).join('');
+        }
+
+        function createStory(input) {
+            if(input.files && input.files[0]) showToast("Story uploaded successfully!");
         }
 
         window.onload = checkSession;
