@@ -8,137 +8,141 @@
     <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        :root {
-            --nixora-blue: #1DA1F2;
-            --nixora-dark: #0f1419;
-            --nixora-bg: #ffffff;
-        }
-        body { background-color: var(--nixora-bg); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; overflow-x: hidden; }
+        :root { --nixora-blue: #1DA1F2; --nixora-dark: #0f1419; --nixora-bg: #ffffff; }
+        body { background-color: var(--nixora-bg); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; overflow-x: hidden; }
         .nav-blur { background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(12px); border-bottom: 1px solid #eff3f4; }
         .post-card { border-bottom: 1px solid #eff3f4; transition: background 0.2s; cursor: pointer; }
         .post-card:hover { background: rgba(0,0,0,0.02); }
         .loader { border: 2px solid #f3f3f3; border-top: 2px solid var(--nixora-blue); border-radius: 50%; width: 20px; height: 20px; animation: spin 1s linear infinite; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        
-        #nix-panel { transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); transform: translateY(100%); }
-        #nix-panel.visible { transform: translateY(0); }
-        
         .mention { color: var(--nixora-blue); font-weight: 600; cursor: pointer; }
-        .mention:hover { text-decoration: underline; }
+        .modal-bg { background: rgba(0,0,0,0.5); backdrop-filter: blur(8px); }
+        .slide-up { animation: slideUp 0.3s ease-out; }
+        @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
     </style>
 </head>
 <body class="text-gray-900">
 
+    <!-- Onboarding Overlay (Hidden by default) -->
+    <div id="onboarding-overlay" class="fixed inset-0 z-[200] bg-white hidden flex-col items-center justify-center p-6 text-center">
+        <div class="max-w-sm w-full space-y-6">
+            <div class="inline-block bg-blue-500 p-5 rounded-full text-white text-4xl mb-4"><i class="fa-solid fa-rocket"></i></div>
+            <h1 class="text-3xl font-black">Welcome to Nixora</h1>
+            <p class="text-gray-500">Choose a username and set up your profile to start connecting.</p>
+            <div class="space-y-4">
+                <input type="text" id="ob-username" placeholder="Username (e.g. techguru)" class="w-full p-4 border rounded-2xl outline-none focus:ring-2 focus:ring-blue-400">
+                <input type="text" id="ob-displayname" placeholder="Display Name" class="w-full p-4 border rounded-2xl outline-none focus:ring-2 focus:ring-blue-400">
+                <button onclick="completeOnboarding()" id="ob-btn" class="w-full bg-blue-500 text-white py-4 rounded-full font-bold text-lg hover:bg-blue-600">Create Profile</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Desktop Nav -->
     <nav class="fixed top-0 w-full nav-blur z-50 h-14 hidden md:block">
         <div class="max-w-7xl mx-auto px-4 flex items-center justify-between h-full">
-            <div class="text-blue-500 font-black text-2xl tracking-tighter">NIXORA</div>
+            <div class="text-blue-500 font-black text-2xl tracking-tighter cursor-pointer" onclick="location.reload()">NIXORA</div>
             <div class="flex items-center gap-6">
-                <button onclick="toggleNix()" class="text-blue-500 bg-blue-50 px-4 py-1.5 rounded-full text-sm font-bold flex items-center gap-2">
-                    <i class="fa-solid fa-robot"></i> Nix 4 Online
-                </button>
-                <img id="nav-avatar" onclick="openModal('settings-modal')" src="" class="w-8 h-8 rounded-full border cursor-pointer hover:opacity-80 object-cover">
+                <div class="relative">
+                    <button onclick="toggleNotifications()" class="p-2 hover:bg-gray-100 rounded-full relative">
+                        <i class="fa-regular fa-bell text-xl"></i>
+                        <span id="notif-badge" class="absolute top-1 right-1 bg-red-500 text-white text-[10px] w-4 h-4 rounded-full hidden flex items-center justify-center">0</span>
+                    </button>
+                </div>
+                <img id="nav-avatar" onclick="openProfileModal(currentUser.id)" src="" class="w-8 h-8 rounded-full border cursor-pointer object-cover">
             </div>
         </div>
     </nav>
 
-    <!-- Main Content -->
     <div class="max-w-7xl mx-auto flex">
+        <!-- Sidebar -->
         <aside class="hidden md:flex flex-col w-64 fixed h-screen p-4 border-r border-gray-100 pt-16">
             <nav class="space-y-1">
-                <button onclick="location.reload()" class="flex items-center gap-4 p-3 w-full hover:bg-gray-100 rounded-full text-xl font-bold transition">
+                <button onclick="setView('home')" class="flex items-center gap-4 p-3 w-full hover:bg-gray-100 rounded-full text-xl font-bold transition">
                     <i class="fa-solid fa-house w-8"></i> Home
                 </button>
-                <button class="flex items-center gap-4 p-3 w-full hover:bg-gray-100 rounded-full text-xl transition">
-                    <i class="fa-solid fa-hashtag w-8"></i> Explore
+                <button onclick="setView('notifications')" class="flex items-center gap-4 p-3 w-full hover:bg-gray-100 rounded-full text-xl transition">
+                    <i class="fa-solid fa-bell w-8"></i> Notifications
+                </button>
+                <button onclick="openProfileModal(currentUser.id)" class="flex items-center gap-4 p-3 w-full hover:bg-gray-100 rounded-full text-xl transition">
+                    <i class="fa-solid fa-user w-8"></i> Profile
                 </button>
                 <button onclick="openModal('settings-modal')" class="flex items-center gap-4 p-3 w-full hover:bg-gray-100 rounded-full text-xl transition">
                     <i class="fa-solid fa-gear w-8"></i> Settings
                 </button>
             </nav>
-            <button onclick="document.getElementById('post-input').focus()" class="mt-6 bg-blue-500 text-white w-full py-3 rounded-full font-bold text-lg shadow-lg hover:bg-blue-600 transition">Post</button>
-            
-            <div class="mt-auto mb-20 p-3 flex items-center gap-3 hover:bg-gray-100 rounded-full cursor-pointer transition" onclick="openModal('settings-modal')">
-                <img id="sidebar-avatar" src="" class="w-10 h-10 rounded-full border object-cover">
-                <div class="flex-1 overflow-hidden">
-                    <p id="sidebar-name" class="font-bold truncate"></p>
-                    <p id="sidebar-user" class="text-gray-500 text-sm truncate"></p>
-                </div>
-            </div>
+            <button onclick="document.getElementById('post-input').focus()" class="mt-6 bg-blue-500 text-white w-full py-3 rounded-full font-bold text-lg shadow-lg hover:bg-blue-600">Post</button>
         </aside>
 
-        <main class="flex-1 md:ml-64 lg:mr-[350px] min-h-screen border-r border-gray-100 pb-20 pt-0 md:pt-14">
-            <div id="status-alerts" class="p-4 hidden"></div>
-
-            <div class="p-4 border-b border-gray-100">
-                <div class="flex gap-4">
-                    <img id="post-input-avatar" src="" class="w-12 h-12 rounded-full border object-cover">
-                    <div class="flex-1">
-                        <textarea id="post-input" placeholder="What's happening? Tag @nix4_ai for a reply!" class="w-full text-xl resize-none outline-none min-h-[100px] py-2"></textarea>
-                        <div id="media-preview" class="hidden mb-4 relative rounded-2xl overflow-hidden border">
-                            <button onclick="clearMedia()" class="absolute top-2 right-2 bg-black/60 text-white w-8 h-8 rounded-full flex items-center justify-center"><i class="fa fa-times"></i></button>
-                            <img id="preview-img" class="w-full h-auto">
-                        </div>
-                        <div class="flex items-center justify-between border-t pt-3">
-                            <div class="flex text-blue-500">
-                                <label class="p-2 hover:bg-blue-50 rounded-full cursor-pointer transition">
-                                    <i class="fa-solid fa-image"></i>
-                                    <input type="file" id="file-input" class="hidden" accept="image/*,video/*">
-                                </label>
-                                <button onclick="askNixForIdea()" class="p-2 hover:bg-blue-50 rounded-full transition"><i class="fa-solid fa-wand-magic-sparkles"></i></button>
+        <!-- Main Container -->
+        <main id="main-view" class="flex-1 md:ml-64 lg:mr-[350px] min-h-screen border-r border-gray-100 pb-20 pt-0 md:pt-14">
+            <!-- Feed View -->
+            <div id="view-home">
+                <div class="p-4 border-b border-gray-100">
+                    <div class="flex gap-4">
+                        <img id="post-input-avatar" src="" class="w-12 h-12 rounded-full border object-cover">
+                        <div class="flex-1">
+                            <textarea id="post-input" placeholder="What's happening? Tag @nix4_ai for AI answers!" class="w-full text-xl resize-none outline-none min-h-[80px] py-2"></textarea>
+                            <div id="media-preview" class="hidden mb-4 relative rounded-2xl overflow-hidden border">
+                                <button onclick="clearMedia()" class="absolute top-2 right-2 bg-black/60 text-white w-8 h-8 rounded-full flex items-center justify-center"><i class="fa fa-times"></i></button>
+                                <img id="preview-img" class="w-full h-auto">
                             </div>
-                            <button id="publish-btn" onclick="publishPost()" class="bg-blue-500 text-white px-6 py-2 rounded-full font-bold hover:bg-blue-600 transition disabled:opacity-50">Post</button>
+                            <div class="flex items-center justify-between border-t pt-3">
+                                <div class="flex text-blue-500">
+                                    <label class="p-2 hover:bg-blue-50 rounded-full cursor-pointer"><i class="fa-solid fa-image"></i><input type="file" id="file-input" class="hidden" accept="image/*"></label>
+                                </div>
+                                <button id="publish-btn" onclick="publishPost()" class="bg-blue-500 text-white px-6 py-2 rounded-full font-bold hover:bg-blue-600 disabled:opacity-50">Post</button>
+                            </div>
                         </div>
                     </div>
                 </div>
+                <div id="feed-container"><div class="flex justify-center p-12"><div class="loader"></div></div></div>
             </div>
-            <div id="feed-container">
-                <div class="flex justify-center p-12"><div class="loader !w-8 !h-8"></div></div>
+
+            <!-- Notifications View -->
+            <div id="view-notifications" class="hidden">
+                <div class="p-4 border-b font-bold text-xl">Notifications</div>
+                <div id="notif-container"></div>
             </div>
         </main>
     </div>
 
-    <!-- Nix AI Panel -->
-    <div id="nix-panel" class="fixed bottom-0 left-0 right-0 md:left-auto md:right-4 md:bottom-4 md:w-96 bg-white shadow-2xl rounded-t-3xl md:rounded-3xl border z-[60] flex flex-col h-[70vh] md:h-[500px] overflow-hidden">
-        <div class="bg-blue-500 p-4 text-white flex justify-between items-center">
-            <div class="flex items-center gap-3">
-                <i class="fa-solid fa-robot"></i>
-                <span class="font-bold">Nix 4 Intelligence</span>
+    <!-- Modals -->
+    <div id="modal-overlay" class="fixed inset-0 modal-bg hidden z-[100] items-center justify-center p-4">
+        <!-- Profile Modal -->
+        <div id="profile-modal" class="bg-white w-full max-w-md rounded-3xl hidden overflow-hidden slide-up">
+            <div class="h-32 bg-gradient-to-r from-blue-400 to-indigo-500 relative">
+                <button onclick="closeModal()" class="absolute top-4 right-4 bg-black/20 text-white p-2 rounded-full"><i class="fa fa-times"></i></button>
             </div>
-            <button onclick="toggleNix()"><i class="fa fa-times"></i></button>
-        </div>
-        <div id="nix-chat-box" class="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50 text-sm"></div>
-        <div class="p-4 border-t bg-white">
-            <div class="flex gap-2">
-                <input type="text" id="nix-input" onkeypress="if(event.key==='Enter') talkToNix()" placeholder="Ask Nix something..." class="flex-1 bg-gray-100 rounded-full px-4 py-2 outline-none">
-                <button onclick="talkToNix()" class="bg-blue-500 text-white w-10 h-10 rounded-full flex items-center justify-center"><i class="fa fa-paper-plane text-xs"></i></button>
+            <div class="px-6 pb-6 -mt-12 relative">
+                <img id="prof-modal-img" src="" class="w-24 h-24 rounded-full border-4 border-white object-cover">
+                <div class="flex justify-between items-end mt-2">
+                    <div>
+                        <h2 id="prof-modal-name" class="text-2xl font-black"></h2>
+                        <p id="prof-modal-user" class="text-gray-500"></p>
+                    </div>
+                    <button id="follow-btn" onclick="toggleFollow()" class="bg-black text-white px-6 py-2 rounded-full font-bold">Follow</button>
+                </div>
+                <p id="prof-modal-bio" class="mt-4 text-gray-700"></p>
             </div>
         </div>
-    </div>
 
-    <!-- Modals Overlay -->
-    <div id="modal-overlay" class="fixed inset-0 bg-black/40 backdrop-blur-sm hidden z-[100] items-center justify-center p-4">
-        <div id="settings-modal" class="bg-white w-full max-md rounded-3xl overflow-hidden shadow-2xl">
-            <div class="p-6 border-b flex justify-between items-center">
-                <h2 class="text-xl font-black">Account Settings</h2>
+        <!-- Comments Modal -->
+        <div id="comments-modal" class="bg-white w-full max-w-lg rounded-t-3xl md:rounded-3xl hidden overflow-hidden flex flex-col h-[80vh]">
+            <div class="p-4 border-b flex justify-between items-center">
+                <span class="font-bold">Comments</span>
                 <button onclick="closeModal()"><i class="fa fa-times"></i></button>
             </div>
-            <div class="p-6 space-y-4">
-                <div>
-                    <p class="text-sm font-bold text-gray-600 mb-2">Update Profile Picture</p>
-                    <div class="flex items-center gap-4">
-                        <img id="settings-avatar-preview" src="" class="w-16 h-16 rounded-full border object-cover">
-                        <label class="bg-blue-500 text-white px-4 py-2 rounded-full text-sm font-bold cursor-pointer hover:bg-blue-600 transition">
-                            Change Photo
-                            <input type="file" id="profile-upload" class="hidden" accept="image/*" onchange="updateProfilePicture(this)">
-                        </label>
-                    </div>
-                </div>
-                <hr>
-                <button onclick="handleLogout()" class="w-full text-left p-4 bg-red-50 text-red-600 rounded-2xl font-bold flex items-center gap-3">
-                    <i class="fa-solid fa-right-from-bracket"></i> Sign out
-                </button>
+            <div id="comments-list" class="flex-1 overflow-y-auto p-4 space-y-4"></div>
+            <div class="p-4 border-t flex gap-2">
+                <input type="text" id="comment-input" placeholder="Write a comment..." class="flex-1 bg-gray-100 rounded-full px-4 py-2 outline-none">
+                <button id="send-comment-btn" class="bg-blue-500 text-white px-4 py-2 rounded-full font-bold"><i class="fa-solid fa-paper-plane"></i></button>
             </div>
+        </div>
+
+        <!-- Settings Modal -->
+        <div id="settings-modal" class="bg-white w-full max-w-md rounded-3xl hidden p-6">
+            <h2 class="text-xl font-bold mb-4">Settings</h2>
+            <button onclick="handleLogout()" class="w-full p-4 bg-red-50 text-red-600 rounded-2xl font-bold">Log out</button>
         </div>
     </div>
 
@@ -147,188 +151,309 @@
         const SUPABASE_KEY = "sb_publishable_mtI0_ZBvU_n5oRuqV58QHg_qJt3Gfyt";
         const LONGCAT_URL = "https://api.longcat.chat/openai/v1/chat/completions";
         const LONGCAT_API_KEY = "ak_2rU1Lo7PA23X5Is9wm3m69EY2T37J";
-
+        
         const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
         let currentUser = null;
+        let userProfile = null;
         let selectedFile = null;
+        let currentViewingPostId = null;
+        let currentViewingProfileId = null;
 
         const NIX_ID = "00000000-0000-0000-0000-000000000000";
-        const NIX_USERNAME = "nix4_ai";
-        const NIX_PROFILE = {
-            id: NIX_ID,
-            username: NIX_USERNAME,
-            display_name: "Nix 4 Intelligence",
-            avatar_url: "https://api.dicebear.com/7.x/bottts/svg?seed=nix4",
-            is_verified: true
-        };
+        const NIX_PROFILE = { id: NIX_ID, username: "nix4_ai", display_name: "Nix 4 Intelligence", avatar_url: "https://api.dicebear.com/7.x/bottts/svg?seed=nix4", is_verified: true };
 
         async function init() {
             const { data: { session } } = await supabaseClient.auth.getSession();
             if (!session) { window.location.href = "auth.html"; return; }
             currentUser = session.user;
-            await setupUI();
-            await loadFeed();
-            setupMedia();
-            setInterval(checkNixPulse, 3600000); 
-        }
-
-        async function setupUI() {
+            
             const { data: profile } = await supabaseClient.from('profiles_social').select('*').eq('id', currentUser.id).maybeSingle();
-            const username = profile?.username || currentUser.email.split('@')[0];
-            const avatar = profile?.avatar_url || `https://ui-avatars.com/api/?name=${username}`;
-
-            document.querySelectorAll('[id*="avatar"]').forEach(img => img.src = avatar);
-            if(document.getElementById('sidebar-name')) document.getElementById('sidebar-name').innerText = profile?.display_name || username;
-            if(document.getElementById('sidebar-user')) document.getElementById('sidebar-user').innerText = `@${username}`;
+            if (!profile) {
+                document.getElementById('onboarding-overlay').classList.replace('hidden', 'flex');
+            } else {
+                userProfile = profile;
+                setupUI();
+                loadFeed();
+                listenToNotifications();
+            }
+            setupMedia();
         }
 
-        async function callLongCat(prompt, systemMsg = "You are Nix 4 AI. Short, witty, helpful responses.") {
+        async function completeOnboarding() {
+            const username = document.getElementById('ob-username').value.trim().toLowerCase();
+            const display = document.getElementById('ob-displayname').value.trim();
+            const btn = document.getElementById('ob-btn');
+            
+            if(!username || !display) return alert("Please fill all fields");
+            
+            btn.disabled = true;
+            const { error } = await supabaseClient.from('profiles_social').insert([{
+                id: currentUser.id,
+                username: username,
+                display_name: display,
+                avatar_url: `https://ui-avatars.com/api/?name=${username}`
+            }]);
+
+            if(error) {
+                alert("Username taken or error occurred.");
+                btn.disabled = false;
+            } else {
+                location.reload();
+            }
+        }
+
+        function setupUI() {
+            document.querySelectorAll('[id*="avatar"]').forEach(img => img.src = userProfile.avatar_url);
+        }
+
+        async function publishPost() {
+            const input = document.getElementById('post-input');
+            const content = input.value.trim();
+            if(!content && !selectedFile) return;
+
+            document.getElementById('publish-btn').disabled = true;
+            
+            let mediaUrl = null;
+            if(selectedFile) {
+                const path = `posts/${currentUser.id}/${Date.now()}.png`;
+                const { data } = await supabaseClient.storage.from('Nixora').upload(path, selectedFile);
+                mediaUrl = supabaseClient.storage.from('Nixora').getPublicUrl(data.path).data.publicUrl;
+            }
+
+            const { data, error } = await supabaseClient.from('posts_social').insert([{
+                user_id: currentUser.id,
+                content: content,
+                media_url: mediaUrl,
+                media_type: selectedFile ? 'image' : 'text'
+            }]).select();
+
+            if (!error && content.toLowerCase().includes('@nix4_ai')) {
+                handleNixAIResponse(data[0].id, content);
+            }
+
+            input.value = ''; clearMedia(); loadFeed();
+            document.getElementById('publish-btn').disabled = false;
+        }
+
+        async function handleNixAIResponse(postId, userContent) {
             try {
                 const response = await fetch(LONGCAT_URL, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${LONGCAT_API_KEY}` },
                     body: JSON.stringify({
                         model: "LongCat-Flash-Chat",
-                        messages: [{ role: "system", content: systemMsg }, { role: "user", content: prompt }]
+                        messages: [{ role: "system", content: "You are Nix 4, a resident intelligence on Nixora. Reply wittily and concisely to the user's post." }, { role: "user", content: userContent }]
                     })
                 });
-                const result = await response.json();
-                return result.choices?.[0]?.message?.content || "Beep boop.";
-            } catch (e) { return "I'm experiencing some lag in the matrix."; }
-        }
-
-        async function checkNixPulse() {
-            const post = await callLongCat("Give a quick futuristic tech tip.");
-            // Send 'text' in lowercase to match SQL convention
-            await supabaseClient.from('posts_social').insert([{ user_id: NIX_ID, content: post, media_type: 'text' }]);
-            loadFeed();
-        }
-
-        function formatPostContent(content) {
-            if (!content) return "";
-            const sanitized = content.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-            return sanitized.replace(/@(\w+)/g, '<span class="mention">@$1</span>');
-        }
-
-        async function publishPost() {
-            const input = document.getElementById('post-input');
-            const btn = document.getElementById('publish-btn');
-            const content = input.value.trim();
-            if (!content && !selectedFile) return;
-            
-            btn.disabled = true;
-            btn.innerHTML = `<div class="loader"></div>`;
-
-            try {
-                let mediaUrl = null;
-                if (selectedFile) {
-                    const path = `posts/${currentUser.id}/${Date.now()}_${selectedFile.name}`;
-                    const { data, error } = await supabaseClient.storage.from('Nixora').upload(path, selectedFile);
-                    if (!error) mediaUrl = supabaseClient.storage.from('Nixora').getPublicUrl(data.path).data.publicUrl;
-                }
-
-                const postPayload = {
-                    user_id: currentUser.id,
-                    content: content,
-                    media_type: selectedFile ? (selectedFile.type.startsWith('image') ? 'image' : 'video') : 'text'
-                };
-                if (mediaUrl) postPayload.media_url = mediaUrl;
-
-                const { error } = await supabaseClient.from('posts_social').insert([postPayload]);
+                const res = await response.json();
+                const aiText = res.choices[0].message.content;
                 
-                if (error) {
-                    console.error("Critical Post Error:", error.message);
-                    alert("Post failed. Check if your SQL constraint allows 'text' types.");
-                    return;
-                }
+                // Nix 4 makes a comment
+                await supabaseClient.from('comments_social').insert([{
+                    post_id: postId,
+                    user_id: NIX_ID,
+                    content: aiText
+                }]);
                 
-                if (content.toLowerCase().includes(`@${NIX_USERNAME}`)) {
-                    handleNixReply(content);
-                }
-
-                input.value = '';
-                clearMedia();
-                loadFeed();
-            } catch (err) {
-                console.error(err);
-            } finally {
-                btn.disabled = false;
-                btn.innerText = "Post";
-            }
-        }
-
-        async function handleNixReply(userContent) {
-            setTimeout(async () => {
-                const prompt = `A user tagged you in: "${userContent}". Reply wittily.`;
-                const reply = await callLongCat(prompt);
-                await supabaseClient.from('posts_social').insert([{ user_id: NIX_ID, content: reply, media_type: 'text' }]);
-                loadFeed();
-            }, 1500);
-        }
-
-        async function talkToNix() {
-            const input = document.getElementById('nix-input');
-            const box = document.getElementById('nix-chat-box');
-            if (!input.value) return;
-            const text = input.value;
-            input.value = '';
-            box.innerHTML += `<div class="text-right mb-2"><span class="bg-blue-500 text-white p-2 rounded-xl inline-block">${text}</span></div>`;
-            const reply = await callLongCat(text);
-            box.innerHTML += `<div class="text-left mb-2"><span class="bg-white border p-2 rounded-xl inline-block shadow-sm">${reply}</span></div>`;
-            box.scrollTop = box.scrollHeight;
-        }
-
-        async function askNixForIdea() {
-            const idea = await callLongCat("Give me a one-sentence social media post idea.");
-            document.getElementById('post-input').value = idea;
+                // Notify user
+                createNotification(currentUser.id, postId, 'mention');
+            } catch (e) { console.error("Nix AI failed", e); }
         }
 
         async function loadFeed() {
-            const { data, error } = await supabaseClient
-                .from('posts_social')
-                .select(`*, profiles_social (username, display_name, avatar_url, is_verified)`)
+            const { data: posts } = await supabaseClient.from('posts_social')
+                .select(`*, profiles_social(*), likes_social(user_id), comments_social(count)`)
                 .order('created_at', { ascending: false });
             
-            if (error) return;
-            renderFeed(data);
-        }
-
-        function renderFeed(posts) {
             const container = document.getElementById('feed-container');
             container.innerHTML = posts.map(post => {
-                const p = (post.user_id === NIX_ID || !post.profiles_social) ? NIX_PROFILE : post.profiles_social;
+                const p = post.profiles_social || NIX_PROFILE;
+                const isLiked = post.likes_social.some(l => l.user_id === currentUser.id);
                 return `
                     <div class="post-card p-4 flex gap-3">
-                        <img src="${p.avatar_url || 'https://ui-avatars.com/api/?name=U'}" class="w-12 h-12 rounded-full border shrink-0 object-cover">
+                        <img onclick="openProfileModal('${p.id}')" src="${p.avatar_url}" class="w-12 h-12 rounded-full border shrink-0 object-cover">
                         <div class="flex-1 min-w-0">
                             <div class="flex items-center gap-1">
-                                <span class="font-bold truncate">${p.display_name}</span>
+                                <span class="font-bold truncate" onclick="openProfileModal('${p.id}')">${p.display_name}</span>
                                 ${p.is_verified ? '<i class="fa-solid fa-circle-check text-blue-500 text-[10px]"></i>' : ''}
                                 <span class="text-gray-500 text-sm">@${p.username}</span>
                             </div>
-                            <p class="mt-1 text-[15px] whitespace-pre-wrap">${formatPostContent(post.content)}</p>
+                            <p class="mt-1 text-[15px] whitespace-pre-wrap">${formatContent(post.content)}</p>
                             ${post.media_url ? `<img src="${post.media_url}" class="mt-3 rounded-2xl w-full border">` : ''}
+                            <div class="flex gap-8 mt-3 text-gray-500 text-sm">
+                                <button onclick="toggleLike('${post.id}', ${isLiked}, '${post.user_id}')" class="flex items-center gap-2 hover:text-red-500 ${isLiked ? 'text-red-500' : ''}">
+                                    <i class="fa-${isLiked ? 'solid' : 'regular'} fa-heart"></i> ${post.likes_social.length}
+                                </button>
+                                <button onclick="openComments('${post.id}')" class="flex items-center gap-2 hover:text-blue-500">
+                                    <i class="fa-regular fa-comment"></i> ${post.comments_social?.[0]?.count || 0}
+                                </button>
+                            </div>
                         </div>
                     </div>
                 `;
             }).join('');
         }
 
+        function formatContent(text) {
+            return text.replace(/@(\w+)/g, '<span class="mention">@$1</span>')
+                       .replace(/#(\w+)/g, '<span class="mention">#$1</span>');
+        }
+
+        async function toggleLike(postId, isLiked, ownerId) {
+            if (isLiked) {
+                await supabaseClient.from('likes_social').delete().match({ user_id: currentUser.id, post_id: postId });
+            } else {
+                await supabaseClient.from('likes_social').insert([{ user_id: currentUser.id, post_id: postId }]);
+                if(ownerId !== currentUser.id) createNotification(ownerId, postId, 'like');
+            }
+            loadFeed();
+        }
+
+        async function openComments(postId) {
+            currentViewingPostId = postId;
+            openModal('comments-modal');
+            loadComments();
+            document.getElementById('send-comment-btn').onclick = () => submitComment(postId);
+        }
+
+        async function loadComments() {
+            const { data } = await supabaseClient.from('comments_social')
+                .select('*, profiles_social(*)')
+                .eq('post_id', currentViewingPostId)
+                .order('created_at', { ascending: true });
+            
+            const list = document.getElementById('comments-list');
+            list.innerHTML = data.map(c => {
+                const p = c.profiles_social || NIX_PROFILE;
+                return `
+                    <div class="flex gap-3">
+                        <img src="${p.avatar_url}" class="w-8 h-8 rounded-full object-cover">
+                        <div class="bg-gray-100 p-3 rounded-2xl flex-1">
+                            <p class="font-bold text-xs">${p.display_name} <span class="text-gray-500 font-normal">@${p.username}</span></p>
+                            <p class="text-sm">${c.content}</p>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            list.scrollTop = list.scrollHeight;
+        }
+
+        async function submitComment(postId) {
+            const input = document.getElementById('comment-input');
+            const text = input.value.trim();
+            if(!text) return;
+            
+            const { data: post } = await supabaseClient.from('posts_social').select('user_id').eq('id', postId).single();
+            
+            await supabaseClient.from('comments_social').insert([{ post_id: postId, user_id: currentUser.id, content: text }]);
+            if(post.user_id !== currentUser.id) createNotification(post.user_id, postId, 'comment');
+            
+            input.value = '';
+            loadComments();
+            loadFeed();
+        }
+
+        async function openProfileModal(uid) {
+            currentViewingProfileId = uid;
+            let p = (uid === NIX_ID) ? NIX_PROFILE : (await supabaseClient.from('profiles_social').select('*').eq('id', uid).single()).data;
+            
+            document.getElementById('prof-modal-img').src = p.avatar_url;
+            document.getElementById('prof-modal-name').innerText = p.display_name;
+            document.getElementById('prof-modal-user').innerText = `@${p.username}`;
+            document.getElementById('prof-modal-bio').innerText = p.bio || "No bio yet.";
+            
+            const followBtn = document.getElementById('follow-btn');
+            if(uid === currentUser.id) followBtn.classList.add('hidden');
+            else {
+                followBtn.classList.remove('hidden');
+                const { data } = await supabaseClient.from('follows_social').select('*').match({ follower_id: currentUser.id, following_id: uid }).maybeSingle();
+                followBtn.innerText = data ? 'Following' : 'Follow';
+                followBtn.className = data ? 'bg-gray-200 text-black px-6 py-2 rounded-full font-bold' : 'bg-black text-white px-6 py-2 rounded-full font-bold';
+            }
+            
+            openModal('profile-modal');
+        }
+
+        async function toggleFollow() {
+            const btn = document.getElementById('follow-btn');
+            const isFollowing = btn.innerText === 'Following';
+            
+            if(isFollowing) {
+                await supabaseClient.from('follows_social').delete().match({ follower_id: currentUser.id, following_id: currentViewingProfileId });
+                btn.innerText = 'Follow';
+            } else {
+                await supabaseClient.from('follows_social').insert([{ follower_id: currentUser.id, following_id: currentViewingProfileId }]);
+                createNotification(currentViewingProfileId, null, 'follow');
+                btn.innerText = 'Following';
+            }
+        }
+
+        async function createNotification(targetId, postId, type) {
+            await supabaseClient.from('notifications_social').insert([{
+                user_id: targetId,
+                actor_id: currentUser.id,
+                post_id: postId,
+                type: type
+            }]);
+        }
+
+        async function listenToNotifications() {
+            supabaseClient.channel('custom-all-channel')
+            .on('postgres_changes', { event: 'INSERT', table: 'notifications_social', filter: `user_id=eq.${currentUser.id}` }, payload => {
+                const badge = document.getElementById('notif-badge');
+                badge.innerText = parseInt(badge.innerText) + 1;
+                badge.classList.remove('hidden');
+            }).subscribe();
+        }
+
+        async function setView(view) {
+            document.getElementById('view-home').classList.add('hidden');
+            document.getElementById('view-notifications').classList.add('hidden');
+            document.getElementById('view-' + view).classList.remove('hidden');
+            if(view === 'notifications') loadNotifications();
+        }
+
+        async function loadNotifications() {
+            const { data } = await supabaseClient.from('notifications_social')
+                .select('*, actor:profiles_social!actor_id(*)')
+                .eq('user_id', currentUser.id)
+                .order('created_at', { ascending: false });
+            
+            document.getElementById('notif-badge').classList.add('hidden');
+            document.getElementById('notif-badge').innerText = '0';
+            
+            document.getElementById('notif-container').innerHTML = data.map(n => {
+                const icon = n.type === 'like' ? 'heart text-red-500' : n.type === 'comment' ? 'comment text-blue-500' : 'user text-green-500';
+                const msg = n.type === 'like' ? 'liked your post' : n.type === 'comment' ? 'commented on your post' : n.type === 'mention' ? 'mentioned you' : 'started following you';
+                return `
+                    <div class="p-4 border-b flex gap-4 items-center">
+                        <i class="fa-solid fa-${icon} text-xl w-8 text-center"></i>
+                        <img src="${n.actor.avatar_url}" class="w-8 h-8 rounded-full">
+                        <div><span class="font-bold">${n.actor.display_name}</span> ${msg}</div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function openModal(id) {
+            document.getElementById('modal-overlay').classList.replace('hidden', 'flex');
+            document.getElementById(id).classList.remove('hidden');
+        }
+
+        function closeModal() {
+            document.getElementById('modal-overlay').classList.replace('flex', 'hidden');
+            document.querySelectorAll('#modal-overlay > div').forEach(d => d.classList.add('hidden'));
+        }
+
         function setupMedia() {
-            document.getElementById('file-input').addEventListener('change', (e) => {
-                const file = e.target.files[0];
-                if (!file) return;
-                selectedFile = file;
+            document.getElementById('file-input').onchange = (e) => {
+                selectedFile = e.target.files[0];
                 document.getElementById('media-preview').classList.remove('hidden');
-                document.getElementById('preview-img').src = URL.createObjectURL(file);
-            });
+                document.getElementById('preview-img').src = URL.createObjectURL(selectedFile);
+            };
         }
         function clearMedia() { selectedFile = null; document.getElementById('media-preview').classList.add('hidden'); }
-        function toggleNix() { document.getElementById('nix-panel').classList.toggle('visible'); }
-        function openModal(id) { document.getElementById('modal-overlay').classList.replace('hidden', 'flex'); }
-        function closeModal() { document.getElementById('modal-overlay').classList.replace('flex', 'hidden'); }
         async function handleLogout() { await supabaseClient.auth.signOut(); window.location.href = "auth.html"; }
-
         window.onload = init;
     </script>
 </body>
