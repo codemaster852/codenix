@@ -22,7 +22,6 @@
         
         #nix-panel { transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); transform: translateY(100%); }
         #nix-panel.visible { transform: translateY(0); }
-        .system-alert { background: #fee2e2; border: 1px solid #ef4444; color: #b91c1c; padding: 1rem; border-radius: 1rem; margin-bottom: 1rem; font-size: 0.875rem; }
         
         .mention { color: var(--nixora-blue); font-weight: 600; cursor: pointer; }
         .mention:hover { text-decoration: underline; }
@@ -152,8 +151,8 @@
         const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
         let currentUser = null;
         let selectedFile = null;
-        let localFeed = [];
 
+        // Nix Identity (Virtual Profile)
         const NIX_ID = "00000000-0000-0000-0000-000000000000";
         const NIX_USERNAME = "nix4_ai";
         const NIX_PROFILE = {
@@ -171,17 +170,13 @@
             await setupUI();
             await loadFeed();
             setupMedia();
-            await initializeNixAccount();
+            
+            // AI heartbeats
             setInterval(checkNixPulse, 3600000); 
         }
 
         async function setupUI() {
-            const { data: profile, error } = await supabaseClient.from('profiles_social').select('*').eq('id', currentUser.id).maybeSingle();
-            
-            if (error && error.code === '42501') {
-                showSystemAlert("Database Access Error (403): RLS Policies missing.");
-            }
-
+            const { data: profile } = await supabaseClient.from('profiles_social').select('*').eq('id', currentUser.id).maybeSingle();
             const username = profile?.username || currentUser.email.split('@')[0];
             const avatar = profile?.avatar_url || `https://ui-avatars.com/api/?name=${username}`;
 
@@ -190,13 +185,7 @@
             if(document.getElementById('sidebar-user')) document.getElementById('sidebar-user').innerText = `@${username}`;
         }
 
-        function showSystemAlert(msg) {
-            const container = document.getElementById('status-alerts');
-            container.innerHTML = `<div class="system-alert"><p class="font-bold"><i class="fa fa-warning"></i> ${msg}</p></div>`;
-            container.classList.remove('hidden');
-        }
-
-        async function callLongCat(prompt, systemMsg = "You are Nix 4 AI, the digital heart of Nixora. You respond to mentions with wisdom, wit, and helpfulness.") {
+        async function callLongCat(prompt, systemMsg = "You are Nix 4 AI. Short, witty, helpful responses.") {
             try {
                 const response = await fetch(LONGCAT_URL, {
                     method: 'POST',
@@ -207,38 +196,20 @@
                     })
                 });
                 const result = await response.json();
-                return result.choices?.[0]?.message?.content || "Thinking...";
-            } catch (e) { return "Offline."; }
-        }
-
-        async function initializeNixAccount() {
-            const { count, error } = await supabaseClient.from('posts_social').select('*', { count: 'exact', head: true }).eq('user_id', NIX_ID);
-            if (error) {
-                addPostToLocal(NIX_PROFILE, "Welcome to Nixora! (Local Mode)");
-                renderFeed(localFeed);
-                return;
-            }
-            if (count < 1) {
-                const post = await callLongCat("Write a short welcome post.");
-                await supabaseClient.from('posts_social').insert({ user_id: NIX_ID, content: post, media_type: 'text' });
-                loadFeed();
-            }
+                return result.choices?.[0]?.message?.content || "Beep boop.";
+            } catch (e) { return "I'm experiencing some lag in the matrix."; }
         }
 
         async function checkNixPulse() {
-            const post = await callLongCat("Give a quick tech tip.");
-            const { error } = await supabaseClient.from('posts_social').insert({ user_id: NIX_ID, content: post, media_type: 'text' });
-            if (error) { addPostToLocal(NIX_PROFILE, post); renderFeed(localFeed); } else { loadFeed(); }
+            const post = await callLongCat("Give a quick futuristic tech tip.");
+            await supabaseClient.from('posts_social').insert([{ user_id: NIX_ID, content: post, media_type: 'TEXT' }]);
+            loadFeed();
         }
 
-        function addPostToLocal(user, content, mediaUrl = null, mediaType = 'text') {
-            localFeed.unshift({ id: Date.now(), content, media_url: mediaUrl, media_type: mediaType, created_at: new Date().toISOString(), profiles_social: user });
-        }
-
-        // Helper to format text with tags
         function formatPostContent(content) {
             if (!content) return "";
-            return content.replace(/@(\w+)/g, '<span class="mention">@$1</span>');
+            const sanitized = content.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+            return sanitized.replace(/@(\w+)/g, '<span class="mention">@$1</span>');
         }
 
         async function publishPost() {
@@ -255,63 +226,39 @@
                 if (selectedFile) {
                     const path = `posts/${currentUser.id}/${Date.now()}_${selectedFile.name}`;
                     const { data, error } = await supabaseClient.storage.from('Nixora').upload(path, selectedFile);
-                    if (!error) {
-                         mediaUrl = supabaseClient.storage.from('Nixora').getPublicUrl(data.path).data.publicUrl;
-                    }
+                    if (!error) mediaUrl = supabaseClient.storage.from('Nixora').getPublicUrl(data.path).data.publicUrl;
                 }
 
                 const postPayload = {
                     user_id: currentUser.id,
                     content: content,
-                    media_type: selectedFile ? (selectedFile.type.startsWith('image') ? 'image' : 'video') : 'text'
+                    media_type: selectedFile ? (selectedFile.type.startsWith('image') ? 'IMAGE' : 'VIDEO') : 'TEXT'
                 };
-
                 if (mediaUrl) postPayload.media_url = mediaUrl;
 
-                const { error: dbError } = await supabaseClient.from('posts_social').insert([postPayload]);
+                await supabaseClient.from('posts_social').insert([postPayload]);
                 
-                // CHECK FOR NIX MENTION
                 if (content.toLowerCase().includes(`@${NIX_USERNAME}`)) {
-                    handleNixMention(content);
-                }
-
-                if (dbError) {
-                    const { data: profile } = await supabaseClient.from('profiles_social').select('*').eq('id', currentUser.id).maybeSingle();
-                    addPostToLocal(profile || { display_name: "You", username: "user" }, content, mediaUrl, postPayload.media_type);
-                    renderFeed(localFeed);
-                } else {
-                    loadFeed();
+                    handleNixReply(content);
                 }
 
                 input.value = '';
                 clearMedia();
+                loadFeed();
             } catch (err) {
-                console.error("Publishing Exception:", err);
+                console.error(err);
             } finally {
                 btn.disabled = false;
                 btn.innerText = "Post";
             }
         }
 
-        async function handleNixMention(userContent) {
-            // Wait slightly for original post to appear
+        async function handleNixReply(userContent) {
             setTimeout(async () => {
-                const prompt = `A user just posted this and tagged you: "${userContent}". Respond to them in a short, social-media style reply. Keep it under 280 characters.`;
+                const prompt = `A user tagged you in: "${userContent}". Reply wittily.`;
                 const reply = await callLongCat(prompt);
-                
-                const nixPayload = {
-                    user_id: NIX_ID,
-                    content: reply,
-                    media_type: 'text'
-                };
-
-                const { error } = await supabaseClient.from('posts_social').insert([nixPayload]);
-                if (error) {
-                    addPostToLocal(NIX_PROFILE, reply);
-                    renderFeed(localFeed);
-                } else {
-                    loadFeed();
-                }
+                await supabaseClient.from('posts_social').insert([{ user_id: NIX_ID, content: reply, media_type: 'TEXT' }]);
+                loadFeed();
             }, 1500);
         }
 
@@ -328,22 +275,25 @@
         }
 
         async function askNixForIdea() {
-            const idea = await callLongCat("Give me a short post idea.");
+            const idea = await callLongCat("Give me a one-sentence social media post idea.");
             document.getElementById('post-input').value = idea;
         }
 
         async function loadFeed() {
-            const { data, error } = await supabaseClient.from('posts_social').select(`*, profiles_social (username, display_name, avatar_url, is_verified)`).order('created_at', { ascending: false });
-            if (error) { renderFeed(localFeed); return; }
-            const combined = [...localFeed, ...data].sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
-            renderFeed(combined);
+            const { data, error } = await supabaseClient
+                .from('posts_social')
+                .select(`*, profiles_social (username, display_name, avatar_url, is_verified)`)
+                .order('created_at', { ascending: false });
+            
+            if (error) return;
+            renderFeed(data);
         }
 
         function renderFeed(posts) {
             const container = document.getElementById('feed-container');
             container.innerHTML = posts.map(post => {
-                const isNix = post.user_id === NIX_ID;
-                const p = isNix ? NIX_PROFILE : (post.profiles_social || { username: 'user', display_name: 'Guest' });
+                const p = (post.user_id === NIX_ID) ? NIX_PROFILE : (post.profiles_social || { username: 'user', display_name: 'Resident' });
+                
                 return `
                     <div class="post-card p-4 flex gap-3">
                         <img src="${p.avatar_url || 'https://ui-avatars.com/api/?name=U'}" class="w-12 h-12 rounded-full border shrink-0 object-cover">
