@@ -365,7 +365,7 @@
             input.value = ''; openComments(activePostId);
         }
 
-        // --- MESSAGING (FIXED PGRST204 ERROR) ---
+        // --- MESSAGING (ROBUST FIX FOR PGRST204) ---
         async function loadMessages() {
             const { data } = await supabaseClient.from('profiles_social').select('*').neq('id', currentUser.id).limit(20);
             document.getElementById('chat-list').innerHTML = (data || []).map(p => `
@@ -394,28 +394,26 @@
         async function fetchMessages() {
             if(!activeChatId || !currentUser) return;
             try {
-                // FIXED: Using basic select(*) to avoid PGRST204 schema cache errors with specific columns
                 const { data, error } = await supabaseClient
                     .from('messages_social')
                     .select('*')
                     .or(`and(sender_id.eq.${currentUser.id},receiver_id.eq.${activeChatId}),and(sender_id.eq.${activeChatId},receiver_id.eq.${currentUser.id})`)
                     .order('created_at', { ascending: true });
 
-                if (error) {
-                    // Log error but don't break UI
-                    console.error("Fetch Error:", error);
-                    return;
-                }
+                if (error) { console.error("Fetch Error:", error); return; }
 
                 const win = document.getElementById('chat-window');
-                const html = (data || []).map(m => `
-                    <div class="flex ${m.sender_id === currentUser.id ? 'justify-end' : 'justify-start'}">
-                        <div class="max-w-[80%] p-3 rounded-2xl ${m.sender_id === currentUser.id ? 'bg-blue-600 text-white shadow-md' : 'bg-white border'} shadow-sm">
-                            <p class="text-sm">${m.content || m.message_text || ''}</p>
-                            <span class="text-[10px] opacity-70 block mt-1">${new Date(m.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                const html = (data || []).map(m => {
+                    const text = m.content || m.message_text || m.message || '';
+                    return `
+                        <div class="flex ${m.sender_id === currentUser.id ? 'justify-end' : 'justify-start'}">
+                            <div class="max-w-[80%] p-3 rounded-2xl ${m.sender_id === currentUser.id ? 'bg-blue-600 text-white shadow-md' : 'bg-white border'} shadow-sm">
+                                <p class="text-sm">${text}</p>
+                                <span class="text-[10px] opacity-70 block mt-1">${new Date(m.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                            </div>
                         </div>
-                    </div>
-                `).join('');
+                    `;
+                }).join('');
                 
                 if (win.innerHTML !== html) {
                     win.innerHTML = html;
@@ -429,24 +427,33 @@
             const val = input.value.trim();
             if(!val || !activeChatId) return;
             
-            // FIXED: Using plain insert without column selection to avoid 400 errors
-            const { error } = await supabaseClient.from('messages_social').insert([
-                { sender_id: currentUser.id, receiver_id: activeChatId, content: val }
-            ]);
+            // FIX: Using 'minimal' return strategy prevents the library from requesting columns in the URL
+            // This bypasses the schema cache column check on the response.
+            const payload = { sender_id: currentUser.id, receiver_id: activeChatId };
             
-            if (error) {
-                console.error("Send failed:", error);
-                // Try fallback column name just in case the schema uses 'message_text'
-                if(error.message.includes("content")) {
-                     await supabaseClient.from('messages_social').insert([
-                        { sender_id: currentUser.id, receiver_id: activeChatId, message_text: val }
-                    ]);
+            // Try common column names based on the error history
+            let success = false;
+            const colNames = ['content', 'message_text', 'message'];
+            
+            for (const col of colNames) {
+                if (success) break;
+                const { error } = await supabaseClient
+                    .from('messages_social')
+                    .insert([{ ...payload, [col]: val }], { returning: 'minimal' });
+                
+                if (!error) {
+                    success = true;
                 } else {
-                    showToast("Message failed to send.");
+                    console.warn(`Failed with column ${col}:`, error.message);
                 }
             }
-            input.value = '';
-            fetchMessages();
+            
+            if (!success) {
+                showToast("Message failed to send. Schema mismatch.");
+            } else {
+                input.value = '';
+                fetchMessages();
+            }
         }
 
         // --- UI UTILS ---
