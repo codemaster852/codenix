@@ -309,6 +309,7 @@
 
         function renderPost(post) {
             const profile = post.profiles_social || { avatar_url: '', display_name: 'Unknown User' };
+            const imgUrl = post.image_url || post.image || null;
             return `
                 <div class="card p-4 space-y-3 animate-pop">
                     <div class="flex items-center gap-2">
@@ -319,7 +320,7 @@
                         </div>
                     </div>
                     <p>${post.content}</p>
-                    ${post.image_url ? `<img src="${post.image_url}" class="w-full rounded-lg max-h-96 object-cover border">` : ''}
+                    ${imgUrl ? `<img src="${imgUrl}" class="w-full rounded-lg max-h-96 object-cover border">` : ''}
                     <hr>
                     <div class="flex gap-4 font-bold text-sm text-gray-600">
                         <button onclick="showToast('Liked!')" class="flex-1 py-2 hover:bg-gray-100 rounded-lg"><i class="fa-regular fa-thumbs-up"></i> Like</button>
@@ -335,9 +336,33 @@
             if(!content && !pendingImageData) return;
             const btn = document.getElementById('post-btn');
             btn.disabled = true; btn.innerText = "...";
-            const { error } = await supabaseClient.from('posts_social').insert([{ user_id: currentUser.id, content, image_url: pendingImageData }]);
-            if (error) { console.error("Post failed:", error); showToast("Post failed."); } 
-            else { closePostModal(); loadFeed(); showToast("Post shared!"); }
+            
+            // Fix: Use returning: minimal to avoid PGRST204 column check on the response
+            const payload = { user_id: currentUser.id, content };
+            const imgColNames = ['image_url', 'image'];
+            let success = false;
+
+            for (const col of imgColNames) {
+                if (success) break;
+                const { error } = await supabaseClient
+                    .from('posts_social')
+                    .insert([{ ...payload, [col]: pendingImageData }], { returning: 'minimal' });
+                
+                if (!error) {
+                    success = true;
+                } else {
+                    console.warn(`Post failed with column ${col}:`, error.message);
+                }
+            }
+
+            if (success) { 
+                closePostModal(); 
+                loadFeed(); 
+                showToast("Post shared!"); 
+            } else { 
+                showToast("Post failed."); 
+            }
+            
             btn.disabled = false; btn.innerText = "Post";
         }
 
@@ -361,11 +386,11 @@
             const input = document.getElementById('comment-input');
             const val = input.value.trim();
             if(!val || !activePostId) return;
-            const { error } = await supabaseClient.from('comments_social').insert([{ post_id: activePostId, user_id: currentUser.id, content: val }]);
+            const { error } = await supabaseClient.from('comments_social').insert([{ post_id: activePostId, user_id: currentUser.id, content: val }], { returning: 'minimal' });
             input.value = ''; openComments(activePostId);
         }
 
-        // --- MESSAGING (ROBUST FIX FOR PGRST204) ---
+        // --- MESSAGING ---
         async function loadMessages() {
             const { data } = await supabaseClient.from('profiles_social').select('*').neq('id', currentUser.id).limit(20);
             document.getElementById('chat-list').innerHTML = (data || []).map(p => `
@@ -427,11 +452,7 @@
             const val = input.value.trim();
             if(!val || !activeChatId) return;
             
-            // FIX: Using 'minimal' return strategy prevents the library from requesting columns in the URL
-            // This bypasses the schema cache column check on the response.
             const payload = { sender_id: currentUser.id, receiver_id: activeChatId };
-            
-            // Try common column names based on the error history
             let success = false;
             const colNames = ['content', 'message_text', 'message'];
             
@@ -441,15 +462,11 @@
                     .from('messages_social')
                     .insert([{ ...payload, [col]: val }], { returning: 'minimal' });
                 
-                if (!error) {
-                    success = true;
-                } else {
-                    console.warn(`Failed with column ${col}:`, error.message);
-                }
+                if (!error) success = true;
             }
             
             if (!success) {
-                showToast("Message failed to send. Schema mismatch.");
+                showToast("Message failed. Schema mismatch.");
             } else {
                 input.value = '';
                 fetchMessages();
