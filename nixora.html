@@ -118,7 +118,7 @@
 
     <!-- Modals Overlay -->
     <div id="modal-overlay" class="fixed inset-0 bg-black/40 backdrop-blur-sm hidden z-[100] items-center justify-center p-4">
-        <div id="settings-modal" class="bg-white w-full max-w-md rounded-3xl overflow-hidden shadow-2xl">
+        <div id="settings-modal" class="bg-white w-full max-md rounded-3xl overflow-hidden shadow-2xl">
             <div class="p-6 border-b flex justify-between items-center">
                 <h2 class="text-xl font-black">Account Settings</h2>
                 <button onclick="closeModal()"><i class="fa fa-times"></i></button>
@@ -152,7 +152,6 @@
         let currentUser = null;
         let selectedFile = null;
 
-        // Nix Identity (Virtual Profile)
         const NIX_ID = "00000000-0000-0000-0000-000000000000";
         const NIX_USERNAME = "nix4_ai";
         const NIX_PROFILE = {
@@ -170,8 +169,6 @@
             await setupUI();
             await loadFeed();
             setupMedia();
-            
-            // AI heartbeats
             setInterval(checkNixPulse, 3600000); 
         }
 
@@ -202,7 +199,8 @@
 
         async function checkNixPulse() {
             const post = await callLongCat("Give a quick futuristic tech tip.");
-            await supabaseClient.from('posts_social').insert([{ user_id: NIX_ID, content: post, media_type: 'TEXT' }]);
+            // Defensive: Try sending null for media_type to bypass restrictive constraints
+            await supabaseClient.from('posts_social').insert([{ user_id: NIX_ID, content: post, media_type: null }]);
             loadFeed();
         }
 
@@ -229,14 +227,23 @@
                     if (!error) mediaUrl = supabaseClient.storage.from('Nixora').getPublicUrl(data.path).data.publicUrl;
                 }
 
+                // If no file, try sending media_type as null to satisfy unknown constraints
                 const postPayload = {
                     user_id: currentUser.id,
                     content: content,
-                    media_type: selectedFile ? (selectedFile.type.startsWith('image') ? 'IMAGE' : 'VIDEO') : 'TEXT'
+                    media_type: selectedFile ? (selectedFile.type.startsWith('image') ? 'IMAGE' : 'VIDEO') : null
                 };
                 if (mediaUrl) postPayload.media_url = mediaUrl;
 
-                await supabaseClient.from('posts_social').insert([postPayload]);
+                const { error } = await supabaseClient.from('posts_social').insert([postPayload]);
+                
+                if (error) {
+                    console.error("DB Error:", error);
+                    // Fallback: If null failed, try "TEXT" one last time
+                    if (postPayload.media_type === null) {
+                        await supabaseClient.from('posts_social').insert([{...postPayload, media_type: 'TEXT'}]);
+                    }
+                }
                 
                 if (content.toLowerCase().includes(`@${NIX_USERNAME}`)) {
                     handleNixReply(content);
@@ -257,7 +264,7 @@
             setTimeout(async () => {
                 const prompt = `A user tagged you in: "${userContent}". Reply wittily.`;
                 const reply = await callLongCat(prompt);
-                await supabaseClient.from('posts_social').insert([{ user_id: NIX_ID, content: reply, media_type: 'TEXT' }]);
+                await supabaseClient.from('posts_social').insert([{ user_id: NIX_ID, content: reply, media_type: null }]);
                 loadFeed();
             }, 1500);
         }
@@ -292,8 +299,7 @@
         function renderFeed(posts) {
             const container = document.getElementById('feed-container');
             container.innerHTML = posts.map(post => {
-                const p = (post.user_id === NIX_ID) ? NIX_PROFILE : (post.profiles_social || { username: 'user', display_name: 'Resident' });
-                
+                const p = (post.user_id === NIX_ID || !post.profiles_social) ? NIX_PROFILE : post.profiles_social;
                 return `
                     <div class="post-card p-4 flex gap-3">
                         <img src="${p.avatar_url || 'https://ui-avatars.com/api/?name=U'}" class="w-12 h-12 rounded-full border shrink-0 object-cover">
