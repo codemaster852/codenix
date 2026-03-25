@@ -23,6 +23,9 @@
         #nix-panel { transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); transform: translateY(100%); }
         #nix-panel.visible { transform: translateY(0); }
         .system-alert { background: #fee2e2; border: 1px solid #ef4444; color: #b91c1c; padding: 1rem; border-radius: 1rem; margin-bottom: 1rem; font-size: 0.875rem; }
+        
+        .mention { color: var(--nixora-blue); font-weight: 600; cursor: pointer; }
+        .mention:hover { text-decoration: underline; }
     </style>
 </head>
 <body class="text-gray-900">
@@ -72,7 +75,7 @@
                 <div class="flex gap-4">
                     <img id="post-input-avatar" src="" class="w-12 h-12 rounded-full border object-cover">
                     <div class="flex-1">
-                        <textarea id="post-input" placeholder="What's happening?" class="w-full text-xl resize-none outline-none min-h-[100px] py-2"></textarea>
+                        <textarea id="post-input" placeholder="What's happening? Tag @nix4_ai for a reply!" class="w-full text-xl resize-none outline-none min-h-[100px] py-2"></textarea>
                         <div id="media-preview" class="hidden mb-4 relative rounded-2xl overflow-hidden border">
                             <button onclick="clearMedia()" class="absolute top-2 right-2 bg-black/60 text-white w-8 h-8 rounded-full flex items-center justify-center"><i class="fa fa-times"></i></button>
                             <img id="preview-img" class="w-full h-auto">
@@ -152,9 +155,10 @@
         let localFeed = [];
 
         const NIX_ID = "00000000-0000-0000-0000-000000000000";
+        const NIX_USERNAME = "nix4_ai";
         const NIX_PROFILE = {
             id: NIX_ID,
-            username: "nix4_ai",
+            username: NIX_USERNAME,
             display_name: "Nix 4 Intelligence",
             avatar_url: "https://api.dicebear.com/7.x/bottts/svg?seed=nix4",
             is_verified: true
@@ -192,7 +196,7 @@
             container.classList.remove('hidden');
         }
 
-        async function callLongCat(prompt, systemMsg = "You are Nix 4 AI.") {
+        async function callLongCat(prompt, systemMsg = "You are Nix 4 AI, the digital heart of Nixora. You respond to mentions with wisdom, wit, and helpfulness.") {
             try {
                 const response = await fetch(LONGCAT_URL, {
                     method: 'POST',
@@ -231,6 +235,12 @@
             localFeed.unshift({ id: Date.now(), content, media_url: mediaUrl, media_type: mediaType, created_at: new Date().toISOString(), profiles_social: user });
         }
 
+        // Helper to format text with tags
+        function formatPostContent(content) {
+            if (!content) return "";
+            return content.replace(/@(\w+)/g, '<span class="mention">@$1</span>');
+        }
+
         async function publishPost() {
             const input = document.getElementById('post-input');
             const btn = document.getElementById('publish-btn');
@@ -250,20 +260,22 @@
                     }
                 }
 
-                // Constructing post payload carefully to avoid 400 errors
                 const postPayload = {
                     user_id: currentUser.id,
                     content: content,
                     media_type: selectedFile ? (selectedFile.type.startsWith('image') ? 'image' : 'video') : 'text'
                 };
 
-                // Only add media_url if it's not null to avoid schema validation issues
                 if (mediaUrl) postPayload.media_url = mediaUrl;
 
                 const { error: dbError } = await supabaseClient.from('posts_social').insert([postPayload]);
                 
+                // CHECK FOR NIX MENTION
+                if (content.toLowerCase().includes(`@${NIX_USERNAME}`)) {
+                    handleNixMention(content);
+                }
+
                 if (dbError) {
-                    console.error("Supabase 400/403 Error:", dbError);
                     const { data: profile } = await supabaseClient.from('profiles_social').select('*').eq('id', currentUser.id).maybeSingle();
                     addPostToLocal(profile || { display_name: "You", username: "user" }, content, mediaUrl, postPayload.media_type);
                     renderFeed(localFeed);
@@ -279,6 +291,28 @@
                 btn.disabled = false;
                 btn.innerText = "Post";
             }
+        }
+
+        async function handleNixMention(userContent) {
+            // Wait slightly for original post to appear
+            setTimeout(async () => {
+                const prompt = `A user just posted this and tagged you: "${userContent}". Respond to them in a short, social-media style reply. Keep it under 280 characters.`;
+                const reply = await callLongCat(prompt);
+                
+                const nixPayload = {
+                    user_id: NIX_ID,
+                    content: reply,
+                    media_type: 'text'
+                };
+
+                const { error } = await supabaseClient.from('posts_social').insert([nixPayload]);
+                if (error) {
+                    addPostToLocal(NIX_PROFILE, reply);
+                    renderFeed(localFeed);
+                } else {
+                    loadFeed();
+                }
+            }, 1500);
         }
 
         async function talkToNix() {
@@ -316,9 +350,10 @@
                         <div class="flex-1 min-w-0">
                             <div class="flex items-center gap-1">
                                 <span class="font-bold truncate">${p.display_name}</span>
+                                ${p.is_verified ? '<i class="fa-solid fa-circle-check text-blue-500 text-[10px]"></i>' : ''}
                                 <span class="text-gray-500 text-sm">@${p.username}</span>
                             </div>
-                            <p class="mt-1 text-[15px] whitespace-pre-wrap">${post.content}</p>
+                            <p class="mt-1 text-[15px] whitespace-pre-wrap">${formatPostContent(post.content)}</p>
                             ${post.media_url ? `<img src="${post.media_url}" class="mt-3 rounded-2xl w-full border">` : ''}
                         </div>
                     </div>
