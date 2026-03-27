@@ -217,6 +217,46 @@
             flex: 1;
             border-bottom: 1px solid rgba(255, 255, 255, 0.05);
         }
+
+        /* --- Custom Checkbox Styling --- */
+        .checkbox-container {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            padding: 4px;
+            margin-top: 1rem;
+        }
+        
+        input[type="checkbox"] {
+            appearance: none;
+            -webkit-appearance: none;
+            width: 18px;
+            height: 18px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+            background: rgba(255, 255, 255, 0.02);
+            position: relative;
+            transition: all 0.2s ease;
+            flex-shrink: 0;
+            margin-top: 2px;
+        }
+
+        input[type="checkbox"]:checked {
+            background: var(--brand-purple);
+            border-color: var(--brand-purple);
+        }
+
+        input[type="checkbox"]:checked::after {
+            content: "\f00c";
+            font-family: "Font Awesome 6 Free";
+            font-weight: 900;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 10px;
+            color: white;
+        }
     </style>
 </head>
 <body>
@@ -289,6 +329,16 @@
                         <i class="fa-solid fa-lock input-icon"></i>
                     </div>
 
+                    <!-- Policy Checkbox (Signup Only) -->
+                    <div class="signup-only">
+                        <div class="checkbox-container">
+                            <input type="checkbox" id="policy-agree" class="interactive">
+                            <label for="policy-agree" class="text-[11px] text-zinc-500 font-medium leading-relaxed">
+                                I agree to the <a href="policy.html" target="_blank" class="text-purple-400 hover:text-purple-300 interactive underline">Terms & Conditions</a> of Nix 4 Platform.
+                            </label>
+                        </div>
+                    </div>
+
                     <div id="message-box" class="hidden p-3.5 rounded-xl text-[11px] font-bold uppercase tracking-wider text-center"></div>
 
                     <button type="submit" id="submit-btn" class="btn-primary w-full py-4 rounded-xl font-bold text-sm mt-2 interactive">
@@ -322,7 +372,6 @@
         });
 
         function animateCursor() {
-            // Tight interpolation for a responsive "real cursor" feel
             currentX += (mouseX - currentX) * 0.4;
             currentY += (mouseY - currentY) * 0.4;
             cursorContainer.style.transform = `translate(${currentX}px, ${currentY}px)`;
@@ -333,11 +382,14 @@
         document.addEventListener('mousedown', () => document.body.classList.add('cursor-active'));
         document.addEventListener('mouseup', () => document.body.classList.remove('cursor-active'));
 
-        const interactives = document.querySelectorAll('.interactive, button, input, a');
-        interactives.forEach(el => {
-            el.addEventListener('mouseenter', () => document.body.classList.add('cursor-hovering'));
-            el.addEventListener('mouseleave', () => document.body.classList.remove('cursor-hovering'));
-        });
+        function refreshInteractions() {
+            const interactives = document.querySelectorAll('.interactive, button, input, a, label');
+            interactives.forEach(el => {
+                el.addEventListener('mouseenter', () => document.body.classList.add('cursor-hovering'));
+                el.addEventListener('mouseleave', () => document.body.classList.remove('cursor-hovering'));
+            });
+        }
+        refreshInteractions();
 
         // --- AUTH LOGIC ---
         const SUPABASE_URL = 'https://rnlwrngfgvznndlekmrz.supabase.co';
@@ -351,15 +403,13 @@
         const toggleBtn = document.getElementById('toggle-auth');
         const signupFields = document.querySelectorAll('.signup-only');
         const msgBox = document.getElementById('message-box');
+        const policyCheckbox = document.getElementById('policy-agree');
         let isLogin = true;
 
-        // FIXED: Mobile redirection logic to prevent double domains
         const getSafeRedirectUrl = () => {
             const params = new URLSearchParams(window.location.search);
             const redirectParam = params.get('redirect');
             if (!redirectParam) return window.location.origin + '/portal.html';
-            
-            // If it's already a full URL, return it, otherwise prepend origin
             return redirectParam.startsWith('http') ? redirectParam : window.location.origin + (redirectParam.startsWith('/') ? '' : '/') + redirectParam;
         };
 
@@ -373,10 +423,18 @@
             toggleBtn.innerText = isLogin ? 'Create Account' : 'Sign In';
             signupFields.forEach(f => f.style.display = isLogin ? 'none' : 'block');
             msgBox.classList.add('hidden');
+            refreshInteractions();
         });
 
         authForm.addEventListener('submit', async (e) => {
             e.preventDefault();
+            
+            // Validate policy agreement for signup
+            if (!isLogin && !policyCheckbox.checked) {
+                showMessage("You must agree to the Terms & Conditions", "error");
+                return;
+            }
+
             const email = document.getElementById('email').value;
             const password = document.getElementById('password').value;
             const fullName = document.getElementById('fullname').value;
