@@ -3,503 +3,428 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Auth | Codenix AI Studio</title>
+    <title>Codenix | Authentication</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Supabase JS Library -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
-        
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600;700&display=swap');
+
         :root {
-            --brand-purple: #9333ea;
-            --brand-purple-light: #a855f7;
-            --brand-black: #09090b;
-            --brand-white: #fafafa;
+            --primary-purple: #8a2be2;
+            --dark-bg: #030014;
+            --card-bg: rgba(255, 255, 255, 0.02);
+            --border-color: rgba(138, 43, 226, 0.2);
         }
 
-        /* --- SYSTEM-STYLE PURPLE CURSOR --- */
-        * { cursor: none !important; }
+        /* Hide default cursor on desktop, show on mobile */
+        @media (min-width: 1024px) {
+            * { cursor: none !important; }
+        }
 
-        #cursor-container {
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: var(--dark-bg);
+            color: white;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow-y: auto;
+            padding: 2rem 1rem;
+            background-image: 
+                radial-gradient(circle at 50% 0%, rgba(138, 43, 226, 0.15) 0%, transparent 50%),
+                radial-gradient(circle at 0% 100%, rgba(138, 43, 226, 0.05) 0%, transparent 40%);
+        }
+
+        /* Professional Triangle Cursor */
+        #custom-cursor {
             position: fixed;
-            top: 0; left: 0;
+            width: 0;
+            height: 0;
+            border-left: 8px solid transparent;
+            border-right: 8px solid transparent;
+            border-bottom: 20px solid var(--primary-purple);
+            transform: rotate(-30deg);
             pointer-events: none;
             z-index: 10000;
-            will-change: transform;
+            filter: drop-shadow(0 0 8px rgba(138, 43, 226, 0.6));
+            transition: transform 0.15s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            display: none;
         }
 
-        /* Custom SVG Arrow to match system pointer exactly */
-        .custom-pointer {
-            width: 24px;
-            height: 24px;
-            fill: var(--brand-purple);
-            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
-            transition: transform 0.1s ease, fill 0.3s ease;
+        @media (min-width: 1024px) {
+            #custom-cursor { display: block; }
         }
 
-        /* Cursor States */
-        .cursor-active .custom-pointer { 
-            transform: scale(0.9);
-            fill: var(--brand-purple-light);
-        }
-        
-        .cursor-hovering .custom-pointer { 
-            fill: #fff;
-            filter: drop-shadow(0 0 8px var(--brand-purple));
-        }
-
-        body { 
-            font-family: 'Plus Jakarta Sans', sans-serif; 
-            background: var(--brand-black); 
-            color: var(--brand-white); 
-            min-height: 100vh;
-            margin: 0;
-            padding: 0;
-            position: relative;
-            overflow-x: hidden;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        /* Subtle Grid Overlay */
-        .grid-bg {
-            position: fixed;
-            inset: 0;
-            background-image: linear-gradient(rgba(147, 51, 234, 0.03) 1px, transparent 1px), 
-                              linear-gradient(90deg, rgba(147, 51, 234, 0.03) 1px, transparent 1px);
-            background-size: 40px 40px;
-            z-index: 1;
-        }
-
-        /* Ambient Background Glows */
-        .glow {
-            position: fixed;
-            width: 50vw;
-            height: 50vw;
-            background: radial-gradient(circle, rgba(147, 51, 234, 0.08) 0%, rgba(0,0,0,0) 70%);
-            border-radius: 50%;
-            z-index: 2;
-            filter: blur(80px);
-            pointer-events: none;
-        }
-
-        .main-wrapper {
-            position: relative;
-            z-index: 10;
-            width: 100%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 2rem 1rem;
-        }
-
-        .glass-card {
-            background: rgba(15, 15, 18, 0.7);
-            backdrop-filter: blur(24px);
-            border: 1px solid rgba(255, 255, 255, 0.06);
-            box-shadow: 0 40px 100px -20px rgba(0, 0, 0, 0.9);
-            width: 100%;
-            max-width: 420px;
-            transition: border-color 0.5s ease;
-        }
-
-        .glass-card:hover { border-color: rgba(147, 51, 234, 0.3); }
-
-        .input-group { position: relative; margin-bottom: 1rem; }
-
-        .input-field {
-            background: rgba(255, 255, 255, 0.02);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            color: white;
-            padding-left: 2.75rem;
-            font-size: 0.875rem;
-        }
-
-        .input-field:focus {
-            border-color: var(--brand-purple);
-            background: rgba(147, 51, 234, 0.03);
-            outline: none;
-            box-shadow: 0 0 20px rgba(147, 51, 234, 0.1);
-        }
-
-        .input-icon {
+        #custom-cursor::after {
+            content: '';
             position: absolute;
-            left: 1rem;
-            top: 50%;
-            transform: translateY(-50%);
-            color: rgba(255, 255, 255, 0.3);
-            font-size: 0.9rem;
-            transition: color 0.3s ease;
+            top: 18px;
+            left: -2px;
+            width: 4px;
+            height: 10px;
+            background: var(--primary-purple);
+            border-radius: 2px;
         }
 
-        .input-field:focus + .input-icon { color: var(--brand-purple-light); }
-
-        .btn-primary {
-            background: linear-gradient(135deg, #9333ea 0%, #7e22ce 100%);
-            transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1);
-            color: white;
-            letter-spacing: 0.025em;
+        .glass {
+            background: var(--card-bg);
+            backdrop-filter: blur(25px);
+            -webkit-backdrop-filter: blur(25px);
+            border: 1px solid var(--border-color);
         }
 
-        .btn-primary:hover:not(:disabled) {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 25px -5px rgba(147, 51, 234, 0.5);
+        .auth-card {
+            width: 100%;
+            max-width: 500px;
+            padding: 2.5rem;
+            border-radius: 2.5rem;
+            animation: fadeIn 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+            margin: auto;
         }
 
-        .btn-secondary {
-            background: rgba(255, 255, 255, 0.03);
-            border: 1px solid rgba(255, 255, 255, 0.05);
-            transition: all 0.3s ease;
-            color: #d4d4d8;
-        }
-
-        .btn-secondary:hover {
-            background: rgba(255, 255, 255, 0.06);
-            border-color: rgba(147, 51, 234, 0.4);
-            color: white;
-        }
-
-        .signup-only { 
-            display: none; 
-            animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-        }
-
-        @keyframes slideUp {
-            from { opacity: 0; transform: translateY(8px); }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
             to { opacity: 1; transform: translateY(0); }
         }
 
-        .brand-logo-container {
-            position: relative;
-            width: 56px;
-            height: 56px;
-            margin-bottom: 1.5rem;
+        .input-group input {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            transition: all 0.3s ease;
         }
 
-        .brand-logo {
-            width: 100%;
-            height: 100%;
-            background: var(--brand-purple);
-            border-radius: 16px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            box-shadow: 0 12px 24px rgba(147, 51, 234, 0.4);
-            position: relative;
-            z-index: 2;
+        .input-group input:focus {
+            outline: none;
+            border-color: var(--primary-purple);
+            background: rgba(138, 43, 226, 0.05);
+            box-shadow: 0 0 15px rgba(138, 43, 226, 0.1);
         }
 
-        .brand-logo-glow {
-            position: absolute;
-            inset: -4px;
-            background: var(--brand-purple);
-            filter: blur(12px);
-            opacity: 0.4;
-            z-index: 1;
+        .btn-gradient {
+            background: linear-gradient(135deg, #8a2be2 0%, #4f46e5 100%);
+            transition: all 0.3s ease;
         }
 
-        .divider {
-            display: flex;
-            align-items: center;
-            text-align: center;
-            margin: 1.5rem 0;
-            color: #3f3f46;
-            font-size: 0.7rem;
-            text-transform: uppercase;
-            letter-spacing: 0.15em;
-            font-weight: 700;
+        .btn-gradient:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(138, 43, 226, 0.3);
         }
 
-        .divider::before, .divider::after {
-            content: '';
-            flex: 1;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        .social-btn {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            transition: all 0.3s ease;
         }
 
-        /* --- Custom Checkbox Styling --- */
+        .social-btn:hover {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: rgba(255, 255, 255, 0.2);
+            transform: translateY(-1px);
+        }
+
+        .loader {
+            width: 20px;
+            height: 20px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            border-top-color: #fff;
+            animation: spin 0.8s linear infinite;
+            display: none;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Custom Checkbox */
         .checkbox-container {
             display: flex;
             align-items: flex-start;
             gap: 12px;
-            padding: 4px;
-            margin-top: 1rem;
+            cursor: pointer;
         }
         
-        input[type="checkbox"] {
-            appearance: none;
-            -webkit-appearance: none;
+        .hidden-checkbox:checked + .custom-box {
+            background-color: var(--primary-purple);
+            border-color: var(--primary-purple);
+        }
+
+        .custom-box {
             width: 18px;
             height: 18px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255,255,255,0.2);
             border-radius: 4px;
-            background: rgba(255, 255, 255, 0.02);
-            position: relative;
-            transition: all 0.2s ease;
             flex-shrink: 0;
-            margin-top: 2px;
-        }
-
-        input[type="checkbox"]:checked {
-            background: var(--brand-purple);
-            border-color: var(--brand-purple);
-        }
-
-        input[type="checkbox"]:checked::after {
-            content: "\f00c";
-            font-family: "Font Awesome 6 Free";
-            font-weight: 900;
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            font-size: 10px;
-            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
         }
     </style>
 </head>
 <body>
-    <div class="grid-bg"></div>
-    <div class="glow" style="top: -10%; right: -10%;"></div>
-    <div class="glow" style="bottom: -10%; left: -10%;"></div>
 
-    <!-- System-style Purple Cursor -->
-    <div id="cursor-container">
-        <svg class="custom-pointer" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-            <path d="M7 2l12 11.2-5.8.1 3.3 5.7-2.1 1.2-3.3-5.7-4.1 3.5V2z"/>
-        </svg>
-    </div>
+    <div id="custom-cursor"></div>
 
-    <div class="main-wrapper">
-        <div class="w-full max-w-[420px]">
-            <div class="glass-card rounded-[2rem] p-8 md:p-10">
-                <!-- Branding -->
-                <div class="flex flex-col items-center mb-8">
-                    <div class="brand-logo-container">
-                        <div class="brand-logo">
-                            <i class="fa-solid fa-code text-white text-2xl"></i>
-                        </div>
-                        <div class="brand-logo-glow"></div>
-                    </div>
-                    <h1 id="auth-title" class="text-2xl font-bold tracking-tight text-white text-center">Codenix AI Studio</h1>
-                    <p id="auth-subtitle" class="text-zinc-500 text-sm mt-1.5 font-medium">Elevating intelligence, together.</p>
+    <div class="auth-card glass">
+        <!-- Brand Header -->
+        <div class="flex flex-col items-center mb-6">
+            <div onclick="window.location.href='index.html'" class="w-12 h-12 rounded-2xl flex items-center justify-center bg-gradient-to-br from-purple-600 to-indigo-900 border border-purple-400/30 mb-4 cursor-pointer hover:scale-110 transition">
+                <i class="fas fa-terminal text-white"></i>
+            </div>
+            <h1 id="auth-title" class="text-2xl md:text-3xl font-bold tracking-tight mb-1 text-center">Welcome Back</h1>
+            <p id="auth-subtitle" class="text-gray-400 text-xs md:text-sm text-center">Access the Codenix Neural Network</p>
+        </div>
+
+        <!-- Social Auth Buttons -->
+        <div class="grid grid-cols-2 gap-3 mb-6">
+            <button type="button" onclick="signInWithOAuth('google')" class="social-btn py-3 px-4 rounded-xl flex items-center justify-center gap-3 text-sm font-medium">
+                <i class="fab fa-google text-red-500"></i> Google
+            </button>
+            <button type="button" onclick="signInWithOAuth('github')" class="social-btn py-3 px-4 rounded-xl flex items-center justify-center gap-3 text-sm font-medium">
+                <i class="fab fa-github"></i> GitHub
+            </button>
+        </div>
+
+        <div class="flex items-center gap-4 mb-6">
+            <div class="h-[1px] bg-white/10 flex-grow"></div>
+            <span class="text-[10px] text-gray-500 uppercase tracking-widest font-bold">Or with Email</span>
+            <div class="h-[1px] bg-white/10 flex-grow"></div>
+        </div>
+
+        <!-- Form -->
+        <form id="auth-form" class="space-y-4">
+            <!-- Sign Up Extra Fields -->
+            <div id="signup-fields" class="hidden space-y-4">
+                <div class="input-group">
+                    <label class="text-[10px] uppercase tracking-widest text-gray-500 font-bold mb-1 block">Full Name</label>
+                    <input type="text" id="fullname" placeholder="John Doe" class="w-full px-5 py-3 rounded-xl text-white text-sm">
                 </div>
-
-                <!-- Social Auth -->
-                <div class="grid grid-cols-2 gap-3">
-                    <button type="button" id="google-btn" class="btn-secondary py-3 px-4 rounded-xl flex items-center justify-center text-[13px] font-semibold interactive">
-                        <svg class="mr-2" width="18" height="18" viewBox="0 0 48 48">
-                            <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
-                            <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
-                            <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
-                            <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
-                        </svg>
-                        Google
-                    </button>
-
-                    <button type="button" id="github-btn" class="btn-secondary py-3 px-4 rounded-xl flex items-center justify-center text-[13px] font-semibold interactive">
-                        <i class="fa-brands fa-github text-lg mr-2"></i>
-                        GitHub
-                    </button>
-                </div>
-
-                <div class="divider">or continue with email</div>
-
-                <!-- Form -->
-                <form id="auth-form" class="space-y-3.5">
-                    <div class="signup-only">
-                        <div class="input-group">
-                            <input type="text" id="fullname" class="input-field w-full py-3.5 rounded-xl interactive" placeholder="Full Name">
-                            <i class="fa-solid fa-user input-icon"></i>
-                        </div>
-                        <div class="input-group">
-                            <input type="text" id="username" class="input-field w-full py-3.5 rounded-xl interactive" placeholder="Username">
-                            <i class="fa-solid fa-at input-icon"></i>
-                        </div>
-                    </div>
-                    
-                    <div class="input-group">
-                        <input type="email" id="email" required class="input-field w-full py-3.5 rounded-xl interactive" placeholder="Email Address">
-                        <i class="fa-solid fa-envelope input-icon"></i>
-                    </div>
-
-                    <div class="input-group">
-                        <input type="password" id="password" required class="input-field w-full py-3.5 rounded-xl interactive" placeholder="Password">
-                        <i class="fa-solid fa-lock input-icon"></i>
-                    </div>
-
-                    <!-- Policy Checkbox (Signup Only) -->
-                    <div class="signup-only">
-                        <div class="checkbox-container">
-                            <input type="checkbox" id="policy-agree" class="interactive">
-                            <label for="policy-agree" class="text-[11px] text-zinc-500 font-medium leading-relaxed">
-                                I agree to the <a href="policy.html" target="_blank" class="text-purple-400 hover:text-purple-300 interactive underline">Terms & Conditions</a> of Nix 4 Platform.
-                            </label>
-                        </div>
-                    </div>
-
-                    <div id="message-box" class="hidden p-3.5 rounded-xl text-[11px] font-bold uppercase tracking-wider text-center"></div>
-
-                    <button type="submit" id="submit-btn" class="btn-primary w-full py-4 rounded-xl font-bold text-sm mt-2 interactive">
-                        Continue to Studio
-                    </button>
-                </form>
-
-                <!-- Toggle -->
-                <div class="mt-8 text-center">
-                    <p class="text-zinc-500 text-[11px] font-bold uppercase tracking-widest">
-                        <span id="toggle-text">New to the studio?</span>
-                        <button id="toggle-auth" class="text-purple-400 ml-1.5 hover:text-purple-300 transition-colors interactive">Create Account</button>
-                    </p>
+                <div class="input-group">
+                    <label class="text-[10px] uppercase tracking-widest text-gray-500 font-bold mb-1 block">Username</label>
+                    <input type="text" id="username" placeholder="johndoe_dev" class="w-full px-5 py-3 rounded-xl text-white text-sm">
                 </div>
             </div>
-            
-            <p class="text-center mt-8 text-zinc-600 text-[9px] font-bold uppercase tracking-[0.25em]">
-                Codenix AI Studio &bull; Precision Engineered &bull; 2024
+
+            <div class="input-group">
+                <label class="text-[10px] uppercase tracking-widest text-gray-500 font-bold mb-1 block">Email Address</label>
+                <input type="email" id="email" required placeholder="name@domain.com" class="w-full px-5 py-3 rounded-xl text-white text-sm">
+            </div>
+
+            <div class="input-group">
+                <label class="text-[10px] uppercase tracking-widest text-gray-500 font-bold mb-1 block">Password</label>
+                <input type="password" id="password" required placeholder="••••••••" class="w-full px-5 py-3 rounded-xl text-white text-sm">
+            </div>
+
+            <!-- Terms and Conditions -->
+            <div id="terms-container" class="hidden py-2">
+                <label class="checkbox-container">
+                    <input type="checkbox" id="terms" class="hidden-checkbox hidden">
+                    <div class="custom-box">
+                        <i class="fas fa-check text-[10px] text-white"></i>
+                    </div>
+                    <span class="text-[11px] text-gray-400 leading-tight">
+                        I agree to the <button type="button" onclick="showLegal()" class="text-purple-400 underline">Terms of Service</button>. I acknowledge that Codenix is an AI technology provider and is not responsible for medical advice.
+                    </span>
+                </label>
+            </div>
+
+            <div id="error-msg" class="text-red-400 text-[11px] hidden text-center bg-red-400/10 py-3 rounded-xl border border-red-400/20">
+                Invalid credentials. Please try again.
+            </div>
+
+            <button type="submit" id="submit-btn" class="w-full btn-gradient py-4 rounded-xl font-bold flex items-center justify-center gap-3 mt-4">
+                <span id="btn-text">Initiate Session</span>
+                <div class="loader" id="btn-loader"></div>
+            </button>
+        </form>
+
+        <!-- Toggle Mode -->
+        <div class="mt-8 text-center border-t border-white/5 pt-6">
+            <p class="text-gray-500 text-xs md:text-sm">
+                <span id="toggle-text">Don't have an account?</span>
+                <button onclick="toggleMode()" id="toggle-link" class="text-purple-400 font-bold ml-1 hover:underline underline-offset-4">Create Access</button>
             </p>
         </div>
     </div>
 
+    <!-- Legal Modal -->
+    <div id="legal-modal" class="fixed inset-0 z-[20000] hidden bg-black/80 backdrop-blur-md items-center justify-center p-4">
+        <div class="glass max-w-lg w-full p-8 rounded-3xl max-h-[80vh] overflow-y-auto">
+            <h2 class="text-xl font-bold mb-4 text-purple-400">Legal Terms & Disclaimers</h2>
+            <div class="text-gray-300 text-sm space-y-4 font-light">
+                <p><strong>1. AI Limitation of Liability:</strong> Codenix is a technology ecosystem utilizing Artificial Intelligence models. The company expressly states that it is not a medical, legal, or financial institution. Any output related to medicine, health, or professional fields is for informational purposes only and should not be used for diagnosis or treatment.</p>
+                <p><strong>2. Accuracy of Information:</strong> While we strive for excellence, Codenix does not guarantee the accuracy or reliability of AI-generated content. Users assume all risk for decisions made based on model outputs.</p>
+                <p><strong>3. Use of Data:</strong> By creating an account, you agree to our data processing policies designed to improve system performance while maintaining user privacy as per global standards.</p>
+                <p><strong>4. Indemnification:</strong> You agree to indemnify Codenix Global Studios from any claims, losses, or damages resulting from your misuse of the platform or reliance on automated answers.</p>
+            </div>
+            <button onclick="closeLegal()" class="w-full mt-6 bg-white/10 hover:bg-white/20 py-3 rounded-xl font-bold transition">Close</button>
+        </div>
+    </div>
+
     <script>
-        // --- HIGH-PERFORMANCE SYSTEM-STYLE CURSOR ---
-        const cursorContainer = document.getElementById('cursor-container');
-        let mouseX = 0, mouseY = 0, currentX = 0, currentY = 0;
+        // Configuration
+        const SUPABASE_URL = "https://rnlwrngfgvznndlekmrz.supabase.co";
+        const SUPABASE_KEY = "sb_publishable_mtI0_ZBvU_n5oRuqV58QHg_qJt3Gfyt";
+        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-        document.addEventListener('mousemove', (e) => {
-            mouseX = e.clientX;
-            mouseY = e.clientY;
-        });
+        let isSignUpMode = false;
 
-        function animateCursor() {
-            currentX += (mouseX - currentX) * 0.4;
-            currentY += (mouseY - currentY) * 0.4;
-            cursorContainer.style.transform = `translate(${currentX}px, ${currentY}px)`;
-            requestAnimationFrame(animateCursor);
-        }
-        animateCursor();
-
-        document.addEventListener('mousedown', () => document.body.classList.add('cursor-active'));
-        document.addEventListener('mouseup', () => document.body.classList.remove('cursor-active'));
-
-        function refreshInteractions() {
-            const interactives = document.querySelectorAll('.interactive, button, input, a, label');
-            interactives.forEach(el => {
-                el.addEventListener('mouseenter', () => document.body.classList.add('cursor-hovering'));
-                el.addEventListener('mouseleave', () => document.body.classList.remove('cursor-hovering'));
-            });
-        }
-        refreshInteractions();
-
-        // --- AUTH LOGIC ---
-        const SUPABASE_URL = 'https://rnlwrngfgvznndlekmrz.supabase.co';
-        const SUPABASE_KEY = 'sb_publishable_mtI0_ZBvU_n5oRuqV58QHg_qJt3Gfyt';
-        const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-
-        const authForm = document.getElementById('auth-form');
-        const submitBtn = document.getElementById('submit-btn');
-        const googleBtn = document.getElementById('google-btn');
-        const githubBtn = document.getElementById('github-btn');
-        const toggleBtn = document.getElementById('toggle-auth');
-        const signupFields = document.querySelectorAll('.signup-only');
-        const msgBox = document.getElementById('message-box');
-        const policyCheckbox = document.getElementById('policy-agree');
-        let isLogin = true;
-
-        const getSafeRedirectUrl = () => {
+        function init() {
             const params = new URLSearchParams(window.location.search);
-            const redirectParam = params.get('redirect');
-            if (!redirectParam) return window.location.origin + '/portal.html';
-            return redirectParam.startsWith('http') ? redirectParam : window.location.origin + (redirectParam.startsWith('/') ? '' : '/') + redirectParam;
-        };
+            const mode = params.get('mode');
+            if (mode === 'signup') setMode(true);
+        }
 
-        toggleBtn.addEventListener('click', (e) => {
-            e.preventDefault();
-            isLogin = !isLogin;
-            document.getElementById('auth-title').innerText = isLogin ? 'Codenix AI Studio' : 'Create Account';
-            document.getElementById('auth-subtitle').innerText = isLogin ? 'Elevating intelligence, together.' : 'Begin your journey with Codenix';
-            submitBtn.innerText = isLogin ? 'Continue to Studio' : 'Finalize Registration';
-            document.getElementById('toggle-text').innerText = isLogin ? "New to the studio?" : "Already a member?";
-            toggleBtn.innerText = isLogin ? 'Create Account' : 'Sign In';
-            signupFields.forEach(f => f.style.display = isLogin ? 'none' : 'block');
-            msgBox.classList.add('hidden');
-            refreshInteractions();
-        });
+        function setMode(signUp) {
+            isSignUpMode = signUp;
+            const title = document.getElementById('auth-title');
+            const subtitle = document.getElementById('auth-subtitle');
+            const btnText = document.getElementById('btn-text');
+            const toggleText = document.getElementById('toggle-text');
+            const toggleLink = document.getElementById('toggle-link');
+            const signupFields = document.getElementById('signup-fields');
+            const termsContainer = document.getElementById('terms-container');
 
-        authForm.addEventListener('submit', async (e) => {
+            if (isSignUpMode) {
+                title.innerText = "Join Codenix";
+                subtitle.innerText = "Create your global developer identity";
+                btnText.innerText = "Generate Access";
+                toggleText.innerText = "Already a member?";
+                toggleLink.innerText = "Sign In";
+                signupFields.classList.remove('hidden');
+                termsContainer.classList.remove('hidden');
+            } else {
+                title.innerText = "Welcome Back";
+                subtitle.innerText = "Access the Codenix Neural Network";
+                btnText.innerText = "Initiate Session";
+                toggleText.innerText = "Don't have an account?";
+                toggleLink.innerText = "Create Access";
+                signupFields.classList.add('hidden');
+                termsContainer.classList.add('hidden');
+            }
+        }
+
+        function toggleMode() {
+            setMode(!isSignUpMode);
+        }
+
+        function showLegal() {
+            document.getElementById('legal-modal').classList.replace('hidden', 'flex');
+        }
+
+        function closeLegal() {
+            document.getElementById('legal-modal').classList.replace('flex', 'hidden');
+        }
+
+        /**
+         * OAuth Authentication
+         */
+        async function signInWithOAuth(provider) {
+            const { error } = await supabaseClient.auth.signInWithOAuth({
+                provider: provider,
+                options: {
+                    redirectTo: window.location.origin + '/portal.html'
+                }
+            });
+            if (error) {
+                const errorMsg = document.getElementById('error-msg');
+                errorMsg.innerText = error.message;
+                errorMsg.classList.remove('hidden');
+            }
+        }
+
+        function handleLoginSuccess() {
+            const referrer = document.referrer;
+            const currentHost = window.location.hostname;
+            if (referrer && (referrer.includes(currentHost) || referrer.startsWith('file:///'))) {
+                window.history.back();
+            } else {
+                window.location.href = 'portal.html';
+            }
+        }
+
+        // Form Handling
+        document.getElementById('auth-form').addEventListener('submit', async (e) => {
             e.preventDefault();
             
-            // Validate policy agreement for signup
-            if (!isLogin && !policyCheckbox.checked) {
-                showMessage("You must agree to the Terms & Conditions", "error");
-                return;
-            }
-
             const email = document.getElementById('email').value;
             const password = document.getElementById('password').value;
             const fullName = document.getElementById('fullname').value;
-            const username = document.getElementById('username').value;
+            const userName = document.getElementById('username').value;
+            const terms = document.getElementById('terms');
             
-            submitBtn.disabled = true;
-            submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+            const loader = document.getElementById('btn-loader');
+            const btnText = document.getElementById('btn-text');
+            const errorMsg = document.getElementById('error-msg');
+
+            if (isSignUpMode && !terms.checked) {
+                errorMsg.innerText = "You must agree to the legal terms to proceed.";
+                errorMsg.classList.remove('hidden');
+                return;
+            }
+
+            errorMsg.classList.add('hidden');
+            loader.style.display = 'block';
+            btnText.style.opacity = '0.5';
 
             try {
                 let result;
-                if (isLogin) {
-                    result = await supabaseClient.auth.signInWithPassword({ email, password });
-                } else {
+                if (isSignUpMode) {
                     result = await supabaseClient.auth.signUp({ 
-                        email, password,
-                        options: { 
-                            data: { full_name: fullName, username: username },
-                            emailRedirectTo: getSafeRedirectUrl()
+                        email, 
+                        password,
+                        options: {
+                            data: {
+                                full_name: fullName,
+                                username: userName
+                            }
                         }
                     });
+                } else {
+                    result = await supabaseClient.auth.signInWithPassword({ email, password });
                 }
 
                 if (result.error) throw result.error;
-                
-                if (!isLogin && result.data.user && result.data.session === null) {
-                    showMessage("Verification email sent to your inbox.", "success");
+
+                if (isSignUpMode) {
+                    alert("Account created! Please check your email for verification.");
+                    setMode(false);
                 } else {
-                    window.location.href = getSafeRedirectUrl();
+                    handleLoginSuccess();
                 }
-            } catch (err) {
-                showMessage(err.message, "error");
+
+            } catch (error) {
+                errorMsg.innerText = error.message;
+                errorMsg.classList.remove('hidden');
             } finally {
-                submitBtn.disabled = false;
-                submitBtn.innerText = isLogin ? 'Continue to Studio' : 'Finalize Registration';
+                loader.style.display = 'none';
+                btnText.style.opacity = '1';
             }
         });
 
-        async function socialLogin(provider) {
-            try {
-                const { error } = await supabaseClient.auth.signInWithOAuth({
-                    provider: provider,
-                    options: { redirectTo: getSafeRedirectUrl() }
-                });
-                if (error) throw error;
-            } catch (err) {
-                showMessage(err.message, "error");
-            }
-        }
+        // Cursor Logic
+        const cursor = document.getElementById('custom-cursor');
+        document.addEventListener('mousemove', (e) => {
+            cursor.style.left = e.clientX + 'px';
+            cursor.style.top = e.clientY + 'px';
+        });
 
-        googleBtn.addEventListener('click', () => socialLogin('google'));
-        githubBtn.addEventListener('click', () => socialLogin('github'));
+        document.querySelectorAll('input, button, .cursor-pointer, .checkbox-container').forEach(el => {
+            el.addEventListener('mouseenter', () => {
+                cursor.style.transform = 'rotate(-30deg) scale(1.4)';
+                cursor.style.borderBottomColor = '#a855f7';
+            });
+            el.addEventListener('mouseleave', () => {
+                cursor.style.transform = 'rotate(-30deg) scale(1)';
+                cursor.style.borderBottomColor = '#8a2be2';
+            });
+        });
 
-        function showMessage(text, type) {
-            msgBox.innerText = text;
-            msgBox.className = `p-3.5 rounded-xl text-[11px] font-bold uppercase tracking-wider text-center mt-4 ${
-                type === "success" ? "bg-purple-500/10 text-purple-400" : "bg-red-500/10 text-red-400"
-            }`;
-            msgBox.classList.remove('hidden');
-        }
-
-        async function checkSession() {
-            const { data: { session } } = await supabaseClient.auth.getSession();
-            if (session) window.location.href = getSafeRedirectUrl();
-        }
-        checkSession();
+        init();
     </script>
 </body>
 </html>
