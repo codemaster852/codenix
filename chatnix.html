@@ -16,8 +16,8 @@
         .is-offline .offline-banner { display: flex; }
         .custom-scrollbar::-webkit-scrollbar { width: 6px; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #ced0d1; border-radius: 10px; }
-        .animate-fade-in { animation: fadeIn 0.2s ease-in-out; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+        .animate-fade-in { animation: fadeIn 0.15s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: translateY(0); } }
         
         .chat-area {
             background-color: #efeae2;
@@ -29,9 +29,14 @@
             background-color: #25d366;
             color: white;
             border-radius: 50%;
-            padding: 2px 6px;
+            min-width: 1.25rem;
+            height: 1.25rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
             font-size: 10px;
             font-weight: bold;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
         }
     </style>
 </head>
@@ -73,7 +78,7 @@
                     <i class="fa-solid fa-comments text-9xl text-white"></i>
                 </div>
                 <h1 class="text-3xl font-light text-gray-700">ChatNix Portal</h1>
-                <p class="text-gray-500 mt-3 max-w-sm">Select a contact to start messaging.</p>
+                <p class="text-gray-500 mt-3 max-w-sm">Select a contact or search for a username to start messaging.</p>
             </div>
 
             <header class="bg-[#f0f2f5] p-3 flex justify-between items-center border-b z-20">
@@ -118,7 +123,8 @@
             currentUser = session.user;
 
             const { data: profile } = await client.from('chatnix_profiles').select('username').eq('id', currentUser.id).single();
-            document.getElementById('myAvatar').innerText = (profile?.username || currentUser.email)[0].toUpperCase();
+            const displayName = profile?.username || currentUser.email.split('@')[0];
+            document.getElementById('myAvatar').innerText = displayName[0].toUpperCase();
 
             handleConnectivity();
             window.addEventListener('online', handleConnectivity);
@@ -168,7 +174,7 @@
             });
             
             if (userIds.size === 0) {
-                document.getElementById('chatList').innerHTML = `<div class="p-10 text-center text-gray-400 text-sm">Search for users to start.</div>`;
+                document.getElementById('chatList').innerHTML = `<div class="p-10 text-center text-gray-400 text-sm">Find users to start a conversation.</div>`;
                 return;
             }
 
@@ -178,7 +184,7 @@
 
         function renderUserList(users, isSearch, unreadCounts = {}) {
             const list = document.getElementById('chatList');
-            list.innerHTML = isSearch ? '<div class="px-4 py-2 text-[10px] font-bold text-indigo-600 bg-indigo-50">SEARCH RESULTS</div>' : '';
+            list.innerHTML = isSearch ? '<div class="px-4 py-2 text-[10px] font-bold text-indigo-600 bg-indigo-50 tracking-widest">SEARCH RESULTS</div>' : '';
             
             users.forEach(user => {
                 const unread = unreadCounts[user.id] || 0;
@@ -189,9 +195,9 @@
                     <div class="flex-1 overflow-hidden">
                         <div class="flex justify-between items-baseline">
                             <h3 class="font-semibold text-gray-800 truncate">${user.username}</h3>
-                            ${unread > 0 ? `<span class="unread-badge">${unread}</span>` : '<span class="text-[10px] text-gray-400">now</span>'}
+                            ${unread > 0 ? `<span class="unread-badge animate-bounce">${unread}</span>` : '<span class="text-[10px] text-gray-400">active</span>'}
                         </div>
-                        <p class="text-xs text-gray-500 truncate">${isSearch ? 'Start new chat' : 'Active chat'}</p>
+                        <p class="text-xs text-gray-500 truncate">${isSearch ? 'Tap to start chat' : 'Message history'}</p>
                     </div>
                 `;
                 div.onclick = () => openChat(user);
@@ -207,15 +213,15 @@
             
             const chatId = [currentUser.id, user.id].sort().join(':');
             
-            // Mark as seen
+            // Mark as seen immediately
             await client.from('chatnix_messages').update({ is_seen: true }).eq('chat_id', chatId).eq('sender_id', user.id).eq('is_seen', false);
 
             const { data: history } = await client.from('chatnix_messages').select('*').eq('chat_id', chatId).order('created_at', { ascending: true });
             const area = document.getElementById('messageArea');
             area.innerHTML = '';
-            history?.forEach(renderMessage);
+            history?.forEach(msg => renderMessage(msg));
             area.scrollTop = area.scrollHeight;
-            loadActiveChats(); // Refresh unread count UI
+            loadActiveChats(); 
         }
 
         async function sendMessage() {
@@ -224,6 +230,8 @@
             if (!content || !selectedUser) return;
 
             const chatId = [currentUser.id, selectedUser.id].sort().join(':');
+            
+            // CRITICAL FIX: DO NOT include 'id' field to avoid 409 Conflict
             const msgData = {
                 chat_id: chatId,
                 sender_id: currentUser.id,
@@ -236,29 +244,34 @@
             renderMessage(msgData, !navigator.onLine);
 
             if (navigator.onLine) {
-                // Ensure no conflict: we omit 'id' to let DB generate UUID
                 const { error } = await client.from('chatnix_messages').insert([msgData]);
-                if (error) console.error("Send error:", error);
+                if (error) console.error("PostgREST Error:", error);
             } else {
                 saveToOffline(msgData);
             }
         }
 
-        function renderMessage(msg, isLocal = false) {
+        function renderMessage(msg, isPending = false) {
             const isMe = msg.sender_id === currentUser.id;
             const area = document.getElementById('messageArea');
+            const msgId = msg.id || 'temp-' + Date.now();
+            
+            // Avoid duplicate rendering
+            if (document.getElementById(`msg-${msgId}`)) return;
+
             const div = document.createElement('div');
+            div.id = `msg-${msgId}`;
             div.className = `flex ${isMe ? 'justify-end' : 'justify-start'} animate-fade-in mb-1`;
             
             const time = new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-            const tickColor = msg.is_seen ? 'text-blue-400' : 'text-gray-300';
+            const tickColor = msg.is_seen ? 'text-blue-400' : 'text-gray-400';
             
             div.innerHTML = `
                 <div class="max-w-[75%] ${isMe ? 'bg-[#d9fdd3] rounded-l-xl rounded-br-xl' : 'bg-white rounded-r-xl rounded-bl-xl'} px-3 py-1.5 shadow-sm relative">
-                    <p class="text-[14px] text-gray-800 leading-normal pr-10">${msg.content}</p>
+                    <p class="text-[14px] text-gray-800 leading-normal pr-10 whitespace-pre-wrap">${msg.content}</p>
                     <div class="flex items-center justify-end gap-1 mt-0.5">
-                        <span class="text-[9px] text-gray-400 uppercase">${time}</span>
-                        ${isMe ? `<i class="fa-solid fa-check-double text-[10px] ${isLocal ? 'opacity-30' : tickColor}"></i>` : ''}
+                        <span class="text-[9px] text-gray-400 uppercase font-medium">${time}</span>
+                        ${isMe ? `<i class="fa-solid fa-check-double text-[10px] ${isPending ? 'opacity-30' : tickColor}"></i>` : ''}
                     </div>
                 </div>
             `;
@@ -273,21 +286,27 @@
                     const msg = payload.new;
                     if (!msg.chat_id.includes(currentUser.id)) return;
 
-                    // Handle New Messages
-                    if (payload.eventType === 'INSERT' && msg.sender_id !== currentUser.id) {
-                        if (selectedUser && msg.chat_id.includes(selectedUser.id)) {
-                            renderMessage(msg);
-                            // Auto mark seen if chat is open
-                            await client.from('chatnix_messages').update({ is_seen: true }).eq('id', msg.id);
+                    // 1. New Message Received
+                    if (payload.eventType === 'INSERT') {
+                        if (msg.sender_id !== currentUser.id) {
+                            if (selectedUser && msg.chat_id.includes(selectedUser.id)) {
+                                renderMessage(msg);
+                                // Mark seen since chat is currently active
+                                await client.from('chatnix_messages').update({ is_seen: true }).eq('id', msg.id);
+                            } else {
+                                showNotification(msg);
+                                loadActiveChats();
+                            }
                         } else {
-                            showNotification(msg);
-                            loadActiveChats();
+                            // My own message finally confirmed by server
+                            loadActiveChats(); 
                         }
                     } 
-                    // Handle Seen Updates
-                    else if (payload.eventType === 'UPDATE' && msg.sender_id === currentUser.id && msg.is_seen) {
-                        if (selectedUser && msg.chat_id.includes(selectedUser.id)) {
-                            refreshChatUI(); // Re-render to show blue ticks
+                    // 2. Seen Status Update
+                    else if (payload.eventType === 'UPDATE') {
+                        if (msg.is_seen && msg.sender_id === currentUser.id && selectedUser && msg.chat_id.includes(selectedUser.id)) {
+                             // Update UI ticks for seen messages
+                             refreshChatArea();
                         }
                     }
                 })
@@ -295,20 +314,19 @@
         }
 
         async function showNotification(msg) {
+            if (Notification.permission !== "granted") return;
             const { data } = await client.from('chatnix_profiles').select('username').eq('id', msg.sender_id).single();
-            const sender = data?.username || "Someone";
-            if (Notification.permission === "granted") {
-                new Notification(`ChatNix: ${sender}`, { body: msg.content, icon: '/favicon.ico' });
-            }
+            const senderName = data?.username || "New Message";
+            new Notification(`ChatNix | ${senderName}`, { body: msg.content, icon: 'https://cdn-icons-png.flaticon.com/512/733/733585.png' });
         }
 
-        async function refreshChatUI() {
+        async function refreshChatArea() {
             if (!selectedUser) return;
             const chatId = [currentUser.id, selectedUser.id].sort().join(':');
             const { data: history } = await client.from('chatnix_messages').select('*').eq('chat_id', chatId).order('created_at', { ascending: true });
             const area = document.getElementById('messageArea');
             area.innerHTML = '';
-            history?.forEach(renderMessage);
+            history?.forEach(msg => renderMessage(msg));
         }
 
         function saveToOffline(msg) {
