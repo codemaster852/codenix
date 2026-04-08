@@ -1,296 +1,35 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ChatNix | Bluetooth & Offline Portal</title>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <style>
-        .whatsapp-green { background-color: #00a884; }
-        .sidebar-item:hover { background-color: #f5f6f6; }
-        .sidebar-item.active { background-color: #eff2f5; }
-        .offline-status { display: none; }
-        .is-offline .offline-status { display: flex; }
-        .is-offline .online-status { display: none; }
-        .animate-fade-in { animation: fadeIn 0.2s ease-in-out; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
-    </style>
-</head>
-<body class="bg-[#dadbd3] h-screen flex items-center justify-center overflow-hidden font-sans transition-colors duration-500">
-    <div id="appContainer" class="w-full h-full lg:w-[95%] lg:h-[95%] bg-[#f0f2f5] shadow-2xl flex relative overflow-hidden">
+<!-- I have optimized the profile fetching in the script section of your existing portal.html -->
+<script>
+    // ... (Keep existing Supabase config)
+
+    async function checkAuth() {
+        const { data: { session }, error } = await client.auth.getSession();
+        if (error || !session) {
+            window.location.href = 'auth.html';
+            return;
+        }
+        currentUser = session.user;
         
-        <!-- Connectivity Banner -->
-        <div id="statusBanner" class="offline-status absolute top-0 left-0 w-full z-50 bg-orange-600 text-white text-center py-1 text-xs font-bold items-center justify-center gap-2">
-            <i class="fa-solid fa-plane"></i> OFFLINE MODE - Saving to Local Storage
-        </div>
+        // Use the newly synced chatnix_profiles table
+        const { data: profile, error: profileErr } = await client
+            .from('chatnix_profiles')
+            .select('username')
+            .eq('id', currentUser.id)
+            .single();
 
-        <!-- Sidebar -->
-        <div class="w-1/3 min-w-[300px] max-w-[450px] bg-white border-r border-gray-200 flex flex-col">
-            <header class="bg-[#f0f2f5] p-3 flex justify-between items-center border-b">
-                <div id="myAvatar" class="w-10 h-10 rounded-full bg-indigo-600 flex items-center justify-center text-white font-bold shadow-sm">U</div>
-                <div class="flex gap-4 text-gray-500 text-xl">
-                    <button id="btConnect" title="Connect Bluetooth" class="hover:text-blue-500 transition-colors"><i class="fa-solid fa-bluetooth"></i></button>
-                    <button onclick="logout()" title="Logout" class="hover:text-red-500 transition-colors"><i class="fa-solid fa-right-from-bracket"></i></button>
-                </div>
-            </header>
-
-            <div class="p-2 bg-white">
-                <div class="bg-[#f0f2f5] flex items-center px-4 py-2 rounded-lg">
-                    <i class="fa-solid fa-magnifying-glass text-gray-400 text-sm"></i>
-                    <input id="userSearchInput" type="text" placeholder="Search or start new chat" class="bg-transparent border-none focus:outline-none ml-4 text-sm w-full">
-                </div>
-            </div>
-
-            <div id="chatList" class="flex-1 overflow-y-auto">
-                <div class="p-8 text-center text-gray-400 text-sm italic">Initializing...</div>
-            </div>
-        </div>
-
-        <!-- Main Chat -->
-        <div id="mainChat" class="flex-1 flex flex-col bg-[#efeae2] relative">
-            <div id="emptyState" class="absolute inset-0 flex flex-col items-center justify-center bg-[#f0f2f5] z-10">
-                <div class="w-32 h-32 bg-indigo-100 rounded-full flex items-center justify-center mb-4">
-                    <i class="fa-solid fa-shield-halved text-5xl text-indigo-50"></i>
-                </div>
-                <h1 class="text-xl font-semibold text-gray-700">ChatNix Secured</h1>
-                <p class="text-gray-500 text-sm">Select a friend to start chatting.</p>
-            </div>
-
-            <header class="bg-[#f0f2f5] p-3 flex justify-between items-center border-b z-20">
-                <div class="flex items-center gap-3">
-                    <div id="activeChatAvatar" class="w-10 h-10 rounded-full bg-gray-300 flex items-center justify-center text-white font-bold">?</div>
-                    <div>
-                        <h2 id="activeChatName" class="font-semibold text-gray-800">Select Contact</h2>
-                        <div class="flex items-center gap-1">
-                            <span class="online-status w-2 h-2 bg-green-500 rounded-full"></span>
-                            <span id="activeChatStatus" class="text-xs text-gray-500">waiting</span>
-                        </div>
-                    </div>
-                </div>
-            </header>
-
-            <div id="messageArea" class="flex-1 overflow-y-auto p-4 space-y-2 z-20 flex flex-col bg-[url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png')] bg-repeat">
-            </div>
-
-            <footer class="bg-[#f0f2f5] p-3 flex items-center gap-2 z-20">
-                <input id="msgInput" type="text" placeholder="Type a message" class="flex-1 bg-white p-3 rounded-lg text-sm focus:outline-none shadow-sm">
-                <button id="sendBtn" class="bg-indigo-600 text-white w-10 h-10 rounded-full flex items-center justify-center hover:bg-indigo-700 shadow-md">
-                    <i class="fa-solid fa-paper-plane text-sm"></i>
-                </button>
-            </footer>
-        </div>
-    </div>
-
-    <script>
-        const SUPABASE_URL = 'https://rnlwrngfgvznndlekmrz.supabase.co';
-        const SUPABASE_KEY = 'sb_publishable_mtI0_ZBvU_n5oRuqV58QHg_qJt3Gfyt';
-        const client = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-
-        let currentUser = null;
-        let selectedUser = null;
-        let localDB = null;
-        let bluetoothDevice = null;
-
-        // 1. Initialize App & Offline Support
-        async function init() {
-            initIndexedDB();
-            handleNetworkChange();
-            window.addEventListener('online', handleNetworkChange);
-            window.addEventListener('offline', handleNetworkChange);
-
-            const { data: { session } } = await client.auth.getSession();
-            if (!session) { window.location.href = 'auth.html'; return; }
-            currentUser = session.user;
-
-            const { data: profile } = await client.from('chatnix_profiles').select('username').eq('id', currentUser.id).single();
-            document.getElementById('myAvatar').innerText = (profile?.username || "U")[0].toUpperCase();
-
-            loadActiveChats();
-            setupRealtime();
+        if (profileErr) {
+            console.error("Profile sync check:", profileErr);
+            // Fallback UI if profile hasn't synced yet
+            document.getElementById('myAvatar').innerText = currentUser.email[0].toUpperCase();
+        } else {
+            document.getElementById('myAvatar').innerText = (profile.username || "U")[0].toUpperCase();
         }
-
-        function initIndexedDB() {
-            const request = indexedDB.open("ChatNixOffline", 1);
-            request.onupgradeneeded = e => {
-                const db = e.target.result;
-                db.createObjectStore("pending_messages", { keyPath: "id", autoIncrement: true });
-                db.createObjectStore("cache_messages", { keyPath: "msg_id" });
-            };
-            request.onsuccess = e => localDB = e.target.result;
-        }
-
-        function handleNetworkChange() {
-            const isOnline = navigator.onLine;
-            document.body.classList.toggle('is-offline', !isOnline);
-            if (isOnline) syncOfflineMessages();
-        }
-
-        // 2. Bluetooth Logic (Web Bluetooth API)
-        document.getElementById('btConnect').onclick = async () => {
-            try {
-                // Requesting a device with the 'Generic Access' or specific Serial service
-                // Note: Browser support for web-to-web Bluetooth chat is currently limited to specific profiles
-                bluetoothDevice = await navigator.bluetooth.requestDevice({
-                    acceptAllDevices: true,
-                    optionalServices: ['battery_service'] // Placeholder service
-                });
-                
-                showToast(`Connected to ${bluetoothDevice.name}`, "success");
-                document.getElementById('btConnect').classList.add('text-blue-600');
-            } catch (err) {
-                showToast("Bluetooth connection cancelled or not supported.", "error");
-            }
-        };
-
-        // 3. Messaging & Offline Sync
-        async function sendMessage() {
-            const input = document.getElementById('msgInput');
-            const content = input.value.trim();
-            if (!content || !selectedUser) return;
-
-            const chatId = [currentUser.id, selectedUser.id].sort().join(':');
-            const msgObj = {
-                chat_id: chatId,
-                sender_id: currentUser.id,
-                content: content,
-                created_at: new Date().toISOString(),
-                status: navigator.onLine ? 'sent' : 'pending'
-            };
-
-            input.value = '';
-            renderMessage(msgObj);
-
-            if (navigator.onLine) {
-                await client.from('chatnix_messages').insert([msgObj]);
-            } else {
-                saveToOffline(msgObj);
-            }
-        }
-
-        function saveToOffline(msg) {
-            const tx = localDB.transaction("pending_messages", "readwrite");
-            tx.objectStore("pending_messages").add(msg);
-        }
-
-        async function syncOfflineMessages() {
-            if (!localDB) return;
-            const tx = localDB.transaction("pending_messages", "readwrite");
-            const store = tx.objectStore("pending_messages");
-            const request = store.getAll();
-
-            request.onsuccess = async () => {
-                const messages = request.result;
-                if (messages.length === 0) return;
-
-                for (const msg of messages) {
-                    const { id, status, ...cleanMsg } = msg;
-                    const { error } = await client.from('chatnix_messages').insert([cleanMsg]);
-                    if (!error) {
-                        const delTx = localDB.transaction("pending_messages", "readwrite");
-                        delTx.objectStore("pending_messages").delete(id);
-                    }
-                }
-                showToast(`Synced ${messages.length} messages!`, "success");
-            };
-        }
-
-        // 4. UI Rendering
-        async function loadActiveChats() {
-            const { data: messages } = await client
-                .from('chatnix_messages')
-                .select('chat_id')
-                .or(`sender_id.eq.${currentUser.id},chat_id.ilike.%${currentUser.id}%`);
-
-            const userIds = new Set();
-            messages?.forEach(m => m.chat_id.split(':').forEach(id => { if(id !== currentUser.id) userIds.add(id); }));
-
-            if (userIds.size === 0) {
-                document.getElementById('chatList').innerHTML = `<div class="p-8 text-center text-gray-400">Search for friends to start.</div>`;
-                return;
-            }
-
-            const { data: profiles } = await client.from('chatnix_profiles').select('*').in('id', Array.from(userIds));
-            renderUserList(profiles || []);
-        }
-
-        function renderUserList(users) {
-            const list = document.getElementById('chatList');
-            list.innerHTML = '';
-            users.forEach(user => {
-                const div = document.createElement('div');
-                div.className = `sidebar-item flex items-center gap-3 p-4 cursor-pointer border-b ${selectedUser?.id === user.id ? 'active' : ''}`;
-                div.innerHTML = `
-                    <div class="w-12 h-12 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold">${user.username[0].toUpperCase()}</div>
-                    <div class="flex-1">
-                        <h4 class="font-semibold text-sm">${user.username}</h4>
-                        <p class="text-xs text-gray-400 truncate">Click to chat</p>
-                    </div>
-                `;
-                div.onclick = () => openChat(user);
-                list.appendChild(div);
-            });
-        }
-
-        async function openChat(user) {
-            selectedUser = user;
-            document.getElementById('emptyState').classList.add('hidden');
-            document.getElementById('activeChatName').innerText = user.username;
-            document.getElementById('activeChatAvatar').innerText = user.username[0].toUpperCase();
-            
-            const chatId = [currentUser.id, user.id].sort().join(':');
-            const { data: msgs } = await client.from('chatnix_messages').select('*').eq('chat_id', chatId).order('created_at', { ascending: true });
-            
-            const area = document.getElementById('messageArea');
-            area.innerHTML = '';
-            msgs?.forEach(renderMessage);
-        }
-
-        function renderMessage(msg) {
-            const isMe = msg.sender_id === currentUser.id;
-            const area = document.getElementById('messageArea');
-            const div = document.createElement('div');
-            div.className = `flex ${isMe ? 'justify-end' : 'justify-start'} animate-fade-in`;
-            div.innerHTML = `
-                <div class="max-w-[80%] ${isMe ? 'bg-[#d9fdd3] rounded-l-lg rounded-br-lg' : 'bg-white rounded-r-lg rounded-bl-lg'} p-2 px-3 shadow-sm">
-                    <p class="text-sm text-gray-800">${msg.content}</p>
-                    <div class="text-[9px] text-right mt-1 text-gray-400">
-                        ${new Date(msg.created_at).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}
-                        ${msg.status === 'pending' ? '<i class="fa-solid fa-clock ml-1"></i>' : '<i class="fa-solid fa-check-double ml-1 text-blue-400"></i>'}
-                    </div>
-                </div>
-            `;
-            area.appendChild(div);
-            area.scrollTop = area.scrollHeight;
-        }
-
-        function setupRealtime() {
-            client.channel('any').on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chatnix_messages' }, payload => {
-                if (payload.new.chat_id.includes(currentUser.id) && payload.new.sender_id !== currentUser.id) {
-                    if (selectedUser && payload.new.chat_id.includes(selectedUser.id)) {
-                        renderMessage(payload.new);
-                    } else {
-                        loadActiveChats();
-                    }
-                }
-            }).subscribe();
-        }
-
-        function showToast(text, type) {
-            const toast = document.createElement('div');
-            toast.className = `fixed bottom-20 left-1/2 -translate-x-1/2 px-6 py-2 rounded-full text-white text-sm font-bold z-50 ${type === 'success' ? 'bg-green-500' : 'bg-red-500'}`;
-            toast.innerText = text;
-            document.body.appendChild(toast);
-            setTimeout(() => toast.remove(), 3000);
-        }
-
-        document.getElementById('sendBtn').onclick = sendMessage;
-        document.getElementById('msgInput').onkeypress = e => { if(e.key === 'Enter') sendMessage(); };
         
-        async function logout() { await client.auth.signOut(); window.location.href = 'auth.html'; }
+        initIndexedDB();
+        setupRealtime();
+        requestNotifications();
+        loadActiveChats();
+    }
 
-        init();
-    </script>
-</body>
-</html>
+    // ... (Rest of your existing portal.html logic)
+</script>
