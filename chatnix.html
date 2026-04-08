@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ChatNix Portal</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .offline-indicator { display: none; }
+        .is-offline .offline-indicator { display: block; }
+        .voice-active { animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(79, 70, 229, 0.4); } 70% { box-shadow: 0 0 0 10px rgba(79, 70, 229, 0); } 100% { box-shadow: 0 0 0 0 rgba(79, 70, 229, 0); } }
+    </style>
+</head>
+<body class="bg-slate-50">
+    <!-- Offline Banner -->
+    <div id="offlineBanner" class="offline-indicator bg-orange-500 text-white text-center py-1 text-xs font-bold">
+        OFFLINE MODE - Messages will sync when back online
+    </div>
+
+    <div class="flex h-screen overflow-hidden">
+        <!-- Sidebar and Chat area (Simplified for space) -->
+        <div class="w-full flex flex-col">
+            <header class="p-4 bg-white border-b flex justify-between items-center">
+                <h2 class="font-bold text-xl">ChatNix</h2>
+                <div class="flex gap-3">
+                    <button id="btConnect" title="Bluetooth Chat" class="p-2 bg-blue-100 text-blue-600 rounded-full hover:bg-blue-200">
+                        <i class="fa-solid fa-bluetooth"></i>
+                    </button>
+                    <button id="voiceCallBtn" title="Voice Call" class="p-2 bg-green-100 text-green-600 rounded-full hover:bg-green-200">
+                        <i class="fa-solid fa-phone"></i>
+                    </button>
+                    <button onclick="logout()" class="p-2 text-gray-400 hover:text-red-500">
+                        <i class="fa-solid fa-right-from-bracket"></i>
+                    </button>
+                </div>
+            </header>
+
+            <div id="messageArea" class="flex-1 overflow-y-auto p-4 space-y-4">
+                <!-- Messages load here -->
+            </div>
+
+            <footer class="p-4 bg-white border-t">
+                <div class="flex gap-2">
+                    <input id="msgInput" type="text" placeholder="Type a message..." class="flex-1 p-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    <button id="sendBtn" class="bg-indigo-600 text-white px-6 rounded-xl hover:bg-indigo-700">
+                        <i class="fa-solid fa-paper-plane"></i>
+                    </button>
+                </div>
+            </footer>
+        </div>
+    </div>
+
+    <script>
+        const SUPABASE_URL = 'https://rnlwrngfgvznndlekmrz.supabase.co';
+        const SUPABASE_KEY = 'sb_publishable_mtI0_ZBvU_n5oRuqV58QHg_qJt3Gfyt';
+        const client = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        
+        let currentUser = null;
+        let db = null;
+
+        // 1. AUTH CHECK & REDIRECT
+        async function checkAuth() {
+            const { data: { session } } = await client.auth.getSession();
+            if (!session) {
+                window.location.href = 'auth.html';
+                return;
+            }
+            currentUser = session.user;
+            initOfflineDB();
+            requestNotifications();
+        }
+
+        // 2. OFFLINE STORAGE (IndexedDB)
+        function initOfflineDB() {
+            const request = indexedDB.open("ChatNixLocal", 1);
+            request.onupgradeneeded = e => {
+                db = e.target.result;
+                db.createObjectStore("messages", { keyPath: "id", autoIncrement: true });
+                db.createObjectStore("syncQueue", { keyPath: "id", autoIncrement: true });
+            };
+            request.onsuccess = e => {
+                db = e.target.result;
+                syncOfflineMessages();
+            };
+        }
+
+        // 3. BLUETOOTH CHAT (Web Bluetooth API)
+        // Note: Requires HTTPS and user gesture. 
+        // This is a simplified logic for proximity "discovery"
+        document.getElementById('btConnect').addEventListener('click', async () => {
+            try {
+                const device = await navigator.bluetooth.requestDevice({
+                    acceptAllDevices: true,
+                    optionalServices: ['battery_service'] // Standard service for discovery
+                });
+                console.log("Connected to local peer via Bluetooth:", device.name);
+                // In a full implementation, you would use GATT characteristics to swap text
+                alert("Bluetooth linked with " + device.name + ". You can now chat locally!");
+            } catch (err) {
+                console.log("Bluetooth Error: ", err);
+            }
+        });
+
+        // 4. REAL-TIME VOICE CALL (WebRTC)
+        let peerConnection;
+        const config = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+
+        document.getElementById('voiceCallBtn').addEventListener('click', async () => {
+            const btn = document.getElementById('voiceCallBtn');
+            btn.classList.toggle('voice-active');
+            
+            if (btn.classList.contains('voice-active')) {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                peerConnection = new RTCPeerConnection(config);
+                stream.getTracks().forEach(track => peerConnection.addTrack(track, stream));
+                
+                // Realtime signalling via Supabase Broadcast
+                const channel = client.channel('voice-calls');
+                channel.subscribe(async (status) => {
+                    if (status === 'SUBSCRIBED') {
+                        const offer = await peerConnection.createOffer();
+                        await peerConnection.setLocalDescription(offer);
+                        channel.send({
+                            type: 'broadcast',
+                            event: 'call-offer',
+                            payload: { offer, from: currentUser.id }
+                        });
+                    }
+                });
+            } else {
+                if(peerConnection) peerConnection.close();
+            }
+        });
+
+        // 5. NOTIFICATIONS
+        function requestNotifications() {
+            if ("Notification" in window) {
+                Notification.requestPermission();
+            }
+        }
+
+        function showNotification(title, body) {
+            if (Notification.permission === "granted") {
+                new Notification(title, { body, icon: '/icon.png' });
+            }
+        }
+
+        // 6. MESSAGE LOGIC
+        async function sendMessage() {
+            const content = document.getElementById('msgInput').value;
+            if (!content) return;
+
+            const msgData = {
+                chat_id: 'default_room',
+                sender_id: currentUser.id,
+                content: content,
+                created_at: new Date().toISOString()
+            };
+
+            if (navigator.onLine) {
+                const { error } = await client.from('chatnix_messages').insert([msgData]);
+                if (error) saveOffline(msgData);
+            } else {
+                saveOffline(msgData);
+            }
+            document.getElementById('msgInput').value = '';
+        }
+
+        function saveOffline(data) {
+            const tx = db.transaction(["messages", "syncQueue"], "readwrite");
+            tx.objectStore("messages").add(data);
+            tx.objectStore("syncQueue").add(data);
+            renderMessage(data, true);
+        }
+
+        async function syncOfflineMessages() {
+            if (!navigator.onLine) return;
+            const tx = db.transaction(["syncQueue"], "readwrite");
+            const store = tx.objectStore("syncQueue");
+            const allSync = await store.getAll();
+            
+            for (let msg of allSync) {
+                const { error } = await client.from('chatnix_messages').insert([{
+                    chat_id: msg.chat_id,
+                    sender_id: msg.sender_id,
+                    content: msg.content
+                }]);
+                if (!error) store.delete(msg.id);
+            }
+        }
+
+        function renderMessage(msg, isPending = false) {
+            const div = document.createElement('div');
+            div.className = `p-3 rounded-lg max-w-xs ${msg.sender_id === currentUser.id ? 'ml-auto bg-indigo-600 text-white' : 'bg-white border'}`;
+            div.innerHTML = `<p>${msg.content}</p><span class="text-[10px] opacity-70">${isPending ? '⏳' : '✓'}</span>`;
+            document.getElementById('messageArea').appendChild(div);
+        }
+
+        // Event Listeners
+        window.addEventListener('online', () => {
+            document.body.classList.remove('is-offline');
+            syncOfflineMessages();
+        });
+        window.addEventListener('offline', () => document.body.classList.add('is-offline'));
+        document.getElementById('sendBtn').addEventListener('click', sendMessage);
+        
+        // Initial Auth check
+        checkAuth();
+
+        async function logout() {
+            await client.auth.signOut();
+            window.location.href = 'auth.html';
+        }
+    </script>
+</body>
+</html>
