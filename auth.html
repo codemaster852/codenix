@@ -195,30 +195,26 @@
             <div class="h-[1px] bg-white/10 flex-grow"></div>
         </div>
 
-        <!-- Form -->
-        <form id="auth-form" class="space-y-4">
-            <!-- Sign Up Extra Fields -->
-            <div id="signup-fields" class="hidden space-y-4">
-                <div class="input-group">
-                    <label class="text-[10px] uppercase tracking-widest text-gray-500 font-bold mb-1 block">Full Name</label>
-                    <input type="text" id="fullname" placeholder="John Doe" class="w-full px-5 py-3 rounded-xl text-white text-sm">
-                </div>
-                <div class="input-group">
-                    <label class="text-[10px] uppercase tracking-widest text-gray-500 font-bold mb-1 block">Username</label>
-                    <input type="text" id="username" placeholder="johndoe_dev" class="w-full px-5 py-3 rounded-xl text-white text-sm">
-                </div>
-            </div>
+       <form id="auth-form" class="space-y-4">
 
-            <div class="input-group">
-                <label class="text-[10px] uppercase tracking-widest text-gray-500 font-bold mb-1 block">Email Address</label>
-                <input type="email" id="email" required placeholder="name@domain.com" class="w-full px-5 py-3 rounded-xl text-white text-sm">
-            </div>
+  <div class="input-group">
+    <label class="text-[10px] uppercase tracking-widest text-gray-500 font-bold mb-1 block">
+      Email Address
+    </label>
+    <input type="email" id="email" required placeholder="name@domain.com"
+      class="w-full px-5 py-3 rounded-xl text-white text-sm">
+  </div>
 
-            <div class="input-group">
-                <label class="text-[10px] uppercase tracking-widest text-gray-500 font-bold mb-1 block">Password</label>
-                <input type="password" id="password" required placeholder="••••••••" class="w-full px-5 py-3 rounded-xl text-white text-sm">
-            </div>
+  <div id="error-msg" class="text-red-400 text-[11px] hidden text-center bg-red-400/10 py-3 rounded-xl border border-red-400/20">
+  </div>
 
+  <button type="submit" id="submit-btn"
+    class="w-full btn-gradient py-4 rounded-xl font-bold flex items-center justify-center gap-3 mt-4">
+    <span id="btn-text">Send Magic Link</span>
+    <div class="loader" id="btn-loader"></div>
+  </button>
+
+</form>
             <!-- Terms and Conditions -->
             <div id="terms-container" class="hidden py-2">
                 <label class="checkbox-container">
@@ -264,167 +260,178 @@
             <button onclick="closeLegal()" class="w-full mt-6 bg-white/10 hover:bg-white/20 py-3 rounded-xl font-bold transition">Close</button>
         </div>
     </div>
+<script>
+    // Configuration
+    const SUPABASE_URL = "https://rnlwrngfgvznndlekmrz.supabase.co";
+    const SUPABASE_KEY = "sb_publishable_mtI0_ZBvU_n5oRuqV58QHg_qJt3Gfyt";
+    const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-    <script>
-        // Configuration
-        const SUPABASE_URL = "https://rnlwrngfgvznndlekmrz.supabase.co";
-        const SUPABASE_KEY = "sb_publishable_mtI0_ZBvU_n5oRuqV58QHg_qJt3Gfyt";
-        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    let isSignUpMode = false;
 
-        let isSignUpMode = false;
+    function init() {
+        const params = new URLSearchParams(window.location.search);
+        const mode = params.get('mode');
+        if (mode === 'signup') setMode(true);
+    }
 
-        function init() {
-            const params = new URLSearchParams(window.location.search);
-            const mode = params.get('mode');
-            if (mode === 'signup') setMode(true);
+    function setMode(signUp) {
+        isSignUpMode = signUp;
+
+        const title = document.getElementById('auth-title');
+        const subtitle = document.getElementById('auth-subtitle');
+        const btnText = document.getElementById('btn-text');
+        const toggleText = document.getElementById('toggle-text');
+        const toggleLink = document.getElementById('toggle-link');
+        const signupFields = document.getElementById('signup-fields');
+        const termsContainer = document.getElementById('terms-container');
+
+        if (isSignUpMode) {
+            title.innerText = "Join Codenix";
+            subtitle.innerText = "Create your global identity";
+            btnText.innerText = "Send Magic Link";
+            toggleText.innerText = "Already a member?";
+            toggleLink.innerText = "Sign In";
+            signupFields.classList.remove('hidden');
+            termsContainer.classList.remove('hidden');
+        } else {
+            title.innerText = "Welcome Back";
+            subtitle.innerText = "Access the Codenix Neural Network";
+            btnText.innerText = "Send Magic Link";
+            toggleText.innerText = "Don't have an account?";
+            toggleLink.innerText = "Create Access";
+            signupFields.classList.add('hidden');
+            termsContainer.classList.add('hidden');
+        }
+    }
+
+    function toggleMode() {
+        setMode(!isSignUpMode);
+    }
+
+    function showLegal() {
+        document.getElementById('legal-modal').classList.replace('hidden', 'flex');
+    }
+
+    function closeLegal() {
+        document.getElementById('legal-modal').classList.replace('flex', 'hidden');
+    }
+
+    /**
+     * OAuth Authentication (Google / GitHub)
+     */
+    async function signInWithOAuth(provider) {
+        const { error } = await supabaseClient.auth.signInWithOAuth({
+            provider: provider,
+            options: {
+                redirectTo: window.location.origin + '/portal.html'
+            }
+        });
+
+        if (error) {
+            const errorMsg = document.getElementById('error-msg');
+            errorMsg.innerText = error.message;
+            errorMsg.classList.remove('hidden');
+        }
+    }
+
+    function handleLoginSuccess() {
+        const referrer = document.referrer;
+        const currentHost = window.location.hostname;
+
+        if (referrer && (referrer.includes(currentHost) || referrer.startsWith('file:///'))) {
+            window.history.back();
+        } else {
+            window.location.href = 'portal.html';
+        }
+    }
+
+    // ✅ UPDATED FORM HANDLING (NO PASSWORD - MAGIC LINK ONLY)
+    document.getElementById('auth-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const email = document.getElementById('email').value;
+        const fullName = document.getElementById('fullname')?.value || "";
+        const userName = document.getElementById('username')?.value || "";
+        const terms = document.getElementById('terms');
+
+        const loader = document.getElementById('btn-loader');
+        const btnText = document.getElementById('btn-text');
+        const errorMsg = document.getElementById('error-msg');
+
+        // terms check only in signup mode
+        if (isSignUpMode && terms && !terms.checked) {
+            errorMsg.innerText = "You must agree to the legal terms to proceed.";
+            errorMsg.classList.remove('hidden');
+            return;
         }
 
-        function setMode(signUp) {
-            isSignUpMode = signUp;
-            const title = document.getElementById('auth-title');
-            const subtitle = document.getElementById('auth-subtitle');
-            const btnText = document.getElementById('btn-text');
-            const toggleText = document.getElementById('toggle-text');
-            const toggleLink = document.getElementById('toggle-link');
-            const signupFields = document.getElementById('signup-fields');
-            const termsContainer = document.getElementById('terms-container');
+        errorMsg.classList.add('hidden');
+        loader.style.display = 'block';
+        btnText.style.opacity = '0.5';
+
+        try {
+            let result;
 
             if (isSignUpMode) {
-                title.innerText = "Join Codenix";
-                subtitle.innerText = "Create your global developer identity";
-                btnText.innerText = "Generate Access";
-                toggleText.innerText = "Already a member?";
-                toggleLink.innerText = "Sign In";
-                signupFields.classList.remove('hidden');
-                termsContainer.classList.remove('hidden');
-            } else {
-                title.innerText = "Welcome Back";
-                subtitle.innerText = "Access the Codenix Neural Network";
-                btnText.innerText = "Initiate Session";
-                toggleText.innerText = "Don't have an account?";
-                toggleLink.innerText = "Create Access";
-                signupFields.classList.add('hidden');
-                termsContainer.classList.add('hidden');
-            }
-        }
-
-        function toggleMode() {
-            setMode(!isSignUpMode);
-        }
-
-        function showLegal() {
-            document.getElementById('legal-modal').classList.replace('hidden', 'flex');
-        }
-
-        function closeLegal() {
-            document.getElementById('legal-modal').classList.replace('flex', 'hidden');
-        }
-
-        /**
-         * OAuth Authentication
-         */
-        async function signInWithOAuth(provider) {
-            const { error } = await supabaseClient.auth.signInWithOAuth({
-                provider: provider,
-                options: {
-                    redirectTo: window.location.origin + '/portal.html'
-                }
-            });
-            if (error) {
-                const errorMsg = document.getElementById('error-msg');
-                errorMsg.innerText = error.message;
-                errorMsg.classList.remove('hidden');
-            }
-        }
-
-        function handleLoginSuccess() {
-            const referrer = document.referrer;
-            const currentHost = window.location.hostname;
-            if (referrer && (referrer.includes(currentHost) || referrer.startsWith('file:///'))) {
-                window.history.back();
-            } else {
-                window.location.href = 'portal.html';
-            }
-        }
-
-        // Form Handling
-        document.getElementById('auth-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            
-            const email = document.getElementById('email').value;
-            const password = document.getElementById('password').value;
-            const fullName = document.getElementById('fullname').value;
-            const userName = document.getElementById('username').value;
-            const terms = document.getElementById('terms');
-            
-            const loader = document.getElementById('btn-loader');
-            const btnText = document.getElementById('btn-text');
-            const errorMsg = document.getElementById('error-msg');
-
-            if (isSignUpMode && !terms.checked) {
-                errorMsg.innerText = "You must agree to the legal terms to proceed.";
-                errorMsg.classList.remove('hidden');
-                return;
-            }
-
-            errorMsg.classList.add('hidden');
-            loader.style.display = 'block';
-            btnText.style.opacity = '0.5';
-
-            try {
-                let result;
-                if (isSignUpMode) {
-                    result = await supabaseClient.auth.signUp({ 
-                        email, 
-                        password,
-                        options: {
-                            data: {
-                                full_name: fullName,
-                                username: userName
-                            }
+                // SIGNUP (Magic Link - NO PASSWORD)
+                result = await supabaseClient.auth.signInWithOtp({
+                    email: email,
+                    options: {
+                        emailRedirectTo: window.location.origin + '/portal.html',
+                        data: {
+                            full_name: fullName,
+                            username: userName
                         }
-                    });
-                } else {
-                    result = await supabaseClient.auth.signInWithPassword({ email, password });
-                }
+                    }
+                });
 
-                if (result.error) throw result.error;
-
-                if (isSignUpMode) {
-                    alert("Account created! Please check your email for verification.");
-                    setMode(false);
-                } else {
-                    handleLoginSuccess();
-                }
-
-            } catch (error) {
-                errorMsg.innerText = error.message;
-                errorMsg.classList.remove('hidden');
-            } finally {
-                loader.style.display = 'none';
-                btnText.style.opacity = '1';
+            } else {
+                // LOGIN (Magic Link - NO PASSWORD)
+                result = await supabaseClient.auth.signInWithOtp({
+                    email: email,
+                    options: {
+                        emailRedirectTo: window.location.origin + '/portal.html'
+                    }
+                });
             }
-        });
 
-        // Cursor Logic
-        const cursor = document.getElementById('custom-cursor');
-        document.addEventListener('mousemove', (e) => {
-            cursor.style.left = e.clientX + 'px';
-            cursor.style.top = e.clientY + 'px';
-        });
+            if (result.error) throw result.error;
 
-        document.querySelectorAll('input, button, .cursor-pointer, .checkbox-container').forEach(el => {
-            el.addEventListener('mouseenter', () => {
-                cursor.style.transform = 'rotate(-30deg) scale(1.4)';
-                cursor.style.borderBottomColor = '#a855f7';
-            });
-            el.addEventListener('mouseleave', () => {
-                cursor.style.transform = 'rotate(-30deg) scale(1)';
-                cursor.style.borderBottomColor = '#8a2be2';
-            });
-        });
+            alert("Check your email for the login link ✉️");
 
-        init();
-    </script>
+            if (isSignUpMode) {
+                setMode(false);
+            }
+
+        } catch (error) {
+            errorMsg.innerText = error.message;
+            errorMsg.classList.remove('hidden');
+        } finally {
+            loader.style.display = 'none';
+            btnText.style.opacity = '1';
+        }
+    });
+
+    // Cursor Logic
+    const cursor = document.getElementById('custom-cursor');
+
+    document.addEventListener('mousemove', (e) => {
+        cursor.style.left = e.clientX + 'px';
+        cursor.style.top = e.clientY + 'px';
+    });
+
+    document.querySelectorAll('input, button, .cursor-pointer, .checkbox-container').forEach(el => {
+        el.addEventListener('mouseenter', () => {
+            cursor.style.transform = 'rotate(-30deg) scale(1.4)';
+            cursor.style.borderBottomColor = '#a855f7';
+        });
+        el.addEventListener('mouseleave', () => {
+            cursor.style.transform = 'rotate(-30deg) scale(1)';
+            cursor.style.borderBottomColor = '#8a2be2';
+        });
+    });
+
+    init();
+</script>
 </body>
 </html>
