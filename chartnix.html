@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ChartNix | AI Visualizer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            darkMode: 'media',
+            theme: {
+                extend: {
+                    colors: {
+                        purple: {
+                            50: '#f5f3ff',
+                            100: '#ede9fe',
+                            200: '#ddd6fe',
+                            300: '#c4b5fd',
+                            400: '#a78bfa',
+                            500: '#8b5cf6',
+                            600: '#7c3aed',
+                            700: '#6d28d9',
+                            800: '#5b21b6',
+                            900: '#4c1d95',
+                            950: '#2e1065',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap');
+        
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            transition: background-color 0.3s ease;
+        }
+
+        /* Purple & White (Light) / Purple & Black (Dark) */
+        @media (prefers-color-scheme: light) {
+            body { background-color: #ffffff; color: #1e1b4b; }
+            .chat-bubble-ai { background-color: #f5f3ff; border: 1px solid #ddd6fe; }
+            .sidebar { background-color: #fafafa; border-right: 1px solid #e5e7eb; }
+        }
+        @media (prefers-color-scheme: dark) {
+            body { background-color: #000000; color: #f5f3ff; }
+            .chat-bubble-ai { background-color: #1e1b4b; border: 1px solid #4c1d95; }
+            .sidebar { background-color: #0a0a0a; border-right: 1px solid #1e1b4b; }
+        }
+
+        .mermaid-card {
+            background: white !important;
+            border-radius: 12px;
+            padding: 16px;
+            margin-top: 12px;
+            overflow-x: auto;
+        }
+
+        .scroll-custom::-webkit-scrollbar { width: 4px; }
+        .scroll-custom::-webkit-scrollbar-thumb { background: #8b5cf6; border-radius: 10px; }
+
+        .mobile-nav-active { transform: translateX(0) !important; }
+    </style>
+</head>
+<body class="h-screen flex flex-col md:flex-row overflow-hidden">
+
+    <!-- Supabase Auth Guard -->
+    <script>
+        const supabaseUrl = 'https://rnlwrngfgvznndlekmrz.supabase.co';
+        const supabaseKey = 'sb_publishable_mtI0_ZBvU_n5oRuqV58QHg_qJt3Gfyt';
+        
+        // Initialize client
+        const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
+
+        async function checkAuth() {
+            const { data: { session }, error } = await supabaseClient.auth.getSession();
+            if (error || !session) {
+                // Redirect to auth.html in the root directory
+                window.location.replace('/auth.html');
+            }
+        }
+        
+        // Run immediately
+        checkAuth();
+
+        // Also listen for auth state changes
+        supabaseClient.auth.onAuthStateChange((event, session) => {
+            if (event === 'SIGNED_OUT' || !session) {
+                window.location.replace('/auth.html');
+            }
+        });
+    </script>
+
+    <!-- Mobile Overlay -->
+    <div id="mobileOverlay" onclick="toggleSidebar()" class="fixed inset-0 bg-black/50 z-40 hidden md:hidden"></div>
+
+    <!-- Sidebar -->
+    <aside id="sidebar" class="sidebar fixed md:relative z-50 w-72 h-full transition-transform -translate-x-full md:translate-x-0 flex flex-col">
+        <div class="p-6 flex items-center justify-between">
+            <h1 class="text-xl font-bold text-purple-600 flex items-center gap-2">
+                <i class="fas fa-project-diagram"></i> ChartNix
+            </h1>
+            <button onclick="toggleSidebar()" class="md:hidden text-purple-600">
+                <i class="fas fa-times text-lg"></i>
+            </button>
+        </div>
+        
+        <div class="px-4 mb-4">
+            <button onclick="createNewChat()" class="w-full py-3 px-4 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-medium flex items-center justify-center gap-2 transition-all shadow-lg shadow-purple-500/20">
+                <i class="fas fa-plus"></i> <span data-i18n="newChat">New Chart</span>
+            </button>
+        </div>
+
+        <div class="flex-1 overflow-y-auto px-4 space-y-2 scroll-custom">
+            <p class="text-[10px] uppercase tracking-widest text-purple-400 font-bold px-2 mb-2" data-i18n="history">History</p>
+            <div id="historyList" class="space-y-1">
+                <!-- History Items via JS -->
+            </div>
+        </div>
+
+        <div class="p-4 border-t border-purple-100 dark:border-purple-900 space-y-2">
+            <button onclick="toggleModal('guideModal')" class="w-full p-2.5 text-sm rounded-lg hover:bg-purple-100 dark:hover:bg-purple-900/40 flex items-center gap-3 transition-colors">
+                <i class="fas fa-book text-purple-500"></i> <span data-i18n="guide">Guide</span>
+            </button>
+            <button onclick="toggleModal('feedbackModal')" class="w-full p-2.5 text-sm rounded-lg hover:bg-purple-100 dark:hover:bg-purple-900/40 flex items-center gap-3 transition-colors">
+                <i class="fas fa-comment-alt text-purple-500"></i> <span data-i18n="feedback">Feedback</span>
+            </button>
+            <button onclick="handleLogout()" class="w-full p-2.5 text-sm rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-3 transition-colors">
+                <i class="fas fa-sign-out-alt"></i> <span data-i18n="logout">Sign Out</span>
+            </button>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="flex-1 flex flex-col h-full relative min-w-0">
+        <!-- Header -->
+        <header class="h-16 flex items-center justify-between px-4 md:px-8 border-b border-purple-100 dark:border-purple-950">
+            <div class="flex items-center gap-4">
+                <button onclick="toggleSidebar()" class="md:hidden p-2 text-purple-600 bg-purple-50 dark:bg-purple-900/30 rounded-lg">
+                    <i class="fas fa-bars"></i>
+                </button>
+                <div class="hidden md:block">
+                    <h2 class="font-semibold text-purple-900 dark:text-purple-100" id="currentChatTitle">Untitled Chart</h2>
+                </div>
+            </div>
+            <div class="flex items-center gap-3">
+                <span class="text-[10px] font-bold px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">CHARTNIX-V2</span>
+            </div>
+        </header>
+
+        <!-- Chat History -->
+        <div id="chatBox" class="flex-1 overflow-y-auto p-4 md:p-8 space-y-6 scroll-custom">
+            <div class="max-w-3xl mx-auto flex flex-col items-center justify-center h-full text-center space-y-4" id="emptyState">
+                <div class="w-20 h-20 bg-purple-100 dark:bg-purple-900/30 rounded-3xl flex items-center justify-center text-3xl text-purple-600 animate-pulse">
+                    <i class="fas fa-magic"></i>
+                </div>
+                <h3 class="text-2xl font-bold text-purple-900 dark:text-purple-50" data-i18n="welcome">How can ChartNix help?</h3>
+                <p class="text-slate-500 max-w-sm" data-i18n="subtitle">Generate professional flowcharts and diagrams using simple natural language.</p>
+            </div>
+        </div>
+
+        <!-- Input Area -->
+        <div class="p-4 md:pb-8">
+            <div class="max-w-3xl mx-auto relative group">
+                <div class="bg-white dark:bg-zinc-900 border-2 border-purple-100 dark:border-purple-900 rounded-2xl shadow-2xl overflow-hidden focus-within:border-purple-500 transition-all">
+                    <textarea 
+                        id="userInput"
+                        rows="1" 
+                        class="w-full bg-transparent border-none focus:ring-0 resize-none p-4 text-sm md:text-base pr-14"
+                        placeholder="Type here..."
+                        oninput="autoResize(this)"
+                    ></textarea>
+                    <button 
+                        onclick="handleSendMessage()"
+                        class="absolute right-2 bottom-2 bg-purple-600 hover:bg-purple-500 text-white w-10 h-10 rounded-xl flex items-center justify-center transition-all shadow-lg"
+                    >
+                        <i class="fas fa-arrow-up"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Modals (Feedback/Guide) -->
+    <div id="feedbackModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] hidden flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-zinc-950 w-full max-w-md rounded-2xl p-6 shadow-2xl border border-purple-100 dark:border-purple-900">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-bold" data-i18n="feedback">Feedback</h3>
+                <button onclick="toggleModal('feedbackModal')" class="text-slate-400 hover:text-purple-500"><i class="fas fa-times"></i></button>
+            </div>
+            <form id="feedbackForm" class="space-y-4">
+                <input type="hidden" id="modelName" value="ChartNix">
+                <div>
+                    <label class="block text-xs font-bold text-purple-600 uppercase mb-2" data-i18n="rating">Rating</label>
+                    <input type="range" min="1" max="5" id="rating" class="w-full h-2 bg-purple-100 dark:bg-purple-900 rounded-lg appearance-none accent-purple-600">
+                </div>
+                <textarea id="feedbackText" required class="w-full bg-purple-50 dark:bg-purple-900/20 border-none rounded-xl p-4 text-sm h-32 focus:ring-2 focus:ring-purple-500" placeholder="..."></textarea>
+                <button type="submit" class="w-full py-3 bg-purple-600 text-white rounded-xl font-bold hover:bg-purple-700 transition-all shadow-lg shadow-purple-500/20">Submit</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Guide Modal -->
+    <div id="guideModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] hidden flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-zinc-950 w-full max-w-2xl rounded-2xl p-6 shadow-2xl border border-purple-100 dark:border-purple-900">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-bold text-purple-600" data-i18n="guide">User Guide</h3>
+                <button onclick="toggleModal('guideModal')" class="text-slate-400 hover:text-purple-500"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="space-y-4 text-sm dark:text-purple-100">
+                <p>1. <strong>Create:</strong> Use the input box to describe your flowchart.</p>
+                <p>2. <strong>History:</strong> Your chats are saved automatically in the sidebar.</p>
+                <p>3. <strong>Export:</strong> Diagrams can be saved by right-clicking the generated image.</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Translations
+        const i18n = {
+            en: {
+                newChat: "New Chart",
+                history: "History",
+                guide: "Guide",
+                feedback: "Feedback",
+                logout: "Sign Out",
+                welcome: "How can ChartNix help?",
+                subtitle: "Generate professional flowcharts and diagrams using simple natural language.",
+                rating: "Rating",
+                placeholder: "Type your request (e.g. flowchart for a login process)..."
+            },
+            ar: {
+                newChat: "مخطط جديد",
+                history: "السجل",
+                guide: "الدليل",
+                feedback: "الآراء",
+                logout: "تسجيل الخروج",
+                welcome: "كيف يمكن لـ ChartNix مساعدتك؟",
+                subtitle: "قم بإنشاء مخططات انسيابية ورسوم بيانية احترافية باستخدام لغة بسيطة.",
+                rating: "التقييم",
+                placeholder: "اكتب طلبك (مثلاً مخطط لعملية الدخول)..."
+            }
+        };
+
+        let currentLanguage = 'en';
+        let chats = JSON.parse(localStorage.getItem('chartnix_history')) || [];
+        let currentChatId = null;
+
+        // Init
+        window.onload = () => {
+            detectLanguage();
+            renderHistory();
+            mermaid.initialize({ startOnLoad: true, theme: 'neutral' });
+        };
+
+        function detectLanguage() {
+            const browserLang = navigator.language.split('-')[0];
+            currentLanguage = i18n[browserLang] ? browserLang : 'en';
+            document.documentElement.dir = currentLanguage === 'ar' ? 'rtl' : 'ltr';
+            
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.getAttribute('data-i18n');
+                el.innerText = i18n[currentLanguage][key];
+            });
+            document.getElementById('userInput').placeholder = i18n[currentLanguage].placeholder;
+        }
+
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('mobileOverlay');
+            sidebar.classList.toggle('mobile-nav-active');
+            overlay.classList.toggle('hidden');
+        }
+
+        function autoResize(textarea) {
+            textarea.style.height = 'auto';
+            textarea.style.height = Math.min(textarea.scrollHeight, 200) + 'px';
+        }
+
+        function toggleModal(id) {
+            document.getElementById(id).classList.toggle('hidden');
+        }
+
+        function createNewChat() {
+            currentChatId = Date.now();
+            document.getElementById('chatBox').innerHTML = '';
+            document.getElementById('emptyState').classList.remove('hidden');
+            document.getElementById('currentChatTitle').innerText = i18n[currentLanguage].newChat;
+            if (window.innerWidth < 768) toggleSidebar();
+        }
+
+        function renderHistory() {
+            const list = document.getElementById('historyList');
+            list.innerHTML = chats.map(chat => `
+                <div onclick="loadChat(${chat.id})" class="group flex items-center justify-between p-3 rounded-xl hover:bg-purple-100 dark:hover:bg-purple-900/30 cursor-pointer transition-all">
+                    <div class="flex items-center gap-3 overflow-hidden">
+                        <i class="fas fa-message text-purple-400 text-xs"></i>
+                        <span class="text-sm truncate font-medium text-purple-900 dark:text-purple-200">${chat.title}</span>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function loadChat(id) {
+            const chat = chats.find(c => c.id === id);
+            if (!chat) return;
+            currentChatId = id;
+            document.getElementById('emptyState').classList.add('hidden');
+            document.getElementById('chatBox').innerHTML = '';
+            document.getElementById('currentChatTitle').innerText = chat.title;
+            
+            chat.messages.forEach(msg => {
+                const bubbleId = appendBubble(msg.role, msg.text);
+                if (msg.mermaid) {
+                    updateBubble(bubbleId, msg.text, msg.mermaid);
+                }
+            });
+            
+            if (window.innerWidth < 768) toggleSidebar();
+        }
+
+        function handleSendMessage() {
+            const input = document.getElementById('userInput');
+            const text = input.value.trim();
+            if (!text) return;
+
+            if (!currentChatId) {
+                currentChatId = Date.now();
+                document.getElementById('currentChatTitle').innerText = text.substring(0, 20) + '...';
+            }
+            
+            document.getElementById('emptyState').classList.add('hidden');
+            appendBubble('user', text);
+            input.value = '';
+            input.style.height = 'auto';
+
+            const thinkingId = appendBubble('ai', '<i class="fas fa-spinner fa-spin"></i> Analyzing logic...');
+            
+            setTimeout(() => {
+                const response = generateAIResponse(text);
+                updateBubble(thinkingId, response.text, response.mermaid);
+                saveToHistory(currentChatId, text, response);
+            }, 1000);
+        }
+
+        function appendBubble(role, content) {
+            const chatBox = document.getElementById('chatBox');
+            const id = 'msg-' + Date.now() + Math.random();
+            const isAi = role === 'ai' || role === 'assistant';
+            
+            const html = `
+                <div id="${id}" class="flex ${isAi ? 'justify-start' : 'justify-end'} animate-in fade-in duration-300">
+                    <div class="max-w-[90%] md:max-w-[70%] ${isAi ? 'chat-bubble-ai' : 'bg-purple-600 text-white'} p-4 rounded-2xl shadow-sm">
+                        <div class="text-sm prose dark:prose-invert content-area">${content}</div>
+                        <div class="mermaid-target hidden"></div>
+                    </div>
+                </div>
+            `;
+            chatBox.insertAdjacentHTML('beforeend', html);
+            chatBox.scrollTop = chatBox.scrollHeight;
+            return id;
+        }
+
+        function updateBubble(id, text, mermaidCode) {
+            const el = document.getElementById(id);
+            if (!el) return;
+            const contentArea = el.querySelector('.content-area');
+            const target = el.querySelector('.mermaid-target');
+            
+            contentArea.innerHTML = text;
+            if (mermaidCode) {
+                target.classList.remove('hidden');
+                target.innerHTML = `<div class="mermaid-card"><pre class="mermaid">${mermaidCode}</pre></div>`;
+                mermaid.run({ nodes: target.querySelectorAll('.mermaid') });
+            }
+            document.getElementById('chatBox').scrollTop = document.getElementById('chatBox').scrollHeight;
+        }
+
+        function generateAIResponse(prompt) {
+            const p = prompt.toLowerCase();
+            if (p.includes('flowchart') || p.includes('عملية')) {
+                return {
+                    text: "I've created this flowchart based on your logic path:",
+                    mermaid: `graph TD\nA[Start] --> B[Process Step]\nB --> C{Decision?}\nC -- Yes --> D[Result A]\nC -- No --> E[Result B]`
+                };
+            }
+            return {
+                text: "Here is a standard structure visualization for your request:",
+                mermaid: `graph LR\nInput --> Process\nProcess --> Output`
+            };
+        }
+
+        function saveToHistory(id, title, aiResponse) {
+            const existingIndex = chats.findIndex(c => c.id === id);
+            if (existingIndex === -1) {
+                chats.unshift({ 
+                    id, 
+                    title: title.substring(0, 20) + '...', 
+                    messages: [
+                        {text: title, role: 'user'}, 
+                        {text: aiResponse.text, role: 'ai', mermaid: aiResponse.mermaid}
+                    ] 
+                });
+            } else {
+                chats[existingIndex].messages.push(
+                    {text: title, role: 'user'}, 
+                    {text: aiResponse.text, role: 'ai', mermaid: aiResponse.mermaid}
+                );
+            }
+            localStorage.setItem('chartnix_history', JSON.stringify(chats));
+            renderHistory();
+        }
+
+        async function handleLogout() {
+            await supabaseClient.auth.signOut();
+            window.location.replace('/auth.html');
+        }
+
+        // Mock Sheet Submit
+        document.getElementById('feedbackForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            alert("Feedback sent! Saved to sheet 1fa0ymKBsc... for Model: ChartNix");
+            toggleModal('feedbackModal');
+        });
+
+    </script>
+</body>
+</html>
