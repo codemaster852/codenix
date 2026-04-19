@@ -107,7 +107,7 @@
                 <button onclick="toggleSidebar()" class="md:hidden p-2 text-purple-600 bg-purple-50 dark:bg-purple-900/30 rounded-lg"><i class="fas fa-bars"></i></button>
                 <h2 class="font-semibold text-purple-900 dark:text-purple-100" id="currentChatTitle">Untitled Chart</h2>
             </div>
-            <span class="text-[10px] font-bold px-2 py-1 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 uppercase tracking-tighter">Longcat-API-v1</span>
+            <span class="text-[10px] font-bold px-2 py-1 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 uppercase tracking-tighter">Longcat-Chat-Flash</span>
         </header>
 
         <div id="chatBox" class="flex-1 overflow-y-auto p-4 md:p-8 space-y-6 scroll-custom">
@@ -116,7 +116,7 @@
                     <i class="fas fa-cat"></i>
                 </div>
                 <h3 class="text-2xl font-bold text-purple-900 dark:text-purple-50">AI Chart Generator</h3>
-                <p class="text-slate-500 max-w-sm">Powered by Longcat API. Describe any process or flow to visualize it.</p>
+                <p class="text-slate-500 max-w-sm">Powered by LongCat-Flash-Chat. Describe any process or flow to visualize it.</p>
             </div>
         </div>
 
@@ -160,7 +160,7 @@
 
     <script>
         const LONGCAT_API_KEY = "ak_2rU1Lo7PA23X5Is9wm3m69EY2T37J";
-        const LONGCAT_ENDPOINT = "https://api.longcat.io/v1/generate/mermaid";
+        const LONGCAT_ENDPOINT = "https://api.longcat.chat/openai/v1/chat/completions";
 
         async function fetchDiagramFromLongcat(prompt) {
             try {
@@ -171,25 +171,44 @@
                         'Authorization': `Bearer ${LONGCAT_API_KEY}`
                     },
                     body: JSON.stringify({ 
-                        prompt: prompt,
-                        style: "professional",
-                        type: "flowchart"
+                        model: "LongCat-Flash-Chat",
+                        messages: [
+                            {
+                                role: "system",
+                                content: "You are a diagram generator. Your ONLY task is to convert user requests into Mermaid.js flowchart code. Output ONLY the mermaid code block starting with 'graph TD'. Do not include markdown code block backticks."
+                            },
+                            {
+                                role: "user",
+                                content: prompt
+                            }
+                        ],
+                        temperature: 0.1,
+                        stream: false
                     })
                 });
 
-                if (!response.ok) throw new Error('API Error');
+                if (!response.ok) {
+                    const errBody = await response.json().catch(() => ({}));
+                    throw new Error(errBody.error?.message || `API Error: ${response.status}`);
+                }
+
                 const data = await response.json();
+                const content = data.choices[0].message.content.trim();
+                
+                // Clean the output to ensure it only contains Mermaid code
+                const cleanMermaid = content.replace(/```mermaid/g, '').replace(/```/g, '').trim();
+
                 return {
-                    explanation: data.explanation || "Generated based on your description:",
-                    mermaid: data.mermaid_code || data.code
+                    explanation: "Generated diagram:",
+                    mermaid: cleanMermaid
                 };
             } catch (err) {
-                console.error(err);
-                return null;
+                console.error("Longcat Fetch Error:", err);
+                return { error: err.message };
             }
         }
 
-        let chats = JSON.parse(localStorage.getItem('chartnix_longcat_v1')) || [];
+        let chats = JSON.parse(localStorage.getItem('chartnix_longcat_v2')) || [];
         let currentChatId = null;
 
         window.onload = () => {
@@ -230,15 +249,15 @@
             input.value = '';
             btn.disabled = true;
 
-            const processingId = appendBubble('ai', '<span class="flex items-center gap-2"><i class="fas fa-cat animate-bounce"></i> Longcat is drawing...</span>');
+            const processingId = appendBubble('ai', '<span class="flex items-center gap-2"><i class="fas fa-cat animate-bounce"></i> Longcat is thinking...</span>');
             
             const result = await fetchDiagramFromLongcat(text);
             
-            if (result && result.mermaid) {
+            if (result && result.mermaid && !result.error) {
                 updateBubble(processingId, result.explanation, result.mermaid);
                 saveToHistory(currentChatId, text, result.explanation, result.mermaid);
             } else {
-                updateBubble(processingId, "Sorry, I couldn't process that request via the Longcat API. Please try a different description.");
+                updateBubble(processingId, `<span class="text-red-500">Error: ${result?.error || 'Failed to connect to Longcat.'}</span>`);
             }
             btn.disabled = false;
         }
@@ -271,7 +290,10 @@
                 const mId = 'm' + Math.random().toString(36).substr(2, 9);
                 target.innerHTML = `<div class="mermaid-card"><div class="mermaid" id="${mId}">${mermaidCode}</div></div>`;
                 try {
-                    mermaid.init(undefined, document.getElementById(mId));
+                    // Slight delay to ensure DOM element exists before mermaid init
+                    setTimeout(() => {
+                        mermaid.init(undefined, document.getElementById(mId));
+                    }, 50);
                 } catch (e) {
                     target.innerHTML += `<p class="text-xs text-red-500 mt-2">Render error.</p>`;
                 }
@@ -287,7 +309,7 @@
             } else {
                 existing.messages.push({text: title, role: 'user'}, msg);
             }
-            localStorage.setItem('chartnix_longcat_v1', JSON.stringify(chats));
+            localStorage.setItem('chartnix_longcat_v2', JSON.stringify(chats));
             renderHistory();
         }
 
@@ -313,6 +335,7 @@
                 const bId = appendBubble(m.role, m.text);
                 if (m.mermaid) updateBubble(bId, m.text, m.mermaid);
             });
+            if (window.innerWidth < 768) toggleSidebar();
         }
 
         async function handleLogout() {
