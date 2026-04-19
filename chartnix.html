@@ -275,7 +275,6 @@
         function createNewChat() {
             currentChatId = Date.now();
             const chatBox = document.getElementById('chatBox');
-            const emptyState = document.getElementById('emptyState');
             if (chatBox) chatBox.innerHTML = `
                 <div class="max-w-3xl mx-auto flex flex-col items-center justify-center h-full text-center space-y-4" id="emptyState">
                     <div class="w-20 h-20 bg-purple-100 dark:bg-purple-900/30 rounded-3xl flex items-center justify-center text-3xl text-purple-600">
@@ -285,7 +284,6 @@
                     <p class="text-slate-500 max-w-sm">Describe a flow or provide data for a chart. I'll visualize it using Mermaid.js.</p>
                 </div>
             `;
-            if (emptyState) emptyState.classList.remove('hidden');
             const title = document.getElementById('currentChatTitle');
             if (title) title.innerText = "New Visualization";
         }
@@ -375,32 +373,60 @@
                 const canvas = document.createElement('canvas');
                 const ctx = canvas.getContext('2d');
                 const img = new Image();
+                
+                // Solve "Tainted Canvas" by forcing crossOrigin
+                img.crossOrigin = "anonymous";
 
                 const bbox = svgElement.getBBox();
-                const padding = 40;
+                const padding = 60; // More padding for safety
                 canvas.width = bbox.width + padding;
                 canvas.height = bbox.height + padding;
 
                 img.onload = () => {
                     ctx.fillStyle = 'white';
                     ctx.fillRect(0, 0, canvas.width, canvas.height);
-                    ctx.drawImage(img, padding/2, padding/2);
+                    ctx.drawImage(img, padding / 2, padding / 2);
                     
-                    const pngUrl = canvas.toDataURL('image/png');
-                    const downloadLink = document.createElement('a');
-                    downloadLink.href = pngUrl;
-                    downloadLink.download = `chartnix-${Date.now()}.png`;
-                    document.body.appendChild(downloadLink);
-                    downloadLink.click();
-                    document.body.removeChild(downloadLink);
+                    try {
+                        const pngUrl = canvas.toDataURL('image/png');
+                        const downloadLink = document.createElement('a');
+                        downloadLink.href = pngUrl;
+                        downloadLink.download = `chartnix-${Date.now()}.png`;
+                        document.body.appendChild(downloadLink);
+                        downloadLink.click();
+                        document.body.removeChild(downloadLink);
+                    } catch (urlErr) {
+                        console.warn("Canvas toDataURL failed, falling back to SVG download", urlErr);
+                        downloadSVG(svgData);
+                    }
                 };
 
-                const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
-                const url = URL.createObjectURL(svgBlob);
-                img.src = url;
+                img.onerror = () => {
+                    console.error("Image load failed for export, falling back to SVG");
+                    downloadSVG(svgData);
+                };
+
+                // Use Base64 encoded string instead of URL.createObjectURL to help bypass some security restrictions
+                const svgBase64 = btoa(unescape(encodeURIComponent(svgData)));
+                img.src = 'data:image/svg+xml;base64,' + svgBase64;
+
             } catch (e) {
-                console.error("Download failed", e);
+                console.error("PNG Download failed entirely", e);
+                const rawSvg = new XMLSerializer().serializeToString(svgElement);
+                downloadSVG(rawSvg);
             }
+        }
+
+        function downloadSVG(svgData) {
+            const blob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const downloadLink = document.createElement('a');
+            downloadLink.href = url;
+            downloadLink.download = `chartnix-${Date.now()}.svg`;
+            document.body.appendChild(downloadLink);
+            downloadLink.click();
+            document.body.removeChild(downloadLink);
+            URL.revokeObjectURL(url);
         }
 
         function saveToHistory(id, title, text, mermaid) {
