@@ -77,8 +77,12 @@
         const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
 
         async function checkAuth() {
-            const { data: { session }, error } = await supabaseClient.auth.getSession();
-            if (error || !session) window.location.replace('/auth.html');
+            try {
+                const { data: { session }, error } = await supabaseClient.auth.getSession();
+                if (error || !session) window.location.replace('/auth.html');
+            } catch (e) {
+                console.error("Auth check failed", e);
+            }
         }
         checkAuth();
 
@@ -237,17 +241,25 @@
 
         window.onload = () => {
             renderHistory();
-            mermaid.initialize({ 
-                startOnLoad: true, 
-                theme: 'neutral', 
-                securityLevel: 'loose',
-                flowchart: { useMaxWidth: true, htmlLabels: true, curve: 'basis' }
-            });
+            try {
+                if (window.mermaid) {
+                    mermaid.initialize({ 
+                        startOnLoad: false, 
+                        theme: 'neutral', 
+                        securityLevel: 'loose',
+                        flowchart: { useMaxWidth: true, htmlLabels: true, curve: 'basis' }
+                    });
+                }
+            } catch (e) {
+                console.error("Mermaid init failed", e);
+            }
         };
 
         function toggleSidebar() {
-            document.getElementById('sidebar').classList.toggle('mobile-nav-active');
-            document.getElementById('mobileOverlay').classList.toggle('hidden');
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('mobileOverlay');
+            if (sidebar) sidebar.classList.toggle('mobile-nav-active');
+            if (overlay) overlay.classList.toggle('hidden');
         }
 
         function autoResize(textarea) {
@@ -256,14 +268,26 @@
         }
 
         function toggleModal(id) {
-            document.getElementById(id).classList.toggle('hidden');
+            const modal = document.getElementById(id);
+            if (modal) modal.classList.toggle('hidden');
         }
 
         function createNewChat() {
             currentChatId = Date.now();
-            document.getElementById('chatBox').innerHTML = '';
-            document.getElementById('emptyState').classList.remove('hidden');
-            document.getElementById('currentChatTitle').innerText = "New Visualization";
+            const chatBox = document.getElementById('chatBox');
+            const emptyState = document.getElementById('emptyState');
+            if (chatBox) chatBox.innerHTML = `
+                <div class="max-w-3xl mx-auto flex flex-col items-center justify-center h-full text-center space-y-4" id="emptyState">
+                    <div class="w-20 h-20 bg-purple-100 dark:bg-purple-900/30 rounded-3xl flex items-center justify-center text-3xl text-purple-600">
+                        <i class="fas fa-chart-bar"></i>
+                    </div>
+                    <h3 class="text-2xl font-bold text-purple-900 dark:text-purple-50">AI Chart Generator</h3>
+                    <p class="text-slate-500 max-w-sm">Describe a flow or provide data for a chart. I'll visualize it using Mermaid.js.</p>
+                </div>
+            `;
+            if (emptyState) emptyState.classList.remove('hidden');
+            const title = document.getElementById('currentChatTitle');
+            if (title) title.innerText = "New Visualization";
         }
 
         async function handleSendMessage() {
@@ -273,7 +297,9 @@
             if (!text) return;
 
             if (!currentChatId) currentChatId = Date.now();
-            document.getElementById('emptyState').classList.add('hidden');
+            const emptyState = document.getElementById('emptyState');
+            if (emptyState) emptyState.classList.add('hidden');
+            
             appendBubble('user', text);
             input.value = '';
             btn.disabled = true;
@@ -293,6 +319,7 @@
 
         function appendBubble(role, content) {
             const chatBox = document.getElementById('chatBox');
+            if (!chatBox) return;
             const id = 'msg-' + Date.now() + Math.random();
             const isAi = role === 'ai';
             const html = `
@@ -313,8 +340,8 @@
             const contentArea = el.querySelector('.content-area');
             const target = el.querySelector('.mermaid-target');
             
-            contentArea.innerHTML = text;
-            if (mermaidCode) {
+            if (contentArea) contentArea.innerHTML = text;
+            if (mermaidCode && target) {
                 target.classList.remove('hidden');
                 const mId = 'm' + Math.random().toString(36).substr(2, 9);
                 target.innerHTML = `
@@ -327,7 +354,7 @@
                 try {
                     setTimeout(() => {
                         const mEl = document.getElementById(mId);
-                        if (mEl) {
+                        if (mEl && window.mermaid) {
                             mermaid.init(undefined, mEl);
                         }
                     }, 50);
@@ -335,44 +362,45 @@
                     target.innerHTML += `<p class="text-xs text-red-500 mt-2">Render error.</p>`;
                 }
             }
-            document.getElementById('chatBox').scrollTop = document.getElementById('chatBox').scrollHeight;
+            const chatBox = document.getElementById('chatBox');
+            if (chatBox) chatBox.scrollTop = chatBox.scrollHeight;
         }
 
         function downloadImage(mId) {
             const svgElement = document.querySelector(`#${mId} svg`);
             if (!svgElement) return;
 
-            const svgData = new XMLSerializer().serializeToString(svgElement);
-            const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d');
-            const img = new Image();
+            try {
+                const svgData = new XMLSerializer().serializeToString(svgElement);
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                const img = new Image();
 
-            // Setup dimensions with padding
-            const bbox = svgElement.getBBox();
-            const padding = 40;
-            canvas.width = bbox.width + padding;
-            canvas.height = bbox.height + padding;
+                const bbox = svgElement.getBBox();
+                const padding = 40;
+                canvas.width = bbox.width + padding;
+                canvas.height = bbox.height + padding;
 
-            img.onload = () => {
-                // White background
-                ctx.fillStyle = 'white';
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
-                // Draw SVG
-                ctx.drawImage(img, padding/2, padding/2);
-                
-                const pngUrl = canvas.toDataURL('image/png');
-                const downloadLink = document.createElement('a');
-                downloadLink.href = pngUrl;
-                downloadLink.download = `chartnix-${Date.now()}.png`;
-                document.body.appendChild(downloadLink);
-                downloadLink.click();
-                document.body.removeChild(downloadLink);
-            };
+                img.onload = () => {
+                    ctx.fillStyle = 'white';
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    ctx.drawImage(img, padding/2, padding/2);
+                    
+                    const pngUrl = canvas.toDataURL('image/png');
+                    const downloadLink = document.createElement('a');
+                    downloadLink.href = pngUrl;
+                    downloadLink.download = `chartnix-${Date.now()}.png`;
+                    document.body.appendChild(downloadLink);
+                    downloadLink.click();
+                    document.body.removeChild(downloadLink);
+                };
 
-            // Use blob for reliable conversion
-            const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
-            const url = URL.createObjectURL(svgBlob);
-            img.src = url;
+                const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+                const url = URL.createObjectURL(svgBlob);
+                img.src = url;
+            } catch (e) {
+                console.error("Download failed", e);
+            }
         }
 
         function saveToHistory(id, title, text, mermaid) {
@@ -389,6 +417,7 @@
 
         function renderHistory() {
             const list = document.getElementById('historyList');
+            if (!list) return;
             list.innerHTML = chats.map(chat => `
                 <div onclick="loadChat(${chat.id})" class="p-3 rounded-xl hover:bg-purple-100 dark:hover:bg-purple-900/30 cursor-pointer transition-all">
                     <span class="text-sm truncate block font-medium text-purple-900 dark:text-purple-200">
@@ -402,19 +431,26 @@
             const chat = chats.find(c => c.id === id);
             if (!chat) return;
             currentChatId = id;
-            document.getElementById('emptyState').classList.add('hidden');
-            document.getElementById('chatBox').innerHTML = '';
-            document.getElementById('currentChatTitle').innerText = chat.title;
-            chat.messages.forEach(m => {
-                const bId = appendBubble(m.role, m.text);
-                if (m.mermaid) updateBubble(bId, m.text, m.mermaid);
-            });
+            const chatBox = document.getElementById('chatBox');
+            if (chatBox) {
+                chatBox.innerHTML = '';
+                const title = document.getElementById('currentChatTitle');
+                if (title) title.innerText = chat.title;
+                chat.messages.forEach(m => {
+                    const bId = appendBubble(m.role, m.text);
+                    if (m.mermaid) updateBubble(bId, m.text, m.mermaid);
+                });
+            }
             if (window.innerWidth < 768) toggleSidebar();
         }
 
         async function handleLogout() {
-            await supabaseClient.auth.signOut();
-            window.location.replace('/auth.html');
+            try {
+                await supabaseClient.auth.signOut();
+                window.location.replace('/auth.html');
+            } catch (e) {
+                window.location.replace('/auth.html');
+            }
         }
     </script>
 </body>
