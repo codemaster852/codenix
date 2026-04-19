@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ChartNix | Local AI Visualizer</title>
+    <title>ChartNix | Local Logic Engine</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -44,10 +44,17 @@
             margin-top: 12px;
             overflow-x: auto;
             border: 1px solid #e2e8f0;
+            min-height: 100px;
         }
         .scroll-custom::-webkit-scrollbar { width: 4px; }
         .scroll-custom::-webkit-scrollbar-thumb { background: #8b5cf6; border-radius: 10px; }
         .mobile-nav-active { transform: translateX(0) !important; }
+        
+        /* Prevent mermaid from being too small */
+        .mermaid svg {
+            min-width: 300px;
+            height: auto;
+        }
     </style>
 </head>
 <body class="h-screen flex flex-col md:flex-row overflow-hidden">
@@ -86,21 +93,21 @@
         
         <div class="px-4 mb-4">
             <button onclick="createNewChat()" class="w-full py-3 px-4 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-medium flex items-center justify-center gap-2 transition-all shadow-lg shadow-purple-500/20">
-                <i class="fas fa-plus"></i> <span data-i18n="newChat">New Chart</span>
+                <i class="fas fa-plus"></i> <span>New Chart</span>
             </button>
         </div>
 
         <div class="flex-1 overflow-y-auto px-4 space-y-2 scroll-custom">
-            <p class="text-[10px] uppercase tracking-widest text-purple-400 font-bold px-2 mb-2" data-i18n="history">History</p>
+            <p class="text-[10px] uppercase tracking-widest text-purple-400 font-bold px-2 mb-2">History</p>
             <div id="historyList" class="space-y-1"></div>
         </div>
 
         <div class="p-4 border-t border-purple-100 dark:border-purple-900 space-y-2">
             <button onclick="toggleModal('guideModal')" class="w-full p-2.5 text-sm rounded-lg hover:bg-purple-100 dark:hover:bg-purple-900/40 flex items-center gap-3 transition-colors">
-                <i class="fas fa-book text-purple-500"></i> <span data-i18n="guide">Guide</span>
+                <i class="fas fa-lightbulb text-purple-500"></i> <span>Syntax Guide</span>
             </button>
             <button onclick="handleLogout()" class="w-full p-2.5 text-sm rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-3 transition-colors">
-                <i class="fas fa-sign-out-alt"></i> <span data-i18n="logout">Sign Out</span>
+                <i class="fas fa-sign-out-alt"></i> <span>Sign Out</span>
             </button>
         </div>
     </aside>
@@ -116,16 +123,16 @@
                 </button>
                 <h2 class="font-semibold text-purple-900 dark:text-purple-100" id="currentChatTitle">Untitled Chart</h2>
             </div>
-            <span class="text-[10px] font-bold px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 uppercase">Local-Engine</span>
+            <span class="text-[10px] font-bold px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 uppercase tracking-tighter">Native-JS-Parser</span>
         </header>
 
         <div id="chatBox" class="flex-1 overflow-y-auto p-4 md:p-8 space-y-6 scroll-custom">
             <div class="max-w-3xl mx-auto flex flex-col items-center justify-center h-full text-center space-y-4" id="emptyState">
                 <div class="w-20 h-20 bg-purple-100 dark:bg-purple-900/30 rounded-3xl flex items-center justify-center text-3xl text-purple-600">
-                    <i class="fas fa-code"></i>
+                    <i class="fas fa-bolt"></i>
                 </div>
-                <h3 class="text-2xl font-bold text-purple-900 dark:text-purple-50" data-i18n="welcome">Local Chart Generator</h3>
-                <p class="text-slate-500 max-w-sm" data-i18n="subtitle">Describe your process. Example: "User logs in, then checks dashboard, then logout."</p>
+                <h3 class="text-2xl font-bold text-purple-900 dark:text-purple-50">Local Chart Generator</h3>
+                <p class="text-slate-500 max-w-sm">No API needed. Just describe steps. <br>Try: <code class="bg-purple-50 dark:bg-purple-900/30 p-1 rounded">Login then check dashboard then logout</code></p>
             </div>
         </div>
 
@@ -136,8 +143,9 @@
                         id="userInput"
                         rows="1" 
                         class="w-full bg-transparent border-none focus:ring-0 resize-none p-4 text-sm md:text-base pr-14 dark:text-white"
-                        placeholder="Describe your process..."
+                        placeholder="Step 1 then Step 2 then Step 3..."
                         oninput="autoResize(this)"
+                        onkeydown="if(event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); handleSendMessage(); }"
                     ></textarea>
                     <button 
                         onclick="handleSendMessage()"
@@ -154,60 +162,82 @@
     <div id="guideModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] hidden flex items-center justify-center p-4">
         <div class="bg-white dark:bg-zinc-950 w-full max-w-lg rounded-2xl p-6 shadow-2xl border border-purple-100 dark:border-purple-900">
             <div class="flex justify-between items-center mb-6">
-                <h3 class="text-xl font-bold text-purple-600">How to use</h3>
+                <h3 class="text-xl font-bold text-purple-600">Parser Syntax</h3>
                 <button onclick="toggleModal('guideModal')" class="text-slate-400 hover:text-purple-500"><i class="fas fa-times"></i></button>
             </div>
             <div class="space-y-4 text-sm dark:text-purple-100">
-                <p>• Use <strong>"then"</strong> or <strong>"to"</strong> to create steps: <em>"Input to Process then Output"</em></p>
-                <p>• Use <strong>"if"</strong> for decisions: <em>"Check age, if valid then enter, if not then exit"</em></p>
-                <p>• It works entirely using local JavaScript parsing logic.</p>
+                <div class="p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
+                    <p class="font-bold mb-1">Standard Flow:</p>
+                    <code class="text-xs">Step one then step two then step three</code>
+                </div>
+                <div class="p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
+                    <p class="font-bold mb-1">Decisions:</p>
+                    <code class="text-xs">If logged in then dashboard, if not then login page</code>
+                </div>
+                <p>This engine is 100% private and runs in your browser using local regex processing.</p>
             </div>
         </div>
     </div>
 
     <script>
-        // --- LOCAL JS ENGINE LOGIC ---
+        // --- IMPROVED LOCAL JS PARSING ENGINE ---
         function generateMermaidFromText(input) {
-            const text = input.toLowerCase().trim();
+            const cleanInput = input.trim().toLowerCase();
+            if (!cleanInput) return null;
+
             let diagram = "graph TD\n";
             
-            // Basic Step Splitter
-            const steps = text.split(/then|to|,|next|after that/).map(s => s.trim()).filter(s => s);
-            
-            if (steps.length === 0) return null;
+            // Normalize separators
+            const normalized = cleanInput
+                .replace(/\bthen\b/g, '|')
+                .replace(/\bto\b/g, '|')
+                .replace(/\bnext\b/g, '|')
+                .replace(/\bafter that\b/g, '|')
+                .replace(/,/g, '|')
+                .replace(/\s*->\s*/g, '|');
 
-            const sanitized = (str) => str.replace(/[^a-z0-9]/gi, '_');
-            const label = (str) => str.charAt(0).toUpperCase() + str.slice(1);
+            const segments = normalized.split('|').map(s => s.trim()).filter(s => s);
+            if (segments.length < 1) return null;
 
-            let lastNode = null;
+            const nodeMap = new Map();
+            const sanitizedId = (str) => 'node_' + str.replace(/[^a-z0-9]/gi, '').substring(0, 15);
+            const formatLabel = (str) => str.charAt(0).toUpperCase() + str.slice(1);
 
-            steps.forEach((step, index) => {
-                const nodeId = sanitized(step) + index;
-                const nodeLabel = label(step);
+            let lastNodeId = null;
 
-                if (step.includes('if')) {
-                    // Simple Decision Logic
-                    diagram += `  ${nodeId}{${nodeLabel}?}\n`;
+            segments.forEach((segment, index) => {
+                const id = sanitizedId(segment) + "_" + index;
+                const label = formatLabel(segment);
+                
+                // Add the node to the graph
+                if (segment.includes('if') || segment.includes('check') || segment.includes('?')) {
+                    diagram += `  ${id}{${label}}\n`;
                 } else {
-                    diagram += `  ${nodeId}[${nodeLabel}]\n`;
+                    diagram += `  ${id}[${label}]\n`;
                 }
 
-                if (lastNode) {
-                    diagram += `  ${lastNode} --> ${nodeId}\n`;
+                // Connect to previous if exists
+                if (lastNodeId) {
+                    diagram += `  ${lastNodeId} --> ${id}\n`;
                 }
-                lastNode = nodeId;
+                lastNodeId = id;
             });
 
             return diagram;
         }
 
-        // --- UI LOGIC ---
-        let chats = JSON.parse(localStorage.getItem('chartnix_local_history')) || [];
+        // --- UI & STATE LOGIC ---
+        let chats = JSON.parse(localStorage.getItem('chartnix_local_v2')) || [];
         let currentChatId = null;
 
         window.onload = () => {
             renderHistory();
-            mermaid.initialize({ startOnLoad: true, theme: 'neutral' });
+            mermaid.initialize({ 
+                startOnLoad: true, 
+                theme: 'neutral',
+                securityLevel: 'loose',
+                flowchart: { useMaxWidth: true, htmlLabels: true }
+            });
         };
 
         function toggleSidebar() {
@@ -244,25 +274,29 @@
             input.value = '';
             input.style.height = 'auto';
 
-            const thinkingId = appendBubble('ai', '<i class="fas fa-cog fa-spin"></i> Parsing local logic...');
+            // Show local processing state
+            const processingId = appendBubble('ai', '<span class="flex items-center gap-2"><i class="fas fa-microchip animate-pulse"></i> Generating diagram locally...</span>');
             
             setTimeout(() => {
                 const mermaidCode = generateMermaidFromText(text);
-                const responseText = mermaidCode ? "Here is the diagram generated by the local JS engine:" : "I couldn't parse that into a diagram. Try using 'then' to separate steps.";
-                updateBubble(thinkingId, responseText, mermaidCode);
+                const responseText = mermaidCode 
+                    ? "I've analyzed your steps and generated this flow diagram:" 
+                    : "I couldn't identify the steps. Try using 'then' or 'to' between your process steps.";
+                
+                updateBubble(processingId, responseText, mermaidCode);
                 saveToHistory(currentChatId, text, responseText, mermaidCode);
-            }, 600);
+            }, 400);
         }
 
         function appendBubble(role, content) {
             const chatBox = document.getElementById('chatBox');
-            const id = 'msg-' + Date.now();
+            const id = 'msg-' + Date.now() + Math.random();
             const isAi = role === 'ai';
             const html = `
-                <div id="${id}" class="flex ${isAi ? 'justify-start' : 'justify-end'} animate-in slide-in-from-bottom-1 duration-200">
-                    <div class="max-w-[90%] md:max-w-[80%] ${isAi ? 'chat-bubble-ai' : 'bg-purple-600 text-white'} p-4 rounded-2xl">
-                        <div class="text-sm content-area">${content}</div>
-                        <div class="mermaid-target hidden"></div>
+                <div id="${id}" class="flex ${isAi ? 'justify-start' : 'justify-end'} animate-in fade-in slide-in-from-bottom-2 duration-300">
+                    <div class="max-w-[90%] md:max-w-[85%] ${isAi ? 'chat-bubble-ai' : 'bg-purple-600 text-white'} p-4 rounded-2xl shadow-sm">
+                        <div class="text-sm md:text-base content-area">${content}</div>
+                        <div class="mermaid-target hidden w-full overflow-hidden"></div>
                     </div>
                 </div>`;
             chatBox.insertAdjacentHTML('beforeend', html);
@@ -272,40 +306,57 @@
 
         function updateBubble(id, text, mermaidCode) {
             const el = document.getElementById(id);
+            if (!el) return;
             const contentArea = el.querySelector('.content-area');
             const target = el.querySelector('.mermaid-target');
             
             contentArea.innerHTML = text;
             if (mermaidCode) {
                 target.classList.remove('hidden');
-                target.innerHTML = `<div class="mermaid-card"><pre class="mermaid">${mermaidCode}</pre></div>`;
-                mermaid.run({ nodes: target.querySelectorAll('.mermaid') });
+                // Unique ID for each mermaid diagram to prevent collisions
+                const mId = 'mermaid-' + Math.random().toString(36).substr(2, 9);
+                target.innerHTML = `<div class="mermaid-card"><div class="mermaid" id="${mId}">${mermaidCode}</div></div>`;
+                
+                try {
+                    mermaid.init(undefined, document.getElementById(mId));
+                } catch (e) {
+                    console.error("Mermaid error:", e);
+                    target.innerHTML += `<p class="text-xs text-red-500 mt-2">Error rendering diagram.</p>`;
+                }
             }
+            document.getElementById('chatBox').scrollTop = document.getElementById('chatBox').scrollHeight;
         }
 
         function saveToHistory(id, title, text, mermaid) {
             const existing = chats.find(c => c.id === id);
             const msg = { text, role: 'ai', mermaid };
             if (!existing) {
-                chats.unshift({ id, title: title.substring(0, 25), messages: [{text: title, role: 'user'}, msg] });
+                chats.unshift({ 
+                    id, 
+                    title: title.substring(0, 25) + (title.length > 25 ? '...' : ''), 
+                    messages: [{text: title, role: 'user'}, msg] 
+                });
             } else {
                 existing.messages.push({text: title, role: 'user'}, msg);
             }
-            localStorage.setItem('chartnix_local_history', JSON.stringify(chats));
+            localStorage.setItem('chartnix_local_v2', JSON.stringify(chats));
             renderHistory();
         }
 
         function renderHistory() {
             const list = document.getElementById('historyList');
             list.innerHTML = chats.map(chat => `
-                <div onclick="loadChat(${chat.id})" class="p-3 rounded-xl hover:bg-purple-100 dark:hover:bg-purple-900/30 cursor-pointer transition-all">
-                    <span class="text-sm truncate block text-purple-900 dark:text-purple-200">${chat.title}</span>
+                <div onclick="loadChat(${chat.id})" class="p-3 rounded-xl hover:bg-purple-100 dark:hover:bg-purple-900/30 cursor-pointer transition-all border border-transparent hover:border-purple-200">
+                    <span class="text-sm truncate block font-medium text-purple-900 dark:text-purple-200">
+                        <i class="fas fa-chart-line mr-2 opacity-50"></i>${chat.title}
+                    </span>
                 </div>
             `).join('');
         }
 
         function loadChat(id) {
             const chat = chats.find(c => c.id === id);
+            if (!chat) return;
             currentChatId = id;
             document.getElementById('emptyState').classList.add('hidden');
             document.getElementById('chatBox').innerHTML = '';
