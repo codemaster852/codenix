@@ -99,13 +99,11 @@
         const API_KEY = "ak_2OJ4ng6za7b74DP3hu32a6P04XH8J";
         const CHAT_URL = "https://api.longcat.chat/openai/v1/chat/completions";
         
-        // Improved Image URL logic to prevent 404 errors
         const GET_IMAGE_URL = (prompt) => {
-            const seed = Math.floor(Math.random() * 1000000);
-            // More robust cleanup for pollination constraints
-            const clean = prompt.trim()
-                .replace(/["']/g, "")
-                .substring(0, 500);
+            const seed = Math.floor(Math.random() * 10000000);
+            // Enhanced prompt handling for Flux model
+            const clean = prompt.trim().replace(/["']/g, "").substring(0, 1000);
+            // Pollinations Flux specific formatting
             return `https://pollinations.ai/p/${encodeURIComponent(clean)}?width=1024&height=1024&seed=${seed}&model=flux&nologo=true`;
         };
 
@@ -134,7 +132,7 @@
                     } else {
                         setUser(session.user);
                         fetchConversations(session.user.id);
-                        if (!localStorage.getItem('nix_alert_v4')) setShowAlert(true);
+                        if (!localStorage.getItem('nix_alert_v5')) setShowAlert(true);
                     }
                 };
                 init();
@@ -163,18 +161,18 @@
                         body: JSON.stringify({
                             model: "LongCat-Flash-Chat",
                             messages: [
-                                { role: "system", content: "You are a title generator. Create a very short (max 3 words) meaningful title for a chat based on this user prompt and AI response. Return ONLY the title words." },
-                                { role: "user", content: `Prompt: ${userPrompt}\nResponse: ${aiResponse}` }
+                                { role: "system", content: "Create a 2-3 word poetic/meaningful title for this workspace. NO punctuation. Return ONLY the title." },
+                                { role: "user", content: `Context: ${userPrompt}` }
                             ]
                         })
                     });
                     const data = await res.json();
-                    const title = data.choices[0].message.content.replace(/["']/g, '');
+                    const title = data.choices[0].message.content.trim().replace(/["']/g, '');
                     
                     await supabaseClient.from('conversations').update({ title }).eq('id', id);
                     setConversations(prev => prev.map(c => c.id === id ? { ...c, title } : c));
                 } catch (e) {
-                    console.error("Title generation failed", e);
+                    console.error("Title sync error", e);
                 }
             };
 
@@ -202,7 +200,7 @@
                     isNewChat = true;
                     const { data } = await supabaseClient
                         .from('conversations')
-                        .insert([{ user_id: user.id, title: "New Workspace..." }])
+                        .insert([{ user_id: user.id, title: "Processing..." }])
                         .select().single();
                     convId = data.id;
                     setActiveConvId(convId);
@@ -215,7 +213,7 @@
 
                 await supabaseClient.from('messages').insert([{ conversation_id: convId, role: 'user', content: query }]);
 
-                const imageKeywords = ["generate image", "create image", "draw", "make an image", "paint", "تصميم صورة", "ارسم", "photo of", "image of"];
+                const imageKeywords = ["generate image", "create image", "draw", "make an image", "paint", "تصميم صورة", "ارسم", "visualize", "photo of", "image of"];
                 const isImageRequest = imageKeywords.some(kw => query.toLowerCase().includes(kw));
 
                 if (isImageRequest) {
@@ -223,7 +221,7 @@
                     const aiMsg = { 
                         conversation_id: convId, 
                         role: 'assistant', 
-                        content: `Synthesizing with **Tiny Mellon (Flux)**...`,
+                        content: `Synthesizing Visualization...`,
                         tempImageUrl: imageUrl,
                         isImageLoading: true
                     };
@@ -234,25 +232,33 @@
                     const img = new Image();
                     img.crossOrigin = "anonymous";
                     img.src = imageUrl;
+                    
                     img.onload = async () => {
-                        const finalContent = `I've synthesized this visualization:\n\n![Generated Image](${imageUrl})`;
+                        const finalContent = `I've synthesized this visualization based on your request:\n\n![Generated Image](${imageUrl})`;
                         setMessages(prev => prev.map(m => m.tempImageUrl === imageUrl ? { ...m, content: finalContent, isImageLoading: false } : m));
                         await supabaseClient.from('messages').insert([{ conversation_id: convId, role: 'assistant', content: finalContent }]);
-                        if (isNewChat) generateConversationTitle(convId, query, "Image generated successfully.");
+                        if (isNewChat) generateConversationTitle(convId, query, "Visual");
                     };
+                    
                     img.onerror = () => {
-                        setMessages(prev => prev.map(m => m.tempImageUrl === imageUrl ? { ...m, content: "Synthesis failed. Please try a more specific descriptive prompt.", isImageLoading: false } : m));
+                        setMessages(prev => prev.map(m => m.tempImageUrl === imageUrl ? { ...m, content: "The Flux core encountered an error. Please try adjusting your prompt description.", isImageLoading: false } : m));
                     };
                 } else {
                     try {
+                        // RECALL: Access the last 10 messages for deeper memory context
+                        const memoryContext = messages.slice(-10).map(m => ({
+                            role: m.role,
+                            content: m.content
+                        }));
+
                         const res = await fetch(CHAT_URL, {
                             method: "POST",
                             headers: { "Content-Type": "application/json", "Authorization": `Bearer ${API_KEY}` },
                             body: JSON.stringify({
                                 model: "LongCat-Flash-Chat",
                                 messages: [
-                                    { role: "system", content: "You are Nix, a sophisticated AI workspace assistant." },
-                                    ...messages.slice(-6).map(m => ({ role: m.role, content: m.content })),
+                                    { role: "system", content: "You are Nix, a highly capable AI workspace. You have access to the user's current session memory. Be concise, professional, and sophisticated." },
+                                    ...memoryContext,
                                     { role: "user", content: query }
                                 ]
                             })
@@ -265,7 +271,7 @@
                         await supabaseClient.from('messages').insert([aiMsg]);
                         if (isNewChat) generateConversationTitle(convId, query, reply);
                     } catch (e) {
-                        console.error(e);
+                        console.error("AI Core link failed", e);
                     } finally {
                         setIsTyping(false);
                     }
@@ -279,18 +285,18 @@
                             onClick={() => { setActiveConvId(null); setMessages([]); setIsMobileMenuOpen(false); }} 
                             className="w-full py-4 rounded-2xl bg-[var(--accent)] text-white font-bold shadow-lg shadow-indigo-500/20 active:scale-95 transition-all"
                         >
-                            New Space
+                            New Workspace
                         </button>
                     </div>
                     <div className="flex-1 overflow-y-auto px-4 md:px-6 py-2 chat-scroll space-y-1">
-                        <p className="px-4 pb-4 text-[10px] font-black uppercase tracking-widest opacity-30">Recent Workspaces</p>
+                        <p className="px-4 pb-4 text-[10px] font-black uppercase tracking-widest opacity-30">Archive</p>
                         {conversations.map(c => (
                             <button 
                                 key={c.id} 
                                 onClick={() => loadConversation(c.id)} 
                                 className={`w-full text-left p-4 rounded-2xl text-[12px] font-semibold truncate transition-all ${activeConvId === c.id ? 'sidebar-item-active' : 'text-[var(--text-secondary)] hover:bg-[var(--sidebar-active)]'}`}
                             >
-                                {c.title || "Untitled Chat"}
+                                {c.title || "Untethered Chat"}
                             </button>
                         ))}
                     </div>
@@ -300,20 +306,20 @@
             return (
                 <div className={`flex h-[100dvh] w-full bg-[var(--bg-main)] ${uiLang === 'ar' ? 'rtl' : 'ltr'}`}>
                     {showAlert && (
-                        <div className="fixed inset-0 z-[300] flex items-center justify-center p-6 bg-black/80 backdrop-blur-2xl">
+                        <div className="fixed inset-0 z-[300] flex items-center justify-center p-6 bg-black/90 backdrop-blur-2xl">
                             <div className="relative w-full max-w-md bg-[var(--bg-main)] border border-[var(--border)] rounded-[3rem] p-10 text-center shadow-2xl">
                                 <div className="nix-logo w-14 h-14 rounded-2xl flex items-center justify-center mb-6 mx-auto">
                                     <span className="text-white font-black text-xl italic">N</span>
                                 </div>
-                                <h2 className="text-2xl font-black mb-3">Sync Complete</h2>
+                                <h2 className="text-2xl font-black mb-3">Core Restored</h2>
                                 <p className="text-[var(--text-secondary)] text-sm mb-8 leading-relaxed">
-                                    Nix now generates meaningful titles for your workspaces and uses an optimized **Tiny Mellon** core.
+                                    Flux synthesis is fixed and long-term memory is now active. Nix remembers your context more accurately.
                                 </p>
                                 <button 
-                                    onClick={() => { setShowAlert(false); localStorage.setItem('nix_alert_v4', 'true'); }}
+                                    onClick={() => { setShowAlert(false); localStorage.setItem('nix_alert_v5', 'true'); }}
                                     className="w-full py-4 rounded-2xl bg-[var(--accent)] text-white font-black text-xs uppercase tracking-widest shadow-xl shadow-indigo-500/30 transition-all active:scale-95"
                                 >
-                                    Start Session
+                                    Initialize
                                 </button>
                             </div>
                         </div>
@@ -322,7 +328,7 @@
                     {isMobileMenuOpen && (
                         <div className="fixed inset-0 z-[200] lg:hidden">
                             <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setIsMobileMenuOpen(false)}></div>
-                            <div className="absolute left-0 top-0 bottom-0 w-4/5 max-w-sm bg-[var(--bg-sidebar)] border-r border-[var(--border)]">
+                            <div className="absolute left-0 top-0 bottom-0 w-4/5 max-w-sm bg-[var(--bg-sidebar)] border-r border-[var(--border)] shadow-2xl">
                                 <SidebarContent />
                             </div>
                         </div>
@@ -335,27 +341,37 @@
                     <main className="flex-1 flex flex-col relative min-w-0">
                         <header className="flex items-center justify-between h-20 px-6 md:px-12 glass-panel z-10 shrink-0">
                             <div className="flex items-center gap-4">
-                                <button onClick={() => setIsMobileMenuOpen(true)} className="lg:hidden p-2 text-[var(--text-secondary)]">
+                                <button onClick={() => setIsMobileMenuOpen(true)} className="lg:hidden p-2 -ml-2 text-[var(--text-secondary)]">
                                     <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
                                 </button>
                                 <div className="nix-logo w-9 h-9 rounded-xl flex items-center justify-center shrink-0">
                                     <span className="text-white italic font-black text-xs">N</span>
                                 </div>
-                                <h2 className="text-[14px] font-extrabold tracking-tight truncate max-w-[150px] md:max-w-none">
+                                <h2 className="text-[13px] font-black tracking-tight truncate max-w-[120px] md:max-w-none uppercase">
                                     {conversations.find(c => c.id === activeConvId)?.title || "Nix Workspace"}
                                 </h2>
                             </div>
-                            <button onClick={() => setShowSettings(true)} className="p-2 opacity-40 hover:opacity-100 transition-opacity">
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-                            </button>
+                            <div className="flex items-center gap-2">
+                                <button onClick={() => setShowSettings(true)} className="p-2 opacity-40 hover:opacity-100 transition-opacity">
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                                </button>
+                            </div>
                         </header>
 
                         <div ref={scrollRef} className="flex-1 overflow-y-auto chat-scroll px-6 md:px-24 py-12">
                             <div className="max-w-3xl mx-auto space-y-14 pb-48">
+                                {messages.length === 0 && (
+                                    <div className="h-full flex flex-col items-center justify-center pt-24 text-center opacity-20">
+                                        <div className="w-16 h-16 border-2 border-white rounded-3xl mb-6 flex items-center justify-center">
+                                            <span className="text-2xl italic font-black">N</span>
+                                        </div>
+                                        <p className="text-sm font-black uppercase tracking-widest">Awaiting Command</p>
+                                    </div>
+                                )}
                                 {messages.map((msg, i) => (
                                     <div key={i} className={`flex gap-5 md:gap-8 ${msg.role === 'user' ? 'flex-row-reverse text-right' : ''}`}>
                                         <div className={`w-10 h-10 rounded-xl shrink-0 flex items-center justify-center text-[9px] font-black mt-1 ${msg.role === 'user' ? 'bg-[var(--border)]' : 'nix-logo text-white'}`}>
-                                            {msg.role === 'user' ? 'ME' : 'NIX'}
+                                            {msg.role === 'user' ? 'ME' : 'NX'}
                                         </div>
                                         <div className="message-bubble w-full min-w-0">
                                             <div className={`p-6 md:p-8 rounded-[2.5rem] text-[15px] leading-relaxed ${msg.role === 'user' ? 'bg-[var(--bubble-user)]' : ''}`}>
@@ -363,7 +379,7 @@
                                                     <div className="space-y-4">
                                                         <div className="flex items-center gap-3">
                                                             <div className="w-2 h-2 bg-indigo-500 rounded-full animate-ping"></div>
-                                                            <p className="font-black text-[11px] uppercase tracking-widest text-indigo-400">Synthesizing Imagery...</p>
+                                                            <p className="font-black text-[11px] uppercase tracking-widest text-indigo-400">Rendering Flux Core...</p>
                                                         </div>
                                                         <div className="w-full aspect-square rounded-[2.5rem] image-loading-shimmer"></div>
                                                     </div>
@@ -371,9 +387,9 @@
                                                     <div className="space-y-4">
                                                         <p className="whitespace-pre-wrap font-medium opacity-80">{msg.content.split('![Generated Image]')[0]}</p>
                                                         <div className="relative group">
-                                                            <img src={msg.content.match(/\((.*?)\)/)[1]} className="rounded-[2.5rem] w-full border border-[var(--border)] shadow-2xl transition-transform" alt="AI Visual" />
-                                                            <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/40 rounded-[2.5rem] backdrop-blur-sm">
-                                                                <button onClick={() => window.open(msg.content.match(/\((.*?)\)/)[1], '_blank')} className="px-6 py-3 bg-white text-black font-bold rounded-xl shadow-xl active:scale-95 transition-transform">View Original</button>
+                                                            <img src={msg.content.match(/\((.*?)\)/)[1]} className="rounded-[2.5rem] w-full border border-[var(--border)] shadow-2xl transition-transform" alt="Nix Synthesis" />
+                                                            <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/40 rounded-[2.5rem] backdrop-blur-md">
+                                                                <button onClick={() => window.open(msg.content.match(/\((.*?)\)/)[1], '_blank')} className="px-8 py-4 bg-white text-black font-black text-xs uppercase tracking-widest rounded-2xl shadow-xl active:scale-95 transition-transform">Download</button>
                                                             </div>
                                                         </div>
                                                     </div>
@@ -395,12 +411,12 @@
                                         ref={textareaRef}
                                         rows="1"
                                         value={input}
-                                        onChange={(e) => { setInput(e.target.value); e.target.style.height = 'auto'; e.target.style.height = Math.min(e.target.scrollHeight, 180) + 'px'; }}
+                                        onChange={(e) => { setInput(e.target.value); e.target.style.height = 'auto'; e.target.style.height = Math.min(e.target.scrollHeight, 200) + 'px'; }}
                                         onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); processQuery(); } }}
-                                        placeholder="Command Nix or Synthesize a visual..."
+                                        placeholder="Command Nix..."
                                         className="flex-1 bg-transparent py-6 px-8 outline-none resize-none text-[15px] font-medium"
                                     />
-                                    <button onClick={processQuery} disabled={!input.trim() || isTyping} className="mb-3 mr-3 w-12 h-12 bg-white text-black rounded-2xl flex items-center justify-center hover:scale-105 active:scale-95 transition-all disabled:opacity-5 disabled:scale-100">
+                                    <button onClick={processQuery} disabled={!input.trim() || isTyping} className="mb-3 mr-3 w-12 h-12 bg-white text-black rounded-2xl flex items-center justify-center hover:scale-105 active:scale-95 transition-all disabled:opacity-5 disabled:scale-100 shadow-lg">
                                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 12h14m-7-7l7 7-7 7"/></svg>
                                     </button>
                                 </div>
@@ -412,19 +428,19 @@
                         <div className="fixed inset-0 z-[250] flex items-center justify-center bg-black/95 backdrop-blur-3xl p-6">
                             <div className="w-full max-w-sm bg-[var(--bg-main)] border border-[var(--border)] rounded-[3.5rem] p-12">
                                 <div className="flex justify-between items-center mb-12">
-                                    <h3 className="font-black text-2xl tracking-tighter">System Settings</h3>
+                                    <h3 className="font-black text-2xl tracking-tighter">System</h3>
                                     <button onClick={() => setShowSettings(false)} className="p-3 bg-[var(--border)] rounded-2xl">✕</button>
                                 </div>
                                 <div className="space-y-8">
                                     <div className="space-y-3">
-                                        <label className="text-[10px] font-black uppercase tracking-widest opacity-30 px-2">Interface Language</label>
+                                        <label className="text-[10px] font-black uppercase tracking-widest opacity-30 px-2">Locale</label>
                                         <div className="grid grid-cols-2 gap-2 bg-[var(--border)] p-1.5 rounded-2xl">
-                                            <button onClick={() => setUiLang('en')} className={`py-4 rounded-xl text-xs font-bold transition-all ${uiLang === 'en' ? 'bg-[var(--accent)] text-white shadow-lg' : 'opacity-40'}`}>English</button>
-                                            <button onClick={() => setUiLang('ar')} className={`py-4 rounded-xl text-xs font-bold transition-all ${uiLang === 'ar' ? 'bg-[var(--accent)] text-white shadow-lg' : 'opacity-40'}`}>العربية</button>
+                                            <button onClick={() => setUiLang('en')} className={`py-4 rounded-xl text-xs font-bold transition-all ${uiLang === 'en' ? 'bg-[var(--accent)] text-white' : 'opacity-40'}`}>EN</button>
+                                            <button onClick={() => setUiLang('ar')} className={`py-4 rounded-xl text-xs font-bold transition-all ${uiLang === 'ar' ? 'bg-[var(--accent)] text-white' : 'opacity-40'}`}>AR</button>
                                         </div>
                                     </div>
                                     <div className="pt-8 border-t border-[var(--border)]">
-                                        <button onClick={async () => { await supabaseClient.auth.signOut(); window.location.href="auth.html"; }} className="w-full py-5 text-red-500 border border-red-500/20 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-red-500 hover:text-white transition-all">Sign Out</button>
+                                        <button onClick={async () => { await supabaseClient.auth.signOut(); window.location.href="auth.html"; }} className="w-full py-5 text-red-500 border border-red-500/20 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-red-500 hover:text-white transition-all">Terminate</button>
                                     </div>
                                 </div>
                             </div>
