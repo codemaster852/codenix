@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Nix - Intelligent Workspace</title>
+    <title>Nix Hybrid - AI Intelligence</title>
     <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -20,7 +20,7 @@
             --text-primary: #fdfdfd;
             --text-secondary: #8e949e;
             --border: rgba(255, 255, 255, 0.08);
-            --glass: rgba(10, 10, 12, 0.8);
+            --glass: rgba(10, 10, 12, 0.85);
             --bubble-user: #1c1c1f;
             --sidebar-active: rgba(255, 255, 255, 0.05);
         }
@@ -35,57 +35,68 @@
 
         .glass-panel {
             background: var(--glass);
-            backdrop-filter: blur(24px) saturate(180%);
-            -webkit-backdrop-filter: blur(24px) saturate(180%);
+            backdrop-filter: blur(30px) saturate(160%);
+            -webkit-backdrop-filter: blur(30px) saturate(160%);
             border-bottom: 1px solid var(--border);
         }
 
-        .input-container-glass {
+        .input-area {
             background: var(--glass);
-            backdrop-filter: blur(30px);
-            -webkit-backdrop-filter: blur(30px);
+            backdrop-filter: blur(40px);
+            -webkit-backdrop-filter: blur(40px);
             border: 1px solid var(--border);
-            box-shadow: 0 10px 40px -10px rgba(0,0,0,0.5);
+            box-shadow: 0 10px 50px -10px rgba(0,0,0,0.7);
         }
 
-        .sidebar-item-active {
-            background: var(--sidebar-active);
-            color: var(--text-primary);
-            box-shadow: inset 3px 0 0 0 var(--accent);
-        }
-
-        .chat-scroll::-webkit-scrollbar { width: 4px; }
+        .chat-scroll::-webkit-scrollbar { width: 5px; }
         .chat-scroll::-webkit-scrollbar-track { background: transparent; }
-        .chat-scroll::-webkit-scrollbar-thumb { background: rgba(128,128,128,0.15); border-radius: 10px; }
+        .chat-scroll::-webkit-scrollbar-thumb { background: rgba(128,128,128,0.2); border-radius: 10px; }
 
-        .message-bubble {
-            max-width: 90%;
-            animation: messageEntry 0.6s cubic-bezier(0.2, 0.8, 0.2, 1);
+        .message-anim {
+            animation: slideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1);
         }
 
-        @keyframes messageEntry {
-            from { opacity: 0; transform: translateY(12px) scale(0.98); }
-            to { opacity: 1; transform: translateY(0) scale(1); }
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
         }
 
         .nix-logo {
             background: linear-gradient(135deg, #818cf8 0%, #6366f1 100%);
-            box-shadow: 0 0 20px var(--accent-glow);
+            box-shadow: 0 0 25px var(--accent-glow);
         }
 
-        .image-loading-shimmer {
-            background: linear-gradient(90deg, #161618 25%, #232326 50%, #161618 75%);
+        .shimmer {
+            background: linear-gradient(90deg, #111113 25%, #1e1e21 50%, #111113 75%);
             background-size: 200% 100%;
-            animation: shimmer 1.5s infinite;
+            animation: shimmerEffect 1.8s infinite;
         }
 
-        @keyframes shimmer {
+        @keyframes shimmerEffect {
             0% { background-position: 200% 0; }
             100% { background-position: -200% 0; }
         }
 
-        /* Mobile Sidebar Overlay */
-        .mobile-sidebar-active { transform: translateX(0); transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+        .btn-hover {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .btn-hover:hover {
+            transform: translateY(-2px);
+            filter: brightness(1.1);
+        }
+        .btn-hover:active {
+            transform: scale(0.96);
+        }
+
+        pre {
+            background: #111113;
+            padding: 1.5rem;
+            border-radius: 1rem;
+            border: 1px solid var(--border);
+            overflow-x: auto;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 13px;
+        }
     </style>
 </head>
 <body class="dark">
@@ -94,48 +105,38 @@
     <script type="text/babel">
         const { useState, useEffect, useRef } = React;
 
-        const SUPABASE_URL = "https://rnlwrngfgvznndlekmrz.supabase.co";
-        const SUPABASE_KEY = "sb_publishable_mtI0_ZBvU_n5oRuqV58QHg_qJt3Gfyt";
-        const API_KEY = "ak_2OJ4ng6za7b74DP3hu32a6P04XH8J";
-        const CHAT_URL = "https://api.longcat.chat/openai/v1/chat/completions";
-        
-        const GET_IMAGE_URL = (prompt) => {
-            const seed = Math.floor(Math.random() * 10000000);
-            // Enhanced prompt handling for Flux model
-            const clean = prompt.trim().replace(/["']/g, "").substring(0, 1000);
-            // Pollinations Flux specific formatting
-            return `https://pollinations.ai/p/${encodeURIComponent(clean)}?width=1024&height=1024&seed=${seed}&model=flux&nologo=true`;
+        const CONFIG = {
+            SUPABASE_URL: "https://rnlwrngfgvznndlekmrz.supabase.co",
+            SUPABASE_KEY: "sb_publishable_mtI0_ZBvU_n5oRuqV58QHg_qJt3Gfyt",
+            API_KEY: "ak_2OJ4ng6za7b74DP3hu32a6P04XH8J",
+            CHAT_URL: "https://api.longcat.chat/openai/v1/chat/completions"
         };
 
-        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        const supabaseClient = supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_KEY);
 
         const App = () => {
             const [user, setUser] = useState(null);
-            const [uiLang, setUiLang] = useState('en');
             const [messages, setMessages] = useState([]);
             const [conversations, setConversations] = useState([]);
-            const [activeConvId, setActiveConvId] = useState(null);
+            const [activeId, setActiveId] = useState(null);
             const [input, setInput] = useState("");
             const [isTyping, setIsTyping] = useState(false);
-            const [showAlert, setShowAlert] = useState(false);
-            const [showSettings, setShowSettings] = useState(false);
-            const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+            const [isSidebarOpen, setIsSidebarOpen] = useState(false);
             
             const scrollRef = useRef(null);
-            const textareaRef = useRef(null);
+            const inputRef = useRef(null);
 
             useEffect(() => {
-                const init = async () => {
+                const checkAuth = async () => {
                     const { data: { session } } = await supabaseClient.auth.getSession();
                     if (!session) {
                         window.location.href = "auth.html";
                     } else {
                         setUser(session.user);
-                        fetchConversations(session.user.id);
-                        if (!localStorage.getItem('nix_alert_v5')) setShowAlert(true);
+                        loadConversations(session.user.id);
                     }
                 };
-                init();
+                checkAuth();
             }, []);
 
             useEffect(() => {
@@ -144,41 +145,18 @@
                 }
             }, [messages, isTyping]);
 
-            const fetchConversations = async (userId) => {
+            const loadConversations = async (uid) => {
                 const { data } = await supabaseClient
                     .from('conversations')
                     .select('*')
-                    .eq('user_id', userId)
+                    .eq('user_id', uid)
                     .order('created_at', { ascending: false });
                 if (data) setConversations(data);
             };
 
-            const generateConversationTitle = async (id, userPrompt, aiResponse) => {
-                try {
-                    const res = await fetch(CHAT_URL, {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${API_KEY}` },
-                        body: JSON.stringify({
-                            model: "LongCat-Flash-Chat",
-                            messages: [
-                                { role: "system", content: "Create a 2-3 word poetic/meaningful title for this workspace. NO punctuation. Return ONLY the title." },
-                                { role: "user", content: `Context: ${userPrompt}` }
-                            ]
-                        })
-                    });
-                    const data = await res.json();
-                    const title = data.choices[0].message.content.trim().replace(/["']/g, '');
-                    
-                    await supabaseClient.from('conversations').update({ title }).eq('id', id);
-                    setConversations(prev => prev.map(c => c.id === id ? { ...c, title } : c));
-                } catch (e) {
-                    console.error("Title sync error", e);
-                }
-            };
-
-            const loadConversation = async (id) => {
-                setActiveConvId(id);
-                setIsMobileMenuOpen(false);
+            const loadMessages = async (id) => {
+                setActiveId(id);
+                setIsSidebarOpen(false);
                 const { data } = await supabaseClient
                     .from('messages')
                     .select('*')
@@ -187,23 +165,21 @@
                 if (data) setMessages(data);
             };
 
-            const processQuery = async () => {
-                if (!input.trim() || !user || isTyping) return;
-
+            const handleSend = async () => {
+                if (!input.trim() || isTyping) return;
+                
                 const query = input.trim();
                 setInput("");
-                if (textareaRef.current) textareaRef.current.style.height = 'auto';
+                if (inputRef.current) inputRef.current.style.height = 'auto';
 
-                let isNewChat = false;
-                let convId = activeConvId;
+                let convId = activeId;
                 if (!convId) {
-                    isNewChat = true;
                     const { data } = await supabaseClient
                         .from('conversations')
-                        .insert([{ user_id: user.id, title: "Processing..." }])
+                        .insert([{ user_id: user.id, title: "New Task" }])
                         .select().single();
                     convId = data.id;
-                    setActiveConvId(convId);
+                    setActiveId(convId);
                     setConversations([data, ...conversations]);
                 }
 
@@ -211,243 +187,229 @@
                 setMessages(prev => [...prev, userMsg]);
                 setIsTyping(true);
 
-                await supabaseClient.from('messages').insert([{ conversation_id: convId, role: 'user', content: query }]);
+                await supabaseClient.from('messages').insert([userMsg]);
 
-                const imageKeywords = ["generate image", "create image", "draw", "make an image", "paint", "تصميم صورة", "ارسم", "visualize", "photo of", "image of"];
-                const isImageRequest = imageKeywords.some(kw => query.toLowerCase().includes(kw));
+                // Hybrid Logic Routing
+                const imageTrigger = ["draw", "create image", "paint", "visualize", "تصميم", "صورة", "generate image", "make a photo", "sketch"].some(k => query.toLowerCase().includes(k));
 
-                if (isImageRequest) {
-                    const imageUrl = GET_IMAGE_URL(query);
-                    const aiMsg = { 
+                if (imageTrigger) {
+                    const seed = Math.floor(Math.random() * 1000000);
+                    const imgUrl = `https://pollinations.ai/p/${encodeURIComponent(query)}?width=1024&height=1024&seed=${seed}&model=flux&nologo=true`;
+                    
+                    const assistantMsg = { 
                         conversation_id: convId, 
                         role: 'assistant', 
-                        content: `Synthesizing Visualization...`,
-                        tempImageUrl: imageUrl,
-                        isImageLoading: true
+                        content: `Synthesizing Visual Intelligence...`,
+                        isImage: true,
+                        imageUrl: imgUrl,
+                        loading: true
                     };
-                    
-                    setMessages(prev => [...prev, aiMsg]);
+                    setMessages(prev => [...prev, assistantMsg]);
                     setIsTyping(false);
 
                     const img = new Image();
-                    img.crossOrigin = "anonymous";
-                    img.src = imageUrl;
-                    
+                    img.src = imgUrl;
                     img.onload = async () => {
-                        const finalContent = `I've synthesized this visualization based on your request:\n\n![Generated Image](${imageUrl})`;
-                        setMessages(prev => prev.map(m => m.tempImageUrl === imageUrl ? { ...m, content: finalContent, isImageLoading: false } : m));
+                        const finalContent = `I have generated this visualization for you:\n\n![Nix Generation](${imgUrl})`;
+                        setMessages(prev => prev.map(m => m.imageUrl === imgUrl ? { ...m, loading: false, content: finalContent } : m));
                         await supabaseClient.from('messages').insert([{ conversation_id: convId, role: 'assistant', content: finalContent }]);
-                        if (isNewChat) generateConversationTitle(convId, query, "Visual");
-                    };
-                    
-                    img.onerror = () => {
-                        setMessages(prev => prev.map(m => m.tempImageUrl === imageUrl ? { ...m, content: "The Flux core encountered an error. Please try adjusting your prompt description.", isImageLoading: false } : m));
+                        updateTitle(convId, query);
                     };
                 } else {
                     try {
-                        // RECALL: Access the last 10 messages for deeper memory context
-                        const memoryContext = messages.slice(-10).map(m => ({
-                            role: m.role,
-                            content: m.content
-                        }));
-
-                        const res = await fetch(CHAT_URL, {
+                        // Advanced Memory Retrieval (Last 10 messages)
+                        const context = messages.slice(-10).map(m => ({ role: m.role, content: m.content }));
+                        
+                        const res = await fetch(CONFIG.CHAT_URL, {
                             method: "POST",
-                            headers: { "Content-Type": "application/json", "Authorization": `Bearer ${API_KEY}` },
+                            headers: { "Content-Type": "application/json", "Authorization": `Bearer ${CONFIG.API_KEY}` },
                             body: JSON.stringify({
                                 model: "LongCat-Flash-Chat",
                                 messages: [
-                                    { role: "system", content: "You are Nix, a highly capable AI workspace. You have access to the user's current session memory. Be concise, professional, and sophisticated." },
-                                    ...memoryContext,
+                                    { role: "system", content: "You are Nix Hybrid, an advanced AI blending visual synthesis and logical reasoning. You have access to the user's current session memory. Be precise, sophisticated, and helpful." },
+                                    ...context,
                                     { role: "user", content: query }
                                 ]
                             })
                         });
                         const data = await res.json();
                         const reply = data.choices[0].message.content;
-
-                        const aiMsg = { conversation_id: convId, role: 'assistant', content: reply };
-                        setMessages(prev => [...prev, aiMsg]);
-                        await supabaseClient.from('messages').insert([aiMsg]);
-                        if (isNewChat) generateConversationTitle(convId, query, reply);
-                    } catch (e) {
-                        console.error("AI Core link failed", e);
+                        
+                        const assistantMsg = { conversation_id: convId, role: 'assistant', content: reply };
+                        setMessages(prev => [...prev, assistantMsg]);
+                        await supabaseClient.from('messages').insert([assistantMsg]);
+                        updateTitle(convId, query);
+                    } catch (err) {
+                        console.error("Link error", err);
                     } finally {
                         setIsTyping(false);
                     }
                 }
             };
 
-            const SidebarContent = () => (
-                <div className="flex flex-col h-full bg-[var(--bg-sidebar)]">
-                    <div className="p-6 md:p-8">
-                        <button 
-                            onClick={() => { setActiveConvId(null); setMessages([]); setIsMobileMenuOpen(false); }} 
-                            className="w-full py-4 rounded-2xl bg-[var(--accent)] text-white font-bold shadow-lg shadow-indigo-500/20 active:scale-95 transition-all"
-                        >
-                            New Workspace
-                        </button>
-                    </div>
-                    <div className="flex-1 overflow-y-auto px-4 md:px-6 py-2 chat-scroll space-y-1">
-                        <p className="px-4 pb-4 text-[10px] font-black uppercase tracking-widest opacity-30">Archive</p>
-                        {conversations.map(c => (
-                            <button 
-                                key={c.id} 
-                                onClick={() => loadConversation(c.id)} 
-                                className={`w-full text-left p-4 rounded-2xl text-[12px] font-semibold truncate transition-all ${activeConvId === c.id ? 'sidebar-item-active' : 'text-[var(--text-secondary)] hover:bg-[var(--sidebar-active)]'}`}
-                            >
-                                {c.title || "Untethered Chat"}
-                            </button>
-                        ))}
-                    </div>
-                </div>
-            );
+            const updateTitle = async (id, prompt) => {
+                if (messages.length > 2) return; // Only title the first exchange
+                try {
+                    const res = await fetch(CONFIG.CHAT_URL, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${CONFIG.API_KEY}` },
+                        body: JSON.stringify({
+                            model: "LongCat-Flash-Chat",
+                            messages: [{ role: "user", content: `Summarize this in 3 words: ${prompt}` }]
+                        })
+                    });
+                    const data = await res.json();
+                    const title = data.choices[0].message.content.replace(/[".]/g, '');
+                    await supabaseClient.from('conversations').update({ title }).eq('id', id);
+                    setConversations(prev => prev.map(c => c.id === id ? { ...c, title } : c));
+                } catch (e) {}
+            };
 
             return (
-                <div className={`flex h-[100dvh] w-full bg-[var(--bg-main)] ${uiLang === 'ar' ? 'rtl' : 'ltr'}`}>
-                    {showAlert && (
-                        <div className="fixed inset-0 z-[300] flex items-center justify-center p-6 bg-black/90 backdrop-blur-2xl">
-                            <div className="relative w-full max-w-md bg-[var(--bg-main)] border border-[var(--border)] rounded-[3rem] p-10 text-center shadow-2xl">
-                                <div className="nix-logo w-14 h-14 rounded-2xl flex items-center justify-center mb-6 mx-auto">
-                                    <span className="text-white font-black text-xl italic">N</span>
-                                </div>
-                                <h2 className="text-2xl font-black mb-3">Core Restored</h2>
-                                <p className="text-[var(--text-secondary)] text-sm mb-8 leading-relaxed">
-                                    Flux synthesis is fixed and long-term memory is now active. Nix remembers your context more accurately.
-                                </p>
-                                <button 
-                                    onClick={() => { setShowAlert(false); localStorage.setItem('nix_alert_v5', 'true'); }}
-                                    className="w-full py-4 rounded-2xl bg-[var(--accent)] text-white font-black text-xs uppercase tracking-widest shadow-xl shadow-indigo-500/30 transition-all active:scale-95"
-                                >
-                                    Initialize
-                                </button>
+                <div className="flex h-[100dvh] w-full bg-[var(--bg-main)]">
+                    {/* Mobile Sidebar Overlay */}
+                    {isSidebarOpen && (
+                        <div className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-sm lg:hidden" onClick={() => setIsSidebarOpen(false)}>
+                            <div className="w-[80%] h-full bg-[var(--bg-sidebar)] p-6" onClick={e => e.stopPropagation()}>
+                                <SidebarContent conversations={conversations} activeId={activeId} loadMessages={loadMessages} />
                             </div>
                         </div>
                     )}
 
-                    {isMobileMenuOpen && (
-                        <div className="fixed inset-0 z-[200] lg:hidden">
-                            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setIsMobileMenuOpen(false)}></div>
-                            <div className="absolute left-0 top-0 bottom-0 w-4/5 max-w-sm bg-[var(--bg-sidebar)] border-r border-[var(--border)] shadow-2xl">
-                                <SidebarContent />
-                            </div>
-                        </div>
-                    )}
-
-                    <aside className="hidden lg:flex w-[320px] border-r border-[var(--border)] flex-col bg-[var(--bg-sidebar)]">
-                        <SidebarContent />
+                    {/* Desktop Sidebar */}
+                    <aside className="hidden lg:flex w-[300px] bg-[var(--bg-sidebar)] border-r border-[var(--border)] flex-col">
+                        <SidebarContent conversations={conversations} activeId={activeId} loadMessages={loadMessages} startNew={() => { setActiveId(null); setMessages([]); }} />
                     </aside>
 
+                    {/* Main Workspace */}
                     <main className="flex-1 flex flex-col relative min-w-0">
-                        <header className="flex items-center justify-between h-20 px-6 md:px-12 glass-panel z-10 shrink-0">
+                        <header className="h-16 flex items-center justify-between px-6 glass-panel shrink-0">
                             <div className="flex items-center gap-4">
-                                <button onClick={() => setIsMobileMenuOpen(true)} className="lg:hidden p-2 -ml-2 text-[var(--text-secondary)]">
+                                <button onClick={() => setIsSidebarOpen(true)} className="lg:hidden p-2 text-[var(--text-secondary)]">
                                     <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
                                 </button>
-                                <div className="nix-logo w-9 h-9 rounded-xl flex items-center justify-center shrink-0">
-                                    <span className="text-white italic font-black text-xs">N</span>
+                                <div className="nix-logo w-8 h-8 rounded-lg flex items-center justify-center">
+                                    <span className="text-[10px] italic font-black text-white">N</span>
                                 </div>
-                                <h2 className="text-[13px] font-black tracking-tight truncate max-w-[120px] md:max-w-none uppercase">
-                                    {conversations.find(c => c.id === activeConvId)?.title || "Nix Workspace"}
-                                </h2>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <button onClick={() => setShowSettings(true)} className="p-2 opacity-40 hover:opacity-100 transition-opacity">
-                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-                                </button>
+                                <h1 className="text-xs font-black uppercase tracking-[0.2em] opacity-80">
+                                    {conversations.find(c => c.id === activeId)?.title || "Unified Intelligence"}
+                                </h1>
                             </div>
                         </header>
 
-                        <div ref={scrollRef} className="flex-1 overflow-y-auto chat-scroll px-6 md:px-24 py-12">
-                            <div className="max-w-3xl mx-auto space-y-14 pb-48">
+                        {/* Messages Area */}
+                        <div ref={scrollRef} className="flex-1 overflow-y-auto chat-scroll px-4 md:px-0">
+                            <div className="max-w-3xl mx-auto py-12 space-y-12 pb-44">
                                 {messages.length === 0 && (
-                                    <div className="h-full flex flex-col items-center justify-center pt-24 text-center opacity-20">
-                                        <div className="w-16 h-16 border-2 border-white rounded-3xl mb-6 flex items-center justify-center">
+                                    <div className="text-center pt-24 space-y-6 opacity-30">
+                                        <div className="w-16 h-16 border border-white/20 rounded-2xl mx-auto flex items-center justify-center">
                                             <span className="text-2xl italic font-black">N</span>
                                         </div>
-                                        <p className="text-sm font-black uppercase tracking-widest">Awaiting Command</p>
+                                        <div className="space-y-1">
+                                            <p className="text-[11px] font-black uppercase tracking-widest">Logic & Synthesis Active</p>
+                                            <p className="text-[10px] font-medium">Draw something or ask a complex question</p>
+                                        </div>
                                     </div>
                                 )}
-                                {messages.map((msg, i) => (
-                                    <div key={i} className={`flex gap-5 md:gap-8 ${msg.role === 'user' ? 'flex-row-reverse text-right' : ''}`}>
-                                        <div className={`w-10 h-10 rounded-xl shrink-0 flex items-center justify-center text-[9px] font-black mt-1 ${msg.role === 'user' ? 'bg-[var(--border)]' : 'nix-logo text-white'}`}>
-                                            {msg.role === 'user' ? 'ME' : 'NX'}
+                                {messages.map((m, i) => (
+                                    <div key={i} className={`flex gap-5 message-anim ${m.role === 'user' ? 'flex-row-reverse' : ''}`}>
+                                        <div className={`w-9 h-9 rounded-lg shrink-0 flex items-center justify-center text-[10px] font-black ${m.role === 'user' ? 'bg-[var(--border)]' : 'nix-logo text-white'}`}>
+                                            {m.role === 'user' ? 'U' : 'N'}
                                         </div>
-                                        <div className="message-bubble w-full min-w-0">
-                                            <div className={`p-6 md:p-8 rounded-[2.5rem] text-[15px] leading-relaxed ${msg.role === 'user' ? 'bg-[var(--bubble-user)]' : ''}`}>
-                                                {msg.isImageLoading ? (
+                                        <div className={`max-w-[85%] space-y-4 ${m.role === 'user' ? 'text-right' : ''}`}>
+                                            <div className={`p-5 md:p-6 rounded-[1.8rem] text-[15px] leading-[1.6] ${m.role === 'user' ? 'bg-[var(--bubble-user)]' : 'bg-transparent'}`}>
+                                                {m.loading ? (
                                                     <div className="space-y-4">
-                                                        <div className="flex items-center gap-3">
-                                                            <div className="w-2 h-2 bg-indigo-500 rounded-full animate-ping"></div>
-                                                            <p className="font-black text-[11px] uppercase tracking-widest text-indigo-400">Rendering Flux Core...</p>
-                                                        </div>
-                                                        <div className="w-full aspect-square rounded-[2.5rem] image-loading-shimmer"></div>
-                                                    </div>
-                                                ) : msg.content.includes('![Generated Image]') ? (
-                                                    <div className="space-y-4">
-                                                        <p className="whitespace-pre-wrap font-medium opacity-80">{msg.content.split('![Generated Image]')[0]}</p>
-                                                        <div className="relative group">
-                                                            <img src={msg.content.match(/\((.*?)\)/)[1]} className="rounded-[2.5rem] w-full border border-[var(--border)] shadow-2xl transition-transform" alt="Nix Synthesis" />
-                                                            <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/40 rounded-[2.5rem] backdrop-blur-md">
-                                                                <button onClick={() => window.open(msg.content.match(/\((.*?)\)/)[1], '_blank')} className="px-8 py-4 bg-white text-black font-black text-xs uppercase tracking-widest rounded-2xl shadow-xl active:scale-95 transition-transform">Download</button>
-                                                            </div>
-                                                        </div>
+                                                        <p className="text-xs font-bold text-indigo-400 animate-pulse">INITIATING VISUAL CORE...</p>
+                                                        <div className="aspect-square w-full shimmer rounded-3xl border border-white/5"></div>
                                                     </div>
                                                 ) : (
-                                                    <div className="whitespace-pre-wrap font-medium">{msg.content}</div>
+                                                    <div className="whitespace-pre-wrap">
+                                                        {renderContent(m.content)}
+                                                    </div>
                                                 )}
                                             </div>
                                         </div>
                                     </div>
                                 ))}
-                                {isTyping && <div className="flex gap-2 px-16 opacity-30 animate-pulse"><div className="w-2 h-2 bg-white rounded-full"></div><div className="w-2 h-2 bg-white rounded-full"></div><div className="w-2 h-2 bg-white rounded-full"></div></div>}
+                                {isTyping && <div className="flex gap-2 px-14 opacity-20"><div className="w-1.5 h-1.5 bg-white rounded-full animate-bounce"></div><div className="w-1.5 h-1.5 bg-white rounded-full animate-bounce [animation-delay:-0.15s]"></div><div className="w-1.5 h-1.5 bg-white rounded-full animate-bounce [animation-delay:-0.3s]"></div></div>}
                             </div>
                         </div>
 
-                        <div className="absolute bottom-0 left-0 right-0 p-6 md:p-12 pointer-events-none">
-                            <div className="max-w-3xl mx-auto pointer-events-auto">
-                                <div className="input-container-glass rounded-[2.5rem] p-2 flex items-end">
+                        {/* Input Area */}
+                        <div className="absolute bottom-0 left-0 right-0 p-4 md:p-10 pointer-events-none">
+                            <div className="max-w-2xl mx-auto pointer-events-auto">
+                                <div className="input-area rounded-[2.2rem] p-2 flex items-end">
                                     <textarea 
-                                        ref={textareaRef}
+                                        ref={inputRef}
                                         rows="1"
                                         value={input}
                                         onChange={(e) => { setInput(e.target.value); e.target.style.height = 'auto'; e.target.style.height = Math.min(e.target.scrollHeight, 200) + 'px'; }}
-                                        onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); processQuery(); } }}
-                                        placeholder="Command Nix..."
-                                        className="flex-1 bg-transparent py-6 px-8 outline-none resize-none text-[15px] font-medium"
+                                        onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }}}
+                                        placeholder="Message or visualize..."
+                                        className="flex-1 bg-transparent py-5 px-6 outline-none text-[15px] resize-none overflow-hidden"
                                     />
-                                    <button onClick={processQuery} disabled={!input.trim() || isTyping} className="mb-3 mr-3 w-12 h-12 bg-white text-black rounded-2xl flex items-center justify-center hover:scale-105 active:scale-95 transition-all disabled:opacity-5 disabled:scale-100 shadow-lg">
-                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 12h14m-7-7l7 7-7 7"/></svg>
+                                    <button 
+                                        onClick={handleSend}
+                                        disabled={!input.trim() || isTyping}
+                                        className="w-12 h-12 bg-[var(--accent)] text-white rounded-2xl flex items-center justify-center mb-1 mr-1 btn-hover disabled:opacity-10 shadow-lg"
+                                    >
+                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M14 5l7 7-7 7M5 12h14"/></svg>
                                     </button>
                                 </div>
                             </div>
                         </div>
                     </main>
-
-                    {showSettings && (
-                        <div className="fixed inset-0 z-[250] flex items-center justify-center bg-black/95 backdrop-blur-3xl p-6">
-                            <div className="w-full max-w-sm bg-[var(--bg-main)] border border-[var(--border)] rounded-[3.5rem] p-12">
-                                <div className="flex justify-between items-center mb-12">
-                                    <h3 className="font-black text-2xl tracking-tighter">System</h3>
-                                    <button onClick={() => setShowSettings(false)} className="p-3 bg-[var(--border)] rounded-2xl">✕</button>
-                                </div>
-                                <div className="space-y-8">
-                                    <div className="space-y-3">
-                                        <label className="text-[10px] font-black uppercase tracking-widest opacity-30 px-2">Locale</label>
-                                        <div className="grid grid-cols-2 gap-2 bg-[var(--border)] p-1.5 rounded-2xl">
-                                            <button onClick={() => setUiLang('en')} className={`py-4 rounded-xl text-xs font-bold transition-all ${uiLang === 'en' ? 'bg-[var(--accent)] text-white' : 'opacity-40'}`}>EN</button>
-                                            <button onClick={() => setUiLang('ar')} className={`py-4 rounded-xl text-xs font-bold transition-all ${uiLang === 'ar' ? 'bg-[var(--accent)] text-white' : 'opacity-40'}`}>AR</button>
-                                        </div>
-                                    </div>
-                                    <div className="pt-8 border-t border-[var(--border)]">
-                                        <button onClick={async () => { await supabaseClient.auth.signOut(); window.location.href="auth.html"; }} className="w-full py-5 text-red-500 border border-red-500/20 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-red-500 hover:text-white transition-all">Terminate</button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    )}
                 </div>
             );
+        };
+
+        const SidebarContent = ({ conversations, activeId, loadMessages, startNew }) => (
+            <div className="flex flex-col h-full">
+                <div className="p-6">
+                    <button onClick={startNew} className="w-full py-4 bg-[var(--accent)] text-white font-bold rounded-2xl shadow-xl shadow-indigo-500/10 active:scale-95 transition-all">
+                        New Session
+                    </button>
+                </div>
+                <div className="flex-1 overflow-y-auto px-4 space-y-1 chat-scroll">
+                    <p className="px-4 pb-3 text-[10px] font-black uppercase tracking-widest opacity-20">Archives</p>
+                    {conversations.map(c => (
+                        <button 
+                            key={c.id} 
+                            onClick={() => loadMessages(c.id)}
+                            className={`w-full text-left p-4 rounded-xl text-[12.5px] font-semibold truncate transition-all ${activeId === c.id ? 'bg-[var(--sidebar-active)] text-white shadow-inner' : 'text-[var(--text-secondary)] hover:bg-white/5'}`}
+                        >
+                            {c.title}
+                        </button>
+                    ))}
+                </div>
+                <div className="p-6 border-t border-[var(--border)]">
+                    <div className="flex items-center gap-3 opacity-50 text-[10px] font-bold">
+                        <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                        HYBRID CORES ACTIVE
+                    </div>
+                </div>
+            </div>
+        );
+
+        const renderContent = (content) => {
+            if (content.includes('![Nix Generation]')) {
+                const parts = content.split('![Nix Generation]');
+                const urlMatch = parts[1].match(/\((.*?)\)/);
+                const url = urlMatch ? urlMatch[1] : "";
+                return (
+                    <div className="space-y-4">
+                        <p>{parts[0]}</p>
+                        <div className="relative group">
+                            <img src={url} className="rounded-3xl w-full border border-white/10 shadow-2xl transition-transform duration-500 hover:scale-[1.01]" />
+                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-3xl backdrop-blur-sm">
+                                <button onClick={() => window.open(url, '_blank')} className="px-6 py-3 bg-white text-black font-black text-[10px] uppercase tracking-widest rounded-xl hover:scale-105 transition-all">View Full</button>
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+            return content;
         };
 
         const root = ReactDOM.createRoot(document.getElementById('root'));
