@@ -85,7 +85,6 @@
         }
 
         /* Mobile Sidebar Overlay */
-        .mobile-sidebar-enter { transform: translateX(-100%); }
         .mobile-sidebar-active { transform: translateX(0); transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
     </style>
 </head>
@@ -100,11 +99,14 @@
         const API_KEY = "ak_2OJ4ng6za7b74DP3hu32a6P04XH8J";
         const CHAT_URL = "https://api.longcat.chat/openai/v1/chat/completions";
         
-        // Fixed Image Generation Logic from tinymelon.html
+        // Improved Image URL logic to prevent 404 errors
         const GET_IMAGE_URL = (prompt) => {
             const seed = Math.floor(Math.random() * 1000000);
-            const cleanPrompt = prompt.replace(/[^\w\s\u0600-\u06FF]/gi, '').substring(0, 400);
-            return `https://pollinations.ai/p/${encodeURIComponent(cleanPrompt)}?width=1024&height=1024&seed=${seed}&model=flux&nologo=true`;
+            // More robust cleanup for pollination constraints
+            const clean = prompt.trim()
+                .replace(/["']/g, "")
+                .substring(0, 500);
+            return `https://pollinations.ai/p/${encodeURIComponent(clean)}?width=1024&height=1024&seed=${seed}&model=flux&nologo=true`;
         };
 
         const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -132,7 +134,7 @@
                     } else {
                         setUser(session.user);
                         fetchConversations(session.user.id);
-                        if (!localStorage.getItem('nix_alert_v3')) setShowAlert(true);
+                        if (!localStorage.getItem('nix_alert_v4')) setShowAlert(true);
                     }
                 };
                 init();
@@ -153,6 +155,29 @@
                 if (data) setConversations(data);
             };
 
+            const generateConversationTitle = async (id, userPrompt, aiResponse) => {
+                try {
+                    const res = await fetch(CHAT_URL, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${API_KEY}` },
+                        body: JSON.stringify({
+                            model: "LongCat-Flash-Chat",
+                            messages: [
+                                { role: "system", content: "You are a title generator. Create a very short (max 3 words) meaningful title for a chat based on this user prompt and AI response. Return ONLY the title words." },
+                                { role: "user", content: `Prompt: ${userPrompt}\nResponse: ${aiResponse}` }
+                            ]
+                        })
+                    });
+                    const data = await res.json();
+                    const title = data.choices[0].message.content.replace(/["']/g, '');
+                    
+                    await supabaseClient.from('conversations').update({ title }).eq('id', id);
+                    setConversations(prev => prev.map(c => c.id === id ? { ...c, title } : c));
+                } catch (e) {
+                    console.error("Title generation failed", e);
+                }
+            };
+
             const loadConversation = async (id) => {
                 setActiveConvId(id);
                 setIsMobileMenuOpen(false);
@@ -171,11 +196,13 @@
                 setInput("");
                 if (textareaRef.current) textareaRef.current.style.height = 'auto';
 
+                let isNewChat = false;
                 let convId = activeConvId;
                 if (!convId) {
+                    isNewChat = true;
                     const { data } = await supabaseClient
                         .from('conversations')
-                        .insert([{ user_id: user.id, title: query.substring(0, 30) + "..." }])
+                        .insert([{ user_id: user.id, title: "New Workspace..." }])
                         .select().single();
                     convId = data.id;
                     setActiveConvId(convId);
@@ -186,14 +213,9 @@
                 setMessages(prev => [...prev, userMsg]);
                 setIsTyping(true);
 
-                await supabaseClient.from('messages').insert([{
-                    conversation_id: convId,
-                    role: 'user',
-                    content: query
-                }]);
+                await supabaseClient.from('messages').insert([{ conversation_id: convId, role: 'user', content: query }]);
 
-                // Advanced Image Intent Detection
-                const imageKeywords = ["generate image", "create image", "draw", "make an image", "paint", "تصميم صورة", "ارسم", "photo of", "picture of"];
+                const imageKeywords = ["generate image", "create image", "draw", "make an image", "paint", "تصميم صورة", "ارسم", "photo of", "image of"];
                 const isImageRequest = imageKeywords.some(kw => query.toLowerCase().includes(kw));
 
                 if (isImageRequest) {
@@ -201,7 +223,7 @@
                     const aiMsg = { 
                         conversation_id: convId, 
                         role: 'assistant', 
-                        content: `Synthesizing your vision with **Tiny Mellon (Flux Engine)**...`,
+                        content: `Synthesizing with **Tiny Mellon (Flux)**...`,
                         tempImageUrl: imageUrl,
                         isImageLoading: true
                     };
@@ -209,26 +231,17 @@
                     setMessages(prev => [...prev, aiMsg]);
                     setIsTyping(false);
 
-                    // Preload Image to ensure it exists before displaying "Success"
                     const img = new Image();
+                    img.crossOrigin = "anonymous";
                     img.src = imageUrl;
                     img.onload = async () => {
-                        const finalContent = `I've generated this artwork using **Tiny Mellon (Flux Engine)**:\n\n![Generated Image](${imageUrl})`;
-                        
-                        setMessages(prev => prev.map(m => 
-                            m.tempImageUrl === imageUrl ? { ...m, content: finalContent, isImageLoading: false } : m
-                        ));
-
-                        await supabaseClient.from('messages').insert([{
-                            conversation_id: convId,
-                            role: 'assistant',
-                            content: finalContent
-                        }]);
+                        const finalContent = `I've synthesized this visualization:\n\n![Generated Image](${imageUrl})`;
+                        setMessages(prev => prev.map(m => m.tempImageUrl === imageUrl ? { ...m, content: finalContent, isImageLoading: false } : m));
+                        await supabaseClient.from('messages').insert([{ conversation_id: convId, role: 'assistant', content: finalContent }]);
+                        if (isNewChat) generateConversationTitle(convId, query, "Image generated successfully.");
                     };
                     img.onerror = () => {
-                        setMessages(prev => prev.map(m => 
-                            m.tempImageUrl === imageUrl ? { ...m, content: "Sorry, I encountered an issue generating that image. Please try a different prompt.", isImageLoading: false } : m
-                        ));
+                        setMessages(prev => prev.map(m => m.tempImageUrl === imageUrl ? { ...m, content: "Synthesis failed. Please try a more specific descriptive prompt.", isImageLoading: false } : m));
                     };
                 } else {
                     try {
@@ -238,7 +251,7 @@
                             body: JSON.stringify({
                                 model: "LongCat-Flash-Chat",
                                 messages: [
-                                    { role: "system", content: "You are Nix, a highly intelligent AI workspace assistant. Your personality is sleek, minimal, and highly helpful." },
+                                    { role: "system", content: "You are Nix, a sophisticated AI workspace assistant." },
                                     ...messages.slice(-6).map(m => ({ role: m.role, content: m.content })),
                                     { role: "user", content: query }
                                 ]
@@ -250,6 +263,7 @@
                         const aiMsg = { conversation_id: convId, role: 'assistant', content: reply };
                         setMessages(prev => [...prev, aiMsg]);
                         await supabaseClient.from('messages').insert([aiMsg]);
+                        if (isNewChat) generateConversationTitle(convId, query, reply);
                     } catch (e) {
                         console.error(e);
                     } finally {
@@ -285,28 +299,26 @@
 
             return (
                 <div className={`flex h-[100dvh] w-full bg-[var(--bg-main)] ${uiLang === 'ar' ? 'rtl' : 'ltr'}`}>
-                    {/* Alert shown only once */}
                     {showAlert && (
                         <div className="fixed inset-0 z-[300] flex items-center justify-center p-6 bg-black/80 backdrop-blur-2xl">
                             <div className="relative w-full max-w-md bg-[var(--bg-main)] border border-[var(--border)] rounded-[3rem] p-10 text-center shadow-2xl">
                                 <div className="nix-logo w-14 h-14 rounded-2xl flex items-center justify-center mb-6 mx-auto">
                                     <span className="text-white font-black text-xl italic">N</span>
                                 </div>
-                                <h2 className="text-2xl font-black mb-3">Mobile Support & Flux</h2>
+                                <h2 className="text-2xl font-black mb-3">Sync Complete</h2>
                                 <p className="text-[var(--text-secondary)] text-sm mb-8 leading-relaxed">
-                                    We've updated the interface for mobile devices and fixed the **Tiny Mellon** image generation core.
+                                    Nix now generates meaningful titles for your workspaces and uses an optimized **Tiny Mellon** core.
                                 </p>
                                 <button 
-                                    onClick={() => { setShowAlert(false); localStorage.setItem('nix_alert_v3', 'true'); }}
+                                    onClick={() => { setShowAlert(false); localStorage.setItem('nix_alert_v4', 'true'); }}
                                     className="w-full py-4 rounded-2xl bg-[var(--accent)] text-white font-black text-xs uppercase tracking-widest shadow-xl shadow-indigo-500/30 transition-all active:scale-95"
                                 >
-                                    Experience Nix
+                                    Start Session
                                 </button>
                             </div>
                         </div>
                     )}
 
-                    {/* Mobile Sidebar Overlay */}
                     {isMobileMenuOpen && (
                         <div className="fixed inset-0 z-[200] lg:hidden">
                             <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setIsMobileMenuOpen(false)}></div>
@@ -316,7 +328,6 @@
                         </div>
                     )}
 
-                    {/* Desktop Sidebar */}
                     <aside className="hidden lg:flex w-[320px] border-r border-[var(--border)] flex-col bg-[var(--bg-sidebar)]">
                         <SidebarContent />
                     </aside>
@@ -327,8 +338,12 @@
                                 <button onClick={() => setIsMobileMenuOpen(true)} className="lg:hidden p-2 text-[var(--text-secondary)]">
                                     <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
                                 </button>
-                                <div className="nix-logo w-9 h-9 rounded-xl flex items-center justify-center"><span className="text-white italic font-black text-xs">N</span></div>
-                                <h2 className="text-[14px] font-extrabold tracking-tight">Nix Workspace</h2>
+                                <div className="nix-logo w-9 h-9 rounded-xl flex items-center justify-center shrink-0">
+                                    <span className="text-white italic font-black text-xs">N</span>
+                                </div>
+                                <h2 className="text-[14px] font-extrabold tracking-tight truncate max-w-[150px] md:max-w-none">
+                                    {conversations.find(c => c.id === activeConvId)?.title || "Nix Workspace"}
+                                </h2>
                             </div>
                             <button onClick={() => setShowSettings(true)} className="p-2 opacity-40 hover:opacity-100 transition-opacity">
                                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
@@ -343,22 +358,22 @@
                                             {msg.role === 'user' ? 'ME' : 'NIX'}
                                         </div>
                                         <div className="message-bubble w-full min-w-0">
-                                            <div className={`p-6 md:p-8 rounded-[2.5rem] text-[15px] leading-relaxed shadow-sm ${msg.role === 'user' ? 'bg-[var(--bubble-user)]' : 'bg-transparent border border-transparent'}`}>
+                                            <div className={`p-6 md:p-8 rounded-[2.5rem] text-[15px] leading-relaxed ${msg.role === 'user' ? 'bg-[var(--bubble-user)]' : ''}`}>
                                                 {msg.isImageLoading ? (
                                                     <div className="space-y-4">
                                                         <div className="flex items-center gap-3">
                                                             <div className="w-2 h-2 bg-indigo-500 rounded-full animate-ping"></div>
-                                                            <p className="font-black text-[11px] uppercase tracking-widest text-indigo-400">Tiny Mellon (Flux) is Synthesizing...</p>
+                                                            <p className="font-black text-[11px] uppercase tracking-widest text-indigo-400">Synthesizing Imagery...</p>
                                                         </div>
                                                         <div className="w-full aspect-square rounded-[2.5rem] image-loading-shimmer"></div>
                                                     </div>
                                                 ) : msg.content.includes('![Generated Image]') ? (
                                                     <div className="space-y-4">
-                                                        <p className="whitespace-pre-wrap font-medium">{msg.content.split('![Generated Image]')[0]}</p>
+                                                        <p className="whitespace-pre-wrap font-medium opacity-80">{msg.content.split('![Generated Image]')[0]}</p>
                                                         <div className="relative group">
-                                                            <img src={msg.content.match(/\((.*?)\)/)[1]} className="rounded-[2.5rem] w-full border border-[var(--border)] shadow-2xl transition-transform" alt="AI Generated" />
-                                                            <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/20 rounded-[2.5rem]">
-                                                                <button onClick={() => window.open(msg.content.match(/\((.*?)\)/)[1], '_blank')} className="px-6 py-3 bg-white text-black font-bold rounded-xl shadow-xl">Download High-Res</button>
+                                                            <img src={msg.content.match(/\((.*?)\)/)[1]} className="rounded-[2.5rem] w-full border border-[var(--border)] shadow-2xl transition-transform" alt="AI Visual" />
+                                                            <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/40 rounded-[2.5rem] backdrop-blur-sm">
+                                                                <button onClick={() => window.open(msg.content.match(/\((.*?)\)/)[1], '_blank')} className="px-6 py-3 bg-white text-black font-bold rounded-xl shadow-xl active:scale-95 transition-transform">View Original</button>
                                                             </div>
                                                         </div>
                                                     </div>
@@ -382,7 +397,7 @@
                                         value={input}
                                         onChange={(e) => { setInput(e.target.value); e.target.style.height = 'auto'; e.target.style.height = Math.min(e.target.scrollHeight, 180) + 'px'; }}
                                         onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); processQuery(); } }}
-                                        placeholder="Command Nix or Generate an image..."
+                                        placeholder="Command Nix or Synthesize a visual..."
                                         className="flex-1 bg-transparent py-6 px-8 outline-none resize-none text-[15px] font-medium"
                                     />
                                     <button onClick={processQuery} disabled={!input.trim() || isTyping} className="mb-3 mr-3 w-12 h-12 bg-white text-black rounded-2xl flex items-center justify-center hover:scale-105 active:scale-95 transition-all disabled:opacity-5 disabled:scale-100">
