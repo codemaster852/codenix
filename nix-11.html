@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Nix - Intelligent Workspace</title>
+    <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Noto+Sans+Arabic:wght@400;600;700&display=swap');
+        
+        :root {
+            --bg-main: #070708;
+            --bg-sidebar: #010101;
+            --accent: #6366f1;
+            --accent-glow: rgba(99, 102, 241, 0.2);
+            --text-primary: #fdfdfd;
+            --text-secondary: #8e949e;
+            --border: rgba(255, 255, 255, 0.08);
+            --glass: rgba(10, 10, 12, 0.8);
+            --bubble-user: #1c1c1f;
+            --sidebar-active: rgba(255, 255, 255, 0.05);
+        }
+
+        .light {
+            --bg-main: #fcfcfd;
+            --bg-sidebar: #f7f7f8;
+            --accent: #4f46e5;
+            --accent-glow: rgba(79, 70, 229, 0.15);
+            --text-primary: #121217;
+            --text-secondary: #64748b;
+            --border: rgba(0, 0, 0, 0.08);
+            --glass: rgba(255, 255, 255, 0.85);
+            --bubble-user: #ffffff;
+            --sidebar-active: rgba(0, 0, 0, 0.04);
+        }
+
+        body {
+            font-family: 'Plus Jakarta Sans', 'Noto Sans Arabic', sans-serif;
+            background-color: var(--bg-main);
+            color: var(--text-primary);
+            overflow: hidden;
+            -webkit-tap-highlight-color: transparent;
+            transition: background-color 0.5s ease;
+        }
+
+        .glass-panel {
+            background: var(--glass);
+            backdrop-filter: blur(24px) saturate(180%);
+            -webkit-backdrop-filter: blur(24px) saturate(180%);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .input-container-glass {
+            background: var(--glass);
+            backdrop-filter: blur(30px);
+            -webkit-backdrop-filter: blur(30px);
+            border: 1px solid var(--border);
+            box-shadow: 0 10px 40px -10px rgba(0,0,0,0.5);
+        }
+
+        .sidebar-item-active {
+            background: var(--sidebar-active);
+            color: var(--text-primary);
+            box-shadow: inset 3px 0 0 0 var(--accent);
+        }
+
+        .chat-scroll::-webkit-scrollbar { width: 4px; }
+        .chat-scroll::-webkit-scrollbar-track { background: transparent; }
+        .chat-scroll::-webkit-scrollbar-thumb { background: rgba(128,128,128,0.15); border-radius: 10px; }
+
+        .message-bubble {
+            max-width: 85%;
+            animation: messageEntry 0.6s cubic-bezier(0.2, 0.8, 0.2, 1);
+        }
+
+        @keyframes messageEntry {
+            from { opacity: 0; transform: translateY(12px) scale(0.98); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+
+        .nix-logo {
+            background: linear-gradient(135deg, #818cf8 0%, #6366f1 100%);
+            box-shadow: 0 0 20px var(--accent-glow);
+        }
+
+        .alert-overlay {
+            animation: fadeIn 0.3s ease;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .image-gen-placeholder {
+            aspect-ratio: 1/1;
+            background: linear-gradient(45deg, #1a1a1e 25%, #232329 50%, #1a1a1e 75%);
+            background-size: 200% 200%;
+            animation: shimmer 2s infinite linear;
+        }
+        @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+    </style>
+</head>
+<body class="dark">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        const SUPABASE_URL = "https://rnlwrngfgvznndlekmrz.supabase.co";
+        const SUPABASE_KEY = "sb_publishable_mtI0_ZBvU_n5oRuqV58QHg_qJt3Gfyt";
+        const API_KEY = "ak_2OJ4ng6za7b74DP3hu32a6P04XH8J";
+        const CHAT_URL = "https://api.longcat.chat/openai/v1/chat/completions";
+        
+        // Tiny Mellon (Flux) - Using Pollinations as a reliable free JS library alternative
+        const IMAGE_GEN_URL = (prompt) => `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?model=flux&width=1024&height=1024&nologo=true&seed=${Math.floor(Math.random()*100000)}`;
+
+        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        const App = () => {
+            const [user, setUser] = useState(null);
+            const [uiLang, setUiLang] = useState('en');
+            const [theme, setTheme] = useState('dark');
+            const [messages, setMessages] = useState([]);
+            const [conversations, setConversations] = useState([]);
+            const [activeConvId, setActiveConvId] = useState(null);
+            const [input, setInput] = useState("");
+            const [isTyping, setIsTyping] = useState(false);
+            const [showSettings, setShowSettings] = useState(false);
+            const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+            const [showAlert, setShowAlert] = useState(false); 
+            
+            const [memoryEnabled, setMemoryEnabled] = useState(true);
+            const [userMemories, setUserMemories] = useState([]);
+            const [attachedFiles, setAttachedFiles] = useState([]);
+            
+            const fileInputRef = useRef(null);
+            const scrollRef = useRef(null);
+            const textareaRef = useRef(null);
+
+            useEffect(() => {
+                const checkUser = async () => {
+                    const { data: { session } } = await supabaseClient.auth.getSession();
+                    if (!session) {
+                        window.location.href = "auth.html";
+                    } else {
+                        setUser(session.user);
+                        fetchConversations(session.user.id);
+                        fetchUserMemory(session.user.id);
+                        
+                        // Check if alert was shown before
+                        const hasSeenAlert = localStorage.getItem('nix_alert_shown');
+                        if (!hasSeenAlert) {
+                            setShowAlert(true);
+                        }
+                    }
+                };
+                checkUser();
+            }, []);
+
+            const dismissAlert = () => {
+                setShowAlert(false);
+                localStorage.setItem('nix_alert_shown', 'true');
+            };
+
+            useEffect(() => {
+                document.body.className = theme;
+            }, [theme]);
+
+            useEffect(() => {
+                if (scrollRef.current) {
+                    scrollRef.current.scrollTo({
+                        top: scrollRef.current.scrollHeight,
+                        behavior: 'smooth'
+                    });
+                }
+            }, [messages, isTyping]);
+
+            const fetchUserMemory = async (userId) => {
+                const { data, error } = await supabaseClient
+                    .from('user_memories')
+                    .select('content')
+                    .eq('user_id', userId)
+                    .order('created_at', { ascending: false })
+                    .limit(5);
+                if (!error && data) setUserMemories(data.map(m => m.content));
+            };
+
+            const saveNewMemory = async (userId, content) => {
+                if (!memoryEnabled) return;
+                try {
+                    const res = await fetch(CHAT_URL, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${API_KEY}` },
+                        body: JSON.stringify({
+                            model: "LongCat-Flash-Chat",
+                            messages: [
+                                { role: "system", content: "Extract ONE short piece of info about the user. Format: 'User likes X'. Reply 'NONE' if nothing new." },
+                                { role: "user", content: content }
+                            ],
+                            max_tokens: 30
+                        })
+                    });
+                    const data = await res.json();
+                    const extracted = data.choices[0].message.content;
+                    if (extracted && extracted !== "NONE") {
+                        await supabaseClient.from('user_memories').insert([{ user_id: userId, content: extracted }]);
+                        setUserMemories(prev => [extracted, ...prev].slice(0, 5));
+                    }
+                } catch (e) { console.error("Memory Error", e); }
+            };
+
+            const fetchConversations = async (userId) => {
+                const { data, error } = await supabaseClient
+                    .from('conversations')
+                    .select('*')
+                    .eq('user_id', userId)
+                    .order('created_at', { ascending: false });
+                if (!error) setConversations(data);
+            };
+
+            const loadConversation = async (id) => {
+                setActiveConvId(id);
+                setIsSidebarOpen(false);
+                const { data, error } = await supabaseClient
+                    .from('messages')
+                    .select('*')
+                    .eq('conversation_id', id)
+                    .order('created_at', { ascending: true });
+                if (!error) setMessages(data);
+            };
+
+            const generateTitle = async (query) => {
+                try {
+                    const res = await fetch(CHAT_URL, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${API_KEY}` },
+                        body: JSON.stringify({
+                            model: "LongCat-Flash-Chat",
+                            messages: [
+                                { role: "system", content: "Summarize in 2 words." }, 
+                                { role: "user", content: query }
+                            ],
+                            max_tokens: 10
+                        })
+                    });
+                    const data = await res.json();
+                    return data.choices[0].message.content.trim();
+                } catch (e) { return "Active Chat"; }
+            };
+
+            const processQuery = async () => {
+                if ((!input.trim() && attachedFiles.length === 0) || !user || isTyping) return;
+
+                const currentQuery = input;
+                const filesToProcess = [...attachedFiles];
+                setAttachedFiles([]); 
+
+                let currentConvId = activeConvId;
+                const isFirstMsg = !currentConvId;
+                
+                if (isFirstMsg) {
+                    const { data, error } = await supabaseClient
+                        .from('conversations')
+                        .insert([{ user_id: user.id, title: "Processing..." }])
+                        .select()
+                        .single();
+                    if (error) return;
+                    currentConvId = data.id;
+                    setActiveConvId(currentConvId);
+                    setConversations([data, ...conversations]);
+                }
+
+                const userMsg = { conversation_id: currentConvId, role: 'user', content: currentQuery };
+                setMessages(prev => [...prev, userMsg]);
+                setInput("");
+                if(textareaRef.current) textareaRef.current.style.height = 'auto';
+                setIsTyping(true);
+
+                await supabaseClient.from('messages').insert([userMsg]);
+
+                // Image Generation Detection
+                const imageKeywords = ["generate image", "create image", "draw", "make an image", "generate a picture", "paint", "تصميم صورة", "ارسم"];
+                const isImageRequest = imageKeywords.some(keyword => currentQuery.toLowerCase().includes(keyword));
+
+                if (isImageRequest) {
+                    try {
+                        const imageUrl = IMAGE_GEN_URL(currentQuery);
+                        const aiMsg = { 
+                            conversation_id: currentConvId, 
+                            role: 'assistant', 
+                            content: `I've generated this artwork using **Tiny Mellon (Flux Engine)** based on your request:\n\n![Generated Image](${imageUrl})`,
+                            type: 'image'
+                        };
+                        setMessages(prev => [...prev, aiMsg]);
+                        await supabaseClient.from('messages').insert([aiMsg]);
+                    } catch (e) { console.error(e); } 
+                    finally { setIsTyping(false); }
+                } else {
+                    // Standard Chat Logic
+                    try {
+                        const memoryPrompt = (memoryEnabled && userMemories.length > 0) 
+                            ? `[System Memory: ${userMemories.join(', ')}]`
+                            : "";
+
+                        const res = await fetch(CHAT_URL, {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json", "Authorization": `Bearer ${API_KEY}` },
+                            body: JSON.stringify({
+                                model: "LongCat-Flash-Chat",
+                                messages: [
+                                    { role: "system", content: `You are Nix, a highly intelligent AI assistant. Be concise and precise. ${memoryPrompt}` },
+                                    ...messages.map(m => ({ role: m.role, content: m.content })),
+                                    { role: "user", content: currentQuery }
+                                ]
+                            })
+                        });
+                        const data = await res.json();
+                        const aiResponseText = data.choices[0].message.content;
+
+                        const aiMsg = { conversation_id: currentConvId, role: 'assistant', content: aiResponseText };
+                        setMessages(prev => [...prev, aiMsg]);
+                        await supabaseClient.from('messages').insert([aiMsg]);
+
+                        saveNewMemory(user.id, currentQuery);
+
+                        if (isFirstMsg) {
+                            const newTitle = await generateTitle(currentQuery);
+                            const { error } = await supabaseClient
+                                .from('conversations')
+                                .update({ title: newTitle })
+                                .eq('id', currentConvId);
+                            if (!error) setConversations(prev => prev.map(c => c.id === currentConvId ? { ...c, title: newTitle } : c));
+                        }
+                    } catch (e) { console.error(e); } 
+                    finally { setIsTyping(false); }
+                }
+            };
+
+            const isArabic = (text) => /[\u0600-\u06FF]/.test(text);
+
+            return (
+                <div className={`flex h-[100dvh] w-full bg-[var(--bg-main)] ${uiLang === 'ar' ? 'rtl' : 'ltr'}`}>
+                    {showAlert && (
+                        <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 alert-overlay">
+                            <div className="absolute inset-0 bg-black/80 backdrop-blur-xl"></div>
+                            <div className="relative w-full max-w-md bg-[var(--bg-main)] border border-[var(--border)] rounded-[3rem] p-10 shadow-2xl overflow-hidden text-center">
+                                <div className="nix-logo w-14 h-14 rounded-2xl flex items-center justify-center mb-8 mx-auto">
+                                    <span className="text-white font-black text-xl italic">N</span>
+                                </div>
+                                <h2 className="text-2xl font-black tracking-tight mb-4">Intelligence Updated</h2>
+                                <p className="text-[var(--text-secondary)] text-sm mb-8 leading-relaxed">
+                                    **Nix** is now powered by the **Tiny Mellon (Flux)** engine for hyper-realistic image generation.
+                                </p>
+                                <div className="space-y-4 mb-10 text-left">
+                                    <div className="flex gap-4 items-center bg-[var(--border)] p-4 rounded-2xl">
+                                        <span className="text-xl">🎨</span>
+                                        <div>
+                                            <p className="text-[11px] font-black uppercase tracking-widest text-[var(--accent)]">New Feature</p>
+                                            <p className="text-[13px] font-bold">Image Synthesis via Flux</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <button 
+                                    onClick={dismissAlert}
+                                    className="w-full py-4 rounded-2xl bg-[var(--accent)] text-white font-black text-xs uppercase tracking-widest shadow-xl shadow-indigo-500/20 active:scale-[0.98] transition-all"
+                                >
+                                    Dismiss
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    <aside className="hidden lg:flex w-[300px] border-r border-[var(--border)] flex-col shrink-0 bg-[var(--bg-sidebar)]">
+                        <div className="p-8">
+                            <button 
+                                onClick={() => { setActiveConvId(null); setMessages([]); }}
+                                className="w-full flex items-center justify-center gap-3 py-4 rounded-2xl bg-[var(--accent)] text-white font-bold shadow-lg shadow-indigo-500/20"
+                            >
+                                <span className="text-[11px] uppercase tracking-widest">New Workspace</span>
+                            </button>
+                        </div>
+                        <div className="flex-1 overflow-y-auto px-5 py-2 chat-scroll space-y-1">
+                            {conversations.map(conv => (
+                                <button 
+                                    key={conv.id}
+                                    onClick={() => loadConversation(conv.id)}
+                                    className={`w-full text-left p-4 rounded-2xl text-[12px] font-semibold truncate transition-all ${activeConvId === conv.id ? 'sidebar-item-active' : 'text-[var(--text-secondary)] hover:bg-[var(--sidebar-active)]'}`}
+                                >
+                                    {conv.title}
+                                </button>
+                            ))}
+                        </div>
+                    </aside>
+
+                    <main className="flex-1 flex flex-col relative min-w-0">
+                        <header className="flex items-center justify-between h-20 px-8 lg:px-12 glass-panel z-10 shrink-0">
+                            <div className="flex items-center gap-4">
+                                <div className="nix-logo w-10 h-10 rounded-xl flex items-center justify-center">
+                                    <span className="text-[14px] font-black text-white italic">N</span>
+                                </div>
+                                <h2 className="text-[14px] font-extrabold tracking-tight">Nix</h2>
+                            </div>
+                            <button onClick={() => setShowSettings(true)} className="p-2 text-[var(--text-secondary)]">⚙</button>
+                        </header>
+
+                        <div ref={scrollRef} className="flex-1 overflow-y-auto chat-scroll px-8 md:px-20 lg:px-32 py-16 space-y-12">
+                            <div className="max-w-4xl mx-auto pb-64">
+                                {messages.map((msg, i) => (
+                                    <div key={i} className={`flex gap-6 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
+                                        <div className={`w-10 h-10 rounded-xl shrink-0 flex items-center justify-center text-[9px] font-black mt-1 ${msg.role === 'user' ? 'bg-[var(--border)]' : 'nix-logo text-white'}`}>
+                                            {msg.role === 'user' ? 'USER' : 'NIX'}
+                                        </div>
+                                        <div className={`message-bubble ${isArabic(msg.content) ? 'rtl' : 'ltr'}`}>
+                                            <div className={`p-8 rounded-[2.5rem] text-[15px] leading-[1.7] font-medium ${msg.role === 'user' ? 'msg-user-gradient rounded-tr-none' : 'bg-transparent'}`}>
+                                                {msg.content.includes('![Generated Image]') ? (
+                                                    <div className="space-y-4">
+                                                        <p className="mb-4">{msg.content.split('![Generated Image]')[0]}</p>
+                                                        <img 
+                                                            src={msg.content.match(/\((.*?)\)/)[1]} 
+                                                            className="rounded-3xl w-full border border-[var(--border)] shadow-2xl" 
+                                                            alt="AI Generated Artwork"
+                                                        />
+                                                    </div>
+                                                ) : (
+                                                    <div className="whitespace-pre-wrap">{msg.content}</div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                                {isTyping && (
+                                    <div className="flex gap-2 px-24 opacity-20">
+                                        <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-pulse"></div>
+                                        <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-pulse [animation-delay:0.2s]"></div>
+                                        <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-pulse [animation-delay:0.4s]"></div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        <div className="absolute bottom-0 left-0 right-0 p-8 md:p-14 bg-gradient-to-t from-[var(--bg-main)] via-[var(--bg-main)] to-transparent pointer-events-none">
+                            <div className="max-w-4xl mx-auto pointer-events-auto">
+                                <div className="relative input-container-glass rounded-[2.5rem] transition-all group focus-within:border-[var(--accent)]/40">
+                                    <textarea 
+                                        ref={textareaRef}
+                                        rows="1"
+                                        value={input}
+                                        onChange={(e) => {
+                                            setInput(e.target.value);
+                                            e.target.style.height = 'auto';
+                                            e.target.style.height = Math.min(e.target.scrollHeight, 200) + 'px';
+                                        }}
+                                        placeholder="Command Nix or ask for an image..."
+                                        className="w-full bg-transparent py-7 pl-10 pr-16 text-[15px] font-medium outline-none resize-none max-h-[200px] leading-relaxed"
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter' && !e.shiftKey) {
+                                                e.preventDefault();
+                                                processQuery();
+                                            }
+                                        }}
+                                    />
+                                    <div className="absolute right-5 bottom-5">
+                                        <button 
+                                            onClick={processQuery}
+                                            disabled={!input.trim() || isTyping}
+                                            className="w-12 h-12 flex items-center justify-center bg-white text-black rounded-2xl hover:scale-105 active:scale-95 transition-all disabled:opacity-5 group-focus-within:bg-[var(--accent)] group-focus-within:text-white"
+                                        >
+                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 12h14m-7-7l7 7-7 7"/></svg>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </main>
+
+                    {showSettings && (
+                        <div className="fixed inset-0 z-[150] flex items-center justify-center p-6 bg-black/95 backdrop-blur-2xl">
+                            <div className="w-full max-w-sm bg-[var(--bg-main)] border border-[var(--border)] rounded-[3.5rem] p-12 shadow-2xl">
+                                <div className="flex justify-between items-center mb-12">
+                                    <h3 className="text-xl font-black">Workspace</h3>
+                                    <button onClick={() => setShowSettings(false)} className="p-3 bg-[var(--border)] rounded-2xl">✕</button>
+                                </div>
+                                <div className="space-y-10">
+                                    <div className="space-y-4">
+                                        <label className="text-[10px] font-black uppercase tracking-widest opacity-40">Localization</label>
+                                        <div className="grid grid-cols-2 gap-2 bg-[var(--border)] p-1.5 rounded-2xl">
+                                            <button onClick={() => setUiLang('en')} className={`py-3.5 rounded-xl text-xs font-bold ${uiLang === 'en' ? 'bg-[var(--accent)] text-white' : 'opacity-40'}`}>English</button>
+                                            <button onClick={() => setUiLang('ar')} className={`py-3.5 rounded-xl text-xs font-bold ${uiLang === 'ar' ? 'bg-[var(--accent)] text-white' : 'opacity-40'}`}>العربية</button>
+                                        </div>
+                                    </div>
+                                    <div className="pt-6">
+                                        <button onClick={async () => { await supabaseClient.auth.signOut(); window.location.href = "auth.html"; }} className="w-full py-5 rounded-2xl border border-red-500/15 text-red-500 text-[12px] font-black uppercase tracking-widest hover:bg-red-500 hover:text-white transition-all">Sign Out</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
