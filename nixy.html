@@ -3,434 +3,460 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nix AI | Codenix Elite</title>
+    <title>Nix | Codenix AI</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/lucide/0.263.0/lucide.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Quicksand:wght@600;700&display=swap');
-        
-        :root {
-            --nix-primary: #6366f1;
-            --nix-secondary: #a855f7;
-            --melon-primary: #a3e635;
-        }
-
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: #050505;
-            color: #e5e5e5;
-            overflow: hidden;
-        }
-
-        .glass-panel {
-            background: rgba(15, 15, 20, 0.7);
-            backdrop-filter: blur(20px);
-            border: 1px solid rgba(255, 255, 255, 0.05);
-        }
-
-        .nix-gradient {
-            background: linear-gradient(135deg, var(--nix-primary) 0%, var(--nix-secondary) 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-
-        .msg-container {
-            animation: slideUp 0.3s ease-out;
-        }
-
-        @keyframes slideUp {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        .code-block {
-            background: #000;
-            border: 1px solid #222;
-            border-radius: 8px;
-            padding: 1rem;
-            font-family: 'monospace';
-            font-size: 0.8rem;
-            margin: 0.5rem 0;
-            white-space: pre-wrap;
-        }
-
-        .typing-indicator span {
-            animation: blink 1s infinite;
-        }
-
-        @keyframes blink { 50% { opacity: 0.3; } }
-
-        .custom-scroll::-webkit-scrollbar { width: 4px; }
-        .custom-scroll::-webkit-scrollbar-thumb { background: #333; border-radius: 10px; }
+        body { font-family: 'Inter', sans-serif; background-color: #09090b; color: #fafafa; }
+        .glass { background: rgba(24, 24, 27, 0.8); backdrop-filter: blur(12px); border: 1px solid rgba(63, 63, 70, 0.4); }
+        .sidebar-item:hover { background: rgba(39, 39, 42, 0.8); }
+        .message-user { background: #27272a; border-radius: 1rem 1rem 0 1rem; }
+        .message-nix { background: transparent; border-radius: 0 1rem 1rem 1rem; }
+        .typing-dot { width: 4px; height: 4px; background: #a1a1aa; border-radius: 50%; animation: blink 1.4s infinite both; }
+        .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+        .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes blink { 0%, 80%, 100% { opacity: 0.2; } 40% { opacity: 1; } }
+        pre { background: #18181b; padding: 1rem; border-radius: 0.5rem; overflow-x: auto; margin: 0.5rem 0; border: 1px solid #3f3f46; }
+        code { font-family: 'Fira Code', monospace; font-size: 0.9rem; }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 10px; }
+        .image-loader { border: 3px solid #3f3f46; border-top: 3px solid #3b82f6; border-radius: 50%; width: 24px; height: 24px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
 </head>
-<body class="h-screen flex flex-col md:flex-row">
+<body class="flex h-screen overflow-hidden">
+
+    <!-- New Feature Modal -->
+    <div id="featureModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
+        <div class="glass max-w-md w-full p-6 rounded-2xl shadow-2xl">
+            <h2 class="text-2xl font-bold mb-4 text-blue-400">Welcome to Nix 2.0</h2>
+            <ul class="space-y-3 text-zinc-300">
+                <li class="flex gap-3"><i data-lucide="brain" class="text-blue-400"></i> Persistent Memory: Nix remembers your preferences.</li>
+                <li class="flex gap-3"><i data-lucide="image" class="text-purple-400"></i> AI Image Gen: Just ask Nix to draw something.</li>
+                <li class="flex gap-3"><i data-lucide="file-up" class="text-green-400"></i> File Uploads: Chat with PDFs and text files.</li>
+            </ul>
+            <button onclick="closeFeatureModal()" class="w-full mt-8 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold transition-all">Got it!</button>
+        </div>
+    </div>
 
     <!-- Sidebar -->
-    <aside class="w-full md:w-80 glass-panel p-6 flex flex-col gap-6 border-r border-white/5">
-        <div class="flex items-center gap-4">
-            <div class="w-12 h-12 rounded-2xl bg-indigo-600 flex items-center justify-center shadow-indigo-500/30 shadow-xl">
-                <i class="fas fa-microchip text-white text-xl"></i>
-            </div>
-            <div>
-                <h1 class="text-xl font-black tracking-tight">NIX <span class="text-indigo-500">AI</span></h1>
-                <p class="text-[10px] text-gray-500 uppercase font-black tracking-widest">Neural Memory v4.2</p>
-            </div>
+    <aside class="w-72 glass flex flex-col h-full border-r border-zinc-800 hidden md:flex">
+        <div class="p-4 border-b border-zinc-800 flex items-center gap-3">
+            <div class="w-8 h-8 bg-gradient-to-tr from-blue-600 to-indigo-600 rounded-lg flex items-center justify-center font-bold">N</div>
+            <span class="font-bold text-xl tracking-tight">Nix <span class="text-xs text-zinc-500 font-normal">by Codenix</span></span>
         </div>
-
-        <button onclick="createNewChat()" class="w-full py-3.5 px-4 rounded-xl bg-indigo-600/10 border border-indigo-500/20 hover:bg-indigo-600/20 transition-all flex items-center justify-center gap-3 text-xs font-bold text-indigo-400">
-            <i class="fas fa-plus"></i> NEW THREAD
-        </button>
-
-        <div class="flex-1 overflow-y-auto custom-scroll space-y-2">
-            <p class="text-[10px] font-black text-gray-600 px-2 uppercase tracking-tighter">Active Sessions</p>
-            <div id="chat-history-list" class="space-y-1"></div>
+        <div class="p-4">
+            <button onclick="startNewChat()" class="w-full flex items-center gap-2 p-3 rounded-xl border border-zinc-700 hover:bg-zinc-800 transition-all text-sm">
+                <i data-lucide="plus" class="w-4 h-4"></i> New Chat
+            </button>
         </div>
-
-        <div id="user-profile" class="p-4 bg-white/5 rounded-2xl border border-white/5 flex items-center gap-3">
-            <div class="w-10 h-10 rounded-full bg-indigo-500 flex items-center justify-center text-white font-bold text-xs" id="user-initial">N</div>
-            <div class="flex-1 truncate">
-                <p id="user-email" class="text-[11px] font-bold truncate">guest_user_842</p>
-                <button onclick="signOut()" class="text-[9px] text-gray-500 hover:text-red-400 uppercase font-bold">Disconnect</button>
+        <div id="chatHistory" class="flex-1 overflow-y-auto px-2 space-y-1 text-sm text-zinc-400">
+            <!-- History items loaded here -->
+        </div>
+        <div class="p-4 border-t border-zinc-800">
+            <button onclick="importMemory()" class="w-full flex items-center gap-2 p-2 text-xs text-zinc-500 hover:text-white transition-all">
+                <i data-lucide="database" class="w-3 h-3"></i> Sync Memory
+            </button>
+            <div id="userInfo" class="mt-4 flex items-center gap-3 p-2 bg-zinc-900 rounded-lg">
+                <div class="w-8 h-8 rounded-full bg-zinc-700" id="userAvatar"></div>
+                <div class="flex-1 truncate">
+                    <p class="text-xs font-medium text-white truncate" id="userEmail">Loading...</p>
+                </div>
+                <button onclick="signOut()" class="text-zinc-500 hover:text-red-400"><i data-lucide="log-out" class="w-4 h-4"></i></button>
             </div>
         </div>
     </aside>
 
-    <!-- Main Content -->
-    <main class="flex-1 flex flex-col relative bg-[#050505]">
-        <header class="h-16 border-b border-white/5 flex items-center justify-between px-8 glass-panel z-10">
-            <div class="flex items-center gap-3">
-                <div class="flex flex-col">
-                    <span id="current-model-name" class="text-xs font-bold text-white tracking-wide">LongCat-Flash-Omni</span>
-                    <span class="text-[9px] text-green-500 font-bold uppercase tracking-widest">● Core Persistent Memory Active</span>
-                </div>
+    <!-- Main Chat Area -->
+    <main class="flex-1 flex flex-col relative h-full">
+        <!-- Header -->
+        <header class="h-14 flex items-center justify-between px-6 border-b border-zinc-800 glass z-10">
+            <div class="flex items-center gap-4">
+                <button class="md:hidden"><i data-lucide="menu"></i></button>
+                <h1 id="currentChatTitle" class="font-medium text-sm text-zinc-300">New Conversation</h1>
             </div>
-            <div class="flex gap-4">
-                <i class="fas fa-shield-halved text-gray-600 text-sm"></i>
-                <i class="fas fa-bolt text-indigo-500 text-sm"></i>
+            <div class="flex items-center gap-4">
+                <span class="text-[10px] px-2 py-1 bg-zinc-800 rounded-full text-zinc-500 border border-zinc-700">MODEL: NIX-V1</span>
             </div>
         </header>
 
-        <div id="chat-container" class="flex-1 overflow-y-auto p-4 md:p-12 space-y-8 custom-scroll">
-            <div id="welcome-screen" class="max-w-xl mx-auto text-center py-20">
-                <div class="relative w-24 h-24 mx-auto mb-8">
-                    <div class="absolute inset-0 bg-indigo-600 rounded-full blur-2xl opacity-20 animate-pulse"></div>
-                    <div class="relative w-full h-full rounded-3xl bg-gradient-to-br from-indigo-600 to-purple-700 flex items-center justify-center shadow-2xl">
-                        <i class="fas fa-brain text-4xl text-white"></i>
-                    </div>
+        <!-- Messages -->
+        <div id="chatContainer" class="flex-1 overflow-y-auto p-4 md:p-8 space-y-8">
+            <div class="max-w-3xl mx-auto text-center mt-20" id="emptyState">
+                <div class="w-16 h-16 bg-blue-600/10 text-blue-500 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                    <i data-lucide="sparkles" class="w-8 h-8"></i>
                 </div>
-                <h2 class="text-3xl font-black mb-4 tracking-tighter">Intelligent Memory Context</h2>
-                <p class="text-gray-500 text-sm leading-relaxed mb-8">
-                    Nix now retains full session history. Upload code, images, or documents for deep analysis, or use <span class="text-lime-400 font-mono">/draw</span> for procedural art generation.
-                </p>
-                <div class="grid grid-cols-2 gap-3">
-                    <div class="p-4 rounded-xl bg-white/5 border border-white/5 text-[11px] text-left">
-                        <p class="text-indigo-400 font-bold mb-1">DATA ANALYSIS</p>
-                        "Explain the logic in this attached Python file..."
-                    </div>
-                    <div class="p-4 rounded-xl bg-white/5 border border-white/5 text-[11px] text-left">
-                        <p class="text-lime-400 font-bold mb-1">CREATIVE GEN</p>
-                        "/draw a neon cyberpunk cityscape"
-                    </div>
+                <h2 class="text-2xl font-bold mb-2">How can I help you today?</h2>
+                <p class="text-zinc-500 mb-8">Nix can generate code, answer questions, and remember your projects.</p>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-left">
+                    <button onclick="prefill('Help me write a Python script for web scraping')" class="p-4 glass rounded-xl text-sm hover:border-zinc-500 transition-all">"Help me write a Python script..."</button>
+                    <button onclick="prefill('Generate an image of a futuristic city')" class="p-4 glass rounded-xl text-sm hover:border-zinc-500 transition-all">"Generate an image of a futuristic..."</button>
                 </div>
             </div>
         </div>
 
         <!-- Input Area -->
-        <div class="p-6 bg-gradient-to-t from-[#050505] via-[#050505] to-transparent">
-            <div class="max-w-4xl mx-auto">
-                <div id="file-previews" class="flex flex-wrap gap-2 mb-4"></div>
-                <div class="relative">
-                    <div class="absolute left-4 bottom-4 flex gap-2">
-                        <button onclick="triggerFile()" class="w-9 h-9 rounded-xl flex items-center justify-center text-gray-500 hover:text-white hover:bg-white/10 transition">
-                            <i class="fas fa-paperclip"></i>
-                        </button>
-                        <input type="file" id="file-input" class="hidden" multiple onchange="handleFiles(event)">
+        <div class="p-4 md:p-8">
+            <div class="max-w-3xl mx-auto relative">
+                <div id="attachmentPreview" class="hidden mb-2 p-2 glass rounded-lg flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <i data-lucide="file-text" class="w-4 h-4 text-blue-400"></i>
+                        <span id="fileName" class="text-xs text-zinc-300">file.txt</span>
                     </div>
-                    <textarea 
-                        id="user-input"
-                        rows="1" 
-                        placeholder="Type a message or /draw something..." 
-                        class="w-full glass-panel rounded-2xl py-5 px-16 resize-none focus:outline-none focus:ring-1 focus:ring-indigo-500/50 transition-all text-sm leading-relaxed"
-                        onkeydown="handleKey(event)"
-                        oninput="autoResize(this)"
-                    ></textarea>
-                    <button onclick="sendMessage()" id="send-btn" class="absolute right-3 bottom-3 w-11 h-11 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white flex items-center justify-center transition-all shadow-lg shadow-indigo-600/20">
-                        <i class="fas fa-paper-plane"></i>
-                    </button>
+                    <button onclick="clearAttachment()" class="text-zinc-500 hover:text-white"><i data-lucide="x" class="w-3 h-3"></i></button>
                 </div>
-                <p class="text-[9px] text-gray-600 text-center mt-4 uppercase tracking-widest font-bold">Advanced Neural Engine Interface v2.0</p>
+
+                <div class="relative glass rounded-2xl focus-within:ring-2 ring-blue-500/50 transition-all">
+                    <textarea 
+                        id="userInput"
+                        rows="1"
+                        placeholder="Message Nix..."
+                        class="w-full bg-transparent p-4 pr-24 resize-none outline-none text-zinc-200 placeholder-zinc-500"
+                        oninput="this.style.height = '';this.style.height = this.scrollHeight + 'px'"
+                    ></textarea>
+                    
+                    <div class="absolute right-2 bottom-2 flex items-center gap-1">
+                        <input type="file" id="fileInput" class="hidden" onchange="handleFileUpload(event)">
+                        <button onclick="document.getElementById('fileInput').click()" class="p-2 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg transition-all" title="Upload file">
+                            <i data-lucide="paperclip" class="w-5 h-5"></i>
+                        </button>
+                        <button id="sendBtn" onclick="sendMessage()" class="p-2 bg-white text-black hover:bg-zinc-200 rounded-lg transition-all disabled:opacity-50">
+                            <i data-lucide="arrow-up" class="w-5 h-5"></i>
+                        </button>
+                    </div>
+                </div>
+                <p class="text-[10px] text-center text-zinc-600 mt-3">Nix by Codenix may produce inaccurate information. Memory and file context are active.</p>
             </div>
         </div>
     </main>
 
-    <canvas id="gen-canvas" class="hidden"></canvas>
-
     <script>
+        // Configuration
+        const LONGCAT_API_KEY = "ak_2rU1Lo7PA23X5Is9wm3m69EY2T37J";
         const SUPABASE_URL = "https://rnlwrngfgvznndlekmrz.supabase.co";
         const SUPABASE_KEY = "sb_publishable_mtI0_ZBvU_n5oRuqV58QHg_qJt3Gfyt";
-        const LONGCAT_API_KEY = "ak_2rU1Lo7PA23X5Is9wm3m69EY2T37J";
         
-        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        // Use global supabase object from CDN script
+        const client = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        
         let currentUser = null;
         let currentConversationId = null;
-        let attachedFiles = [];
-        let chatMemory = []; // Persistent memory for the current session
+        let attachedFileContent = "";
+        let userMemories = [];
 
-        async function init() {
-            const { data: { session } } = await supabaseClient.auth.getSession();
-            if (!session) {
-                // In a real app, redirect. For this preview, we'll mock or handle gracefully
-                console.log("No session - guest mode");
-            } else {
-                currentUser = session.user;
-                document.getElementById('user-email').innerText = currentUser.email;
-                document.getElementById('user-initial').innerText = currentUser.email[0].toUpperCase();
+        // Helper to safely call Lucide
+        function updateIcons() {
+            if (typeof lucide !== 'undefined') {
+                lucide.createIcons();
             }
-            fetchConversations();
         }
 
-        // --- Database & History ---
-        async function fetchConversations() {
-            if (!currentUser) return;
-            const { data } = await supabaseClient
+        // App Initialization
+        async function init() {
+            updateIcons();
+            
+            // Check session
+            const { data: { session } } = await client.auth.getSession();
+            if (!session) {
+                // If auth.html isn't ready or accessible in this environment, you might need a fallback or login UI here
+                console.warn('No session found. Redirecting to auth.html...');
+                window.location.href = 'auth.html';
+                return;
+            }
+            currentUser = session.user;
+            document.getElementById('userEmail').innerText = currentUser.email;
+
+            // Load feature modal (one time)
+            if (!localStorage.getItem('nix_onboarded')) {
+                document.getElementById('featureModal').classList.remove('hidden');
+            }
+
+            // Fetch Memory & History
+            await loadMemories();
+            await loadChatHistory();
+        }
+
+        async function loadMemories() {
+            const { data, error } = await client
+                .from('user_memories')
+                .select('*')
+                .eq('user_id', currentUser.id);
+            
+            if (data) userMemories = data;
+        }
+
+        async function loadChatHistory() {
+            const { data, error } = await client
                 .from('conversations')
                 .select('*')
                 .eq('user_id', currentUser.id)
                 .order('created_at', { ascending: false });
 
-            if (data) renderConversationList(data);
+            const historyContainer = document.getElementById('chatHistory');
+            historyContainer.innerHTML = '';
+            
+            if (data) {
+                data.forEach(chat => {
+                    const btn = document.createElement('button');
+                    btn.className = `sidebar-item w-full flex items-center gap-2 p-2 rounded-lg transition-all text-left truncate ${currentConversationId === chat.id ? 'bg-zinc-800 text-white' : ''}`;
+                    btn.onclick = () => loadConversation(chat.id);
+                    btn.innerHTML = `<i data-lucide="message-square" class="w-4 h-4 shrink-0"></i><span class="truncate">${chat.title}</span>`;
+                    historyContainer.appendChild(btn);
+                });
+            }
+            updateIcons();
         }
 
-        function renderConversationList(chats) {
-            const list = document.getElementById('chat-history-list');
-            list.innerHTML = chats.map(chat => `
-                <button onclick="loadConversation('${chat.id}')" class="w-full text-left p-3 rounded-xl border border-transparent hover:bg-white/5 transition text-[11px] truncate flex items-center gap-3 ${chat.id === currentConversationId ? 'bg-indigo-600/10 text-indigo-400' : 'text-gray-500'}">
-                    <i class="fas fa-comment-alt opacity-30"></i>
-                    <span class="truncate font-medium">${chat.title || 'Untitled Thread'}</span>
-                </button>
-            `).join('');
+        function closeFeatureModal() {
+            document.getElementById('featureModal').classList.add('hidden');
+            localStorage.setItem('nix_onboarded', 'true');
+        }
+
+        function startNewChat() {
+            currentConversationId = null;
+            document.getElementById('chatContainer').innerHTML = `
+                <div class="max-w-3xl mx-auto text-center mt-20" id="emptyState">
+                    <div class="w-16 h-16 bg-blue-600/10 text-blue-500 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                        <i data-lucide="sparkles" class="w-8 h-8"></i>
+                    </div>
+                    <h2 class="text-2xl font-bold mb-2">How can I help you today?</h2>
+                    <p class="text-zinc-500 mb-8">Nix can generate code, answer questions, and remember your projects.</p>
+                </div>`;
+            document.getElementById('currentChatTitle').innerText = "New Conversation";
+            updateIcons();
         }
 
         async function loadConversation(id) {
             currentConversationId = id;
-            chatMemory = [];
-            document.getElementById('welcome-screen')?.remove();
-            const container = document.getElementById('chat-container');
-            container.innerHTML = '<div class="text-center py-20 text-[10px] text-gray-600 animate-pulse font-bold tracking-widest">SYNCHRONIZING MEMORY...</div>';
-
-            const { data: messages } = await supabaseClient
+            const { data: messages } = await client
                 .from('messages')
                 .select('*')
                 .eq('conversation_id', id)
                 .order('created_at', { ascending: true });
 
-            container.innerHTML = '';
+            document.getElementById('chatContainer').innerHTML = '';
+            const empty = document.getElementById('emptyState');
+            if (empty) empty.classList.add('hidden');
+            
             if (messages) {
-                messages.forEach(msg => {
-                    addMessageToUI(msg.role, msg.content, [], false);
-                    // Add to local memory for the model to see
-                    chatMemory.push({ role: msg.role, content: msg.content });
-                });
+                messages.forEach(msg => appendMessage(msg.role, msg.content));
             }
+            loadChatHistory();
         }
 
-        // --- Core AI Logic ---
+        async function handleFileUpload(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                attachedFileContent = event.target.result;
+                document.getElementById('attachmentPreview').classList.remove('hidden');
+                document.getElementById('fileName').innerText = file.name;
+            };
+            reader.readAsText(file);
+        }
+
+        function clearAttachment() {
+            attachedFileContent = "";
+            document.getElementById('fileInput').value = "";
+            document.getElementById('attachmentPreview').classList.add('hidden');
+        }
+
+        function prefill(text) {
+            document.getElementById('userInput').value = text;
+            sendMessage();
+        }
+
         async function sendMessage() {
-            const input = document.getElementById('user-input');
-            const prompt = input.value.trim();
-            if (!prompt && attachedFiles.length === 0) return;
+            const input = document.getElementById('userInput');
+            const text = input.value.trim();
+            if (!text && !attachedFileContent) return;
 
-            document.getElementById('welcome-screen')?.remove();
-            
-            // Prepare the context with files
-            let combinedContent = prompt;
-            if (attachedFiles.length > 0) {
-                const fileContext = attachedFiles.map(f => `[FILE ATTACHED: ${f.name} (Type: ${f.type}) Content Snippet: ${f.textData || "Binary/Image"}]`).join('\n');
-                combinedContent = `${prompt}\n\nContext from files:\n${fileContext}`;
-            }
-
-            // UI Update
-            addMessageToUI('user', prompt, attachedFiles);
+            // Reset UI
             input.value = '';
             input.style.height = 'auto';
+            const empty = document.getElementById('emptyState');
+            if (empty) empty.classList.add('hidden');
+            
+            // Create conversation if new
+            if (!currentConversationId) {
+                const { data, error } = await client
+                    .from('conversations')
+                    .insert([{ user_id: currentUser.id, title: text.substring(0, 30) || "New Chat" }])
+                    .select()
+                    .single();
+                if (error) {
+                    console.error("Conversation error:", error);
+                    return;
+                }
+                currentConversationId = data.id;
+            }
 
-            // Check for /draw command (Procedural Generation)
-            if (prompt.toLowerCase().startsWith('/draw')) {
-                generateProceduralArt(prompt.replace('/draw', '').trim());
-                attachedFiles = [];
-                renderFileChips();
+            // Save user message
+            const userDisplayContent = text + (attachedFileContent ? `\n\n[File context attached]` : '');
+            appendMessage('user', userDisplayContent);
+            await saveMessage('user', text);
+
+            // Handle Image Generation Command
+            if (text.toLowerCase().startsWith('generate image') || text.toLowerCase().startsWith('/draw')) {
+                generateAIImage(text);
                 return;
             }
 
-            // Create conversation in DB if needed
-            if (!currentConversationId && currentUser) {
-                const title = prompt.substring(0, 25) || "New Discussion";
-                const { data: chat } = await supabaseClient.from('conversations').insert([{ user_id: currentUser.id, title: title }]).select().single();
-                if (chat) currentConversationId = chat.id;
-            }
-
-            // API Call with FULL MEMORY
-            chatMemory.push({ role: "user", content: combinedContent });
+            // Call Nix AI (Longcat)
+            showTypingIndicator();
             
-            // Show Typing
-            const typingId = "typing-" + Date.now();
-            showTyping(typingId);
-
             try {
-                const response = await fetch('https://api.longcat.chat/openai/v1/chat/completions', {
-                    method: 'POST',
-                    headers: { 'Authorization': `Bearer ${LONGCAT_API_KEY}`, 'Content-Type': 'application/json' },
+                const contextMemories = userMemories.map(m => m.content).join("\n");
+                const fileContext = attachedFileContent ? `USER UPLOADED FILE CONTENT:\n${attachedFileContent}\n---` : "";
+                
+                const systemPrompt = `You are Nix, an advanced AI model developed by Codenix. You are helpful, professional, and precise. 
+                Use the following context about the user to personalize your answer: ${contextMemories}.
+                ${fileContext}`;
+
+                const response = await fetch("https://api.longcat.io/v1/chat/completions", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Authorization": `Bearer ${LONGCAT_API_KEY}`
+                    },
                     body: JSON.stringify({
-                        model: "LongCat-Flash-Omni-2603",
-                        messages: chatMemory.slice(-10), // Send last 10 messages for memory context
-                        stream: false
+                        model: "nix-large",
+                        messages: [
+                            { role: "system", content: systemPrompt },
+                            { role: "user", content: text }
+                        ]
                     })
                 });
 
                 const data = await response.json();
-                removeTyping(typingId);
+                const aiText = data.choices[0].message.content;
                 
-                const reply = data.choices[0].message.content;
-                addMessageToUI('assistant', reply);
-                chatMemory.push({ role: "assistant", content: reply });
-
-                if (currentConversationId) {
-                    await supabaseClient.from('messages').insert([
-                        { conversation_id: currentConversationId, role: 'user', content: prompt },
-                        { conversation_id: currentConversationId, role: 'assistant', content: reply }
-                    ]);
+                removeTypingIndicator();
+                appendMessage('assistant', aiText);
+                await saveMessage('assistant', aiText);
+                
+                // Learning logic
+                if (text.toLowerCase().includes("remember that") || text.toLowerCase().includes("i like")) {
+                    await saveMemory(text);
                 }
-            } catch (e) {
-                removeTyping(typingId);
-                addMessageToUI('assistant', "I'm having trouble connecting to my neural network. Please check your link.");
+
+            } catch (err) {
+                removeTypingIndicator();
+                appendMessage('assistant', "Sorry, I encountered an error connecting to my core services.");
             }
 
-            attachedFiles = [];
-            renderFileChips();
+            clearAttachment();
         }
 
-        // --- UI Components ---
-        function addMessageToUI(role, text, files = [], scroll = true) {
-            const container = document.getElementById('chat-container');
-            const div = document.createElement('div');
-            div.className = `msg-container p-6 rounded-3xl max-w-4xl mx-auto ${role === 'assistant' ? 'bg-white/[0.02] border border-white/5' : ''}`;
+        async function generateAIImage(prompt) {
+            showTypingIndicator("Creating your visual...");
+            const cleanPrompt = prompt.replace(/generate image|draw|\/draw/gi, "").trim();
+            const imageUrl = `https://pollinations.ai/p/${encodeURIComponent(cleanPrompt)}?width=1024&height=1024&seed=${Math.floor(Math.random() * 100000)}&nologo=true`;
             
-            let fileHtml = files.length > 0 ? `<div class="flex gap-2 mb-4">` + files.map(f => `
-                <div class="h-10 px-3 rounded-lg bg-indigo-500/10 border border-indigo-500/20 flex items-center gap-2 text-[10px] text-indigo-300 font-bold">
-                    <i class="fas fa-file-code"></i> ${f.name}
-                </div>
-            `).join('') + `</div>` : '';
+            setTimeout(async () => {
+                removeTypingIndicator();
+                const content = `Here is the image I generated for: "${cleanPrompt}"\n\n![Generated Image](${imageUrl})`;
+                appendMessage('assistant', content);
+                await saveMessage('assistant', content);
+            }, 3000);
+        }
 
-            const formattedText = text.replace(/```([\s\S]*?)```/g, '<div class="code-block">$1</div>').replace(/\n/g, '<br>');
+        async function saveMessage(role, content) {
+            await client.from('messages').insert([{
+                conversation_id: currentConversationId,
+                role,
+                content
+            }]);
+        }
 
-            div.innerHTML = `
-                <div class="flex items-center gap-3 mb-4">
-                    <div class="w-7 h-7 rounded-lg bg-${role === 'assistant' ? 'indigo-600' : 'zinc-800'} flex items-center justify-center text-[10px]">
-                        <i class="fas ${role === 'assistant' ? 'fa-bolt' : 'fa-user'}"></i>
+        async function saveMemory(content) {
+            await client.from('user_memories').insert([{
+                user_id: currentUser.id,
+                content: content,
+                source: 'chat'
+            }]);
+            await loadMemories();
+        }
+
+        function appendMessage(role, content) {
+            const container = document.getElementById('chatContainer');
+            const div = document.createElement('div');
+            div.className = `flex gap-4 ${role === 'user' ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-2 duration-300`;
+            
+            const inner = `
+                <div class="max-w-[85%] md:max-w-2xl flex gap-4 ${role === 'user' ? 'flex-row-reverse' : ''}">
+                    <div class="w-8 h-8 rounded-lg shrink-0 flex items-center justify-center ${role === 'user' ? 'bg-zinc-700' : 'bg-blue-600'}">
+                        <i data-lucide="${role === 'user' ? 'user' : 'bot'}" class="w-4 h-4 text-white"></i>
                     </div>
-                    <span class="text-[10px] font-black uppercase tracking-widest text-gray-500">${role === 'assistant' ? 'Nix Core' : 'Authorized User'}</span>
+                    <div class="space-y-2">
+                        <p class="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">${role === 'user' ? 'You' : 'Nix'}</p>
+                        <div class="text-sm leading-relaxed text-zinc-200 whitespace-pre-wrap ${role === 'user' ? 'message-user p-4' : 'message-nix'}">
+                            ${formatContent(content)}
+                        </div>
+                    </div>
                 </div>
-                ${fileHtml}
-                <div class="text-[13px] leading-relaxed text-gray-300 font-medium">${formattedText}</div>
             `;
             
-            container.appendChild(div);
-            if (scroll) container.scrollTop = container.scrollHeight;
-        }
-
-        // --- Procedural Generation (Free Library-free Image Engine) ---
-        function generateProceduralArt(prompt) {
-            addMessageToUI('assistant', `Generating procedural interpretation: "${prompt}"...`);
-            const canvas = document.getElementById('gen-canvas');
-            const ctx = canvas.getContext('2d');
-            canvas.width = 1024; canvas.height = 1024;
-
-            // Seed based on prompt
-            const seed = prompt.split('').reduce((a,b) => (a + b.charCodeAt(0)), 0);
-            const rng = () => { var t = seed += 0x6D2B79F5; t = Math.imul(t ^ t >>> 15, t | 1); t ^= t + Math.imul(t ^ t >>> 7, t | 61); return ((t ^ t >>> 14) >>> 0) / 4294967296; };
-
-            // Draw Background
-            const g = ctx.createLinearGradient(0, 0, 1024, 1024);
-            g.addColorStop(0, `hsl(${rng()*360}, 50%, 5%)`);
-            g.addColorStop(1, '#000');
-            ctx.fillStyle = g; ctx.fillRect(0,0,1024,1024);
-
-            // Draw Patterns
-            for(let i=0; i<40; i++) {
-                ctx.beginPath();
-                ctx.strokeStyle = `hsla(${rng()*360}, 70%, 60%, 0.2)`;
-                ctx.lineWidth = rng()*5;
-                const x = rng()*1024, y = rng()*1024;
-                ctx.moveTo(x, y);
-                for(let j=0; j<10; j++) {
-                    ctx.lineTo(x + rng()*300 - 150, y + rng()*300 - 150);
-                }
-                ctx.stroke();
-            }
-
-            // Glow particles
-            for(let i=0; i<200; i++) {
-                ctx.fillStyle = `hsla(${rng()*360}, 80%, 70%, ${rng()*0.5})`;
-                ctx.beginPath();
-                ctx.arc(rng()*1024, rng()*1024, rng()*3, 0, Math.PI*2);
-                ctx.fill();
-            }
-
-            const url = canvas.toDataURL();
-            const container = document.getElementById('chat-container');
-            const div = document.createElement('div');
-            div.className = 'msg-container max-w-2xl mx-auto p-4 bg-white/5 border border-white/10 rounded-3xl mt-4';
-            div.innerHTML = `<img src="${url}" class="w-full rounded-2xl shadow-2xl border border-white/5"><p class="text-[9px] text-center mt-3 text-indigo-400 font-bold uppercase tracking-widest">Nix Synthetic Visage | ${prompt}</p>`;
+            div.innerHTML = inner;
             container.appendChild(div);
             container.scrollTop = container.scrollHeight;
+            updateIcons();
         }
 
-        // --- File Handling ---
-        function triggerFile() { document.getElementById('file-input').click(); }
-        async function handleFiles(e) {
-            const files = Array.from(e.target.files);
-            for (const file of files) {
-                let textContent = "";
-                if (file.type.includes('text') || file.name.endsWith('.js') || file.name.endsWith('.py') || file.name.endsWith('.html') || file.name.endsWith('.css')) {
-                    textContent = await file.text();
-                }
-                attachedFiles.push({ 
-                    name: file.name, 
-                    type: file.type, 
-                    textData: textContent.substring(0, 5000) // Send first 5k chars as context
-                });
-                renderFileChips();
-            }
+        function formatContent(text) {
+            let formatted = text.replace(/!\[.*?\]\((.*?)\)/g, '<div class="relative group"><img src="$1" class="rounded-xl border border-zinc-800 max-h-96 w-auto my-4 hover:opacity-90 transition-all cursor-pointer" onclick="window.open(\'$1\')"><div class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 bg-black/40 rounded-xl pointer-events-none"><i data-lucide="zoom-in" class="text-white"></i></div></div>');
+            formatted = formatted.replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>');
+            return formatted;
         }
 
-        function renderFileChips() {
-            const container = document.getElementById('file-previews');
-            container.innerHTML = attachedFiles.map((f, i) => `
-                <div class="px-3 py-1.5 rounded-lg bg-indigo-500/20 border border-indigo-500/30 flex items-center gap-2 text-[10px] text-indigo-200">
-                    <i class="fas fa-file"></i> <span>${f.name}</span>
-                    <button onclick="removeFile(${i})" class="hover:text-white"><i class="fas fa-times"></i></button>
+        function showTypingIndicator(customText = "Nix is thinking...") {
+            const container = document.getElementById('chatContainer');
+            const div = document.createElement('div');
+            div.id = "typingIndicator";
+            div.className = "flex gap-4 justify-start animate-pulse";
+            div.innerHTML = `
+                <div class="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center"><i data-lucide="bot" class="w-4 h-4 text-white"></i></div>
+                <div class="space-y-2">
+                    <p class="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Nix</p>
+                    <div class="flex items-center gap-2 p-2">
+                        <div class="typing-dot"></div>
+                        <div class="typing-dot"></div>
+                        <div class="typing-dot"></div>
+                        <span class="text-xs text-zinc-500 ml-2">${customText}</span>
+                    </div>
                 </div>
-            `).join('');
-        }
-
-        function removeFile(i) { attachedFiles.splice(i, 1); renderFileChips(); }
-        function handleKey(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }
-        function autoResize(el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; }
-        
-        function showTyping(id) {
-            const container = document.getElementById('chat-container');
-            const div = document.createElement('div');
-            div.id = id;
-            div.className = "p-6 max-w-4xl mx-auto text-gray-600 text-[10px] font-bold tracking-widest typing-indicator";
-            div.innerHTML = "<span>NIX IS PROCESSING DATA...</span>";
+            `;
             container.appendChild(div);
             container.scrollTop = container.scrollHeight;
+            updateIcons();
         }
-        function removeTyping(id) { document.getElementById(id)?.remove(); }
 
-        window.onload = init;
+        function removeTypingIndicator() {
+            const el = document.getElementById('typingIndicator');
+            if (el) el.remove();
+        }
+
+        async function signOut() {
+            await client.auth.signOut();
+            window.location.href = 'auth.html';
+        }
+
+        async function importMemory() {
+            const input = prompt("Paste text data you'd like Nix to learn about you (projects, goals, preferences):");
+            if (input) {
+                await saveMemory(input);
+                appendMessage('assistant', "I've successfully updated my internal memory with the information you provided.");
+            }
+        }
+
+        // Wait for DOM and libraries
+        document.addEventListener('DOMContentLoaded', () => {
+            init().catch(console.error);
+        });
     </script>
 </body>
 </html>
