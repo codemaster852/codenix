@@ -3,137 +3,197 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nix | Codenix AI</title>
+    <title>Nix | Enterprise AI</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/lucide/0.263.0/lucide.min.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Fira+Code&display=swap" rel="stylesheet">
     <style>
-        body { font-family: 'Inter', sans-serif; background-color: #09090b; color: #fafafa; }
-        .glass { background: rgba(24, 24, 27, 0.8); backdrop-filter: blur(12px); border: 1px solid rgba(63, 63, 70, 0.4); }
-        .sidebar-item:hover { background: rgba(39, 39, 42, 0.8); }
-        .message-user { background: #27272a; border-radius: 1rem 1rem 0 1rem; }
-        .message-nix { background: transparent; border-radius: 0 1rem 1rem 1rem; }
-        .typing-dot { width: 4px; height: 4px; background: #a1a1aa; border-radius: 50%; animation: blink 1.4s infinite both; }
+        :root {
+            --bg: #09090b;
+            --card: #18181b;
+            --border: rgba(63, 63, 70, 0.4);
+            --accent: #3b82f6;
+        }
+        body { font-family: 'Inter', sans-serif; background-color: var(--bg); color: #fafafa; overflow: hidden; }
+        .glass { background: rgba(24, 24, 27, 0.7); backdrop-filter: blur(16px); border: 1px solid var(--border); }
+        .sidebar-item { transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); }
+        .sidebar-item:hover { background: rgba(39, 39, 42, 0.6); }
+        .sidebar-active { background: rgba(59, 130, 246, 0.1); border-left: 3px solid var(--accent); }
+        
+        /* Message Bubbles */
+        .message-user { background: #27272a; border: 1px solid #3f3f46; border-radius: 1.25rem 1.25rem 0.25rem 1.25rem; }
+        .message-nix { border-radius: 0.25rem 1.25rem 1.25rem 1.25rem; }
+        
+        /* Typing Animation */
+        .typing-dot { width: 4px; height: 4px; background: #3b82f6; border-radius: 50%; animation: blink 1.4s infinite both; }
         .typing-dot:nth-child(2) { animation-delay: 0.2s; }
         .typing-dot:nth-child(3) { animation-delay: 0.4s; }
-        @keyframes blink { 0%, 80%, 100% { opacity: 0.2; } 40% { opacity: 1; } }
-        pre { background: #18181b; padding: 1rem; border-radius: 0.5rem; overflow-x: auto; margin: 0.5rem 0; border: 1px solid #3f3f46; }
-        code { font-family: 'Fira Code', monospace; font-size: 0.9rem; }
-        ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 10px; }
-        .image-loader { border: 3px solid #3f3f46; border-top: 3px solid #3b82f6; border-radius: 50%; width: 24px; height: 24px; animation: spin 1s linear infinite; }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        @keyframes blink { 0%, 80%, 100% { opacity: 0.2; transform: scale(0.8); } 40% { opacity: 1; transform: scale(1.2); } }
+        
+        /* Code Blocks */
+        pre { background: #000; border: 1px solid #27272a; padding: 1rem; border-radius: 0.75rem; margin: 1rem 0; position: relative; }
+        code { font-family: 'Fira Code', monospace; font-size: 0.85rem; color: #e4e4e7; }
+        
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 5px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #27272a; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #3f3f46; }
+
+        /* Image Display */
+        .image-card { overflow: hidden; border-radius: 1rem; border: 1px solid #27272a; background: #121214; }
+        .image-card img { transition: transform 0.5s ease; width: 100%; height: auto; display: block; }
+        .image-card:hover img { transform: scale(1.02); }
+        
+        /* Utility */
+        .animate-slide-up { animation: slideUp 0.4s ease-out; }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
     </style>
 </head>
-<body class="flex h-screen overflow-hidden">
-
-    <!-- New Feature Modal -->
-    <div id="featureModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
-        <div class="glass max-w-md w-full p-6 rounded-2xl shadow-2xl">
-            <h2 class="text-2xl font-bold mb-4 text-blue-400">Welcome to Nix 2.0</h2>
-            <ul class="space-y-3 text-zinc-300">
-                <li class="flex gap-3"><i data-lucide="brain" class="text-blue-400"></i> Persistent Memory: Nix remembers your preferences.</li>
-                <li class="flex gap-3"><i data-lucide="image" class="text-purple-400"></i> AI Image Gen: Just ask Nix to draw something.</li>
-                <li class="flex gap-3"><i data-lucide="file-up" class="text-green-400"></i> File Uploads: Chat with PDFs and text files.</li>
-            </ul>
-            <button onclick="closeFeatureModal()" class="w-full mt-8 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold transition-all">Got it!</button>
-        </div>
-    </div>
+<body class="flex h-screen w-full">
 
     <!-- Sidebar -->
-    <aside class="w-72 glass flex flex-col h-full border-r border-zinc-800 hidden md:flex">
-        <div class="p-4 border-b border-zinc-800 flex items-center gap-3">
-            <div class="w-8 h-8 bg-gradient-to-tr from-blue-600 to-indigo-600 rounded-lg flex items-center justify-center font-bold">N</div>
-            <span class="font-bold text-xl tracking-tight">Nix <span class="text-xs text-zinc-500 font-normal">by Codenix</span></span>
-        </div>
-        <div class="p-4">
-            <button onclick="startNewChat()" class="w-full flex items-center gap-2 p-3 rounded-xl border border-zinc-700 hover:bg-zinc-800 transition-all text-sm">
-                <i data-lucide="plus" class="w-4 h-4"></i> New Chat
-            </button>
-        </div>
-        <div id="chatHistory" class="flex-1 overflow-y-auto px-2 space-y-1 text-sm text-zinc-400">
-            <!-- History items loaded here -->
-        </div>
-        <div class="p-4 border-t border-zinc-800">
-            <button onclick="importMemory()" class="w-full flex items-center gap-2 p-2 text-xs text-zinc-500 hover:text-white transition-all">
-                <i data-lucide="database" class="w-3 h-3"></i> Sync Memory
-            </button>
-            <div id="userInfo" class="mt-4 flex items-center gap-3 p-2 bg-zinc-900 rounded-lg">
-                <div class="w-8 h-8 rounded-full bg-zinc-700" id="userAvatar"></div>
-                <div class="flex-1 truncate">
-                    <p class="text-xs font-medium text-white truncate" id="userEmail">Loading...</p>
+    <aside class="w-80 glass flex flex-col h-full z-20 hidden lg:flex">
+        <div class="p-6 flex items-center justify-between border-b border-zinc-800/50">
+            <div class="flex items-center gap-3">
+                <div class="w-9 h-9 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/20">
+                    <i data-lucide="zap" class="w-5 h-5 text-white"></i>
                 </div>
-                <button onclick="signOut()" class="text-zinc-500 hover:text-red-400"><i data-lucide="log-out" class="w-4 h-4"></i></button>
+                <div>
+                    <h2 class="font-bold text-lg leading-tight">Nix AI</h2>
+                    <p class="text-[10px] text-zinc-500 uppercase tracking-widest">Enterprise v2.4</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="p-4">
+            <button onclick="startNewChat()" class="w-full flex items-center justify-center gap-2 p-3 rounded-xl bg-white text-black font-semibold hover:bg-zinc-200 transition-all shadow-xl">
+                <i data-lucide="plus" class="w-4 h-4"></i> New Conversation
+            </button>
+        </div>
+
+        <div id="chatHistory" class="flex-1 overflow-y-auto px-3 space-y-1 py-2">
+            <!-- Loaded dynamically -->
+        </div>
+
+        <div class="p-4 border-t border-zinc-800/50 space-y-3">
+            <button onclick="importMemory()" class="w-full flex items-center gap-3 p-2.5 text-sm text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg transition-all">
+                <i data-lucide="database" class="w-4 h-4"></i> Core Memory
+            </button>
+            <div class="flex items-center gap-3 p-3 bg-zinc-900/50 rounded-xl border border-zinc-800/50">
+                <div class="w-10 h-10 rounded-full bg-gradient-to-br from-zinc-700 to-zinc-800 border border-zinc-700 flex items-center justify-center overflow-hidden">
+                    <i data-lucide="user" class="w-5 h-5 text-zinc-400"></i>
+                </div>
+                <div class="flex-1 min-w-0">
+                    <p class="text-xs font-semibold text-white truncate" id="userEmail">Loading...</p>
+                    <p class="text-[10px] text-zinc-500">Free Tier</p>
+                </div>
+                <button onclick="signOut()" class="text-zinc-500 hover:text-red-400 transition-colors">
+                    <i data-lucide="log-out" class="w-4 h-4"></i>
+                </button>
             </div>
         </div>
     </aside>
 
-    <!-- Main Chat Area -->
-    <main class="flex-1 flex flex-col relative h-full">
-        <!-- Header -->
-        <header class="h-14 flex items-center justify-between px-6 border-b border-zinc-800 glass z-10">
+    <!-- Main Workspace -->
+    <main class="flex-1 flex flex-col relative h-full bg-gradient-to-b from-[#0c0c0e] to-black">
+        <!-- Top Nav -->
+        <header class="h-16 flex items-center justify-between px-6 border-b border-zinc-800/50 glass z-10">
             <div class="flex items-center gap-4">
-                <button class="md:hidden"><i data-lucide="menu"></i></button>
-                <h1 id="currentChatTitle" class="font-medium text-sm text-zinc-300">New Conversation</h1>
+                <button class="lg:hidden p-2 text-zinc-400 hover:text-white"><i data-lucide="menu"></i></button>
+                <div class="flex items-center gap-2">
+                    <span id="currentChatTitle" class="font-semibold text-sm text-zinc-200">New Conversation</span>
+                    <i data-lucide="chevron-right" class="w-3 h-3 text-zinc-600"></i>
+                </div>
             </div>
             <div class="flex items-center gap-4">
-                <span class="text-[10px] px-2 py-1 bg-zinc-800 rounded-full text-zinc-500 border border-zinc-700">MODEL: LONG-CAT-FLASH</span>
+                <div class="flex items-center gap-1.5 px-3 py-1 bg-green-500/10 border border-green-500/20 rounded-full">
+                    <div class="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></div>
+                    <span class="text-[10px] font-bold text-green-500 uppercase tracking-tighter">System Online</span>
+                </div>
             </div>
         </header>
 
-        <!-- Messages -->
-        <div id="chatContainer" class="flex-1 overflow-y-auto p-4 md:p-8 space-y-8">
-            <div class="max-w-3xl mx-auto text-center mt-20" id="emptyState">
-                <div class="w-16 h-16 bg-blue-600/10 text-blue-500 rounded-2xl flex items-center justify-center mx-auto mb-6">
-                    <i data-lucide="sparkles" class="w-8 h-8"></i>
-                </div>
-                <h2 class="text-2xl font-bold mb-2">How can I help you today?</h2>
-                <p class="text-zinc-500 mb-8">Nix can generate code, answer questions, and remember your projects.</p>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-left">
-                    <button onclick="prefill('Help me write a Python script for web scraping')" class="p-4 glass rounded-xl text-sm hover:border-zinc-500 transition-all">"Help me write a Python script..."</button>
-                    <button onclick="prefill('Generate an image of a futuristic city')" class="p-4 glass rounded-xl text-sm hover:border-zinc-500 transition-all">"Generate an image of a futuristic..."</button>
+        <!-- Message Flow -->
+        <div id="chatContainer" class="flex-1 overflow-y-auto px-4 py-8 md:px-0">
+            <div class="max-w-3xl mx-auto space-y-10" id="messagesWrapper">
+                <!-- Welcome UI -->
+                <div class="text-center py-20 space-y-6" id="emptyState">
+                    <div class="w-20 h-20 bg-blue-600/5 rounded-3xl flex items-center justify-center mx-auto border border-blue-500/10 shadow-2xl">
+                        <i data-lucide="bot" class="w-10 h-10 text-blue-500"></i>
+                    </div>
+                    <div class="space-y-2">
+                        <h1 class="text-3xl font-bold text-white tracking-tight">How can Nix assist you?</h1>
+                        <p class="text-zinc-500 max-w-sm mx-auto text-sm">Experience the power of LongCat AI with integrated memory and realistic image generation.</p>
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-6">
+                        <button onclick="prefill('Design a modern login page using Tailwind CSS')" class="p-4 text-left glass rounded-2xl hover:border-zinc-500 transition-all group">
+                            <p class="text-xs text-zinc-500 mb-1">Coding Assistant</p>
+                            <p class="text-sm font-medium group-hover:text-blue-400">"Design a modern login..."</p>
+                        </button>
+                        <button onclick="prefill('Generate an ultra-realistic cyberpunk city at night')" class="p-4 text-left glass rounded-2xl hover:border-zinc-500 transition-all group">
+                            <p class="text-xs text-zinc-500 mb-1">Visual Studio</p>
+                            <p class="text-sm font-medium group-hover:text-purple-400">"Generate an ultra-realistic..."</p>
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
 
-        <!-- Input Area -->
-        <div class="p-4 md:p-8">
-            <div class="max-w-3xl mx-auto relative">
-                <div id="attachmentPreview" class="hidden mb-2 p-2 glass rounded-lg flex items-center justify-between">
-                    <div class="flex items-center gap-2">
-                        <i data-lucide="file-text" class="w-4 h-4 text-blue-400"></i>
-                        <span id="fileName" class="text-xs text-zinc-300">file.txt</span>
+        <!-- Sticky Input Area -->
+        <div class="pb-8 px-4 md:px-0">
+            <div class="max-w-3xl mx-auto">
+                <!-- Attachment Bar -->
+                <div id="attachmentPreview" class="hidden animate-slide-up mb-3 flex items-center gap-2">
+                    <div class="flex items-center gap-2 px-3 py-1.5 bg-blue-500/10 border border-blue-500/20 rounded-full">
+                        <i data-lucide="file-text" class="w-3.5 h-3.5 text-blue-400"></i>
+                        <span id="fileName" class="text-xs font-medium text-blue-200">file.txt</span>
+                        <button onclick="clearAttachment()" class="hover:text-white text-blue-400/50"><i data-lucide="x" class="w-3.5 h-3.5"></i></button>
                     </div>
-                    <button onclick="clearAttachment()" class="text-zinc-500 hover:text-white"><i data-lucide="x" class="w-3 h-3"></i></button>
                 </div>
 
-                <div class="relative glass rounded-2xl focus-within:ring-2 ring-blue-500/50 transition-all">
-                    <textarea 
-                        id="userInput"
-                        rows="1"
-                        placeholder="Message Nix..."
-                        class="w-full bg-transparent p-4 pr-24 resize-none outline-none text-zinc-200 placeholder-zinc-500"
-                        oninput="this.style.height = '';this.style.height = this.scrollHeight + 'px'"
-                    ></textarea>
-                    
-                    <div class="absolute right-2 bottom-2 flex items-center gap-1">
-                        <input type="file" id="fileInput" class="hidden" onchange="handleFileUpload(event)">
-                        <button onclick="document.getElementById('fileInput').click()" class="p-2 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg transition-all" title="Upload file">
-                            <i data-lucide="paperclip" class="w-5 h-5"></i>
-                        </button>
-                        <button id="sendBtn" onclick="sendMessage()" class="p-2 bg-white text-black hover:bg-zinc-200 rounded-lg transition-all disabled:opacity-50">
-                            <i data-lucide="arrow-up" class="w-5 h-5"></i>
+                <div class="relative glass rounded-3xl p-2 focus-within:ring-2 ring-blue-500/30 transition-all shadow-2xl shadow-black">
+                    <div class="flex items-end gap-2 px-2">
+                        <!-- Action Buttons -->
+                        <div class="flex gap-1 mb-2">
+                            <input type="file" id="fileInput" class="hidden" onchange="handleFileUpload(event)">
+                            <button onclick="document.getElementById('fileInput').click()" class="p-2.5 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-2xl transition-all" title="Upload context">
+                                <i data-lucide="paperclip" class="w-5 h-5"></i>
+                            </button>
+                            <button class="p-2.5 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-2xl transition-all" title="Add memory">
+                                <i data-lucide="brain" class="w-5 h-5"></i>
+                            </button>
+                        </div>
+
+                        <!-- Text Input -->
+                        <textarea 
+                            id="userInput"
+                            rows="1"
+                            placeholder="Type your prompt here..."
+                            class="flex-1 bg-transparent py-3 px-2 resize-none outline-none text-[15px] text-zinc-100 placeholder-zinc-500 max-h-60"
+                            oninput="this.style.height = '';this.style.height = this.scrollHeight + 'px'"
+                        ></textarea>
+                        
+                        <!-- Send Button -->
+                        <button id="sendBtn" onclick="sendMessage()" class="mb-1.5 p-3 bg-white text-black hover:bg-blue-500 hover:text-white rounded-2xl transition-all disabled:opacity-50 shadow-lg group">
+                            <i data-lucide="send" class="w-5 h-5 group-hover:translate-x-0.5 transition-transform"></i>
                         </button>
                     </div>
                 </div>
-                <p class="text-[10px] text-center text-zinc-600 mt-3">Nix powered by LongCat AI. Memory and file context are active.</p>
+                <div class="flex justify-between items-center px-4 mt-3">
+                    <p class="text-[10px] text-zinc-600 font-medium tracking-wide">MODEL: LONG-CAT-FLASH-CHAT</p>
+                    <div class="flex gap-4">
+                        <button class="text-[10px] text-zinc-600 hover:text-zinc-400">Settings</button>
+                        <button class="text-[10px] text-zinc-600 hover:text-zinc-400">API Status</button>
+                    </div>
+                </div>
             </div>
         </div>
     </main>
 
     <script>
-        // Configuration
+        // --- CONSTANTS & CONFIG ---
         const LONGCAT_API_KEY = "ak_2rU1Lo7PA23X5Is9wm3m69EY2T37J";
         const LONGCAT_BASE_URL = "https://api.longcat.chat/openai/v1/chat/completions";
         const SUPABASE_URL = "https://rnlwrngfgvznndlekmrz.supabase.co";
@@ -146,6 +206,7 @@
         let attachedFileContent = "";
         let userMemories = [];
 
+        // --- UTILITIES ---
         function updateIcons() {
             if (typeof lucide !== 'undefined') {
                 lucide.createIcons();
@@ -157,66 +218,50 @@
             
             const { data: { session } } = await client.auth.getSession();
             if (!session) {
-                console.warn('No session found. Redirecting to auth.html...');
                 window.location.href = 'auth.html';
                 return;
             }
             currentUser = session.user;
             document.getElementById('userEmail').innerText = currentUser.email;
 
-            if (!localStorage.getItem('nix_onboarded')) {
-                document.getElementById('featureModal').classList.remove('hidden');
-            }
-
             await loadMemories();
             await loadChatHistory();
         }
 
         async function loadMemories() {
-            const { data, error } = await client
-                .from('user_memories')
-                .select('*')
-                .eq('user_id', currentUser.id);
-            
+            const { data } = await client.from('user_memories').select('*').eq('user_id', currentUser.id);
             if (data) userMemories = data;
         }
 
         async function loadChatHistory() {
-            const { data, error } = await client
-                .from('conversations')
-                .select('*')
-                .eq('user_id', currentUser.id)
-                .order('created_at', { ascending: false });
-
-            const historyContainer = document.getElementById('chatHistory');
-            historyContainer.innerHTML = '';
+            const { data } = await client.from('conversations').select('*').eq('user_id', currentUser.id).order('created_at', { ascending: false });
+            const container = document.getElementById('chatHistory');
+            container.innerHTML = '';
             
             if (data) {
                 data.forEach(chat => {
-                    const btn = document.createElement('button');
-                    btn.className = `sidebar-item w-full flex items-center gap-2 p-2 rounded-lg transition-all text-left truncate ${currentConversationId === chat.id ? 'bg-zinc-800 text-white' : ''}`;
-                    btn.onclick = () => loadConversation(chat.id);
-                    btn.innerHTML = `<i data-lucide="message-square" class="w-4 h-4 shrink-0"></i><span class="truncate">${chat.title}</span>`;
-                    historyContainer.appendChild(btn);
+                    const active = currentConversationId === chat.id;
+                    const div = document.createElement('div');
+                    div.className = `sidebar-item w-full flex items-center gap-3 p-3 rounded-xl cursor-pointer text-sm truncate ${active ? 'sidebar-active text-white' : 'text-zinc-400'}`;
+                    div.onclick = () => loadConversation(chat.id);
+                    div.innerHTML = `<i data-lucide="message-square" class="w-4 h-4 shrink-0"></i><span class="truncate font-medium">${chat.title}</span>`;
+                    container.appendChild(div);
                 });
             }
             updateIcons();
         }
 
-        function closeFeatureModal() {
-            document.getElementById('featureModal').classList.add('hidden');
-            localStorage.setItem('nix_onboarded', 'true');
-        }
-
         function startNewChat() {
             currentConversationId = null;
-            document.getElementById('chatContainer').innerHTML = `
-                <div class="max-w-3xl mx-auto text-center mt-20" id="emptyState">
-                    <div class="w-16 h-16 bg-blue-600/10 text-blue-500 rounded-2xl flex items-center justify-center mx-auto mb-6">
-                        <i data-lucide="sparkles" class="w-8 h-8"></i>
+            document.getElementById('messagesWrapper').innerHTML = `
+                <div class="text-center py-20 space-y-6" id="emptyState">
+                    <div class="w-20 h-20 bg-blue-600/5 rounded-3xl flex items-center justify-center mx-auto border border-blue-500/10 shadow-2xl">
+                        <i data-lucide="bot" class="w-10 h-10 text-blue-500"></i>
                     </div>
-                    <h2 class="text-2xl font-bold mb-2">How can I help you today?</h2>
-                    <p class="text-zinc-500 mb-8">Nix can generate code, answer questions, and remember your projects.</p>
+                    <div class="space-y-2">
+                        <h1 class="text-3xl font-bold text-white tracking-tight">How can Nix assist you?</h1>
+                        <p class="text-zinc-500 max-w-sm mx-auto text-sm">New session started. Everything I say is ephemeral until saved.</p>
+                    </div>
                 </div>`;
             document.getElementById('currentChatTitle').innerText = "New Conversation";
             updateIcons();
@@ -224,26 +269,15 @@
 
         async function loadConversation(id) {
             currentConversationId = id;
-            const { data: messages } = await client
-                .from('messages')
-                .select('*')
-                .eq('conversation_id', id)
-                .order('created_at', { ascending: true });
-
-            document.getElementById('chatContainer').innerHTML = '';
-            const empty = document.getElementById('emptyState');
-            if (empty) empty.classList.add('hidden');
-            
-            if (messages) {
-                messages.forEach(msg => appendMessage(msg.role, msg.content));
-            }
+            const { data: messages } = await client.from('messages').select('*').eq('conversation_id', id).order('created_at', { ascending: true });
+            document.getElementById('messagesWrapper').innerHTML = '';
+            if (messages) messages.forEach(msg => appendMessage(msg.role, msg.content));
             loadChatHistory();
         }
 
-        async function handleFileUpload(e) {
+        function handleFileUpload(e) {
             const file = e.target.files[0];
             if (!file) return;
-
             const reader = new FileReader();
             reader.onload = (event) => {
                 attachedFileContent = event.target.result;
@@ -264,6 +298,7 @@
             sendMessage();
         }
 
+        // --- CORE LOGIC ---
         async function sendMessage() {
             const input = document.getElementById('userInput');
             const text = input.value.trim();
@@ -272,23 +307,19 @@
             input.value = '';
             input.style.height = 'auto';
             const empty = document.getElementById('emptyState');
-            if (empty) empty.classList.add('hidden');
+            if (empty) empty.remove();
             
             if (!currentConversationId) {
-                const { data, error } = await client
-                    .from('conversations')
-                    .insert([{ user_id: currentUser.id, title: text.substring(0, 30) || "New Chat" }])
-                    .select()
-                    .single();
-                if (error) return;
+                const { data } = await client.from('conversations').insert([{ user_id: currentUser.id, title: text.substring(0, 30) || "New Chat" }]).select().single();
                 currentConversationId = data.id;
             }
 
-            const userDisplayContent = text + (attachedFileContent ? `\n\n[File context attached]` : '');
+            const userDisplayContent = text + (attachedFileContent ? `\n\n[System: User attached file context]` : '');
             appendMessage('user', userDisplayContent);
             await saveMessage('user', text);
 
-            if (text.toLowerCase().includes('generate image') || text.toLowerCase().includes('draw') || text.toLowerCase().startsWith('/')) {
+            // Trigger Image Gen
+            if (text.toLowerCase().includes('generate') && (text.toLowerCase().includes('image') || text.toLowerCase().includes('draw'))) {
                 generateAIImage(text);
                 return;
             }
@@ -296,12 +327,11 @@
             showTypingIndicator();
             
             try {
-                const contextMemories = userMemories.map(m => m.content).join("\n");
-                const fileContext = attachedFileContent ? `USER UPLOADED FILE CONTENT:\n${attachedFileContent}\n---` : "";
-                
-                const systemPrompt = `You are Nix, an advanced AI model. Helpful, professional, and precise. 
-                User Context: ${contextMemories}.
-                ${fileContext}`;
+                const memoryStr = userMemories.map(m => m.content).join("\n");
+                const systemPrompt = `You are Nix, a high-performance AI assistant.
+                Memory: ${memoryStr}
+                Attachments: ${attachedFileContent ? "User has attached a file for reference." : "None"}
+                Current File Data: ${attachedFileContent}`;
 
                 const response = await fetch(LONGCAT_BASE_URL, {
                     method: "POST",
@@ -315,115 +345,115 @@
                             { role: "system", content: systemPrompt },
                             { role: "user", content: text }
                         ],
-                        stream: false
+                        temperature: 0.7
                     })
                 });
 
                 const data = await response.json();
-                const aiText = data.choices[0].message.content;
+                const aiResponse = data.choices[0].message.content;
                 
                 removeTypingIndicator();
-                appendMessage('assistant', aiText);
-                await saveMessage('assistant', aiText);
-                
-                if (text.toLowerCase().includes("remember that") || text.toLowerCase().includes("i like")) {
-                    await saveMemory(text);
-                }
+                appendMessage('assistant', aiResponse);
+                await saveMessage('assistant', aiResponse);
 
             } catch (err) {
                 removeTypingIndicator();
-                appendMessage('assistant', "I'm having trouble reaching my neural network at api.longcat.chat. Please try again in a moment.");
-                console.error(err);
+                appendMessage('assistant', "Connectivity error. I could not reach the LongCat servers. Please check your network.");
             }
-
             clearAttachment();
         }
 
         async function generateAIImage(prompt) {
-            showTypingIndicator("Synthesizing pixels...");
-            // Use Pollinations.ai for free, zero-config image generation
-            const cleanPrompt = prompt.replace(/generate image|draw|\/draw/gi, "").trim();
-            const seed = Math.floor(Math.random() * 999999);
-            const imageUrl = `https://pollinations.ai/p/${encodeURIComponent(cleanPrompt)}?width=1024&height=1024&seed=${seed}&nologo=true`;
+            showTypingIndicator("Synthesizing hyper-realistic imagery...");
+            const cleanPrompt = prompt.replace(/generate image|draw|make an image of/gi, "").trim();
+            const seed = Math.floor(Math.random() * 1000000);
+            // High fidelity parameters for Pollinations
+            const imageUrl = `https://pollinations.ai/p/${encodeURIComponent(cleanPrompt)}?width=1024&height=1024&seed=${seed}&nologo=true&enhance=true`;
             
-            // Artificial delay to simulate processing
             setTimeout(async () => {
                 removeTypingIndicator();
-                const content = `Generated visual for: "${cleanPrompt}"\n\n![Generated Image](${imageUrl})`;
+                const content = `Rendering complete. Here is the visual interpretation of: **"${cleanPrompt}"**\n\n![AI Generation](${imageUrl})`;
                 appendMessage('assistant', content);
                 await saveMessage('assistant', content);
-            }, 2500);
-        }
-
-        async function saveMessage(role, content) {
-            await client.from('messages').insert([{
-                conversation_id: currentConversationId,
-                role,
-                content
-            }]);
-        }
-
-        async function saveMemory(content) {
-            await client.from('user_memories').insert([{
-                user_id: currentUser.id,
-                content: content,
-                source: 'chat'
-            }]);
-            await loadMemories();
+            }, 3000);
         }
 
         function appendMessage(role, content) {
-            const container = document.getElementById('chatContainer');
+            const wrapper = document.getElementById('messagesWrapper');
             const div = document.createElement('div');
-            div.className = `flex gap-4 ${role === 'user' ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-2 duration-300`;
+            div.className = `flex gap-5 ${role === 'user' ? 'flex-row-reverse' : ''} animate-slide-up`;
             
-            const inner = `
-                <div class="max-w-[85%] md:max-w-2xl flex gap-4 ${role === 'user' ? 'flex-row-reverse' : ''}">
-                    <div class="w-8 h-8 rounded-lg shrink-0 flex items-center justify-center ${role === 'user' ? 'bg-zinc-700' : 'bg-blue-600'}">
-                        <i data-lucide="${role === 'user' ? 'user' : 'bot'}" class="w-4 h-4 text-white"></i>
-                    </div>
-                    <div class="space-y-2">
-                        <p class="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">${role === 'user' ? 'You' : 'Nix'}</p>
-                        <div class="text-sm leading-relaxed text-zinc-200 whitespace-pre-wrap ${role === 'user' ? 'message-user p-4' : 'message-nix'}">
-                            ${formatContent(content)}
-                        </div>
+            const isAI = role === 'assistant';
+            const avatarClass = isAI ? 'bg-blue-600 shadow-blue-500/20' : 'bg-zinc-800';
+            
+            div.innerHTML = `
+                <div class="w-10 h-10 rounded-xl shrink-0 flex items-center justify-center border border-white/10 ${avatarClass}">
+                    <i data-lucide="${isAI ? 'bot' : 'user'}" class="w-5 h-5 text-white"></i>
+                </div>
+                <div class="flex-1 space-y-2.5 min-w-0 ${role === 'user' ? 'text-right' : ''}">
+                    <p class="text-[10px] font-bold text-zinc-500 uppercase tracking-widest px-1">${role === 'user' ? 'Operator' : 'Nix AI'}</p>
+                    <div class="inline-block text-sm leading-relaxed text-zinc-200 ${isAI ? 'w-full' : 'message-user p-4'}">
+                        ${formatMarkdown(content)}
                     </div>
                 </div>
             `;
             
-            div.innerHTML = inner;
-            container.appendChild(div);
-            container.scrollTop = container.scrollHeight;
+            wrapper.appendChild(div);
+            document.getElementById('chatContainer').scrollTo({ top: document.getElementById('chatContainer').scrollHeight, behavior: 'smooth' });
             updateIcons();
         }
 
-        function formatContent(text) {
-            // Match markdown image syntax
-            let formatted = text.replace(/!\[.*?\]\((.*?)\)/g, '<div class="relative group"><img src="$1" class="rounded-xl border border-zinc-800 max-h-96 w-auto my-4 hover:opacity-90 transition-all cursor-pointer" onclick="window.open(\'$1\')"><div class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 bg-black/40 rounded-xl pointer-events-none"><i data-lucide="zoom-in" class="text-white"></i></div></div>');
-            // Match code blocks
-            formatted = formatted.replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>');
-            return formatted;
+        function formatMarkdown(text) {
+            // Images with realistic container
+            let html = text.replace(/!\[.*?\]\((.*?)\)/g, `
+                <div class="image-card my-4 shadow-2xl group">
+                    <div class="relative">
+                        <img src="$1" alt="Generated Content" loading="lazy">
+                        <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                            <button onclick="window.open('$1')" class="bg-white text-black px-4 py-2 rounded-full font-bold text-xs">View Original</button>
+                        </div>
+                    </div>
+                    <div class="p-3 bg-zinc-900 flex items-center justify-between">
+                        <span class="text-[10px] text-zinc-500 uppercase">1024x1024 • Hyper-Realism Engine</span>
+                        <i data-lucide="download" class="w-3.5 h-3.5 text-zinc-500 cursor-pointer hover:text-white"></i>
+                    </div>
+                </div>
+            `);
+            // Code Blocks
+            html = html.replace(/```(\w+)?([\s\S]*?)```/g, '<div class="relative"><pre><code>$2</code></pre></div>');
+            // Bold
+            html = html.replace(/\*\*(.*?)\*\*/g, '<strong class="text-white font-semibold">$1</strong>');
+            
+            return html;
         }
 
-        function showTypingIndicator(customText = "Nix is thinking...") {
-            const container = document.getElementById('chatContainer');
+        async function saveMessage(role, content) {
+            await client.from('messages').insert([{ conversation_id: currentConversationId, role, content }]);
+        }
+
+        function showTypingIndicator(msg = "Nix is processing...") {
+            const wrapper = document.getElementById('messagesWrapper');
             const div = document.createElement('div');
             div.id = "typingIndicator";
-            div.className = "flex gap-4 justify-start animate-pulse";
+            div.className = "flex gap-5 items-start";
             div.innerHTML = `
-                <div class="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center"><i data-lucide="bot" class="w-4 h-4 text-white"></i></div>
-                <div class="space-y-2">
-                    <p class="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Nix</p>
-                    <div class="flex items-center gap-2 p-2">
-                        <div class="typing-dot"></div>
-                        <div class="typing-dot"></div>
-                        <div class="typing-dot"></div>
-                        <span class="text-xs text-zinc-500 ml-2">${customText}</span>
+                <div class="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center shrink-0 shadow-lg shadow-blue-500/20">
+                    <i data-lucide="bot" class="w-5 h-5 text-white"></i>
+                </div>
+                <div class="space-y-2 flex-1">
+                    <p class="text-[10px] font-bold text-zinc-500 uppercase tracking-widest px-1">Nix AI</p>
+                    <div class="flex items-center gap-3">
+                        <div class="flex gap-1.5">
+                            <div class="typing-dot"></div>
+                            <div class="typing-dot"></div>
+                            <div class="typing-dot"></div>
+                        </div>
+                        <span class="text-xs text-zinc-500 italic">${msg}</span>
                     </div>
                 </div>
             `;
-            container.appendChild(div);
-            container.scrollTop = container.scrollHeight;
+            wrapper.appendChild(div);
+            document.getElementById('chatContainer').scrollTop = document.getElementById('chatContainer').scrollHeight;
             updateIcons();
         }
 
@@ -438,16 +468,15 @@
         }
 
         async function importMemory() {
-            const input = prompt("Paste text data you'd like Nix to learn about you (projects, goals, preferences):");
-            if (input) {
-                await saveMemory(input);
-                appendMessage('assistant', "I've successfully updated my internal memory with the information you provided.");
+            const val = prompt("Enter specific details about yourself or your project for Nix to remember permanently:");
+            if (val) {
+                await client.from('user_memories').insert([{ user_id: currentUser.id, content: val, source: 'manual' }]);
+                await loadMemories();
+                appendMessage('assistant', "Core memory updated. I will reference this information in our future interactions.");
             }
         }
 
-        document.addEventListener('DOMContentLoaded', () => {
-            init().catch(console.error);
-        });
+        document.addEventListener('DOMContentLoaded', init);
     </script>
 </body>
 </html>
