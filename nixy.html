@@ -78,7 +78,7 @@
                 <h1 id="currentChatTitle" class="font-medium text-sm text-zinc-300">New Conversation</h1>
             </div>
             <div class="flex items-center gap-4">
-                <span class="text-[10px] px-2 py-1 bg-zinc-800 rounded-full text-zinc-500 border border-zinc-700">MODEL: NIX-V1</span>
+                <span class="text-[10px] px-2 py-1 bg-zinc-800 rounded-full text-zinc-500 border border-zinc-700">MODEL: LONG-CAT-FLASH</span>
             </div>
         </header>
 
@@ -127,7 +127,7 @@
                         </button>
                     </div>
                 </div>
-                <p class="text-[10px] text-center text-zinc-600 mt-3">Nix by Codenix may produce inaccurate information. Memory and file context are active.</p>
+                <p class="text-[10px] text-center text-zinc-600 mt-3">Nix powered by LongCat AI. Memory and file context are active.</p>
             </div>
         </div>
     </main>
@@ -135,10 +135,10 @@
     <script>
         // Configuration
         const LONGCAT_API_KEY = "ak_2rU1Lo7PA23X5Is9wm3m69EY2T37J";
+        const LONGCAT_BASE_URL = "https://api.longcat.chat/openai/v1/chat/completions";
         const SUPABASE_URL = "https://rnlwrngfgvznndlekmrz.supabase.co";
         const SUPABASE_KEY = "sb_publishable_mtI0_ZBvU_n5oRuqV58QHg_qJt3Gfyt";
         
-        // Use global supabase object from CDN script
         const client = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
         
         let currentUser = null;
@@ -146,21 +146,17 @@
         let attachedFileContent = "";
         let userMemories = [];
 
-        // Helper to safely call Lucide
         function updateIcons() {
             if (typeof lucide !== 'undefined') {
                 lucide.createIcons();
             }
         }
 
-        // App Initialization
         async function init() {
             updateIcons();
             
-            // Check session
             const { data: { session } } = await client.auth.getSession();
             if (!session) {
-                // If auth.html isn't ready or accessible in this environment, you might need a fallback or login UI here
                 console.warn('No session found. Redirecting to auth.html...');
                 window.location.href = 'auth.html';
                 return;
@@ -168,12 +164,10 @@
             currentUser = session.user;
             document.getElementById('userEmail').innerText = currentUser.email;
 
-            // Load feature modal (one time)
             if (!localStorage.getItem('nix_onboarded')) {
                 document.getElementById('featureModal').classList.remove('hidden');
             }
 
-            // Fetch Memory & History
             await loadMemories();
             await loadChatHistory();
         }
@@ -275,60 +269,53 @@
             const text = input.value.trim();
             if (!text && !attachedFileContent) return;
 
-            // Reset UI
             input.value = '';
             input.style.height = 'auto';
             const empty = document.getElementById('emptyState');
             if (empty) empty.classList.add('hidden');
             
-            // Create conversation if new
             if (!currentConversationId) {
                 const { data, error } = await client
                     .from('conversations')
                     .insert([{ user_id: currentUser.id, title: text.substring(0, 30) || "New Chat" }])
                     .select()
                     .single();
-                if (error) {
-                    console.error("Conversation error:", error);
-                    return;
-                }
+                if (error) return;
                 currentConversationId = data.id;
             }
 
-            // Save user message
             const userDisplayContent = text + (attachedFileContent ? `\n\n[File context attached]` : '');
             appendMessage('user', userDisplayContent);
             await saveMessage('user', text);
 
-            // Handle Image Generation Command
-            if (text.toLowerCase().startsWith('generate image') || text.toLowerCase().startsWith('/draw')) {
+            if (text.toLowerCase().includes('generate image') || text.toLowerCase().includes('draw') || text.toLowerCase().startsWith('/')) {
                 generateAIImage(text);
                 return;
             }
 
-            // Call Nix AI (Longcat)
             showTypingIndicator();
             
             try {
                 const contextMemories = userMemories.map(m => m.content).join("\n");
                 const fileContext = attachedFileContent ? `USER UPLOADED FILE CONTENT:\n${attachedFileContent}\n---` : "";
                 
-                const systemPrompt = `You are Nix, an advanced AI model developed by Codenix. You are helpful, professional, and precise. 
-                Use the following context about the user to personalize your answer: ${contextMemories}.
+                const systemPrompt = `You are Nix, an advanced AI model. Helpful, professional, and precise. 
+                User Context: ${contextMemories}.
                 ${fileContext}`;
 
-                const response = await fetch("https://api.longcat.io/v1/chat/completions", {
+                const response = await fetch(LONGCAT_BASE_URL, {
                     method: "POST",
                     headers: {
                         "Content-Type": "application/json",
                         "Authorization": `Bearer ${LONGCAT_API_KEY}`
                     },
                     body: JSON.stringify({
-                        model: "nix-large",
+                        model: "LongCat-Flash-Chat",
                         messages: [
                             { role: "system", content: systemPrompt },
                             { role: "user", content: text }
-                        ]
+                        ],
+                        stream: false
                     })
                 });
 
@@ -339,30 +326,33 @@
                 appendMessage('assistant', aiText);
                 await saveMessage('assistant', aiText);
                 
-                // Learning logic
                 if (text.toLowerCase().includes("remember that") || text.toLowerCase().includes("i like")) {
                     await saveMemory(text);
                 }
 
             } catch (err) {
                 removeTypingIndicator();
-                appendMessage('assistant', "Sorry, I encountered an error connecting to my core services.");
+                appendMessage('assistant', "I'm having trouble reaching my neural network at api.longcat.chat. Please try again in a moment.");
+                console.error(err);
             }
 
             clearAttachment();
         }
 
         async function generateAIImage(prompt) {
-            showTypingIndicator("Creating your visual...");
+            showTypingIndicator("Synthesizing pixels...");
+            // Use Pollinations.ai for free, zero-config image generation
             const cleanPrompt = prompt.replace(/generate image|draw|\/draw/gi, "").trim();
-            const imageUrl = `https://pollinations.ai/p/${encodeURIComponent(cleanPrompt)}?width=1024&height=1024&seed=${Math.floor(Math.random() * 100000)}&nologo=true`;
+            const seed = Math.floor(Math.random() * 999999);
+            const imageUrl = `https://pollinations.ai/p/${encodeURIComponent(cleanPrompt)}?width=1024&height=1024&seed=${seed}&nologo=true`;
             
+            // Artificial delay to simulate processing
             setTimeout(async () => {
                 removeTypingIndicator();
-                const content = `Here is the image I generated for: "${cleanPrompt}"\n\n![Generated Image](${imageUrl})`;
+                const content = `Generated visual for: "${cleanPrompt}"\n\n![Generated Image](${imageUrl})`;
                 appendMessage('assistant', content);
                 await saveMessage('assistant', content);
-            }, 3000);
+            }, 2500);
         }
 
         async function saveMessage(role, content) {
@@ -408,7 +398,9 @@
         }
 
         function formatContent(text) {
+            // Match markdown image syntax
             let formatted = text.replace(/!\[.*?\]\((.*?)\)/g, '<div class="relative group"><img src="$1" class="rounded-xl border border-zinc-800 max-h-96 w-auto my-4 hover:opacity-90 transition-all cursor-pointer" onclick="window.open(\'$1\')"><div class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 bg-black/40 rounded-xl pointer-events-none"><i data-lucide="zoom-in" class="text-white"></i></div></div>');
+            // Match code blocks
             formatted = formatted.replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>');
             return formatted;
         }
@@ -453,7 +445,6 @@
             }
         }
 
-        // Wait for DOM and libraries
         document.addEventListener('DOMContentLoaded', () => {
             init().catch(console.error);
         });
