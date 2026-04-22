@@ -87,6 +87,24 @@
             overflow-x: auto;
         }
 
+        .preview-container {
+            background: #fff;
+            border: 1px solid var(--nix-border);
+            border-radius: 12px;
+            margin-top: 0.5rem;
+            height: 300px;
+            overflow: hidden;
+            position: relative;
+        }
+        .preview-header {
+            background: #f4f4f5;
+            padding: 6px 12px;
+            border-bottom: 1px solid #e4e4e7;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
         .msg-bubble {
             animation: slideUp 0.3s ease-out;
         }
@@ -400,7 +418,6 @@
             (data || []).forEach(msg => {
                 if (msg.content.includes('[Image Harvest:')) {
                     const prompt = msg.content.match(/\[Image Harvest: (.*)\]/)?.[1] || "Generated Image";
-                    // Extract URL or re-generate URL based on logic
                     const [w, h] = activeRatio.split('x');
                     const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=${w}&height=${h}&seed=42&model=flux&nologo=true`;
                     appendImageMsg(prompt, url);
@@ -541,7 +558,6 @@
             document.execCommand('copy');
             document.body.removeChild(dummy);
             
-            // Temporary feedback for copy
             const activeMsg = document.createElement('div');
             activeMsg.className = "fixed bottom-10 left-1/2 -translate-x-1/2 bg-blue-600 text-white text-[10px] font-black px-4 py-2 rounded-full uppercase tracking-widest z-[200]";
             activeMsg.innerText = "URL Synchronized to Clipboard";
@@ -588,16 +604,54 @@
         }
 
         function formatMarkdown(text) {
-            text = text.replace(/```(\w+)?([\s\S]*?)```/g, (m, lang, code) => `
-                <div class="code-container">
-                    <div class="code-header">
-                        <span class="text-[9px] font-bold text-zinc-500 uppercase tracking-widest">${lang || 'txt'}</span>
-                        <button onclick="copyTo(this, \`${code.trim().replace(/`/g, '\\`').replace(/\$/g, '\\$')}\`)" class="text-[9px] font-bold text-blue-500">COPY</button>
+            // Regex to find code blocks
+            text = text.replace(/```(\w+)?([\s\S]*?)```/g, (m, lang, code) => {
+                const isHtml = lang && (lang.toLowerCase() === 'html' || lang.toLowerCase() === 'xml');
+                const cleanCode = code.trim();
+                const escapedCode = cleanCode.replace(/`/g, '\\`').replace(/\$/g, '\\$');
+                
+                let html = `
+                    <div class="code-container">
+                        <div class="code-header">
+                            <span class="text-[9px] font-bold text-zinc-500 uppercase tracking-widest">${lang || 'txt'}</span>
+                            <button onclick="copyTo(this, \`${escapedCode}\`)" class="text-[9px] font-bold text-blue-500">COPY</button>
+                        </div>
+                        <pre><code>${cleanCode}</code></pre>
                     </div>
-                    <pre><code>${code.trim()}</code></pre>
-                </div>
-            `);
+                `;
+
+                if (isHtml) {
+                    const previewId = 'preview-' + Math.random().toString(36).substr(2, 9);
+                    html += `
+                        <div class="preview-container">
+                            <div class="preview-header">
+                                <span class="text-[9px] font-black text-zinc-400 uppercase tracking-widest"><i class="fa-solid fa-eye mr-2"></i> Live Interface Preview</span>
+                                <button onclick="openPreviewInNewWindow(\`${escapedCode}\`)" class="text-[9px] font-bold text-zinc-500 hover:text-blue-500"><i class="fa-solid fa-arrow-up-right-from-square"></i></button>
+                            </div>
+                            <iframe id="${previewId}" class="w-full h-full border-none bg-white"></iframe>
+                        </div>
+                        <script>
+                            setTimeout(() => {
+                                const frame = document.getElementById('${previewId}');
+                                if (frame) {
+                                    const doc = frame.contentWindow.document;
+                                    doc.open();
+                                    doc.write(\`${cleanCode.replace(/\\/g, '\\\\').replace(/`/g, '\\`').replace(/\${/g, '\\${')}\`);
+                                    doc.close();
+                                }
+                            }, 100);
+                        <\/script>
+                    `;
+                }
+                return html;
+            });
             return text.replace(/\*\*(.*?)\*\*/g, '<strong class="text-white font-bold">$1</strong>').replace(/\n/g, '<br>');
+        }
+
+        function openPreviewInNewWindow(code) {
+            const win = window.open();
+            win.document.write(code);
+            win.document.close();
         }
 
         function copyTo(btn, text) {
