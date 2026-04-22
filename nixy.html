@@ -136,6 +136,41 @@
             background: rgba(0,0,0,0.8);
             backdrop-filter: blur(10px);
         }
+
+        .img-actions {
+            position: absolute;
+            bottom: 16px;
+            right: 16px;
+            display: flex;
+            gap: 8px;
+            opacity: 0;
+            transform: translateY(10px);
+            transition: all 0.3s ease;
+            z-index: 20;
+        }
+        .img-wrapper:hover .img-actions {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        .action-btn {
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            transition: all 0.2s ease;
+        }
+        .action-btn:hover {
+            background: #fff;
+            color: #000;
+            transform: scale(1.1);
+        }
     </style>
 </head>
 <body class="flex flex-col lg:flex-row">
@@ -286,7 +321,6 @@
         const SUPABASE_URL = "https://rnlwrngfgvznndlekmrz.supabase.co";
         const SUPABASE_KEY = "sb_publishable_mtI0_ZBvU_n5oRuqV58QHg_qJt3Gfyt";
         
-        // Fix: Use the correctly namespaced creator from the CDN library
         const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
         const API_KEY = "ak_2rU1Lo7PA23X5Is9wm3m69EY2T37J";
@@ -302,7 +336,6 @@
             try {
                 const { data: { session } } = await supabaseClient.auth.getSession();
                 if (!session) {
-                    // Assuming auth.html is relative to the current environment
                     console.warn("No session found. Redirecting...");
                     window.location.href = "auth.html";
                 } else {
@@ -364,10 +397,19 @@
             document.getElementById('chatWindow').innerHTML = "";
             document.getElementById('emptyState')?.remove();
             const { data } = await supabaseClient.from('messages').select('*').eq('conversation_id', id).order('created_at', { ascending: true });
-            (data || []).forEach(msg => appendMsg(msg.role, msg.content, null, false));
+            (data || []).forEach(msg => {
+                if (msg.content.includes('[Image Harvest:')) {
+                    const prompt = msg.content.match(/\[Image Harvest: (.*)\]/)?.[1] || "Generated Image";
+                    // Extract URL or re-generate URL based on logic
+                    const [w, h] = activeRatio.split('x');
+                    const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=${w}&height=${h}&seed=42&model=flux&nologo=true`;
+                    appendImageMsg(prompt, url);
+                } else {
+                    appendMsg(msg.role, msg.content, null, false);
+                }
+            });
         }
 
-        // Logic
         function handleKeyDown(e) {
             if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleInput(); }
         }
@@ -442,15 +484,69 @@
 
             const container = document.getElementById(id);
             container.innerHTML += `
-                <div class="img-wrapper mt-4 aspect-square w-full max-w-xl">
+                <div class="img-wrapper mt-4 aspect-square w-full max-w-xl group">
                     <div class="absolute inset-0 skeleton flex flex-col items-center justify-center gap-3">
                         <i class="fa-solid fa-lemon text-lime-400 text-3xl animate-bounce"></i>
                         <span class="text-[9px] font-black text-lime-400 uppercase tracking-[0.3em]">Harvesting via Tiny Melon...</span>
                     </div>
                     <img src="${url}" class="img-display relative z-10 w-full h-full object-cover" onload="this.classList.add('loaded')">
+                    
+                    <div class="img-actions">
+                        <button onclick="downloadImg('${url}', '${prompt}')" class="action-btn" title="Download">
+                            <i class="fa-solid fa-download"></i>
+                        </button>
+                        <button onclick="copyImgUrl('${url}')" class="action-btn" title="Copy Link">
+                            <i class="fa-solid fa-link"></i>
+                        </button>
+                    </div>
                 </div>
             `;
             await supabaseClient.from('messages').insert([{ conversation_id: currentConvId, role: 'assistant', content: `[Image Harvest: ${prompt}]` }]);
+        }
+
+        function appendImageMsg(prompt, url) {
+            const id = 'img-' + Date.now();
+            appendMsg('assistant', `Nix has retrieved the TinyMelon harvest for: **"${prompt}"**`, id);
+            const container = document.getElementById(id);
+            container.innerHTML += `
+                <div class="img-wrapper mt-4 aspect-square w-full max-w-xl group">
+                    <img src="${url}" class="img-display relative z-10 w-full h-full object-cover loaded">
+                    <div class="img-actions">
+                        <button onclick="downloadImg('${url}', '${prompt}')" class="action-btn" title="Download">
+                            <i class="fa-solid fa-download"></i>
+                        </button>
+                        <button onclick="copyImgUrl('${url}')" class="action-btn" title="Copy Link">
+                            <i class="fa-solid fa-link"></i>
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+
+        function downloadImg(url, prompt) {
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `${prompt.replace(/\s+/g, '_')}_Nix_Melon.png`;
+            link.target = "_blank";
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        function copyImgUrl(url) {
+            const dummy = document.createElement('input');
+            document.body.appendChild(dummy);
+            dummy.value = url;
+            dummy.select();
+            document.execCommand('copy');
+            document.body.removeChild(dummy);
+            
+            // Temporary feedback for copy
+            const activeMsg = document.createElement('div');
+            activeMsg.className = "fixed bottom-10 left-1/2 -translate-x-1/2 bg-blue-600 text-white text-[10px] font-black px-4 py-2 rounded-full uppercase tracking-widest z-[200]";
+            activeMsg.innerText = "URL Synchronized to Clipboard";
+            document.body.appendChild(activeMsg);
+            setTimeout(() => activeMsg.remove(), 2000);
         }
 
         async function computeResponse(text) {
