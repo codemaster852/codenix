@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Nix | Professional Intelligence</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -14,8 +14,8 @@
             --nix-bg: #050507;
             --nix-surface: #0e0e11;
             --nix-border: rgba(255, 255, 255, 0.08);
-            --code-bg: #1a1a1c;
-            --code-header: #252529;
+            --code-bg: #111113;
+            --code-header: #1a1a1e;
         }
 
         body {
@@ -25,6 +25,7 @@
             overflow: hidden;
             height: 100vh;
             margin: 0;
+            -webkit-tap-highlight-color: transparent;
         }
 
         .glass-panel {
@@ -42,12 +43,11 @@
         .btn-nix {
             background: #fafafa;
             color: #000;
-            transition: all 0.2s ease;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
         }
-        .btn-nix:hover {
-            background: #ffffff;
-            transform: translateY(-1px);
-            box-shadow: 0 4px 20px rgba(255, 255, 255, 0.1);
+        .btn-nix:active {
+            transform: scale(0.98);
+            opacity: 0.9;
         }
 
         /* Modern Dark Code Block Styles */
@@ -55,12 +55,13 @@
             background: var(--code-bg);
             border: 1px solid rgba(255,255,255,0.1);
             border-radius: 12px;
-            margin: 1.5rem 0;
+            margin: 1rem 0;
             overflow: hidden;
             box-shadow: 0 10px 40px -10px rgba(0,0,0,0.7);
+            max-width: 100%;
         }
         .code-header {
-            padding: 10px 16px;
+            padding: 8px 14px;
             background: var(--code-header);
             border-bottom: 1px solid rgba(255,255,255,0.05);
             display: flex;
@@ -70,7 +71,7 @@
         .code-header .file-info {
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 8px;
             color: #94a3b8;
             font-size: 11px;
             font-family: 'JetBrains Mono', monospace;
@@ -78,44 +79,42 @@
         .copy-btn {
             background: rgba(255,255,255,0.05);
             color: #94a3b8;
-            padding: 5px 10px;
+            padding: 4px 8px;
             border-radius: 6px;
             font-size: 10px;
             font-weight: 700;
             text-transform: uppercase;
-            transition: all 0.2s;
             border: 1px solid rgba(255,255,255,0.05);
-        }
-        .copy-btn:hover {
-            background: rgba(255,255,255,0.1);
-            color: #fff;
         }
         
         .code-layout {
             display: flex;
             font-family: 'JetBrains Mono', monospace;
-            font-size: 13px;
+            font-size: 12px;
             line-height: 1.6;
+            overflow: hidden;
         }
         .line-numbers {
-            padding: 1.25rem 0.75rem;
+            padding: 1rem 0.5rem;
             text-align: right;
             background: rgba(0,0,0,0.2);
             color: #4b5563;
             user-select: none;
-            min-width: 45px;
+            min-width: 40px;
             border-right: 1px solid rgba(255,255,255,0.05);
+            font-variant-numeric: tabular-nums;
         }
         pre {
-            padding: 1.25rem;
+            padding: 1rem;
             color: #d1d5db;
             overflow-x: auto;
             flex: 1;
             margin: 0;
+            white-space: pre; /* Prevents misalignment by disabling auto-wrap in code */
         }
 
-        /* Basic Pseudo-Highlighting */
-        .hl-keyword { color: #c678dd; }
+        /* Syntax Highlighting */
+        .hl-keyword { color: #c678dd; font-weight: 600; }
         .hl-func { color: #61afef; }
         .hl-string { color: #98c379; }
         .hl-comment { color: #5c6370; font-style: italic; }
@@ -123,7 +122,7 @@
         .hl-attr { color: #d19a66; }
 
         .msg-bubble {
-            animation: slideUp 0.3s ease-out;
+            animation: slideUp 0.3s ease-out forwards;
         }
         @keyframes slideUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 
@@ -131,14 +130,31 @@
             display: none;
             position: fixed;
             inset: 0;
-            background: rgba(0,0,0,0.8);
+            background: rgba(0,0,0,0.6);
+            backdrop-filter: blur(4px);
             z-index: 45;
         }
 
         @media (max-width: 1024px) {
-            #sidebar { position: fixed; left: -100%; top: 0; height: 100%; z-index: 50; transition: left 0.3s; }
+            #sidebar { 
+                position: fixed; 
+                left: -100%; 
+                top: 0; 
+                height: 100%; 
+                z-index: 50; 
+                transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+                width: 85%;
+                max-width: 320px;
+            }
             #sidebar.open { left: 0; }
             #mobileOverlay.show { display: block; }
+            .msg-bubble .max-w-\[85\%\] { max-w-[95%]; }
+        }
+
+        /* Responsive Textarea */
+        #promptInput {
+            min-height: 44px;
+            max-height: 180px;
         }
     </style>
 </head>
@@ -147,35 +163,36 @@
     <div id="mobileOverlay" onclick="toggleSidebar()"></div>
 
     <!-- Sidebar -->
-    <aside id="sidebar" class="w-[280px] lg:w-80 glass-panel border-r border-white/5 flex flex-col p-6 h-full">
-        <div class="flex items-center justify-between mb-10">
+    <aside id="sidebar" class="glass-panel border-r border-white/5 flex flex-col p-5 h-full">
+        <div class="flex items-center justify-between mb-8">
             <div class="flex items-center gap-3">
-                <div class="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white shadow-[0_0_20px_rgba(37,99,235,0.3)]">
-                    <span class="font-black text-xl">N</span>
+                <div class="w-9 h-9 bg-blue-600 rounded-xl flex items-center justify-center text-white shadow-[0_0_20px_rgba(37,99,235,0.3)]">
+                    <span class="font-black text-lg">N</span>
                 </div>
-                <h1 class="text-xl font-extrabold tracking-tighter">Nix <span class="nix-gradient-text">Core</span></h1>
+                <h1 class="text-lg font-extrabold tracking-tighter">Nix <span class="nix-gradient-text">Core</span></h1>
             </div>
-            <button onclick="toggleSidebar()" class="lg:hidden text-zinc-500 hover:text-white">
-                <i class="fa-solid fa-xmark text-xl"></i>
+            <button onclick="toggleSidebar()" class="lg:hidden w-8 h-8 flex items-center justify-center rounded-full bg-white/5 text-zinc-400">
+                <i class="fa-solid fa-xmark"></i>
             </button>
         </div>
 
-        <div class="flex-1 space-y-6 overflow-y-auto">
+        <div class="flex-1 space-y-6 overflow-y-auto pr-1">
             <button onclick="createNewChat()" class="w-full flex items-center justify-center gap-2 py-3 bg-white/5 border border-white/10 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-white/10 transition">
                 <i class="fa-solid fa-plus"></i> New Session
             </button>
 
             <div class="pt-4 border-t border-white/5">
-                <div id="chatHistoryList" class="space-y-2"></div>
+                <p class="text-[9px] font-black uppercase tracking-widest text-zinc-600 mb-4 px-2">Recents</p>
+                <div id="chatHistoryList" class="space-y-1"></div>
             </div>
         </div>
 
         <div class="mt-auto pt-6 border-t border-white/5">
-            <div class="flex items-center gap-3">
-                <div class="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center text-[10px] font-bold">U</div>
+            <div class="flex items-center gap-3 px-1">
+                <div class="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center text-[10px] font-bold border border-white/5">U</div>
                 <div class="flex-1 overflow-hidden">
                     <p id="userEmail" class="text-[10px] font-bold text-white truncate">User</p>
-                    <button onclick="signOut()" class="text-[9px] text-zinc-500 hover:text-red-400 uppercase tracking-widest font-black">Sign Out</button>
+                    <button onclick="signOut()" class="text-[9px] text-zinc-500 hover:text-red-400 uppercase tracking-widest font-black transition">Sign Out</button>
                 </div>
             </div>
         </div>
@@ -183,45 +200,52 @@
 
     <!-- Main Content -->
     <main class="flex-1 flex flex-col relative h-screen w-full bg-[#050507]">
-        <header class="h-16 flex items-center justify-between px-4 lg:px-8 border-b border-white/5 bg-black/20 backdrop-blur-md shrink-0">
+        <header class="h-14 lg:h-16 flex items-center justify-between px-4 lg:px-8 border-b border-white/5 bg-black/40 backdrop-blur-md shrink-0">
             <div class="flex items-center gap-3">
-                <button onclick="toggleSidebar()" class="lg:hidden w-10 h-10 flex items-center justify-center rounded-lg border border-white/10 text-zinc-400">
+                <button onclick="toggleSidebar()" class="lg:hidden w-9 h-9 flex items-center justify-center rounded-lg border border-white/10 text-zinc-400">
                     <i class="fa-solid fa-bars-staggered"></i>
                 </button>
-                <span class="text-[11px] font-black uppercase tracking-[0.4em] text-zinc-500">Neural Sync Active</span>
+                <div class="flex items-center gap-2">
+                    <div class="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></div>
+                    <span class="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-500">System Ready</span>
+                </div>
             </div>
         </header>
 
         <!-- Chat Window -->
-        <div id="chatWindow" class="flex-1 overflow-y-auto p-4 lg:p-12 space-y-8 scroll-smooth">
+        <div id="chatWindow" class="flex-1 overflow-y-auto p-4 lg:p-10 space-y-6 scroll-smooth">
             <div id="emptyState" class="h-full flex flex-col items-center justify-center text-center space-y-6">
-                <div class="w-20 h-20 bg-blue-600/10 rounded-3xl flex items-center justify-center border border-blue-500/20">
-                    <i class="fa-solid fa-brain text-4xl text-blue-500"></i>
+                <div class="w-16 h-16 bg-blue-600/10 rounded-2xl flex items-center justify-center border border-blue-500/20">
+                    <i class="fa-solid fa-brain text-3xl text-blue-500"></i>
                 </div>
-                <h2 class="text-2xl font-bold text-white">System Online.</h2>
+                <div>
+                    <h2 class="text-xl font-bold text-white">Neural Interface v4</h2>
+                    <p class="text-xs text-zinc-500 mt-1">Encrypted. Secure. Intelligent.</p>
+                </div>
             </div>
         </div>
 
         <!-- Input Area -->
-        <div class="p-4 lg:p-10 bg-gradient-to-t from-[#050507] via-[#050507]/90 to-transparent shrink-0">
+        <div class="p-4 lg:p-8 bg-gradient-to-t from-[#050507] via-[#050507] to-transparent shrink-0">
             <div class="max-w-4xl mx-auto">
-                <div class="glass-panel p-2 rounded-[24px] flex flex-col gap-2 border-white/10">
-                    <div class="px-3 pt-2">
+                <div class="glass-panel p-1.5 rounded-[22px] flex flex-col gap-1 border-white/10 shadow-2xl">
+                    <div class="px-2 pt-1">
                         <textarea id="promptInput" rows="1" 
-                            class="w-full bg-transparent border-none outline-none text-[15px] p-2 text-white placeholder-zinc-700 resize-none"
-                            placeholder="Message Nix..."
-                            onkeydown="handleKeyDown(event)"></textarea>
+                            class="w-full bg-transparent border-none outline-none text-[14px] lg:text-[15px] p-2 text-white placeholder-zinc-700 resize-none"
+                            placeholder="Ask anything..."
+                            onkeydown="handleKeyDown(event)"
+                            oninput="autoGrow(this)"></textarea>
                     </div>
-                    <div class="flex items-center justify-between p-2 border-t border-white/5">
-                        <div class="flex gap-2">
-                            <label class="w-10 h-10 flex items-center justify-center rounded-xl hover:bg-white/5 text-zinc-500 cursor-pointer">
+                    <div class="flex items-center justify-between p-1.5 border-t border-white/5">
+                        <div class="flex gap-1">
+                            <label class="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-white/5 text-zinc-500 cursor-pointer transition">
                                 <input type="file" class="hidden" id="fileInput">
-                                <i class="fa-solid fa-paperclip"></i>
+                                <i class="fa-solid fa-paperclip text-sm"></i>
                             </label>
                         </div>
-                        <button onclick="handleInput()" class="btn-nix px-8 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-[0.2em] flex items-center gap-2">
+                        <button onclick="handleInput()" class="btn-nix px-6 py-2 rounded-xl font-black text-[10px] uppercase tracking-[0.15em] flex items-center gap-2">
                             <span>Execute</span>
-                            <i class="fa-solid fa-bolt-lightning text-[10px]"></i>
+                            <i class="fa-solid fa-arrow-right text-[9px]"></i>
                         </button>
                     </div>
                 </div>
@@ -252,8 +276,9 @@
             const { data } = await supabaseClient.from('conversations').select('*').eq('user_id', currentUser.id).order('created_at', { ascending: false });
             const list = document.getElementById('chatHistoryList');
             list.innerHTML = (data || []).map(conv => `
-                <button onclick="loadChat('${conv.id}')" class="w-full text-left p-3 rounded-lg hover:bg-white/5 transition text-[11px] text-zinc-400 truncate">
-                    <i class="fa-regular fa-message mr-2 opacity-40"></i> ${conv.title || 'Untitled Session'}
+                <button onclick="loadChat('${conv.id}')" class="w-full text-left p-3 rounded-xl hover:bg-white/5 transition text-[11px] text-zinc-400 truncate flex items-center gap-3">
+                    <i class="fa-regular fa-message opacity-30"></i> 
+                    <span class="truncate">${conv.title || 'Untitled Session'}</span>
                 </button>
             `).join('');
         }
@@ -269,11 +294,17 @@
             currentConvId = id;
             document.getElementById('chatWindow').innerHTML = "";
             document.getElementById('emptyState')?.remove();
+            if(window.innerWidth < 1024) toggleSidebar();
             const { data } = await supabaseClient.from('messages').select('*').eq('conversation_id', id).order('created_at', { ascending: true });
             (data || []).forEach(msg => appendMsg(msg.role, msg.content));
         }
 
         function handleKeyDown(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleInput(); } }
+        
+        function autoGrow(el) {
+            el.style.height = "auto";
+            el.style.height = (el.scrollHeight) + "px";
+        }
 
         async function handleInput() {
             const input = document.getElementById('promptInput');
@@ -284,6 +315,7 @@
             appendMsg('user', text);
             await supabaseClient.from('messages').insert([{ conversation_id: currentConvId, role: 'user', content: text }]);
             input.value = '';
+            input.style.height = "auto";
             await computeResponse(text);
         }
 
@@ -296,13 +328,15 @@
                     headers: { "Content-Type": "application/json", "Authorization": `Bearer ${API_KEY}` },
                     body: JSON.stringify({
                         model: "LongCat-Flash-Chat",
-                        messages: [{ role: "system", content: "You are Nix Core. Use code blocks for code snippets." }, { role: "user", content: text }]
+                        messages: [{ role: "system", content: "You are Nix Core, a direct AI. Use Markdown and code blocks." }, { role: "user", content: text }]
                     })
                 });
                 const data = await res.json();
                 const reply = data.choices[0].message.content;
                 document.getElementById(id).innerHTML = formatMarkdown(reply);
                 await supabaseClient.from('messages').insert([{ conversation_id: currentConvId, role: 'assistant', content: reply }]);
+                const win = document.getElementById('chatWindow');
+                win.scrollTo({ top: win.scrollHeight, behavior: 'smooth' });
             } catch (e) { document.getElementById(id).innerHTML = "Sync Interrupted."; }
         }
 
@@ -311,9 +345,9 @@
             const div = document.createElement('div');
             div.className = `msg-bubble flex ${role === 'user' ? 'justify-end' : 'justify-start'}`;
             div.innerHTML = `
-                <div class="max-w-[85%] ${role === 'user' ? 'bg-white/5 border border-white/10 p-4 rounded-2xl' : ''}">
-                    ${role === 'assistant' ? `<div class="text-[9px] font-black text-blue-500 uppercase tracking-widest mb-2">Nix Core</div>` : ''}
-                    <div id="${id || ''}" class="text-[14px] leading-relaxed text-zinc-300">${role === 'user' ? content : formatMarkdown(content)}</div>
+                <div class="max-w-[85%] ${role === 'user' ? 'bg-white/5 border border-white/10 p-3 lg:p-4 rounded-2xl rounded-tr-none' : ''}">
+                    ${role === 'assistant' ? `<div class="text-[9px] font-black text-blue-500 uppercase tracking-widest mb-2 flex items-center gap-2"><i class="fa-solid fa-microchip"></i> Nix Core</div>` : ''}
+                    <div id="${id || ''}" class="text-[13.5px] lg:text-[14px] leading-relaxed text-zinc-300">${role === 'user' ? content : formatMarkdown(content)}</div>
                 </div>
             `;
             win.appendChild(div);
@@ -323,27 +357,29 @@
         function formatMarkdown(text) {
             if (!text) return "";
             const blocks = [];
+            // Updated regex to strictly catch code blocks
             text = text.replace(/```(\w+)?\n?([\s\S]*?)```/g, (match, lang, code) => {
                 const id = `__CODE_${blocks.length}__`;
                 const cleanCode = code.trim();
                 const lines = cleanCode.split('\n');
+                // Correctly map line numbers to lines
                 const lineNums = lines.map((_, i) => i + 1).join('\n');
                 
-                // Enhanced Syntax Coloring (Simple Regex)
+                // Enhanced Syntax Coloring
                 let highlighted = cleanCode
                     .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
-                    .replace(/\b(const|let|var|function|return|if|else|for|while|import|export|class|await|async)\b/g, '<span class="hl-keyword">$1</span>')
+                    .replace(/\b(const|let|var|function|return|if|else|for|while|import|export|class|await|async|def|lambda|interface|type)\b/g, '<span class="hl-keyword">$1</span>')
                     .replace(/(\b\w+)(?=\()/g, '<span class="hl-func">$1</span>')
                     .replace(/(".*?"|'.*?'|`.*?`)/g, '<span class="hl-string">$1</span>')
-                    .replace(/(\/\/.+)/g, '<span class="hl-comment">$1</span>')
+                    .replace(/(\/\/.+|\#.+)/g, '<span class="hl-comment">$1</span>')
                     .replace(/(&lt;\/?[a-z1-6]+)/gi, '<span class="hl-tag">$1</span>')
                     .replace(/(\s[a-z-]+(?==))/gi, '<span class="hl-attr">$1</span>');
 
                 const html = `
                     <div class="code-container">
                         <div class="code-header">
-                            <div class="file-info"><i class="fa-solid fa-code"></i> <span>${lang || 'code'}</span></div>
-                            <button onclick="copyCode(this)" class="copy-btn">Copy</button>
+                            <div class="file-info"><i class="fa-solid fa-terminal text-[10px] text-blue-500"></i> <span>${(lang || 'code').toLowerCase()}</span></div>
+                            <button onclick="copyCode(this)" class="copy-btn hover:bg-white/10 transition">Copy</button>
                         </div>
                         <div class="code-layout">
                             <div class="line-numbers">${lineNums}</div>
@@ -355,17 +391,32 @@
                 return id;
             });
 
-            let processed = text.replace(/\*\*(.*?)\*\*/g, '<b class="text-white">$1</b>').replace(/\n/g, '<br>');
+            // Format bold and standard line breaks
+            let processed = text
+                .replace(/\*\*(.*?)\*\*/g, '<b class="text-white">$1</b>')
+                .replace(/\n/g, '<br>');
+
+            // Re-insert code blocks
             blocks.forEach((h, i) => processed = processed.replace(`__CODE_${i}__`, h));
             return processed;
         }
 
         function copyCode(btn) {
             const code = btn.closest('.code-container').querySelector('code').innerText;
-            navigator.clipboard.writeText(code).then(() => {
-                btn.innerText = "Copied!";
-                setTimeout(() => btn.innerText = "Copy", 2000);
-            });
+            const textarea = document.createElement('textarea');
+            textarea.value = code;
+            document.body.appendChild(textarea);
+            textarea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textarea);
+            
+            const oldText = btn.innerText;
+            btn.innerText = "Done!";
+            btn.classList.add('text-green-400');
+            setTimeout(() => {
+                btn.innerText = oldText;
+                btn.classList.remove('text-green-400');
+            }, 2000);
         }
 
         function toggleSidebar() {
