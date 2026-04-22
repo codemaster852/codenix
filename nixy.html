@@ -64,43 +64,27 @@
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #27272a; border-radius: 10px; }
 
-        /* Code Block Enhancements */
         .code-container {
             background: #000;
             border: 1px solid var(--nix-border);
-            border-radius: 16px;
-            margin: 1.5rem 0;
+            border-radius: 12px;
+            margin: 1rem 0;
             overflow: hidden;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
         }
         .code-header {
-            padding: 10px 16px;
+            padding: 8px 16px;
             background: rgba(255, 255, 255, 0.03);
             border-bottom: 1px solid var(--nix-border);
             display: flex;
             justify-content: space-between;
             align-items: center;
         }
-        .code-preview-frame {
-            width: 100%;
-            min-height: 300px;
-            background: white;
-            border: none;
-            display: none;
-        }
-        .code-preview-frame.active {
-            display: block;
-        }
         pre {
-            padding: 1.25rem;
+            padding: 1rem;
             font-family: 'JetBrains Mono', monospace;
             font-size: 13px;
             color: #d1d5db;
             overflow-x: auto;
-            line-height: 1.6;
-        }
-        pre.hidden {
-            display: none;
         }
 
         .msg-bubble {
@@ -164,8 +148,8 @@
             <div class="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center text-white mx-auto mb-6 shadow-[0_0_30px_rgba(37,99,235,0.4)]">
                 <i class="fa-solid fa-sparkles text-2xl"></i>
             </div>
-            <h3 class="text-2xl font-bold text-white mb-2">Neural Workspace v4.6</h3>
-            <p class="text-zinc-400 text-sm mb-8">Enhanced code execution visualization and persistent session synchronization enabled.</p>
+            <h3 class="text-2xl font-bold text-white mb-2">Neural Workspace v4.5</h3>
+            <p class="text-zinc-400 text-sm mb-8">Nix now features persistent memory, file interaction, and conversation cloud sync via Codenix Cloud.</p>
             <button onclick="closeFeatureModal()" class="btn-nix w-full py-4 rounded-2xl font-black uppercase tracking-widest text-xs">Acknowledge</button>
         </div>
     </div>
@@ -194,7 +178,9 @@
                     <i class="fa-solid fa-cloud-bolt text-blue-400 text-[10px]"></i>
                     <span class="text-[10px] font-black uppercase tracking-widest text-blue-400/70">Conversation History</span>
                 </div>
-                <div id="chatHistoryList" class="space-y-2 max-h-[200px] overflow-y-auto"></div>
+                <div id="chatHistoryList" class="space-y-2 max-h-[200px] overflow-y-auto">
+                    <!-- History entries -->
+                </div>
             </div>
 
             <div class="space-y-4 pt-4 border-t border-white/5">
@@ -235,9 +221,11 @@
                     <span class="text-[11px] font-black uppercase tracking-[0.4em] text-zinc-500">Neural Sync Active</span>
                 </div>
             </div>
-            <div id="memoryStatus" class="hidden md:flex items-center gap-2 px-3 py-1 bg-blue-500/10 border border-blue-500/20 rounded-full">
-                <i class="fa-solid fa-microchip text-[9px] text-blue-400"></i>
-                <span class="text-[9px] font-bold text-blue-400 uppercase tracking-widest">Memory Loaded</span>
+            <div class="flex items-center gap-3">
+                <div id="memoryStatus" class="hidden md:flex items-center gap-2 px-3 py-1 bg-blue-500/10 border border-blue-500/20 rounded-full">
+                    <i class="fa-solid fa-microchip text-[9px] text-blue-400"></i>
+                    <span class="text-[9px] font-bold text-blue-400 uppercase tracking-widest">Memory Loaded</span>
+                </div>
             </div>
         </header>
 
@@ -247,7 +235,10 @@
                 <div class="w-16 lg:w-20 h-16 lg:h-20 bg-blue-600/10 rounded-3xl flex items-center justify-center border border-blue-500/20">
                     <i class="fa-solid fa-brain text-3xl lg:text-4xl text-blue-500"></i>
                 </div>
-                <h2 class="text-2xl lg:text-3xl font-bold text-white tracking-tight">System Online.</h2>
+                <div>
+                    <h2 class="text-2xl lg:text-3xl font-bold text-white tracking-tight">System Online.</h2>
+                    <p class="text-sm text-zinc-500 mt-2 max-w-[280px] lg:max-w-sm mx-auto">Nix is ready. Your memory and previous sessions have been synchronized.</p>
+                </div>
             </div>
         </div>
 
@@ -291,11 +282,14 @@
     </main>
 
     <script>
+        // Constants for Supabase configuration
         const SUPABASE_URL = "https://rnlwrngfgvznndlekmrz.supabase.co";
         const SUPABASE_KEY = "sb_publishable_mtI0_ZBvU_n5oRuqV58QHg_qJt3Gfyt";
+        
+        // Fix: Use the correctly namespaced creator from the CDN library
         const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-        const API_KEY = "ak_2rU1Lo7PA23X5Is9wm3m69EY2T37J";
 
+        const API_KEY = "ak_2rU1Lo7PA23X5Is9wm3m69EY2T37J";
         let activeRatio = "1024x1024";
         let visualMode = false;
         let currentConvId = null;
@@ -303,10 +297,13 @@
         let attachedFileContent = "";
         let currentUser = null;
 
+        // Auth Check
         async function checkAuth() {
             try {
                 const { data: { session } } = await supabaseClient.auth.getSession();
                 if (!session) {
+                    // Assuming auth.html is relative to the current environment
+                    console.warn("No session found. Redirecting...");
                     window.location.href = "auth.html";
                 } else {
                     currentUser = session.user;
@@ -321,6 +318,10 @@
         async function initializeSession() {
             loadMemories();
             loadConversations();
+            checkFirstTime();
+        }
+
+        function checkFirstTime() {
             if (!localStorage.getItem('nix_v4_seen')) {
                 document.getElementById('featureModal').classList.remove('hidden');
                 document.getElementById('featureModal').classList.add('flex');
@@ -366,6 +367,7 @@
             (data || []).forEach(msg => appendMsg(msg.role, msg.content, null, false));
         }
 
+        // Logic
         function handleKeyDown(e) {
             if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleInput(); }
         }
@@ -404,10 +406,13 @@
             if (!text && !attachedFileContent) return;
 
             if (!currentConvId) await createNewChat(text.substring(0, 30) || "File Analysis");
+            
             document.getElementById('emptyState')?.remove();
             
             let fullText = text;
-            if (attachedFileContent) fullText = `[File: ${attachedFileContent}]\n\nQuery: ${text}`;
+            if (attachedFileContent) {
+                fullText = `[Attached File Data: ${attachedFileContent}]\n\nUser Query: ${text}`;
+            }
 
             appendMsg('user', text);
             await supabaseClient.from('messages').insert([{ conversation_id: currentConvId, role: 'user', content: text }]);
@@ -417,7 +422,9 @@
             clearFile();
 
             const triggers = ['generate', 'draw', 'image', 'photo', 'melon'];
-            if (visualMode || triggers.some(t => text.toLowerCase().includes(t))) {
+            const needsImage = visualMode || triggers.some(t => text.toLowerCase().includes(t));
+
+            if (needsImage) {
                 await generateImage(text);
                 visualMode = false;
                 document.getElementById('visualBtn').classList.remove('active-visual');
@@ -428,18 +435,22 @@
 
         async function generateImage(prompt) {
             const id = 'img-' + Date.now();
-            appendMsg('assistant', `Generating visualization...`, id);
+            appendMsg('assistant', `Nix is initiating a TinyMelon harvest for: **"${prompt}"**`, id);
+            
             const [w, h] = activeRatio.split('x');
             const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=${w}&height=${h}&seed=${Math.random()}&model=flux&nologo=true`;
+
             const container = document.getElementById(id);
             container.innerHTML += `
                 <div class="img-wrapper mt-4 aspect-square w-full max-w-xl">
                     <div class="absolute inset-0 skeleton flex flex-col items-center justify-center gap-3">
                         <i class="fa-solid fa-lemon text-lime-400 text-3xl animate-bounce"></i>
+                        <span class="text-[9px] font-black text-lime-400 uppercase tracking-[0.3em]">Harvesting via Tiny Melon...</span>
                     </div>
                     <img src="${url}" class="img-display relative z-10 w-full h-full object-cover" onload="this.classList.add('loaded')">
-                </div>`;
-            await supabaseClient.from('messages').insert([{ conversation_id: currentConvId, role: 'assistant', content: `[Image: ${prompt}]` }]);
+                </div>
+            `;
+            await supabaseClient.from('messages').insert([{ conversation_id: currentConvId, role: 'assistant', content: `[Image Harvest: ${prompt}]` }]);
         }
 
         async function computeResponse(text) {
@@ -447,7 +458,7 @@
             appendMsg('assistant', `<div class="flex gap-1"><span class="w-1 h-1 bg-blue-500 animate-pulse"></span><span class="w-1 h-1 bg-blue-500 animate-pulse [animation-delay:0.2s]"></span><span class="w-1 h-1 bg-blue-500 animate-pulse [animation-delay:0.4s]"></span></div>`, id);
 
             try {
-                const systemPrompt = `You are Nix. User Memories: ${userMemories}. Analyze files if provided.`;
+                const systemPrompt = `You are Nix, a professional intelligence core by Codenix. User Memory Context: ${userMemories}. Always communicate with clarity. If the user provides file data, analyze it thoroughly.`;
                 const res = await fetch("https://api.longcat.chat/openai/v1/chat/completions", {
                     method: "POST",
                     headers: { "Content-Type": "application/json", "Authorization": `Bearer ${API_KEY}` },
@@ -458,10 +469,10 @@
                 });
                 const data = await res.json();
                 const reply = data.choices[0].message.content;
-                document.getElementById(id).innerHTML = formatMarkdown(reply, id);
+                document.getElementById(id).innerHTML = formatMarkdown(reply);
                 await supabaseClient.from('messages').insert([{ conversation_id: currentConvId, role: 'assistant', content: reply }]);
             } catch (e) {
-                document.getElementById(id).innerHTML = "Critical: Connection Failed.";
+                document.getElementById(id).innerHTML = "Critical: Sync Interrupted.";
             }
         }
 
@@ -469,66 +480,39 @@
             const win = document.getElementById('chatWindow');
             const div = document.createElement('div');
             div.className = `msg-bubble flex gap-4 ${role === 'user' ? 'justify-end' : 'justify-start'}`;
+            
             div.innerHTML = `
-                <div class="max-w-[95%] lg:max-w-[85%] ${role === 'user' ? 'bg-white/[0.03] border border-white/10 p-4 rounded-2xl rounded-tr-none' : ''}">
+                <div class="max-w-[90%] lg:max-w-[85%] ${role === 'user' ? 'bg-white/[0.03] border border-white/10 p-4 rounded-2xl rounded-tr-none' : ''}">
                     ${role === 'assistant' ? `<div class="text-[9px] font-black text-blue-500 uppercase tracking-[0.3em] mb-3 flex items-center gap-2"><i class="fa-solid fa-shield-halved"></i> Nix Core</div>` : ''}
-                    <div id="${id || ''}" class="text-[14px] leading-relaxed text-zinc-300 break-words">${role === 'user' ? content : formatMarkdown(content, id)}</div>
-                </div>`;
+                    <div id="${id || ''}" class="text-[14px] leading-relaxed text-zinc-300 break-words">${role === 'user' ? content : formatMarkdown(content)}</div>
+                </div>
+            `;
             win.appendChild(div);
             win.scrollTo({ top: win.scrollHeight, behavior: 'smooth' });
         }
 
-        function formatMarkdown(text, parentId) {
-            const codeBlocks = [];
-            let formatted = text.replace(/```(\w+)?([\s\S]*?)```/g, (m, lang, code) => {
-                const id = 'code-' + Math.random().toString(36).substr(2, 9);
-                const isHtml = lang && lang.toLowerCase() === 'html';
-                codeBlocks.push({ id, code, isHtml });
-                return `
-                    <div class="code-container" id="${id}-container">
-                        <div class="code-header">
-                            <span class="text-[9px] font-bold text-zinc-500 uppercase tracking-widest">${lang || 'txt'}</span>
-                            <div class="flex gap-4">
-                                ${isHtml ? `<button onclick="togglePreview('${id}')" class="text-[9px] font-bold text-lime-500 hover:text-white transition">PREVIEW</button>` : ''}
-                                <button onclick="copyTo(this, \`${code.trim().replace(/`/g, '\\`').replace(/\$/g, '\\$')}\`)" class="text-[9px] font-bold text-blue-500 hover:text-white transition">COPY</button>
-                            </div>
-                        </div>
-                        <iframe id="${id}-preview" class="code-preview-frame"></iframe>
-                        <pre id="${id}-code"><code>${escapeHtml(code.trim())}</code></pre>
-                    </div>`;
-            });
-            return formatted.replace(/\*\*(.*?)\*\*/g, '<strong class="text-white font-bold">$1</strong>').replace(/\n/g, '<br>');
-        }
-
-        function togglePreview(id) {
-            const frame = document.getElementById(id + '-preview');
-            const codeEl = document.getElementById(id + '-code');
-            const container = document.getElementById(id + '-container');
-            const isShowing = frame.classList.toggle('active');
-            codeEl.classList.toggle('hidden', isShowing);
-            
-            if (isShowing) {
-                const code = container.querySelector('code').innerText;
-                const blob = new Blob([code], { type: 'text/html' });
-                frame.src = URL.createObjectURL(blob);
-            }
-        }
-
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
+        function formatMarkdown(text) {
+            text = text.replace(/```(\w+)?([\s\S]*?)```/g, (m, lang, code) => `
+                <div class="code-container">
+                    <div class="code-header">
+                        <span class="text-[9px] font-bold text-zinc-500 uppercase tracking-widest">${lang || 'txt'}</span>
+                        <button onclick="copyTo(this, \`${code.trim().replace(/`/g, '\\`').replace(/\$/g, '\\$')}\`)" class="text-[9px] font-bold text-blue-500">COPY</button>
+                    </div>
+                    <pre><code>${code.trim()}</code></pre>
+                </div>
+            `);
+            return text.replace(/\*\*(.*?)\*\*/g, '<strong class="text-white font-bold">$1</strong>').replace(/\n/g, '<br>');
         }
 
         function copyTo(btn, text) {
             navigator.clipboard.writeText(text);
-            const original = btn.innerText;
             btn.innerText = 'COPIED';
-            btn.classList.add('text-white');
-            setTimeout(() => {
-                btn.innerText = original;
-                btn.classList.remove('text-white');
-            }, 2000);
+            setTimeout(() => btn.innerText = 'COPY', 2000);
+        }
+
+        async function signOut() {
+            await supabaseClient.auth.signOut();
+            window.location.reload();
         }
 
         function toggleSidebar() {
@@ -541,8 +525,6 @@
             document.querySelectorAll('.ratio-btn').forEach(b => b.classList.remove('active'));
             document.getElementById(r === '1024x1024' ? 'btn-1-1' : 'btn-16-9').classList.add('active');
         }
-
-        function signOut() { supabaseClient.auth.signOut().then(() => window.location.reload()); }
 
         window.onload = checkAuth;
     </script>
