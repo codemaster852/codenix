@@ -66,16 +66,16 @@
 
         /* Modern Dark Code Block Styles */
         .code-container {
-            background: #121212;
-            border: 1px solid rgba(255,255,255,0.08);
-            border-radius: 10px;
-            margin: 1.25rem 0;
+            background: #0a0a0a;
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 12px;
+            margin: 1.5rem 0;
             overflow: hidden;
-            box-shadow: 0 4px 24px rgba(0,0,0,0.4);
+            box-shadow: 0 10px 30px -10px rgba(0,0,0,0.5);
         }
         .code-header {
-            padding: 10px 16px;
-            background: #1a1a1a;
+            padding: 12px 16px;
+            background: #141414;
             border-bottom: 1px solid rgba(255,255,255,0.05);
             display: flex;
             justify-content: space-between;
@@ -86,39 +86,43 @@
             align-items: center;
             gap: 10px;
             color: #94a3b8;
-            font-size: 12px;
+            font-size: 11px;
             font-family: 'JetBrains Mono', monospace;
-            font-weight: 500;
+            text-transform: lowercase;
+            letter-spacing: 0.05em;
         }
         .code-header .file-info i {
-            color: #3b82f6;
-            font-size: 14px;
+            color: #60a5fa;
+            font-size: 13px;
         }
         .copy-btn {
-            background: transparent;
+            background: rgba(255,255,255,0.03);
             color: #94a3b8;
-            padding: 4px 10px;
-            border-radius: 6px;
-            font-size: 11px;
-            font-weight: 600;
+            padding: 6px 12px;
+            border-radius: 8px;
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
             display: flex;
             align-items: center;
-            gap: 6px;
+            gap: 8px;
             transition: all 0.2s;
             border: 1px solid rgba(255,255,255,0.05);
         }
         .copy-btn:hover {
-            background: rgba(255,255,255,0.05);
+            background: rgba(255,255,255,0.08);
             color: #ffffff;
+            border-color: rgba(255,255,255,0.1);
         }
         
         pre {
             padding: 1.25rem;
             font-family: 'JetBrains Mono', monospace;
             font-size: 13px;
-            color: #e2e8f0;
+            color: #d1d5db;
             overflow-x: auto;
-            line-height: 1.6;
+            line-height: 1.7;
             margin: 0;
             background: transparent;
         }
@@ -505,7 +509,7 @@
             div.innerHTML = `
                 <div class="max-w-[90%] lg:max-w-[85%] ${role === 'user' ? 'bg-white/[0.03] border border-white/10 p-4 rounded-2xl rounded-tr-none' : ''}">
                     ${role === 'assistant' ? `<div class="text-[9px] font-black text-blue-500 uppercase tracking-[0.3em] mb-3 flex items-center gap-2"><i class="fa-solid fa-shield-halved"></i> Nix Core</div>` : ''}
-                    <div id="${id || ''}" class="text-[14px] leading-relaxed text-zinc-300 break-words">${role === 'user' ? content : formatMarkdown(content)}</div>
+                    <div id="${id || ''}" class="text-[14px] leading-relaxed text-zinc-300 break-words prose-nix">${role === 'user' ? content : formatMarkdown(content)}</div>
                 </div>
             `;
             win.appendChild(div);
@@ -513,40 +517,64 @@
         }
 
         /**
-         * Detects code blocks and transforms them into dark styled containers
-         * Using the specific aesthetic requested (dark header, no preview).
+         * Enhanced Markdown formatter that correctly detects and escapes code blocks
          */
         function formatMarkdown(text) {
-            // Replace code blocks
-            text = text.replace(/```(\w+)?([\s\S]*?)```/g, (match, lang, code) => {
+            if (!text) return "";
+
+            // Helper to escape HTML characters
+            const escapeHtml = (unsafe) => {
+                return unsafe
+                    .replace(/&/g, "&amp;")
+                    .replace(/</g, "&lt;")
+                    .replace(/>/g, "&gt;")
+                    .replace(/"/g, "&quot;")
+                    .replace(/'/g, "&#039;");
+            };
+
+            // 1. Extract and format code blocks first to prevent nested processing
+            const blocks = [];
+            text = text.replace(/```(\w+)?\n?([\s\S]*?)```/g, (match, lang, code) => {
+                const id = `__CODE_BLOCK_${blocks.length}__`;
                 const cleanCode = code.trim();
-                const displayLang = lang ? lang.toLowerCase() : 'txt';
+                const displayLang = (lang || 'txt').toLowerCase();
                 const fileLabel = `script.${displayLang}`;
                 
-                // Escape characters for the copy function
-                const safeCode = cleanCode.replace(/`/g, '\\`').replace(/\$/g, '\\$');
+                // Escape for UI display
+                const escapedCode = escapeHtml(cleanCode);
+                // Escape for the JS copy function (handling quotes and backticks)
+                const safeForCopy = cleanCode.replace(/\\/g, '\\\\').replace(/`/g, '\\`').replace(/\$/g, '\\$');
                 
-                return `
+                const html = `
                     <div class="code-container">
                         <div class="code-header">
                             <div class="file-info">
-                                <i class="fa-regular fa-file-lines"></i>
+                                <i class="fa-regular fa-file-code"></i>
                                 <span>${fileLabel}</span>
                             </div>
-                            <button onclick="copyTo(this, \`${safeCode}\`)" class="copy-btn">
+                            <button onclick="copyTo(this, \`${safeForCopy}\`)" class="copy-btn">
                                 <i class="fa-regular fa-copy"></i>
-                                <span>Copy Code</span>
+                                <span>Copy</span>
                             </button>
                         </div>
-                        <pre><code>${cleanCode}</code></pre>
+                        <pre><code>${escapedCode}</code></pre>
                     </div>
                 `;
+                blocks.push(html);
+                return id;
             });
 
-            // Basic Markdown conversion (bold and line breaks)
-            return text
+            // 2. Process text formatting (bold, line breaks, etc.)
+            let processed = text
                 .replace(/\*\*(.*?)\*\*/g, '<strong class="text-white font-bold">$1</strong>')
                 .replace(/\n/g, '<br>');
+
+            // 3. Re-insert the code blocks
+            blocks.forEach((html, i) => {
+                processed = processed.replace(`__CODE_BLOCK_${i}__`, html);
+            });
+
+            return processed;
         }
 
         function copyTo(btn, text) {
@@ -554,12 +582,19 @@
             temp.value = text;
             document.body.appendChild(temp);
             temp.select();
-            document.execCommand('copy');
+            try {
+                document.execCommand('copy');
+                const originalContent = btn.innerHTML;
+                btn.innerHTML = `<i class="fa-solid fa-check text-green-400"></i> <span class="text-green-400">Copied</span>`;
+                btn.style.borderColor = "rgba(74, 222, 128, 0.3)";
+                setTimeout(() => { 
+                    btn.innerHTML = originalContent; 
+                    btn.style.borderColor = "";
+                }, 2000);
+            } catch (err) {
+                console.error('Copy failed', err);
+            }
             document.body.removeChild(temp);
-
-            const originalContent = btn.innerHTML;
-            btn.innerHTML = `<i class="fa-solid fa-check text-green-400"></i> <span class="text-green-400">Copied</span>`;
-            setTimeout(() => { btn.innerHTML = originalContent; }, 2000);
         }
 
         async function signOut() {
