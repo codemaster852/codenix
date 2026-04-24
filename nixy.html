@@ -113,7 +113,6 @@
             color: var(--melon-primary);
         }
         
-        /* Ensure input area doesn't get pushed by keyboard/sidebar */
         .input-container-sticky {
             z-index: 40;
             pointer-events: none;
@@ -121,23 +120,18 @@
         .input-container-sticky > * {
             pointer-events: auto;
         }
+
+        .gallery-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--melon-primary);
+        }
     </style>
 </head>
 <body class="bg-[#050507]">
 
     <div id="mobileOverlay" onclick="toggleSidebar()"></div>
-
-    <!-- Feature Modal -->
-    <div id="featureModal" class="fixed inset-0 z-[100] hidden items-center justify-center p-6 bg-black/80 backdrop-blur-sm">
-        <div class="glass-panel max-w-md w-full p-8 rounded-[32px] border-blue-500/30 text-center">
-            <div class="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center text-white mx-auto mb-6">
-                <i class="fa-solid fa-sparkles text-2xl"></i>
-            </div>
-            <h3 class="text-2xl font-bold text-white mb-2">Neural Workspace v4.5</h3>
-            <p class="text-zinc-400 text-sm mb-8">Nix now features persistent memory and conversation cloud sync.</p>
-            <button onclick="closeFeatureModal()" class="btn-nix w-full py-4 rounded-2xl font-black uppercase tracking-widest text-xs">Acknowledge</button>
-        </div>
-    </div>
 
     <!-- Sidebar -->
     <aside id="sidebar" class="w-[280px] lg:w-80 glass-panel border-r flex flex-col p-6 h-full shadow-2xl shrink-0">
@@ -157,15 +151,32 @@
             </button>
 
             <div class="space-y-4 pt-4 border-t border-white/5">
-                <span class="text-[10px] font-black uppercase tracking-widest text-blue-400/70 block">History</span>
+                <span class="text-[10px] font-black uppercase tracking-widest text-blue-400/70 block">Saved Visuals</span>
+                <div id="visualGallery" class="grid grid-cols-3 gap-2 pb-2">
+                    <!-- Images from localstorage -->
+                </div>
+            </div>
+
+            <div class="space-y-4 pt-4 border-t border-white/5">
+                <span class="text-[10px] font-black uppercase tracking-widest text-zinc-500 block">History</span>
                 <div id="chatHistoryList" class="space-y-2"></div>
             </div>
 
             <div class="space-y-4 pt-4 border-t border-white/5">
-                <span class="text-[10px] font-black uppercase tracking-widest text-lime-400/70 block">Visual Ratio</span>
+                <span class="text-[10px] font-black uppercase tracking-widest text-lime-400/70 block">Settings</span>
                 <div class="grid grid-cols-2 gap-2">
                     <button onclick="setRatio('1024x1024')" class="ratio-btn p-3 bg-white/5 border border-white/5 rounded-xl text-[10px] font-bold active" id="btn-1-1">1:1</button>
                     <button onclick="setRatio('1280x720')" class="ratio-btn p-3 bg-white/5 border border-white/5 rounded-xl text-[10px] font-bold" id="btn-16-9">16:9</button>
+                </div>
+                <div class="p-3 bg-white/5 rounded-xl border border-white/5 space-y-2">
+                    <span class="text-[9px] font-bold text-zinc-500 uppercase">Visual Style</span>
+                    <select id="visualStyle" class="w-full bg-transparent text-[10px] text-white outline-none">
+                        <option value="" class="bg-zinc-900">Standard</option>
+                        <option value="cinematic, 8k resolution, highly detailed" class="bg-zinc-900">Cinematic</option>
+                        <option value="minimalist, clean lines, professional" class="bg-zinc-900">Minimalist</option>
+                        <option value="cyberpunk, neon, futuristic" class="bg-zinc-900">Cyberpunk</option>
+                        <option value="oil painting, textured, classical" class="bg-zinc-900">Artistic</option>
+                    </select>
                 </div>
             </div>
         </div>
@@ -190,15 +201,21 @@
                 </button>
                 <div class="flex items-center gap-2">
                     <span class="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></span>
-                    <span class="text-[10px] font-black uppercase tracking-widest text-zinc-500">System Ready</span>
+                    <span id="systemStatus" class="text-[10px] font-black uppercase tracking-widest text-zinc-500">System Ready</span>
                 </div>
             </div>
-            <div id="memoryStatus" class="hidden md:flex items-center gap-2 px-3 py-1 bg-blue-500/10 border border-blue-500/20 rounded-full">
-                <span class="text-[9px] font-bold text-blue-400 uppercase tracking-widest">Neural Link Active</span>
+            <div class="flex items-center gap-4">
+                <div id="memoryStatus" class="hidden md:flex items-center gap-2 px-3 py-1 bg-blue-500/10 border border-blue-500/20 rounded-full">
+                    <span class="text-[9px] font-bold text-blue-400 uppercase tracking-widest">Neural Link</span>
+                </div>
+                <div class="flex items-center gap-1">
+                    <div class="gallery-dot"></div>
+                    <span id="savedCount" class="text-[9px] font-black text-zinc-500">0</span>
+                </div>
             </div>
         </header>
 
-        <!-- Chat Window: Extra padding-bottom for the input bar -->
+        <!-- Chat Window -->
         <div id="chatWindow" class="flex-1 overflow-y-auto p-4 lg:p-12 space-y-8 scroll-smooth pb-44 lg:pb-52">
             <div id="emptyState" class="h-full flex flex-col items-center justify-center text-center space-y-6 py-20">
                 <div class="w-20 h-20 bg-blue-600/10 rounded-[32px] flex items-center justify-center border border-blue-500/20">
@@ -206,7 +223,7 @@
                 </div>
                 <div class="space-y-2">
                     <h2 class="text-2xl font-bold text-white tracking-tight">Intelligence Initialized.</h2>
-                    <p class="text-zinc-500 text-xs uppercase tracking-widest font-bold">Awaiting Input Vectors</p>
+                    <p class="text-zinc-500 text-xs uppercase tracking-widest font-bold">Persistence Engine Online</p>
                 </div>
             </div>
         </div>
@@ -222,18 +239,21 @@
                 <div class="glass-panel p-2 rounded-[28px] lg:rounded-[32px] border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.5)] flex flex-col">
                     <textarea id="promptInput" rows="1" 
                         class="w-full bg-transparent border-none outline-none text-[15px] p-3 text-white placeholder-zinc-700 resize-none max-h-[160px] overflow-y-auto"
-                        placeholder="Type a command or drop a file..."
+                        placeholder="Ask anything or request an image..."
                         onkeydown="handleKeyDown(event)"
                         oninput="adjustInputHeight(this)"></textarea>
                     
                     <div class="flex items-center justify-between p-2 border-t border-white/5 mt-1">
                         <div class="flex gap-1 lg:gap-2">
-                            <label class="w-10 h-10 flex items-center justify-center rounded-xl hover:bg-white/5 text-zinc-500 cursor-pointer transition">
+                            <label title="Attach File" class="w-10 h-10 flex items-center justify-center rounded-xl hover:bg-white/5 text-zinc-500 cursor-pointer transition">
                                 <input type="file" class="hidden" id="fileInput" onchange="handleFile(event)">
                                 <i class="fa-solid fa-paperclip"></i>
                             </label>
-                            <button onclick="toggleVisual()" id="visualBtn" class="w-10 h-10 flex items-center justify-center rounded-xl hover:bg-white/5 text-zinc-500 transition">
+                            <button title="Toggle Image Mode" onclick="toggleVisual()" id="visualBtn" class="w-10 h-10 flex items-center justify-center rounded-xl hover:bg-white/5 text-zinc-500 transition">
                                 <i class="fa-solid fa-image"></i>
+                            </button>
+                            <button title="Clear Context" onclick="createNewChat()" class="w-10 h-10 flex items-center justify-center rounded-xl hover:bg-white/5 text-zinc-500 transition">
+                                <i class="fa-solid fa-rotate-left"></i>
                             </button>
                         </div>
                         <button id="sendBtn" onclick="handleInput()" class="btn-nix px-6 lg:px-10 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2 shadow-xl shadow-white/5 active:scale-95 transition-transform">
@@ -242,7 +262,6 @@
                         </button>
                     </div>
                 </div>
-                <!-- Mobile Bottom Spacer -->
                 <div class="h-2 lg:hidden"></div>
             </div>
         </div>
@@ -261,6 +280,9 @@
         let attachedFileContent = "";
         let currentUser = null;
 
+        // Local Storage Key
+        const GALLERY_STORAGE_KEY = "nix_visual_vault";
+
         async function checkAuth() {
             try {
                 const { data: { session } } = await supabaseClient.auth.getSession();
@@ -277,15 +299,7 @@
         async function initializeSession() {
             loadMemories();
             loadConversations();
-            if (!localStorage.getItem('nix_v4_seen')) {
-                document.getElementById('featureModal').classList.remove('hidden');
-                document.getElementById('featureModal').classList.add('flex');
-            }
-        }
-
-        function closeFeatureModal() {
-            localStorage.setItem('nix_v4_seen', 'true');
-            document.getElementById('featureModal').classList.add('hidden');
+            loadVisualVault();
         }
 
         async function loadMemories() {
@@ -307,6 +321,35 @@
             `).join('');
         }
 
+        // New: Load Image Gallery from LocalStorage
+        function loadVisualVault() {
+            const vault = JSON.parse(localStorage.getItem(GALLERY_STORAGE_KEY) || "[]");
+            const gallery = document.getElementById('visualGallery');
+            document.getElementById('savedCount').innerText = vault.length;
+            
+            gallery.innerHTML = vault.slice(-6).reverse().map(img => `
+                <div class="aspect-square rounded-lg overflow-hidden border border-white/10 cursor-pointer group relative" onclick="relaunchImage('${img.url}')">
+                    <img src="${img.url}" class="w-full h-full object-cover">
+                    <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition">
+                         <i class="fa-solid fa-eye text-white text-[10px]"></i>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function saveToVault(url, prompt) {
+            const vault = JSON.parse(localStorage.getItem(GALLERY_STORAGE_KEY) || "[]");
+            vault.push({ url, prompt, timestamp: Date.now() });
+            localStorage.setItem(GALLERY_STORAGE_KEY, JSON.stringify(vault));
+            loadVisualVault();
+        }
+
+        function relaunchImage(url) {
+            const win = document.getElementById('chatWindow');
+            document.getElementById('emptyState')?.remove();
+            appendMsg('assistant', `Recalling visual from vault... <div class="mt-4 rounded-xl overflow-hidden"><img src="${url}" class="w-full"></div>`);
+        }
+
         async function createNewChat(title = "New Session") {
             const { data } = await supabaseClient.from('conversations').insert([{ user_id: currentUser.id, title: title.substring(0, 30) }]).select().single();
             currentConvId = data.id;
@@ -320,10 +363,7 @@
             const win = document.getElementById('chatWindow');
             win.innerHTML = "";
             document.getElementById('emptyState')?.remove();
-            
-            // Close mobile sidebar if open
-            document.getElementById('sidebar').classList.remove('open');
-            document.getElementById('mobileOverlay').classList.remove('show');
+            toggleSidebar(); // Close on mobile
 
             const { data } = await supabaseClient.from('messages').select('*').eq('conversation_id', id).order('created_at', { ascending: true });
             (data || []).forEach(msg => appendMsg(msg.role, msg.content, null, false));
@@ -362,6 +402,11 @@
         function toggleVisual() {
             visualMode = !visualMode;
             document.getElementById('visualBtn').classList.toggle('active-visual', visualMode);
+            if(visualMode) {
+                document.getElementById('promptInput').placeholder = "Describe the visual you want to generate...";
+            } else {
+                document.getElementById('promptInput').placeholder = "Ask anything or request an image...";
+            }
         }
 
         async function handleInput() {
@@ -369,20 +414,22 @@
             const text = input.value.trim();
             if (!text && !attachedFileContent) return;
 
-            if (!currentConvId) await createNewChat(text || "File Analysis");
+            if (!currentConvId) await createNewChat(text || "Intelligence Session");
             document.getElementById('emptyState')?.remove();
             
             let fullText = text;
-            if (attachedFileContent) fullText = `[File Content Included]\n\nQuery: ${text}\n\nContext:\n${attachedFileContent}`;
+            if (attachedFileContent) fullText = `[File Uploaded]\nContext:\n${attachedFileContent}\n\nQuery: ${text}`;
 
-            appendMsg('user', text || "[Attached File]");
-            await supabaseClient.from('messages').insert([{ conversation_id: currentConvId, role: 'user', content: text || "[File]" }]);
+            appendMsg('user', text || "[File Transmission]");
+            await supabaseClient.from('messages').insert([{ conversation_id: currentConvId, role: 'user', content: text || "[Attached Data]" }]);
             
             input.value = '';
             input.style.height = 'auto';
             clearFile();
 
-            if (visualMode || ['draw', 'generate', 'image'].some(t => text.toLowerCase().includes(t))) {
+            const isImageReq = visualMode || ['draw', 'generate', 'image', 'picture', 'create a visual'].some(t => text.toLowerCase().includes(t));
+
+            if (isImageReq) {
                 await generateImage(text);
                 visualMode = false;
                 document.getElementById('visualBtn').classList.remove('active-visual');
@@ -393,45 +440,63 @@
 
         async function generateImage(prompt) {
             const id = 'img-' + Date.now();
-            appendMsg('assistant', `Constructing visual representation for: **"${prompt}"**`, id);
+            const style = document.getElementById('visualStyle').value;
+            const refinedPrompt = style ? `${prompt}, ${style}` : prompt;
+            
+            appendMsg('assistant', `Synthesizing visual: **"${prompt}"**`, id);
             const [w, h] = activeRatio.split('x');
-            const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=${w}&height=${h}&seed=${Math.floor(Math.random()*100000)}&model=flux&nologo=true`;
+            const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(refinedPrompt)}?width=${w}&height=${h}&seed=${Math.floor(Math.random()*99999)}&model=flux&nologo=true`;
             
             const container = document.getElementById(id);
             const imgDiv = document.createElement('div');
-            imgDiv.className = "mt-4 rounded-2xl overflow-hidden border border-white/10 bg-white/5 animate-pulse min-h-[300px] flex items-center justify-center";
-            imgDiv.innerHTML = `<img src="${url}" class="w-full h-auto opacity-0 transition-opacity duration-500" onload="this.classList.remove('opacity-0'); this.parentElement.classList.remove('animate-pulse')">`;
+            imgDiv.className = "mt-4 rounded-2xl overflow-hidden border border-white/10 bg-white/5 animate-pulse min-h-[300px] flex items-center justify-center relative";
+            imgDiv.innerHTML = `
+                <img src="${url}" class="w-full h-auto opacity-0 transition-opacity duration-700" onload="this.classList.remove('opacity-0'); this.parentElement.classList.remove('animate-pulse')">
+                <button onclick="saveToVault('${url}', '${prompt.replace(/'/g, "\\'")}')" class="absolute top-4 right-4 bg-black/60 backdrop-blur-md p-2 rounded-lg text-white opacity-0 group-hover:opacity-100 transition border border-white/10">
+                    <i class="fa-solid fa-bookmark"></i>
+                </button>
+            `;
+            imgDiv.classList.add('group');
             container.appendChild(imgDiv);
             
-            await supabaseClient.from('messages').insert([{ conversation_id: currentConvId, role: 'assistant', content: `[Generated Image: ${prompt}]` }]);
+            // Auto save to vault
+            saveToVault(url, prompt);
+            await supabaseClient.from('messages').insert([{ conversation_id: currentConvId, role: 'assistant', content: `[Image Generated: ${prompt}]` }]);
         }
 
         async function computeResponse(text) {
             const id = 'msg-' + Date.now();
-            appendMsg('assistant', `<div class="flex items-center gap-2"><span class="w-1 h-1 bg-blue-500 rounded-full animate-bounce"></span><span class="w-1 h-1 bg-blue-500 rounded-full animate-bounce" style="animation-delay: 0.2s"></span><span class="w-1 h-1 bg-blue-500 rounded-full animate-bounce" style="animation-delay: 0.4s"></span></div>`, id);
+            appendMsg('assistant', `<div class="flex items-center gap-2 py-2"><div class="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce"></div><div class="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce" style="animation-delay: 0.2s"></div><div class="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce" style="animation-delay: 0.4s"></div></div>`, id);
+            
+            document.getElementById('systemStatus').innerText = "Processing...";
+            
             try {
                 const res = await fetch("https://api.longcat.chat/openai/v1/chat/completions", {
                     method: "POST",
                     headers: { "Content-Type": "application/json", "Authorization": `Bearer ${API_KEY}` },
                     body: JSON.stringify({
                         model: "LongCat-Flash-Chat",
-                        messages: [{ role: "system", content: `You are Nix, an advanced professional intelligence. Be concise, expert-level, and helpful. Current Memories: ${userMemories}` }, { role: "user", content: text }]
+                        messages: [{ role: "system", content: `You are Nix, professional AI. Be direct, accurate, and expert. Memories: ${userMemories}` }, { role: "user", content: text }]
                     })
                 });
                 const data = await res.json();
                 const reply = data.choices[0].message.content;
                 document.getElementById(id).innerHTML = formatMarkdown(reply);
                 await supabaseClient.from('messages').insert([{ conversation_id: currentConvId, role: 'assistant', content: reply }]);
-            } catch (e) { document.getElementById(id).innerHTML = "<span class='text-red-400 font-bold'>Network desync. Please retry.</span>"; }
+                document.getElementById('systemStatus').innerText = "System Ready";
+            } catch (e) { 
+                document.getElementById(id).innerHTML = "<span class='text-red-400 font-bold'>Interface desync.</span>"; 
+                document.getElementById('systemStatus').innerText = "Sync Error";
+            }
         }
 
-        function appendMsg(role, content, id = null, save = true) {
+        function appendMsg(role, content, id = null) {
             const win = document.getElementById('chatWindow');
             const div = document.createElement('div');
             div.className = `msg-bubble flex gap-4 ${role === 'user' ? 'justify-end' : 'justify-start'}`;
             div.innerHTML = `
-                <div class="max-w-[88%] lg:max-w-[75%] ${role === 'user' ? 'bg-white/5 px-5 py-4 rounded-[24px] rounded-tr-none border border-white/10 shadow-xl' : ''}">
-                    ${role === 'assistant' ? `<div class="flex items-center gap-2 mb-2"><div class="w-4 h-4 bg-blue-600 rounded flex items-center justify-center text-[8px] font-black">N</div><div class="text-[9px] font-black text-blue-500 uppercase tracking-widest">System Response</div></div>` : ''}
+                <div class="max-w-[88%] lg:max-w-[80%] ${role === 'user' ? 'bg-white/5 px-5 py-4 rounded-[24px] rounded-tr-none border border-white/10 shadow-xl' : ''}">
+                    ${role === 'assistant' ? `<div class="flex items-center gap-2 mb-2"><div class="w-4 h-4 bg-blue-600 rounded flex items-center justify-center text-[8px] font-black">N</div><div class="text-[9px] font-black text-blue-500 uppercase tracking-widest">Nix Response</div></div>` : ''}
                     <div id="${id || ''}" class="text-[14px] lg:text-[15px] leading-relaxed text-zinc-300 font-medium">${role === 'user' ? content : formatMarkdown(content)}</div>
                 </div>
             `;
@@ -439,15 +504,28 @@
             win.scrollTo({ top: win.scrollHeight, behavior: 'smooth' });
         }
 
+        function copyCode(btn) {
+            const code = btn.parentElement.nextElementSibling.innerText;
+            const el = document.createElement('textarea');
+            el.value = code;
+            document.body.appendChild(el);
+            el.select();
+            document.execCommand('copy');
+            document.body.removeChild(el);
+            btn.innerHTML = '<i class="fa-solid fa-check text-green-400"></i>';
+            setTimeout(() => { btn.innerHTML = '<i class="fa-regular fa-copy"></i>'; }, 2000);
+        }
+
         function formatMarkdown(text) {
-            // Simple code block formatting
             text = text.replace(/```(\w+)?([\s\S]*?)```/g, (m, lang, code) => `
                 <div class="code-container">
-                    <div class="code-header"><span class="text-[9px] uppercase font-bold text-zinc-500">${lang || 'Terminal'}</span><i class="fa-regular fa-copy text-[10px] cursor-pointer hover:text-white"></i></div>
+                    <div class="code-header">
+                        <span class="text-[9px] uppercase font-bold text-zinc-500">${lang || 'Script'}</span>
+                        <button onclick="copyCode(this)" class="text-[10px] text-zinc-500 hover:text-white transition"><i class="fa-regular fa-copy"></i></button>
+                    </div>
                     <pre><code>${code.trim()}</code></pre>
                 </div>
             `);
-            // Bold & Paragraphs
             return text.replace(/\*\*(.*?)\*\*/g, '<strong class="text-white font-bold">$1</strong>')
                        .replace(/\n/g, '<br>');
         }
