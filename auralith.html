@@ -3,87 +3,348 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Auralith - Coenix AI</title>
+    <title>Auralith | Coenix AI Intelligence</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.2/marked.min.js"></script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap');
-        body { font-family: 'Inter', sans-serif; background-color: #0f1115; color: #e2e8f0; }
-        .glass-panel { background: rgba(23, 25, 30, 0.8); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); }
-        .message-user { background: #2563eb; color: white; border-radius: 18px 18px 2px 18px; }
-        .message-ai { background: #1e293b; color: #f1f5f9; border-radius: 18px 18px 18px 2px; }
-        .loading-dots:after { content: ' .'; animation: dots 1.5s steps(5, end) infinite; }
-        @keyframes dots { 0%, 20% { content: ' .'; } 40% { content: ' ..'; } 60% { content: ' ...'; } 80%, 100% { content: ''; } }
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+        
+        :root {
+            --bg-dark: #090a0c;
+            --panel-dark: #121418;
+            --accent-blue: #3b82f6;
+            --accent-glow: rgba(59, 130, 246, 0.5);
+            --border-color: rgba(255, 255, 255, 0.08);
+        }
+
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: var(--bg-dark);
+            color: #f1f5f9;
+            overflow: hidden;
+        }
+
+        .glass-blur {
+            background: rgba(18, 20, 24, 0.7);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .sidebar {
+            background: #0d0f12;
+            border-right: 1px solid var(--border-color);
+        }
+
+        .chat-area {
+            background: radial-gradient(circle at top center, rgba(37, 99, 235, 0.05), transparent 40%);
+        }
+
+        .message-user {
+            background: #2563eb;
+            color: white;
+            border-radius: 20px 20px 4px 20px;
+            box-shadow: 0 4px 15px rgba(37, 99, 235, 0.2);
+        }
+
+        .message-ai {
+            background: var(--panel-dark);
+            border: 1px solid var(--border-color);
+            color: #f1f5f9;
+            border-radius: 20px 20px 20px 4px;
+        }
+
+        .code-block {
+            font-family: 'JetBrains Mono', monospace;
+            background: #000 !important;
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            margin: 12px 0;
+            padding: 16px;
+            font-size: 0.9rem;
+            position: relative;
+        }
+
+        .copy-btn {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-size: 11px;
+            transition: all 0.2s;
+        }
+
+        .copy-btn:hover { background: rgba(255, 255, 255, 0.2); }
+
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #2d3748; border-radius: 10px; }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fadeIn { animation: fadeIn 0.3s ease forwards; }
     </style>
 </head>
-<body class="h-screen flex flex-col">
-    <header class="h-16 flex items-center justify-between px-6 glass-panel fixed top-0 w-full z-50">
-        <div class="flex items-center space-x-3">
-            <div class="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center font-bold text-white">A</div>
-            <h1 class="font-semibold text-lg">Auralith</h1>
-        </div>
-    </header>
+<body class="h-screen flex">
 
-    <main class="flex-1 overflow-y-auto mt-16 p-4 md:p-8 space-y-6" id="chatWindow"></main>
-
-    <footer class="p-4 glass-panel">
-        <div class="max-w-4xl mx-auto relative">
-            <textarea id="userInput" placeholder="Ask Auralith..." class="w-full bg-[#1e293b] text-white border border-gray-700 rounded-2xl py-4 pl-5 pr-14 focus:outline-none focus:border-blue-500 resize-none"></textarea>
-            <button id="sendBtn" class="absolute right-3 bottom-3 p-2 bg-blue-600 rounded-xl text-white">
-                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M5 10l7-7m0 0l7 7m-7-7v18"></path></svg>
-            </button>
+    <!-- Sidebar -->
+    <aside class="hidden md:flex flex-col w-72 sidebar p-4">
+        <div class="flex items-center space-x-3 mb-8 px-2">
+            <div class="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center font-bold text-white text-xl shadow-lg shadow-blue-500/20">A</div>
+            <div>
+                <h1 class="font-bold text-lg tracking-tight">Auralith</h1>
+                <p class="text-[10px] text-gray-500 uppercase tracking-widest font-semibold">Coenix Intelligence</p>
+            </div>
         </div>
-    </footer>
+
+        <button onclick="createNewChat()" class="w-full py-3 mb-6 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl flex items-center justify-center space-x-2 transition-all group">
+            <svg class="w-5 h-5 text-gray-400 group-hover:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+            <span class="font-medium">New Session</span>
+        </button>
+
+        <div class="flex-1 overflow-y-auto custom-scrollbar space-y-2">
+            <div class="flex items-center justify-between px-2 mb-2">
+                <p class="text-[10px] font-bold text-gray-600 uppercase">Recent Activity</p>
+                <button onclick="clearHistory()" class="text-[10px] text-red-500 hover:underline uppercase font-bold">Clear</button>
+            </div>
+            <div id="history-list" class="space-y-1">
+                <!-- History items injected here -->
+            </div>
+        </div>
+
+        <div class="pt-4 border-t border-white/5">
+            <div class="flex items-center space-x-3 px-2">
+                <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-500 to-purple-500"></div>
+                <div class="text-xs">
+                    <p class="font-semibold">Local Instance</p>
+                    <p class="text-gray-500">History: <span id="history-count">0</span> saved</p>
+                </div>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <div class="flex-1 flex flex-col relative chat-area">
+        
+        <!-- Top Navigation -->
+        <header class="h-16 flex items-center justify-between px-6 glass-blur z-30">
+            <div class="flex items-center space-x-4">
+                <div class="flex flex-col">
+                    <span class="text-sm font-semibold">Auralith Core v2.1</span>
+                    <div class="flex items-center space-x-1.5">
+                        <span class="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></span>
+                        <span class="text-[10px] text-blue-500 uppercase font-bold">Encrypted Session</span>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Chat History -->
+        <div id="chatWindow" class="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-10 space-y-8 scroll-smooth pb-32">
+            <!-- Messages injected here -->
+        </div>
+
+        <!-- Input Section -->
+        <div class="absolute bottom-0 left-0 w-full p-4 md:p-8 bg-gradient-to-t from-bg-dark via-bg-dark to-transparent">
+            <div class="max-w-4xl mx-auto">
+                <div id="file-preview-zone" class="mb-3 flex flex-wrap gap-2 hidden"></div>
+
+                <div class="relative group bg-panel-dark border border-white/10 rounded-2xl transition-all focus-within:border-blue-500/50 shadow-2xl">
+                    <textarea 
+                        id="userInput" 
+                        placeholder="Consult Auralith..." 
+                        rows="1"
+                        class="w-full bg-transparent text-white py-4 pl-14 pr-16 focus:outline-none resize-none max-h-60 overflow-y-auto custom-scrollbar"
+                    ></textarea>
+
+                    <div class="absolute left-3 bottom-3">
+                        <input type="file" id="fileInput" class="hidden" multiple accept="image/*,.pdf,.txt">
+                        <button id="uploadBtn" class="p-2.5 text-gray-400 hover:text-white hover:bg-white/5 rounded-xl transition-all">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"></path></svg>
+                        </button>
+                    </div>
+
+                    <div class="absolute right-3 bottom-3">
+                        <button id="sendBtn" class="p-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl shadow-lg shadow-blue-600/20 transition-all disabled:opacity-50">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
+                        </button>
+                    </div>
+                </div>
+                <p class="text-center text-[10px] text-gray-600 mt-3 font-medium uppercase tracking-widest">Coenix AI proprietary technology • Local encryption active</p>
+            </div>
+        </div>
+    </div>
 
     <script>
-        // NOTICE: We now call our OWN backend endpoint, not LongCat directly.
-        const BACKEND_URL = "/api/chat"; 
-        const MODEL = "LongCat-Flash-Chat";
+        const BACKEND_URL = "/api/chat";
+        const MODEL = "Auralith-Flash-Chat";
 
         const chatWindow = document.getElementById('chatWindow');
         const userInput = document.getElementById('userInput');
         const sendBtn = document.getElementById('sendBtn');
+        const fileInput = document.getElementById('fileInput');
+        const uploadBtn = document.getElementById('uploadBtn');
+        const historyList = document.getElementById('history-list');
+        const historyCount = document.getElementById('history-count');
 
-        let messages = [{ role: "system", content: "You are Auralith by Coenix." }];
+        let chatMessages = [];
+        let attachedFiles = [];
 
-        function addMessage(role, content, isThinking = false) {
-            const div = document.createElement('div');
-            div.className = `flex ${role === 'user' ? 'justify-end' : 'justify-start'} mb-4`;
-            const innerDiv = document.createElement('div');
-            innerDiv.className = `max-w-[85%] p-4 ${role === 'user' ? 'message-user' : 'message-ai'}`;
-            innerDiv.innerHTML = isThinking ? `<span class="loading-dots">Auralith is thinking</span>` : marked.parse(content);
-            div.appendChild(innerDiv);
-            chatWindow.appendChild(div);
-            chatWindow.scrollTop = chatWindow.scrollHeight;
-            return innerDiv;
+        // Load messages from localStorage on startup
+        function loadHistory() {
+            const saved = localStorage.getItem('auralith_history');
+            if (saved) {
+                chatMessages = JSON.parse(saved);
+                chatMessages.forEach(msg => {
+                    if (msg.role !== 'system') {
+                        renderMessage(msg.role, msg.content);
+                    }
+                });
+                updateHistoryUI();
+            } else {
+                startNewSystemMessage();
+            }
+        }
+
+        function saveHistory() {
+            localStorage.setItem('auralith_history', JSON.stringify(chatMessages));
+            updateHistoryUI();
+        }
+
+        function updateHistoryUI() {
+            const userMsgs = chatMessages.filter(m => m.role === 'user');
+            historyCount.innerText = userMsgs.length;
+            
+            historyList.innerHTML = '';
+            userMsgs.slice(-5).reverse().forEach(msg => {
+                const item = document.createElement('div');
+                item.className = "p-3 hover:bg-white/5 rounded-lg text-xs text-gray-400 cursor-pointer transition-colors truncate";
+                item.innerText = msg.content.substring(0, 30) + (msg.content.length > 30 ? '...' : '');
+                historyList.appendChild(item);
+            });
+        }
+
+        function clearHistory() {
+            if (confirm("Clear all Auralith session data?")) {
+                localStorage.removeItem('auralith_history');
+                chatMessages = [];
+                chatWindow.innerHTML = '';
+                startNewSystemMessage();
+                updateHistoryUI();
+            }
+        }
+
+        function createNewChat() {
+            chatWindow.innerHTML = '';
+            chatMessages = [];
+            startNewSystemMessage();
+            saveHistory();
+        }
+
+        function startNewSystemMessage() {
+            chatMessages = [{ 
+                role: "system", 
+                content: "You are Auralith, a high-performance AI designed by Coenix. Identify yourself ONLY as Auralith. Respond professionally with markdown." 
+            }];
+            renderMessage('assistant', "Greetings. I am **Auralith**, your Coenix intelligence interface. How can I assist you today?");
+        }
+
+        userInput.addEventListener('input', function() {
+            this.style.height = 'auto';
+            this.style.height = (this.scrollHeight) + 'px';
+        });
+
+        uploadBtn.addEventListener('click', () => fileInput.click());
+
+        function renderMessage(role, content, isThinking = false) {
+            const wrapper = document.createElement('div');
+            wrapper.className = `flex ${role === 'user' ? 'justify-end' : 'justify-start'} w-full animate-fadeIn mb-8`;
+            
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `p-4 md:p-6 max-w-[90%] md:max-w-[75%] shadow-2xl relative ${role === 'user' ? 'message-user' : 'message-ai'}`;
+            
+            if (isThinking) {
+                messageDiv.innerHTML = `
+                    <div class="flex items-center space-x-3">
+                        <div class="flex space-x-1">
+                            <div class="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce"></div>
+                            <div class="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce" style="animation-delay: 0.2s"></div>
+                            <div class="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce" style="animation-delay: 0.4s"></div>
+                        </div>
+                        <span class="text-[10px] font-bold text-blue-500 uppercase tracking-widest">Processing</span>
+                    </div>
+                `;
+            } else {
+                messageDiv.innerHTML = marked.parse(content);
+                messageDiv.querySelectorAll('pre').forEach(pre => {
+                    pre.className = 'code-block';
+                    const btn = document.createElement('button');
+                    btn.className = 'copy-btn';
+                    btn.innerText = 'Copy';
+                    btn.onclick = () => {
+                        navigator.clipboard.writeText(pre.innerText.replace('Copy', ''));
+                        btn.innerText = 'Copied';
+                        setTimeout(() => btn.innerText = 'Copy', 2000);
+                    };
+                    pre.appendChild(btn);
+                });
+            }
+
+            wrapper.appendChild(messageDiv);
+            chatWindow.appendChild(wrapper);
+            chatWindow.scrollTo({ top: chatWindow.scrollHeight, behavior: 'smooth' });
+            return messageDiv;
         }
 
         async function sendMessage() {
             const text = userInput.value.trim();
             if (!text) return;
+
             userInput.value = '';
-            addMessage('user', text);
-            messages.push({ role: "user", content: text });
+            userInput.style.height = 'auto';
             
-            const botPlaceholder = addMessage('assistant', '', true);
-            
+            renderMessage('user', text);
+            chatMessages.push({ role: "user", content: text });
+            saveHistory();
+
+            const botPlaceholder = renderMessage('assistant', '', true);
+            sendBtn.disabled = true;
+
             try {
                 const response = await fetch(BACKEND_URL, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ model: MODEL, messages: messages })
+                    body: JSON.stringify({ model: MODEL, messages: chatMessages })
                 });
 
                 const data = await response.json();
                 const aiResponse = data.choices[0].message.content;
+                
                 botPlaceholder.innerHTML = marked.parse(aiResponse);
-                messages.push({ role: "assistant", content: aiResponse });
+                chatMessages.push({ role: "assistant", content: aiResponse });
+                saveHistory();
+
             } catch (e) {
-                botPlaceholder.innerHTML = "Error connecting to backend.";
+                botPlaceholder.innerHTML = `<span class="text-red-400 text-xs">Auralith node connection failed. Verify backend services.</span>`;
+            } finally {
+                sendBtn.disabled = false;
+                chatWindow.scrollTo({ top: chatWindow.scrollHeight, behavior: 'smooth' });
             }
         }
 
         sendBtn.addEventListener('click', sendMessage);
+        userInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+
+        // Initialize history
+        window.onload = loadHistory;
     </script>
 </body>
 </html>
