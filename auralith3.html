@@ -23,24 +23,44 @@
             overflow: hidden;
         }
 
-        .sidebar-item { transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); }
-        .sidebar-item:hover { background-color: #1e1e24; transform: translateX(4px); }
-
         .chat-container::-webkit-scrollbar { width: 4px; }
         .chat-container::-webkit-scrollbar-thumb { background: #27272a; border-radius: 10px; }
 
-        /* Canvas Panel Styles */
+        /* Smooth Sidebar and Canvas Transitions */
         #canvas-panel {
-            transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
-            transform: translateX(100%);
+            transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+            width: 0;
+            opacity: 0;
+            pointer-events: none;
         }
-        #canvas-panel.active { transform: translateX(0); }
+        #canvas-panel.active {
+            width: 50%;
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        /* Message Bubble Styles */
+        .message-bubble {
+            max-width: 85%;
+            border-radius: 1.25rem;
+            padding: 1rem;
+            font-size: 0.9375rem;
+            line-height: 1.6;
+        }
+        .user-bubble {
+            background-color: #1e1e24;
+            border: 1px solid #27272a;
+            color: #fff;
+        }
+        .assistant-bubble {
+            color: #d4d4d8;
+        }
 
         /* Waiting Animation */
         .waiting-blob {
-            width: 8px;
-            height: 8px;
-            background: var(--accent);
+            width: 6px;
+            height: 6px;
+            background: #8e5cf5;
             border-radius: 50%;
             display: inline-block;
             animation: bounce 1.4s infinite ease-in-out both;
@@ -53,282 +73,182 @@
             40% { transform: scale(1); opacity: 1; }
         }
 
-        .message-in { animation: slideUp 0.3s ease-out; }
-        @keyframes slideUp {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        /* Voice Visualizer */
-        .visualizer-container { display: flex; align-items: center; gap: 2px; height: 12px; }
-        .bar { width: 2px; height: 100%; background: #8e5cf5; border-radius: 2px; animation: bounce-bar 0.6s infinite ease-in-out; }
+        .bar { width: 2px; height: 100%; background: #ef4444; border-radius: 2px; animation: bounce-bar 0.6s infinite ease-in-out; }
         .bar:nth-child(2) { animation-delay: 0.1s; }
         .bar:nth-child(3) { animation-delay: 0.2s; }
         @keyframes bounce-bar { 0%, 100% { height: 4px; } 50% { height: 12px; } }
     </style>
 </head>
-<body class="h-screen flex bg-[#09090b]">
+<body class="h-screen flex">
 
-    <!-- Sidebar -->
-    <aside id="main-sidebar" class="w-72 bg-[#121215] border-r border-zinc-800 flex flex-col z-20">
-        <div class="p-6 flex items-center gap-3">
-            <div class="w-9 h-9 bg-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-500/20">
-                <i class="fa-solid fa-wand-magic-sparkles text-white text-lg"></i>
+    <!-- Left Sidebar: Project History -->
+    <aside class="w-64 bg-[#121215] border-r border-zinc-800 flex flex-col hidden md:flex">
+        <div class="p-5 flex items-center gap-3">
+            <div class="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center">
+                <i class="fa-solid fa-sparkles text-white text-sm"></i>
             </div>
-            <span class="text-xl font-bold tracking-tight text-white">Auralith</span>
+            <span class="font-bold text-zinc-100 tracking-tight">Auralith</span>
+        </div>
+        
+        <div class="px-4 mb-4">
+            <button onclick="createNewChat()" class="w-full py-2.5 bg-zinc-800/50 hover:bg-zinc-800 border border-zinc-700/50 rounded-xl text-xs font-semibold text-zinc-300 transition flex items-center justify-center gap-2">
+                <i class="fa-solid fa-plus"></i> New Chat
+            </button>
         </div>
 
-        <button onclick="createNewChat()" class="mx-6 p-3 rounded-xl bg-indigo-600/10 border border-indigo-500/20 text-indigo-400 hover:bg-indigo-600/20 transition flex items-center justify-center gap-2 text-sm font-medium">
-            <i class="fa-solid fa-plus text-xs"></i> New Project
-        </button>
+        <div class="flex-grow overflow-y-auto px-2 space-y-1 chat-container" id="history-list"></div>
 
-        <div class="mt-8 px-4 flex-grow overflow-y-auto chat-container" id="history-list">
-            <!-- Session History -->
-        </div>
-
-        <div class="p-6 border-t border-zinc-800">
-            <div class="flex items-center gap-3 p-3 bg-zinc-900/50 rounded-xl border border-zinc-800">
-                <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500"></div>
-                <div class="flex-grow overflow-hidden">
-                    <p class="text-xs font-bold truncate">Vercel Backend</p>
-                    <p class="text-[10px] text-zinc-500 truncate">LongCat Active</p>
-                </div>
-            </div>
+        <div class="p-4 border-t border-zinc-800 text-[10px] text-zinc-500 font-medium">
+            LONG-CAT FLASH OMNI PROXY
         </div>
     </aside>
 
-    <!-- Main Chat Content -->
-    <main class="relative flex-grow flex flex-col min-w-0 transition-all duration-300">
-        <!-- Top Bar -->
-        <header class="h-16 flex items-center justify-between px-8 border-b border-zinc-900 bg-[#09090b]/80 backdrop-blur-md z-10">
-            <div class="flex items-center gap-4">
-                <div id="status-badge" class="flex items-center gap-2 px-3 py-1 bg-indigo-500/10 border border-indigo-500/20 rounded-full">
-                    <div class="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse"></div>
-                    <span class="text-[10px] font-bold text-indigo-500 uppercase tracking-widest">LongCat Proxy</span>
+    <!-- Main Workspace -->
+    <div class="flex-grow flex flex-row overflow-hidden relative">
+        
+        <!-- Chat Side -->
+        <main class="flex-grow flex flex-col relative bg-[#09090b] min-w-0">
+            <header class="h-14 border-b border-zinc-900 flex items-center justify-between px-6 bg-[#09090b]/50 backdrop-blur-xl z-20">
+                <div class="flex items-center gap-2">
+                    <span class="text-xs font-bold text-zinc-400">Current Session</span>
                 </div>
+                <div class="flex items-center gap-2">
+                    <div id="voice-indicator" class="hidden flex items-center gap-2 px-2 py-1 bg-red-500/10 rounded-lg border border-red-500/20 mr-2">
+                        <div class="flex h-3 items-center gap-0.5">
+                            <div class="bar"></div><div class="bar"></div><div class="bar"></div>
+                        </div>
+                        <span class="text-[9px] font-bold text-red-500">VOICE ACTIVE</span>
+                    </div>
+                    <button id="voice-toggle-btn" onclick="toggleVoiceMode()" class="w-8 h-8 rounded-lg flex items-center justify-center text-zinc-500 hover:text-white hover:bg-zinc-800 transition">
+                        <i class="fa-solid fa-microphone"></i>
+                    </button>
+                </div>
+            </header>
+
+            <div id="chat-scroller" class="flex-grow overflow-y-auto p-4 md:p-8 space-y-8 chat-container pb-32">
+                <div id="welcome-hero" class="max-w-xl mx-auto py-20 text-center">
+                    <i class="fa-solid fa-hurricane text-4xl text-indigo-500 mb-6 block"></i>
+                    <h2 class="text-3xl font-bold mb-2">How can I help?</h2>
+                    <p class="text-zinc-500 text-sm">LongCat proxy backend is active and ready.</p>
+                </div>
+                <div id="messages-mount" class="max-w-2xl mx-auto"></div>
             </div>
-            <div class="flex items-center gap-3">
-                <button onclick="toggleVoiceRecognition()" id="voice-rec-btn" class="w-9 h-9 rounded-full flex items-center justify-center bg-zinc-900 border border-zinc-800 hover:border-zinc-600 transition text-zinc-400">
-                    <i class="fa-solid fa-microphone"></i>
-                </button>
-                <div id="voice-visualizer" class="hidden px-3 py-1.5 bg-indigo-500/10 rounded-full border border-indigo-500/20 flex items-center gap-2">
-                    <div class="visualizer-container">
-                        <div class="bar"></div><div class="bar"></div><div class="bar"></div>
+
+            <!-- Input bar -->
+            <div class="absolute bottom-0 left-0 w-full p-4 bg-gradient-to-t from-[#09090b] via-[#09090b] to-transparent">
+                <div class="max-w-2xl mx-auto relative">
+                    <div id="loading-ui" class="hidden absolute -top-10 left-1/2 -translate-x-1/2 flex items-center gap-2 bg-zinc-800 px-3 py-1.5 rounded-full border border-zinc-700 shadow-xl">
+                        <div class="waiting-blob blob-1"></div>
+                        <div class="waiting-blob blob-2"></div>
+                        <div class="waiting-blob"></div>
+                    </div>
+                    <div class="bg-[#18181b] border border-zinc-800 rounded-2xl p-2 flex items-end shadow-2xl">
+                        <textarea id="main-input" rows="1" placeholder="Type a message..." 
+                            class="flex-grow bg-transparent border-none outline-none resize-none py-3 px-4 text-sm text-white placeholder-zinc-500"
+                            oninput="this.style.height = '';this.style.height = this.scrollHeight + 'px'"></textarea>
+                        <button onclick="handleSend()" class="w-10 h-10 bg-indigo-600 text-white rounded-xl hover:bg-indigo-500 transition flex items-center justify-center shadow-lg shadow-indigo-500/20">
+                            <i class="fa-solid fa-paper-plane text-xs"></i>
+                        </button>
                     </div>
                 </div>
-                <button onclick="clearAllData()" class="text-zinc-600 hover:text-red-400 transition text-sm ml-2">
-                    <i class="fa-solid fa-trash-can"></i>
-                </button>
             </div>
-        </header>
+        </main>
 
-        <!-- Chat Area -->
-        <div id="chat-scroller" class="flex-grow overflow-y-auto chat-container p-4 md:p-8 space-y-10 scroll-smooth">
-            <div id="welcome-hero" class="max-w-2xl mx-auto pt-20 text-center space-y-8">
-                <div class="relative w-24 h-24 mx-auto">
-                    <div class="absolute inset-0 bg-indigo-500 blur-3xl opacity-20"></div>
-                    <div class="relative w-24 h-24 bg-zinc-900 rounded-[2.5rem] flex items-center justify-center border border-zinc-800 shadow-2xl">
-                        <i class="fa-solid fa-brain text-indigo-500 text-4xl"></i>
-                    </div>
+        <!-- Gemini-style Canvas Side -->
+        <section id="canvas-panel" class="h-screen bg-[#121215] border-l border-zinc-800 flex flex-col z-30 overflow-hidden">
+            <header class="h-14 flex items-center justify-between px-5 border-b border-zinc-800">
+                <div class="flex items-center gap-3">
+                    <i class="fa-solid fa-code text-indigo-400 text-sm"></i>
+                    <span class="text-xs font-bold text-zinc-300">Canvas Artifact</span>
                 </div>
-                <div>
-                    <h1 class="text-5xl font-bold tracking-tighter mb-4">Auralith Canvas</h1>
-                    <p class="text-zinc-500 text-lg">Connected to your LongCat-Flash-Chat backend via Vercel.</p>
+                <div class="flex items-center gap-1">
+                    <button onclick="copyCode()" class="w-8 h-8 rounded-lg text-zinc-500 hover:text-white transition"><i class="fa-solid fa-copy"></i></button>
+                    <button onclick="closeCanvas()" class="w-8 h-8 rounded-lg text-zinc-500 hover:text-red-400 transition ml-2"><i class="fa-solid fa-xmark"></i></button>
                 </div>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-3 max-w-xl mx-auto text-left">
-                    <button onclick="prefill('Create a high-fidelity dashboard for a fintech app using Tailwind CSS.')" class="p-4 bg-zinc-900/50 border border-zinc-800 rounded-2xl hover:border-indigo-500/50 transition text-left group">
-                        <div class="flex items-center justify-between mb-2">
-                            <i class="fa-solid fa-palette text-indigo-400"></i>
-                            <i class="fa-solid fa-arrow-right text-[10px] opacity-0 group-hover:opacity-100 transition-all group-hover:translate-x-1"></i>
-                        </div>
-                        <p class="text-sm font-bold">UI Component</p>
-                        <p class="text-xs text-zinc-500">Tailwind & HTML</p>
-                    </button>
-                    <button onclick="prefill('Write a comprehensive README for a new open source project.')" class="p-4 bg-zinc-900/50 border border-zinc-800 rounded-2xl hover:border-emerald-500/50 transition text-left group">
-                        <div class="flex items-center justify-between mb-2">
-                            <i class="fa-solid fa-pen-nib text-emerald-400"></i>
-                            <i class="fa-solid fa-arrow-right text-[10px] opacity-0 group-hover:opacity-100 transition-all group-hover:translate-x-1"></i>
-                        </div>
-                        <p class="text-sm font-bold">Documentation</p>
-                        <p class="text-xs text-zinc-500">Technical Writing</p>
-                    </button>
+            </header>
+            <div class="flex-grow flex flex-col p-4">
+                <div class="flex p-1 bg-zinc-900 rounded-lg mb-4 border border-zinc-800">
+                    <button id="btn-prev" onclick="setCanvasMode('preview')" class="flex-grow py-1.5 text-[10px] font-bold rounded-md bg-zinc-800 text-white transition">PREVIEW</button>
+                    <button id="btn-code" onclick="setCanvasMode('code')" class="flex-grow py-1.5 text-[10px] font-bold rounded-md text-zinc-500 transition">CODE</button>
+                </div>
+                <div id="canvas-preview" class="flex-grow bg-white rounded-xl overflow-hidden relative shadow-inner">
+                    <iframe id="preview-frame" class="w-full h-full border-none"></iframe>
+                </div>
+                <div id="canvas-code" class="hidden flex-grow bg-zinc-950 rounded-xl overflow-hidden border border-zinc-800">
+                    <pre class="p-4 text-[12px] font-mono text-zinc-400 h-full overflow-auto scrollbar-hide"><code id="code-mount"></code></pre>
                 </div>
             </div>
-            <div id="messages-mount" class="max-w-3xl mx-auto space-y-10 pb-40"></div>
-        </div>
-
-        <!-- Input Area -->
-        <div class="absolute bottom-0 left-0 w-full p-6 bg-gradient-to-t from-[#09090b] via-[#09090b] to-transparent">
-            <div class="max-w-3xl mx-auto">
-                <div id="loading-indicator" class="hidden mb-6 flex items-center gap-2 px-4 py-2 bg-zinc-900 border border-zinc-800 w-fit message-in mx-auto rounded-full shadow-xl">
-                    <div class="waiting-blob blob-1"></div>
-                    <div class="waiting-blob blob-2"></div>
-                    <div class="waiting-blob"></div>
-                    <span class="text-[10px] text-zinc-500 font-bold ml-2 uppercase tracking-widest" id="loader-text">Querying LongCat</span>
-                </div>
-
-                <div class="relative bg-zinc-900/80 backdrop-blur-xl border border-zinc-800 rounded-3xl p-2 flex items-end shadow-2xl focus-within:border-zinc-600 transition-colors">
-                    <textarea id="main-input" rows="1" placeholder="Ask anything... (Enter to send)" 
-                        class="flex-grow bg-transparent border-none outline-none resize-none py-4 px-4 text-white placeholder-zinc-600 text-sm"
-                        oninput="this.style.height = '';this.style.height = this.scrollHeight + 'px'"></textarea>
-                    <button id="send-btn" onclick="handleSend()" class="m-1.5 w-10 h-10 bg-white text-black rounded-2xl hover:bg-indigo-500 hover:text-white transition flex items-center justify-center disabled:opacity-30">
-                        <i class="fa-solid fa-arrow-up"></i>
-                    </button>
-                </div>
-            </div>
-        </div>
-    </main>
-
-    <!-- Canvas Panel -->
-    <div id="canvas-panel" class="w-[48%] h-screen bg-[#121215] border-l border-zinc-800 flex flex-col z-30 fixed right-0 top-0 shadow-[-20px_0_40px_rgba(0,0,0,0.8)]">
-        <div class="h-16 flex items-center justify-between px-6 border-b border-zinc-800">
-            <div class="flex items-center gap-3">
-                <div class="w-8 h-8 bg-indigo-600/10 rounded-lg flex items-center justify-center border border-indigo-500/20">
-                    <i class="fa-solid fa-code text-indigo-400 text-xs"></i>
-                </div>
-                <div>
-                    <span class="text-sm font-bold text-zinc-200 block">Canvas Preview</span>
-                    <span class="text-[9px] text-zinc-500 font-bold uppercase tracking-widest">Generated Output</span>
-                </div>
-            </div>
-            <div class="flex items-center gap-1">
-                <button onclick="copyCanvasCode()" class="w-8 h-8 rounded-lg text-zinc-500 hover:text-white hover:bg-zinc-800 transition" title="Copy Code">
-                    <i class="fa-solid fa-copy text-sm"></i>
-                </button>
-                <button onclick="downloadCanvas()" class="w-8 h-8 rounded-lg text-zinc-500 hover:text-white hover:bg-zinc-800 transition" title="Download">
-                    <i class="fa-solid fa-download text-sm"></i>
-                </button>
-                <div class="w-px h-4 bg-zinc-800 mx-2"></div>
-                <button onclick="closeCanvas()" class="w-8 h-8 rounded-lg text-zinc-500 hover:text-red-500 hover:bg-red-500/10 transition">
-                    <i class="fa-solid fa-xmark text-lg"></i>
-                </button>
-            </div>
-        </div>
-        <div class="flex-grow overflow-hidden flex flex-col bg-[#09090b]">
-            <div class="flex p-1 m-4 mb-0 bg-zinc-900/50 rounded-xl border border-zinc-800">
-                <button onclick="switchCanvasTab('preview')" id="tab-preview" class="flex-grow py-2 text-[10px] font-bold rounded-lg bg-zinc-800 text-white shadow-sm transition">PREVIEW</button>
-                <button onclick="switchCanvasTab('code')" id="tab-code" class="flex-grow py-2 text-[10px] font-bold rounded-lg text-zinc-500 transition">SOURCE</button>
-            </div>
-            <div id="canvas-preview-container" class="flex-grow bg-white m-4 rounded-xl overflow-hidden shadow-2xl relative">
-                <div id="canvas-frame-loader" class="absolute inset-0 bg-white flex items-center justify-center z-10 hidden">
-                    <div class="waiting-blob"></div>
-                </div>
-                <iframe id="canvas-frame" class="w-full h-full border-none"></iframe>
-            </div>
-            <div id="canvas-code-container" class="hidden flex-grow m-4 rounded-xl overflow-hidden bg-zinc-950 border border-zinc-800 relative">
-                <pre class="p-6 text-[13px] text-indigo-300 font-mono h-full overflow-auto scrollbar-hide"><code id="canvas-code-mount"></code></pre>
-            </div>
-        </div>
+        </section>
     </div>
 
     <script>
-        const API_URL = "/api/chat"; 
-
+        const API_URL = "/api/chat";
+        let sessions = JSON.parse(localStorage.getItem('auralith_vault')) || [];
         let activeSessionId = null;
-        let sessions = JSON.parse(localStorage.getItem('auralith_local_vault')) || [];
         let currentMessages = [];
-        let canvasCode = "";
+        let currentCanvasHTML = "";
+        let voiceEnabled = false;
 
-        window.onload = () => {
-            renderHistory();
-            document.getElementById('main-input').addEventListener('keydown', (e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    handleSend();
-                }
-            });
-        };
-
-        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-        let recognition = (SpeechRecognition) ? new SpeechRecognition() : null;
-        let isListening = false;
-
-        if (recognition) {
+        const recognition = ('webkitSpeechRecognition' in window) ? new webkitSpeechRecognition() : null;
+        if(recognition) {
+            recognition.continuous = false;
             recognition.onresult = (e) => {
                 document.getElementById('main-input').value = e.results[0][0].transcript;
                 handleSend();
             };
-            recognition.onend = () => toggleVoiceUI(false);
-            recognition.onerror = () => toggleVoiceUI(false);
+            recognition.onend = () => { if(voiceEnabled) recognition.start(); };
         }
 
-        function toggleVoiceRecognition() {
-            if (!recognition) return alert("Speech recognition not supported.");
-            if (isListening) recognition.stop();
-            else {
-                try {
-                    recognition.start();
-                    toggleVoiceUI(true);
-                } catch(e) { toggleVoiceUI(false); }
+        function toggleVoiceMode() {
+            voiceEnabled = !voiceEnabled;
+            const btn = document.getElementById('voice-toggle-btn');
+            const ind = document.getElementById('voice-indicator');
+            
+            if(voiceEnabled) {
+                btn.className = "w-8 h-8 rounded-lg flex items-center justify-center bg-red-500 text-white transition";
+                ind.classList.remove('hidden');
+                recognition?.start();
+            } else {
+                btn.className = "w-8 h-8 rounded-lg flex items-center justify-center text-zinc-500 hover:text-white hover:bg-zinc-800 transition";
+                ind.classList.add('hidden');
+                recognition?.stop();
+                window.speechSynthesis.cancel();
             }
         }
 
-        function toggleVoiceUI(active) {
-            isListening = active;
-            const btn = document.getElementById('voice-rec-btn');
-            btn.className = active 
-                ? "w-9 h-9 rounded-full flex items-center justify-center bg-red-500/20 text-red-500 border border-red-500/50"
-                : "w-9 h-9 rounded-full flex items-center justify-center bg-zinc-900 border border-zinc-800 text-zinc-400";
-        }
-
-        function speak(text) {
-            if (!window.speechSynthesis) return;
-            const cleanText = text.replace(/```[\s\S]*?```/g, "").substring(0, 200);
-            const utt = new SpeechSynthesisUtterance(cleanText);
-            utt.onstart = () => document.getElementById('voice-visualizer').classList.remove('hidden');
-            utt.onend = () => document.getElementById('voice-visualizer').classList.add('hidden');
+        function speakText(text) {
+            if(!voiceEnabled || !window.speechSynthesis) return;
+            const clean = text.replace(/```[\s\S]*?```/g, "").substring(0, 300);
+            const utterance = new SpeechSynthesisUtterance(clean);
+            utterance.rate = 1.1;
             window.speechSynthesis.cancel();
-            window.speechSynthesis.speak(utt);
-        }
-
-        async function fetchWithRetry(url, options, retries = 2, backoff = 1000) {
-            try {
-                const response = await fetch(url, options);
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    let errorMessage = `HTTP ${response.status}`;
-                    try {
-                        const errorJson = JSON.parse(errorText);
-                        errorMessage = errorJson.error?.message || errorJson.error || errorMessage;
-                    } catch(e) {}
-                    throw new Error(errorMessage);
-                }
-                return response;
-            } catch (err) {
-                if (retries <= 0) throw err;
-                document.getElementById('loader-text').innerText = `Retrying... (${retries})`;
-                await new Promise(resolve => setTimeout(resolve, backoff));
-                return fetchWithRetry(url, options, retries - 1, backoff * 2);
-            }
+            window.speechSynthesis.speak(utterance);
         }
 
         async function handleSend() {
             const input = document.getElementById('main-input');
-            const text = input.value.trim();
-            if (!text) return;
+            const prompt = input.value.trim();
+            if(!prompt) return;
 
-            if (!activeSessionId) startNewSession(text);
-            
+            if(!activeSessionId) startNewSession(prompt);
             document.getElementById('welcome-hero').classList.add('hidden');
-            appendMessage('user', text);
+
+            appendMsg('user', prompt);
             input.value = '';
             input.style.height = 'auto';
 
-            const loader = document.getElementById('loading-indicator');
-            const statusBadge = document.getElementById('status-badge');
+            const loader = document.getElementById('loading-ui');
             loader.classList.remove('hidden');
-            document.getElementById('loader-text').innerText = "Connecting LongCat";
             
-            const aiMount = appendMessage('assistant', '...', true);
-            currentMessages.push({ role: "user", content: text });
+            const aiMount = appendMsg('assistant', '...');
+            currentMessages.push({ role: "user", content: prompt });
 
             try {
-                // FIXED: Changed model to "LongCat-Flash-Chat" as per your docs
-                const response = await fetchWithRetry(API_URL, {
+                const response = await fetch(API_URL, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
-                        model: "LongCat-Flash-Chat", 
+                    body: JSON.stringify({
+                        model: "LongCat-Flash-Chat",
                         messages: currentMessages,
                         stream: false
                     })
@@ -337,142 +257,94 @@
                 const data = await response.json();
                 loader.classList.add('hidden');
                 
-                const fullResponse = data.choices?.[0]?.message?.content || "No response content received.";
-                aiMount.innerText = fullResponse;
-
-                currentMessages.push({ role: "assistant", content: fullResponse });
-                saveSession();
-                processCanvasContent(fullResponse);
-                speak(fullResponse);
-
-            } catch (err) {
+                const reply = data.choices?.[0]?.message?.content || "Proxy Error";
+                aiMount.innerText = reply;
+                currentMessages.push({ role: "assistant", content: reply });
+                
+                saveToLocalStorage();
+                detectAndOpenCanvas(reply);
+                speakText(reply);
+            } catch(e) {
                 loader.classList.add('hidden');
-                statusBadge.className = "flex items-center gap-2 px-3 py-1 bg-red-500/10 border border-red-500/20 rounded-full";
-                statusBadge.innerHTML = `<div class="w-1.5 h-1.5 rounded-full bg-red-500"></div><span class="text-[10px] font-bold text-red-500 uppercase tracking-widest">Proxy Error</span>`;
-                aiMount.innerHTML = `
-                    <div class="p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-xs">
-                        <p class="font-bold mb-1"><i class="fa-solid fa-triangle-exclamation mr-2"></i>Backend Error</p>
-                        <p class="opacity-80">${err.message}</p>
-                        <button onclick="handleSend()" class="mt-3 px-4 py-2 bg-red-500/20 hover:bg-red-500/30 rounded-lg font-bold transition">RETRY</button>
-                    </div>
-                `;
+                aiMount.innerHTML = `<span class="text-red-400">Connection failed: ${e.message}</span>`;
             }
         }
 
-        function appendMessage(role, text) {
+        function appendMsg(role, text) {
             const mount = document.getElementById('messages-mount');
-            const div = document.createElement('div');
-            div.className = `flex gap-5 message-in ${role === 'user' ? 'justify-end' : 'justify-start'}`;
+            const wrapper = document.createElement('div');
+            wrapper.className = `flex mb-6 ${role === 'user' ? 'justify-end' : 'justify-start'}`;
             
-            const avatar = role === 'assistant' 
-                ? `<div class="w-9 h-9 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-center flex-shrink-0 mt-1 shadow-lg"><i class="fa-solid fa-bolt text-indigo-500 text-xs"></i></div>` 
-                : '';
-
-            div.innerHTML = `
-                ${avatar}
-                <div class="max-w-[85%] ${role === 'user' ? 'bg-zinc-900 border border-zinc-800 p-4 rounded-2xl shadow-sm' : 'py-2'}">
-                    <div class="prose prose-invert prose-sm whitespace-pre-wrap text-zinc-300 leading-relaxed font-medium">${text}</div>
-                </div>
-            `;
-            mount.appendChild(div);
-            div.scrollIntoView({ behavior: 'smooth' });
-            return div.querySelector('.prose');
+            const bubble = document.createElement('div');
+            bubble.className = `message-bubble ${role === 'user' ? 'user-bubble' : 'assistant-bubble'}`;
+            bubble.innerText = text;
+            
+            wrapper.appendChild(bubble);
+            mount.appendChild(wrapper);
+            wrapper.scrollIntoView({ behavior: 'smooth' });
+            return bubble;
         }
 
-        function processCanvasContent(text) {
-            const htmlMatch = text.match(/```html\n([\s\S]*?)```/);
-            if (htmlMatch) {
-                canvasCode = htmlMatch[1];
-                openCanvas();
+        function detectAndOpenCanvas(text) {
+            const match = text.match(/```html\n([\s\S]*?)```/);
+            if(match) {
+                currentCanvasHTML = match[1];
+                document.getElementById('code-mount').innerText = currentCanvasHTML;
+                const blob = new Blob([currentCanvasHTML], { type: 'text/html' });
+                document.getElementById('preview-frame').src = URL.createObjectURL(blob);
+                document.getElementById('canvas-panel').classList.add('active');
             }
         }
 
-        function openCanvas() {
-            document.getElementById('canvas-panel').classList.add('active');
-            document.getElementById('canvas-code-mount').innerText = canvasCode;
-            document.getElementById('canvas-frame-loader').classList.remove('hidden');
-            
-            const blob = new Blob([canvasCode], { type: 'text/html' });
-            const frame = document.getElementById('canvas-frame');
-            frame.src = URL.createObjectURL(blob);
-            
-            frame.onload = () => {
-                document.getElementById('canvas-frame-loader').classList.add('hidden');
-            };
+        function setCanvasMode(mode) {
+            const isPrev = mode === 'preview';
+            document.getElementById('canvas-preview').classList.toggle('hidden', !isPrev);
+            document.getElementById('canvas-code').classList.toggle('hidden', isPrev);
+            document.getElementById('btn-prev').className = isPrev ? 'flex-grow py-1.5 text-[10px] font-bold rounded-md bg-zinc-800 text-white transition' : 'flex-grow py-1.5 text-[10px] font-bold rounded-md text-zinc-500 transition';
+            document.getElementById('btn-code').className = !isPrev ? 'flex-grow py-1.5 text-[10px] font-bold rounded-md bg-zinc-800 text-white transition' : 'flex-grow py-1.5 text-[10px] font-bold rounded-md text-zinc-500 transition';
         }
 
-        function closeCanvas() {
-            document.getElementById('canvas-panel').classList.remove('active');
-        }
+        function closeCanvas() { document.getElementById('canvas-panel').classList.remove('active'); }
 
-        function switchCanvasTab(tab) {
-            const isPreview = tab === 'preview';
-            document.getElementById('canvas-preview-container').classList.toggle('hidden', !isPreview);
-            document.getElementById('canvas-code-container').classList.toggle('hidden', isPreview);
-            
-            document.getElementById('tab-preview').className = isPreview 
-                ? 'flex-grow py-2 text-[10px] font-bold rounded-lg bg-zinc-800 text-white shadow-sm transition'
-                : 'flex-grow py-2 text-[10px] font-bold rounded-lg text-zinc-500 transition';
-            document.getElementById('tab-code').className = !isPreview 
-                ? 'flex-grow py-2 text-[10px] font-bold rounded-lg bg-zinc-800 text-white shadow-sm transition'
-                : 'flex-grow py-2 text-[10px] font-bold rounded-lg text-zinc-500 transition';
-        }
-
-        function copyCanvasCode() {
-            const temp = document.createElement('textarea');
-            temp.value = canvasCode;
-            document.body.appendChild(temp);
-            temp.select();
-            document.execCommand('copy');
-            document.body.removeChild(temp);
-            alert("Code copied to clipboard!");
-        }
-
-        function downloadCanvas() {
-            const blob = new Blob([canvasCode], { type: 'text/html' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'auralith-export.html';
-            a.click();
+        function copyCode() {
+            navigator.clipboard.writeText(currentCanvasHTML);
+            alert("Copied to clipboard");
         }
 
         function startNewSession(title) {
             activeSessionId = Date.now().toString();
-            sessions.unshift({ id: activeSessionId, title: title.substring(0, 25) + "...", messages: [] });
+            sessions.unshift({ id: activeSessionId, title: title.slice(0, 30), messages: [] });
             renderHistory();
         }
 
-        function saveSession() {
-            const idx = sessions.findIndex(s => s.id === activeSessionId);
-            if (idx > -1) {
-                sessions[idx].messages = currentMessages;
-                localStorage.setItem('auralith_local_vault', JSON.stringify(sessions));
-            }
+        function saveToLocalStorage() {
+            const sess = sessions.find(s => s.id === activeSessionId);
+            if(sess) sess.messages = currentMessages;
+            localStorage.setItem('auralith_vault', JSON.stringify(sessions));
         }
 
         function renderHistory() {
             const list = document.getElementById('history-list');
             list.innerHTML = '';
             sessions.forEach(s => {
-                const div = document.createElement('div');
-                div.className = `p-3 text-xs rounded-xl cursor-pointer sidebar-item flex items-center gap-3 ${s.id === activeSessionId ? 'bg-zinc-800 text-white border border-zinc-700/50' : 'text-zinc-500'}`;
-                div.innerHTML = `<i class="fa-regular fa-folder opacity-50"></i> <span class="truncate">${s.title}</span>`;
-                div.onclick = () => loadSession(s.id);
-                list.appendChild(div);
+                const item = document.createElement('button');
+                item.className = `w-full text-left px-3 py-2 rounded-lg text-xs truncate transition ${s.id === activeSessionId ? 'bg-zinc-800 text-white' : 'text-zinc-500 hover:bg-zinc-800/30'}`;
+                item.innerText = s.title;
+                item.onclick = () => loadSession(s.id);
+                list.appendChild(item);
             });
         }
 
         function loadSession(id) {
             const s = sessions.find(x => x.id === id);
-            if (!s) return;
+            if(!s) return;
             activeSessionId = id;
             currentMessages = [...s.messages];
             document.getElementById('messages-mount').innerHTML = '';
             document.getElementById('welcome-hero').classList.add('hidden');
             currentMessages.forEach(m => {
-                appendMessage(m.role, m.content);
-                if (m.role === 'assistant') processCanvasContent(m.content);
+                appendMsg(m.role, m.content);
+                if(m.role === 'assistant') detectAndOpenCanvas(m.content);
             });
             renderHistory();
         }
@@ -486,20 +358,7 @@
             renderHistory();
         }
 
-        function prefill(text) {
-            const input = document.getElementById('main-input');
-            input.value = text;
-            input.focus();
-            handleSend();
-        }
-
-        function clearAllData() {
-            if (confirm("Permanently wipe your local workspace history?")) {
-                localStorage.removeItem('auralith_local_vault');
-                sessions = [];
-                createNewChat();
-            }
-        }
+        window.onload = renderHistory;
     </script>
 </body>
 </html>
