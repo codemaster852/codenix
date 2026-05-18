@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DaleAI | Powered by Codenix</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/4.0.2/marked.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
+        .glass-morphism {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(226, 232, 240, 1);
+        }
+        .chat-container { height: calc(100vh - 200px); }
+        .message-bubble { max-width: 85%; border-radius: 1.25rem; }
+        .ai-bubble { background: white; border: 1px solid #e2e8f0; border-bottom-left-radius: 0.25rem; }
+        .user-bubble { background: #4f46e5; color: white; border-bottom-right-radius: 0.25rem; }
+        .typing-dot {
+            height: 8px; width: 8px; border-radius: 50%; background-color: #6366f1;
+            display: inline-block; animation: typing 1.4s infinite ease-in-out;
+        }
+        .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+        .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes typing {
+            0%, 80%, 100% { transform: scale(0); opacity: 0; }
+            40% { transform: scale(1); opacity: 1; }
+        }
+        /* Custom scrollbar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #cbd5e1; }
+        
+        pre { background: #1e293b; color: #f8fafc; padding: 1rem; border-radius: 0.5rem; margin: 0.5rem 0; overflow-x: auto; }
+        code { font-family: 'Fira Code', monospace; font-size: 0.9em; }
+    </style>
+</head>
+<body class="flex flex-col h-screen overflow-hidden">
+
+    <header class="glass-morphism py-4 px-6 flex justify-between items-center z-10">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-200">
+                <i class="fas fa-brain text-white text-xl"></i>
+            </div>
+            <div>
+                <h1 class="text-xl font-bold text-slate-800 leading-none">DaleAI</h1>
+                <span class="text-xs font-medium text-slate-500 uppercase tracking-wider">by Codenix</span>
+            </div>
+        </div>
+        <div class="flex items-center gap-4">
+            <div id="status-indicator" class="flex items-center gap-2 px-3 py-1 bg-green-50 text-green-600 rounded-full text-xs font-semibold">
+                <span class="relative flex h-2 w-2">
+                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                    <span class="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                </span>
+                Model Active
+            </div>
+            <button onclick="toggleTheme()" class="text-slate-400 hover:text-slate-600 transition-colors">
+                <i class="fas fa-moon"></i>
+            </button>
+        </div>
+    </header>
+
+    <main class="flex-1 overflow-hidden relative">
+        <div id="chat-window" class="h-full overflow-y-auto px-4 py-8 space-y-6 max-w-4xl mx-auto scroll-smooth">
+            <!-- Welcome Message -->
+            <div class="flex gap-4">
+                <div class="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center flex-shrink-0">
+                    <i class="fas fa-robot text-indigo-600 text-sm"></i>
+                </div>
+                <div class="message-bubble ai-bubble p-4 shadow-sm">
+                    <p class="text-slate-700 leading-relaxed">Hello! I am <strong>DaleAI</strong>, an intelligent assistant developed by <strong>Codenix</strong>. How can I help you today?</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Scroll to bottom button -->
+        <button id="scroll-bottom" class="hidden absolute bottom-6 right-6 w-10 h-10 bg-white shadow-lg rounded-full flex items-center justify-center text-slate-500 hover:text-indigo-600 transition-all border border-slate-100">
+            <i class="fas fa-arrow-down"></i>
+        </button>
+    </main>
+
+    <footer class="p-4 bg-white border-t border-slate-100">
+        <div class="max-w-4xl mx-auto relative">
+            <div id="typing-indicator" class="hidden absolute -top-8 left-4 flex items-center gap-2 text-slate-400 text-xs italic">
+                <span>DaleAI is thinking</span>
+                <div class="flex gap-1">
+                    <div class="typing-dot"></div>
+                    <div class="typing-dot"></div>
+                    <div class="typing-dot"></div>
+                </div>
+            </div>
+            
+            <form id="chat-form" class="flex items-end gap-3 glass-morphism p-2 rounded-2xl border-slate-200 shadow-sm focus-within:shadow-md transition-shadow">
+                <textarea 
+                    id="user-input" 
+                    rows="1" 
+                    placeholder="Message DaleAI..." 
+                    class="flex-1 bg-transparent border-0 focus:ring-0 resize-none py-3 px-4 text-slate-700 placeholder-slate-400 max-h-48"
+                    oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px'"
+                ></textarea>
+                <button type="submit" class="w-12 h-12 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all disabled:bg-slate-300 disabled:shadow-none" id="send-btn">
+                    <i class="fas fa-paper-plane"></i>
+                </button>
+            </form>
+            <p class="text-center text-[10px] text-slate-400 mt-3">
+                Synchronous Processing via Activepieces Webhooks. Responses are generated by DaleAI-v1.
+            </p>
+        </div>
+    </footer>
+
+    <script>
+        const API_URL = "https://cloud.activepieces.com/api/v1/webhooks/VGq2b52ailPp1Sj8f0nUo/sync";
+        const chatWindow = document.getElementById('chat-window');
+        const chatForm = document.getElementById('chat-form');
+        const userInput = document.getElementById('user-input');
+        const typingIndicator = document.getElementById('typing-indicator');
+        const sendBtn = document.getElementById('send-btn');
+
+        function appendMessage(role, text) {
+            const wrapper = document.createElement('div');
+            wrapper.className = `flex gap-4 ${role === 'user' ? 'flex-row-reverse' : ''}`;
+            
+            const icon = document.createElement('div');
+            icon.className = `w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${role === 'user' ? 'bg-indigo-600 text-white' : 'bg-indigo-100 text-indigo-600'}`;
+            icon.innerHTML = role === 'user' ? '<i class="fas fa-user text-sm"></i>' : '<i class="fas fa-robot text-sm"></i>';
+
+            const bubble = document.createElement('div');
+            bubble.className = `message-bubble p-4 shadow-sm ${role === 'user' ? 'user-bubble' : 'ai-bubble'}`;
+            
+            if (role === 'ai') {
+                bubble.innerHTML = marked.parse(text);
+            } else {
+                bubble.textContent = text;
+            }
+
+            wrapper.appendChild(icon);
+            wrapper.appendChild(bubble);
+            chatWindow.appendChild(wrapper);
+            chatWindow.scrollTop = chatWindow.scrollHeight;
+        }
+
+        function showMessage(type, title, message) {
+            const div = document.createElement('div');
+            div.className = `p-4 rounded-xl mb-4 ${type === 'error' ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-indigo-50 text-indigo-700 border border-indigo-100'} max-w-2xl mx-auto transition-all animate-pulse`;
+            div.innerHTML = `<h4 class="font-bold mb-1 flex items-center gap-2"><i class="fas fa-exclamation-triangle"></i> ${title}</h4><p class="text-sm opacity-90">${message}</p>`;
+            chatWindow.appendChild(div);
+            chatWindow.scrollTop = chatWindow.scrollHeight;
+        }
+
+        chatForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const message = userInput.value.trim();
+            if (!message) return;
+
+            userInput.value = '';
+            userInput.style.height = 'auto';
+            userInput.disabled = true;
+            sendBtn.disabled = true;
+            typingIndicator.classList.remove('hidden');
+
+            appendMessage('user', message);
+
+            try {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 29000);
+
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    mode: 'cors', // Explicitly enable CORS
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        prompt: message,
+                        message: message, // Redundancy for different flow structures
+                        timestamp: new Date().toISOString()
+                    }),
+                    signal: controller.signal
+                });
+
+                clearTimeout(timeoutId);
+
+                if (!response.ok) {
+                    // Try to get error details from response body
+                    let errorInfo = "";
+                    try {
+                        const errorData = await response.json();
+                        errorInfo = errorData.message || JSON.stringify(errorData);
+                    } catch (e) {
+                        errorInfo = response.statusText || "No additional details provided by server.";
+                    }
+                    
+                    if (response.status === 408) throw new Error("The Activepieces flow timed out (30s limit).");
+                    throw new Error(`HTTP ${response.status}: ${errorInfo}`);
+                }
+
+                const data = await response.json();
+                
+                // Prioritize the "answer" key as specified by the user
+                const aiResponse = data.answer || data.response || data.result || data.output || (typeof data === 'string' ? data : JSON.stringify(data));
+                
+                appendMessage('ai', aiResponse);
+
+            } catch (error) {
+                console.error('DaleAI Connection Failure:', error);
+                let displayMsg = error.message;
+                
+                if (error.name === 'AbortError') {
+                    displayMsg = "The request took too long. Check your Activepieces 'Return Response' step.";
+                } else if (error.message.includes('Failed to fetch')) {
+                    displayMsg = "CORS or Network Error. Please ensure your Activepieces Webhook URL is correct and allows cross-origin requests.";
+                }
+                
+                showMessage('error', 'Connection Error', displayMsg);
+            } finally {
+                userInput.disabled = false;
+                sendBtn.disabled = false;
+                typingIndicator.classList.add('hidden');
+                userInput.focus();
+            }
+        });
+
+        userInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                chatForm.dispatchEvent(new Event('submit'));
+            }
+        });
+
+        window.onload = () => userInput.focus();
+    </script>
+</body>
+</html>
