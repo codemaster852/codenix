@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SubeAI Edit | Powered by codenix</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://js.puter.com/v2/"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0a0a0c;
+            color: #e2e8f0;
+            overflow-x: hidden;
+        }
+        .glass {
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .gradient-text {
+            background: linear-gradient(135deg, #60a5fa, #c084fc);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .loader {
+            border-top-color: #60a5fa;
+            animation: spinner 1.5s linear infinite;
+        }
+        @keyframes spinner {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .custom-slider {
+            -webkit-appearance: none;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 2px;
+            outline: none;
+        }
+        .custom-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            background: #60a5fa;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .custom-slider::-webkit-slider-thumb:hover {
+            box-shadow: 0 0 10px #60a5fa;
+            transform: scale(1.1);
+        }
+        #editCanvas {
+            max-width: 100%;
+            height: auto;
+            border-radius: 1rem;
+            transition: filter 0.1s ease-out;
+        }
+        .active-tab {
+            background: rgba(96, 165, 250, 0.1);
+            color: #60a5fa;
+            border: 1px solid rgba(96, 165, 250, 0.3);
+        }
+    </style>
+</head>
+<body class="min-h-screen pb-12">
+
+    <nav class="container mx-auto px-6 py-8 flex justify-between items-center">
+        <div class="flex items-center space-x-2">
+            <div class="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center font-bold text-xl shadow-lg shadow-blue-500/20">S</div>
+            <div>
+                <h1 class="text-2xl font-bold tracking-tight">Sube<span class="gradient-text">AI Edit</span></h1>
+                <p class="text-[10px] uppercase tracking-widest text-gray-500 font-semibold">By codenix</p>
+            </div>
+        </div>
+        <div class="hidden md:flex space-x-8 text-sm font-medium text-gray-400">
+            <button onclick="switchTab('generate')" class="hover:text-blue-400 transition" id="tabGen">Generate</button>
+            <button onclick="switchTab('edit')" class="hover:text-blue-400 transition" id="tabEdit">Edit Image</button>
+        </div>
+        <button class="bg-white text-black px-5 py-2 rounded-full text-sm font-bold hover:bg-gray-200 transition" onclick="puter.auth.signIn()">Connect Cloud</button>
+    </nav>
+
+    <main class="container mx-auto px-6 mt-8 max-w-4xl">
+        
+        <div id="generateView" class="block">
+            <div class="text-center mb-10">
+                <h2 class="text-4xl md:text-5xl font-extrabold mb-4">Imagine it. <span class="gradient-text">Generate it.</span></h2>
+                <p class="text-gray-400 max-w-xl mx-auto">Turn your descriptions into digital art instantly with SubeAI's core generation engine.</p>
+            </div>
+
+            <div class="glass p-6 md:p-8 rounded-3xl shadow-2xl mb-12">
+                <div class="flex flex-col space-y-4">
+                    <textarea id="promptInput" rows="3" 
+                        class="w-full bg-black/40 border border-white/10 rounded-2xl p-4 text-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition resize-none"
+                        placeholder="A futuristic cyberpunk city with neon lights and floating cars..."></textarea>
+                    
+                    <div class="flex flex-col md:flex-row gap-4 items-center">
+                        <div class="w-full md:w-1/3">
+                            <label class="text-xs text-gray-500 mb-1 block">Aspect Ratio</label>
+                            <select id="aspectRatio" class="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2 text-sm focus:outline-none">
+                                <option value="1024x1024">Square (1:1)</option>
+                                <option value="1280x720">Landscape (16:9)</option>
+                                <option value="720x1280">Portrait (9:16)</option>
+                            </select>
+                        </div>
+                        <div class="w-full md:w-2/3 flex items-end">
+                            <button id="generateBtn" 
+                                class="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white font-bold py-3 rounded-xl transition transform active:scale-95 shadow-lg shadow-blue-500/20 flex items-center justify-center space-x-2">
+                                <span>Generate Masterpiece</span>
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd" />
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <section id="resultContainer" class="hidden">
+                <div class="relative group">
+                    <div id="loadingOverlay" class="absolute inset-0 bg-black/60 backdrop-blur-md rounded-3xl flex flex-col items-center justify-center z-10 hidden">
+                        <div class="loader ease-linear rounded-full border-4 border-t-4 border-gray-200 h-16 w-16 mb-4"></div>
+                        <p class="text-blue-400 font-medium animate-pulse">SubeAI is dreaming...</p>
+                    </div>
+                    <div class="glass p-2 rounded-3xl overflow-hidden relative">
+                        <img id="generatedImage" src="" alt="Generated Preview" class="w-full h-auto rounded-2xl shadow-inner min-h-[300px] object-cover bg-gray-900">
+                        <div class="mt-4 p-4 flex justify-between items-center">
+                            <p id="resultPrompt" class="text-sm text-gray-400 italic line-clamp-1"></p>
+                            <div class="flex space-x-2">
+                                <button onclick="sendToEditor()" class="p-2 bg-blue-500/20 hover:bg-blue-500/40 text-blue-400 rounded-lg transition" title="Edit in Studio">
+                                    Edit Art
+                                </button>
+                                <button onclick="downloadImage('generatedImage')" class="p-2 bg-white/10 hover:bg-white/20 rounded-lg transition" title="Download">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <div id="editView" class="hidden">
+            <div class="text-center mb-10">
+                <h2 class="text-4xl md:text-5xl font-extrabold mb-4">Studio <span class="gradient-text">Editor</span></h2>
+                <p class="text-gray-400 max-w-xl mx-auto">Upload your own images or refine your AI creations with professional-grade filters.</p>
+            </div>
+
+            <div id="uploadZone" class="glass border-2 border-dashed border-white/10 rounded-3xl p-12 text-center transition hover:border-blue-500/50 cursor-pointer mb-8"
+                onclick="document.getElementById('fileInput').click()">
+                <div class="flex flex-col items-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 text-blue-400 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                    </svg>
+                    <p class="text-xl font-bold">Upload an Image</p>
+                    <p class="text-gray-500 mt-2">Drag and drop or click to browse files</p>
+                    <input type="file" id="fileInput" class="hidden" accept="image/*" onchange="handleFileUpload(this)">
+                </div>
+            </div>
+
+            <div id="editorInterface" class="hidden grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <!-- Preview Area -->
+                <div class="lg:col-span-2 space-y-4">
+                    <div class="glass p-2 rounded-3xl relative overflow-hidden">
+                        <div id="editPreviewContainer" class="flex items-center justify-center min-h-[400px]">
+                            <img id="editImage" class="rounded-xl shadow-2xl">
+                        </div>
+                    </div>
+                    <div class="flex justify-between items-center px-2">
+                        <button onclick="resetFilters()" class="text-sm text-gray-500 hover:text-white transition">Reset All Filters</button>
+                        <div class="flex space-x-3">
+                            <button onclick="saveToPuter()" class="bg-blue-600/20 text-blue-400 px-4 py-2 rounded-xl text-sm font-bold hover:bg-blue-600/30 transition">Save to Cloud</button>
+                            <button onclick="downloadEdited()" class="bg-white text-black px-4 py-2 rounded-xl text-sm font-bold hover:bg-gray-200 transition">Download</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="space-y-6">
+                    <div class="glass p-6 rounded-3xl space-y-6">
+                        <h4 class="font-bold text-lg border-b border-white/5 pb-2">Adjustments</h4>
+                        
+                        <div class="space-y-2">
+                            <div class="flex justify-between"><label class="text-xs text-gray-400">Brightness</label><span id="val_brightness" class="text-xs text-blue-400">100%</span></div>
+                            <input type="range" min="0" max="200" value="100" class="w-full custom-slider" id="f_brightness" oninput="applyFilters()">
+                        </div>
+
+                        <div class="space-y-2">
+                            <div class="flex justify-between"><label class="text-xs text-gray-400">Contrast</label><span id="val_contrast" class="text-xs text-blue-400">100%</span></div>
+                            <input type="range" min="0" max="200" value="100" class="w-full custom-slider" id="f_contrast" oninput="applyFilters()">
+                        </div>
+
+                        <div class="space-y-2">
+                            <div class="flex justify-between"><label class="text-xs text-gray-400">Saturation</label><span id="val_saturation" class="text-xs text-blue-400">100%</span></div>
+                            <input type="range" min="0" max="200" value="100" class="w-full custom-slider" id="f_saturation" oninput="applyFilters()">
+                        </div>
+
+                        <div class="space-y-2">
+                            <div class="flex justify-between"><label class="text-xs text-gray-400">Blur</label><span id="val_blur" class="text-xs text-blue-400">0px</span></div>
+                            <input type="range" min="0" max="20" value="0" class="w-full custom-slider" id="f_blur" oninput="applyFilters()">
+                        </div>
+
+                        <div class="space-y-2">
+                            <div class="flex justify-between"><label class="text-xs text-gray-400">Hue Rotate</label><span id="val_hue" class="text-xs text-blue-400">0°</span></div>
+                            <input type="range" min="0" max="360" value="0" class="w-full custom-slider" id="f_hue" oninput="applyFilters()">
+                        </div>
+
+                        <div class="space-y-2">
+                            <div class="flex justify-between"><label class="text-xs text-gray-400">Grayscale</label><span id="val_grayscale" class="text-xs text-blue-400">0%</span></div>
+                            <input type="range" min="0" max="100" value="0" class="w-full custom-slider" id="f_grayscale" oninput="applyFilters()">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <section class="mt-20">
+            <div class="flex items-center justify-between mb-8">
+                <h3 class="text-2xl font-bold">Recent History</h3>
+                <span id="historyCount" class="bg-blue-500/20 text-blue-400 px-3 py-1 rounded-full text-xs font-bold">0 Items</span>
+            </div>
+            <div id="gallery" class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div id="emptyGallery" class="col-span-full py-12 text-center glass rounded-3xl border-dashed border-2 border-white/10">
+                    <p class="text-gray-500">Your creations and edits will appear here.</p>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer class="mt-24 border-t border-white/5 py-12">
+        <div class="container mx-auto px-6 text-center">
+            <p class="text-gray-500 text-sm">Powered by Puter.js, Stable Diffusion & Pollinations AI</p>
+            <p class="text-gray-400 mt-2 font-bold tracking-tighter">© 2024 SubeAI Edit by codenix</p>
+        </div>
+    </footer>
+
+    <!-- Notification Toast -->
+    <div id="toast" class="fixed bottom-8 right-8 glass px-6 py-3 rounded-2xl shadow-2xl translate-y-32 transition-transform duration-300 z-50 flex items-center space-x-3">
+        <span id="toastIcon" class="text-blue-500">
+             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" /></svg>
+        </span>
+        <span id="toastMessage" class="text-sm font-medium"></span>
+    </div>
+
+    <!-- Hidden canvas for exporting with filters -->
+    <canvas id="exportCanvas" class="hidden"></canvas>
+
+    <script>
+        const promptInput = document.getElementById('promptInput');
+        const generateBtn = document.getElementById('generateBtn');
+        const resultContainer = document.getElementById('resultContainer');
+        const generatedImage = document.getElementById('generatedImage');
+        const loadingOverlay = document.getElementById('loadingOverlay');
+        const resultPrompt = document.getElementById('resultPrompt');
+        const aspectRatio = document.getElementById('aspectRatio');
+        const gallery = document.getElementById('gallery');
+        const emptyGallery = document.getElementById('emptyGallery');
+        const historyCount = document.getElementById('historyCount');
+        const toast = document.getElementById('toast');
+        const toastMessage = document.getElementById('toastMessage');
+        const editImage = document.getElementById('editImage');
+        const editorInterface = document.getElementById('editorInterface');
+        const uploadZone = document.getElementById('uploadZone');
+
+        let generationHistory = [];
+        let currentTab = 'generate';
+
+        // Initialize Puter
+        puter.ui.on('ready', () => {
+            console.log("Puter ready");
+        });
+
+
+        function showToast(message) {
+            toastMessage.innerText = message;
+            toast.classList.remove('translate-y-32');
+            setTimeout(() => {
+                toast.classList.add('translate-y-32');
+            }, 3000);
+        }
+
+        function switchTab(tab) {
+            currentTab = tab;
+            document.getElementById('generateView').classList.toggle('hidden', tab !== 'generate');
+            document.getElementById('editView').classList.toggle('hidden', tab !== 'edit');
+            document.getElementById('tabGen').classList.toggle('active-tab', tab === 'generate');
+            document.getElementById('tabEdit').classList.toggle('active-tab', tab === 'edit');
+        }
+
+        async function generateImage() {
+            const prompt = promptInput.value.trim();
+            if (!prompt) {
+                showToast("Please enter a prompt first!");
+                return;
+            }
+
+            generateBtn.disabled = true;
+            generateBtn.classList.add('opacity-50', 'cursor-not-allowed');
+            resultContainer.classList.remove('hidden');
+            loadingOverlay.classList.remove('hidden');
+            
+            const seed = Math.floor(Math.random() * 1000000);
+            const dims = aspectRatio.value.split('x');
+            const width = dims[0];
+            const height = dims[1];
+            
+            const encodedPrompt = encodeURIComponent(prompt);
+            const imageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=${width}&height=${height}&seed=${seed}&nologo=true&model=flux`;
+
+            try {
+                const img = new Image();
+                img.crossOrigin = "anonymous";
+                img.src = imageUrl;
+                
+                img.onload = () => {
+                    generatedImage.src = imageUrl;
+                    resultPrompt.innerText = `Prompt: ${prompt}`;
+                    loadingOverlay.classList.add('hidden');
+                    generateBtn.disabled = false;
+                    generateBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                    
+                    addToHistory(imageUrl, prompt, 'generated');
+                    showToast("Art generated successfully!");
+                    window.scrollTo({ top: resultContainer.offsetTop - 100, behavior: 'smooth' });
+                };
+
+                img.onerror = () => {
+                    throw new Error("Failed to load image");
+                };
+
+            } catch (error) {
+                showToast("Error connecting to engine.");
+                loadingOverlay.classList.add('hidden');
+                generateBtn.disabled = false;
+                generateBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+            }
+        }
+
+
+        function handleFileUpload(input) {
+            const file = input.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    initEditor(e.target.result);
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+
+        function initEditor(src) {
+            editImage.src = src;
+            uploadZone.classList.add('hidden');
+            editorInterface.classList.remove('hidden');
+            resetFilters();
+            showToast("Image loaded into Studio.");
+        }
+
+        function sendToEditor() {
+            const currentSrc = generatedImage.src;
+            if (currentSrc) {
+                switchTab('edit');
+                initEditor(currentSrc);
+            }
+        }
+
+        function applyFilters() {
+            const b = document.getElementById('f_brightness').value;
+            const c = document.getElementById('f_contrast').value;
+            const s = document.getElementById('f_saturation').value;
+            const bl = document.getElementById('f_blur').value;
+            const h = document.getElementById('f_hue').value;
+            const g = document.getElementById('f_grayscale').value;
+
+            document.getElementById('val_brightness').innerText = b + '%';
+            document.getElementById('val_contrast').innerText = c + '%';
+            document.getElementById('val_saturation').innerText = s + '%';
+            document.getElementById('val_blur').innerText = bl + 'px';
+            document.getElementById('val_hue').innerText = h + '°';
+            document.getElementById('val_grayscale').innerText = g + '%';
+
+            const filterStr = `brightness(${b}%) contrast(${c}%) saturate(${s}%) blur(${bl}px) hue-rotate(${h}deg) grayscale(${g}%)`;
+            editImage.style.filter = filterStr;
+        }
+
+        function resetFilters() {
+            const defaults = { brightness: 100, contrast: 100, saturation: 100, blur: 0, hue: 0, grayscale: 0 };
+            Object.keys(defaults).forEach(key => {
+                const el = document.getElementById(`f_${key}`);
+                if (el) el.value = defaults[key];
+            });
+            applyFilters();
+        }
+
+
+        function downloadEdited() {
+            const canvas = document.getElementById('exportCanvas');
+            const ctx = canvas.getContext('2d');
+            
+            canvas.width = editImage.naturalWidth;
+            canvas.height = editImage.naturalHeight;
+            
+            ctx.filter = editImage.style.filter;
+            ctx.drawImage(editImage, 0, 0);
+            
+            const link = document.createElement('a');
+            link.download = `SubeAI-Edit-${Date.now()}.png`;
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+            
+            addToHistory(link.href, "Studio Edit", "edited");
+            showToast("Export complete.");
+        }
+
+        async function saveToPuter() {
+            try {
+                const canvas = document.getElementById('exportCanvas');
+                const ctx = canvas.getContext('2d');
+                canvas.width = editImage.naturalWidth;
+                canvas.height = editImage.naturalHeight;
+                ctx.filter = editImage.style.filter;
+                ctx.drawImage(editImage, 0, 0);
+
+                const dataUrl = canvas.toDataURL('image/png');
+                const blob = await (await fetch(dataUrl)).blob();
+                
+                await puter.fs.write(`SubeAI_Edit_${Date.now()}.png`, blob);
+                showToast("Saved to Puter Cloud!");
+            } catch (e) {
+                showToast("Login to Puter to save to cloud.");
+                puter.auth.signIn();
+            }
+        }
+
+        function addToHistory(url, prompt, type) {
+            generationHistory.unshift({ url, prompt, type });
+            if (generationHistory.length > 12) generationHistory.pop();
+            updateGallery();
+        }
+
+        function updateGallery() {
+            if (generationHistory.length > 0) emptyGallery.classList.add('hidden');
+            gallery.innerHTML = '';
+            generationHistory.forEach((item) => {
+                const card = document.createElement('div');
+                card.className = 'relative group aspect-square rounded-2xl overflow-hidden glass cursor-pointer transition transform hover:scale-[1.02]';
+                card.innerHTML = `
+                    <img src="${item.url}" class="w-full h-full object-cover" loading="lazy">
+                    <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity p-3 flex flex-col justify-end">
+                        <p class="text-[10px] text-white/80 line-clamp-2 mb-1">${item.prompt}</p>
+                        <div class="flex space-x-1">
+                             <button onclick="event.stopPropagation(); initEditor('${item.url}')" class="text-[9px] bg-blue-500/40 hover:bg-blue-500 py-1 px-2 rounded text-center font-bold flex-1">Edit</button>
+                             <button onclick="event.stopPropagation(); window.open('${item.url}', '_blank')" class="text-[9px] bg-white/20 hover:bg-white/40 py-1 px-2 rounded text-center font-bold flex-1">View</button>
+                        </div>
+                    </div>
+                `;
+                card.onclick = () => {
+                    if (item.type === 'generated') {
+                        generatedImage.src = item.url;
+                        resultPrompt.innerText = `Prompt: ${item.prompt}`;
+                        resultContainer.classList.remove('hidden');
+                        switchTab('generate');
+                    } else {
+                        initEditor(item.url);
+                        switchTab('edit');
+                    }
+                };
+                gallery.appendChild(card);
+            });
+            historyCount.innerText = `${generationHistory.length} Item${generationHistory.length !== 1 ? 's' : ''}`;
+        }
+
+        function downloadImage(id) {
+            const img = document.getElementById(id);
+            const link = document.createElement('a');
+            link.href = img.src;
+            link.download = `SubeAI-${Date.now()}.jpg`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            showToast("Download started...");
+        }
+
+        generateBtn.addEventListener('click', generateImage);
+        promptInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                generateImage();
+            }
+        });
+
+        // Initialize UI
+        switchTab('generate');
+    </script>
+</body>
+</html>
