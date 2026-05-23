@@ -168,15 +168,6 @@
                         </button>
                     </div>
                 </div>
-
-                <div class="glass p-4 rounded-2xl flex items-center space-x-4 border-l-4 border-indigo-500">
-                    <div class="bg-indigo-500/10 p-2.5 rounded-xl">
-                        <i class="ph ph-shield-check text-indigo-400 text-lg"></i>
-                    </div>
-                    <p class="text-[10px] text-zinc-400 leading-tight uppercase tracking-wide font-medium">
-                        Hybrid Multi-Cloud Engine. <br>Secure, Encrypted, Unlimited Access.
-                    </p>
-                </div>
             </div>
 
             <div class="lg:col-span-7">
@@ -188,6 +179,16 @@
                         </div>
                         <h3 class="text-zinc-300 font-semibold text-xl tracking-tight">The Canvas Awaits</h3>
                         <p class="text-zinc-500 text-xs mt-3 max-w-[280px] mx-auto leading-relaxed">Choose your engine, describe your vision, and let GPT or Imagen bring it to life.</p>
+                    </div>
+
+                    <!-- Quota Error State -->
+                    <div id="quotaState" class="hidden text-center p-12 transition-all duration-700">
+                        <div class="w-28 h-28 bg-zinc-900 rounded-[2.5rem] flex items-center justify-center mx-auto mb-8 border border-orange-500/20 shadow-2xl shadow-orange-500/5">
+                            <i class="ph ph-clock-countdown text-orange-400 text-5xl"></i>
+                        </div>
+                        <h3 class="text-white font-bold text-xl tracking-tight">Access Restricted</h3>
+                        <p id="quotaMessage" class="text-zinc-400 text-sm mt-3 max-w-[300px] mx-auto leading-relaxed font-medium">Daily quota limit reached. Come back after 12 hours.</p>
+                        <button onclick="resetToInitialState()" class="mt-6 text-[10px] text-zinc-500 uppercase tracking-widest font-bold hover:text-white transition">Dismiss</button>
                     </div>
 
                     <div id="loadingState" class="hidden absolute inset-0 bg-zinc-950/95 backdrop-blur-2xl z-20 flex flex-col items-center justify-center p-10 text-center">
@@ -278,6 +279,7 @@
             mainImage: document.getElementById('mainImage'),
             imageWrapper: document.getElementById('imageWrapper'),
             emptyState: document.getElementById('emptyState'),
+            quotaState: document.getElementById('quotaState'),
             loadingState: document.getElementById('loadingState'),
             loadingHeader: document.getElementById('loadingHeader'),
             statusUpdate: document.getElementById('statusUpdate'),
@@ -316,6 +318,11 @@
             setTimeout(() => {
                 DOM.toast.classList.add('translate-y-32', 'opacity-0');
             }, 4000);
+        }
+
+        function resetToInitialState() {
+            DOM.quotaState.classList.add('hidden');
+            DOM.emptyState.classList.remove('hidden');
         }
 
         DOM.dropZone.onclick = () => DOM.fileInput.click();
@@ -379,7 +386,10 @@
 
             DOM.generateBtn.disabled = true;
             DOM.generateBtn.innerHTML = `<i class="ph ph-circle-notch animate-spin text-xl"></i><span>Synthesizing...</span>`;
+            
+            // Clear current states
             DOM.emptyState.classList.add('hidden');
+            DOM.quotaState.classList.add('hidden');
             DOM.imageWrapper.classList.add('hidden');
             DOM.imageMeta.classList.add('hidden');
             DOM.loadingState.classList.remove('hidden');
@@ -388,23 +398,22 @@
             DOM.statusUpdate.innerText = `Routing to ${selectedModel.includes('gemini') ? 'Nano Banana' : 'GPT Images'}...`;
 
             try {
-            const options = {
-                model: selectedModel,
-                aspect_ratio: currentRatio
-            };
-            
-            // Add reference image if available
-            if (base64ReferenceImage) {
-                options.input_image = base64ReferenceImage;
-                options.input_image_mime_type = "image/png";
-                DOM.statusUpdate.innerText = "Processing Reference Modalities...";
-            }
+                const options = {
+                    model: selectedModel,
+                    aspect_ratio: currentRatio
+                };
+                
+                if (base64ReferenceImage) {
+                    options.input_image = base64ReferenceImage;
+                    options.input_image_mime_type = "image/png";
+                    DOM.statusUpdate.innerText = "Processing Reference Modalities...";
+                }
 
-            // Standardized call for all Nano Banana models
-            const imgElement = await puter.ai.txt2img(prompt, options);
-            const imageUrl = imgElement.src;
+                // AI Call
+                const imgElement = await puter.ai.txt2img(prompt, options);
+                const imageUrl = imgElement.src;
 
-            DOM.mainImage.src = imageUrl;
+                DOM.mainImage.src = imageUrl;
                 DOM.promptDisplay.innerText = prompt;
                 DOM.modelBadge.innerText = selectedModel.toUpperCase().replace(/-/g, ' ');
 
@@ -417,17 +426,30 @@
                 };
 
             } catch (err) {
-                console.error("Neural Error:", err);
-                let errorMsg = "Neural link interrupted.";
+                console.error("Neural Error Caught:", err);
                 
-                // Handle specific model not found error gracefully
-                if (err.message && err.message.includes('not found')) {
-                    errorMsg = `Model ${selectedModel} is currently unavailable.`;
-                }
+                // CRITICAL: Check for balance/quota/credit errors specifically
+                const errString = String(err).toLowerCase();
+                const isBalanceError = errString.includes('balance') || 
+                                     errString.includes('credit') || 
+                                     errString.includes('quota') || 
+                                     errString.includes('insufficient');
 
                 DOM.loadingState.classList.add('hidden');
-                DOM.emptyState.classList.remove('hidden');
-                notify(errorMsg, "Cloud Error");
+
+                if (isBalanceError) {
+                    // Show custom message instead of Puter error
+                    DOM.quotaState.classList.remove('hidden');
+                    notify("Daily quota limit reached. Come back after 12 hours.", "System Limit");
+                } else {
+                    // Regular model error
+                    let errorMsg = "Neural link interrupted.";
+                    if (err.message && err.message.includes('not found')) {
+                        errorMsg = `Model ${selectedModel} is currently unavailable.`;
+                    }
+                    DOM.emptyState.classList.remove('hidden');
+                    notify(errorMsg, "Cloud Error");
+                }
             } finally {
                 DOM.generateBtn.disabled = false;
                 DOM.generateBtn.innerHTML = `<i class="ph ph-magic-wand text-xl"></i><span>Create Artwork</span>`;
@@ -463,6 +485,7 @@
                     DOM.promptDisplay.innerText = item.prompt;
                     DOM.modelBadge.innerText = item.model.toUpperCase().replace(/-/g, ' ');
                     DOM.emptyState.classList.add('hidden');
+                    DOM.quotaState.classList.add('hidden');
                     DOM.imageWrapper.classList.remove('hidden');
                     DOM.imageMeta.classList.remove('hidden');
                     window.scrollTo({ top: 0, behavior: 'smooth' });
