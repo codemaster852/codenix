@@ -5,40 +5,26 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SubeAI | GPT Images Edition</title>
     
-    <!-- ========================================== -->
-    <!-- IMPENETRABLE PUTER.JS FIREWALL & SANDBOX   -->
-    <!-- ========================================== -->
+    <!-- ========================================================= -->
+    <!-- SURGICAL PUTER.JS FIREWALL & EXPLICIT LOGIN WHITELIST      -->
+    <!-- ========================================================= -->
     <script>
         (function() {
-            // 1. Force Clear All Existing Storage Identifiers on Every Refresh
+            // Clear storage identifiers to reset tracking unless we have a logged-in session we want to protect
             try {
-                localStorage.clear();
-                sessionStorage.clear();
-                
-                // Clear all cookies
-                const cookies = document.cookie.split(";");
-                for (let i = 0; i < cookies.length; i++) {
-                    const cookie = cookies[i];
-                    const eqPos = cookie.indexOf("=");
-                    const name = eqPos > -1 ? cookie.substr(0, eqPos) : cookie;
-                    document.cookie = name + "=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/";
-                    document.cookie = name + "=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;domain=" + window.location.hostname;
+                // If they're not actively trying to stay logged in, let's clear key tokens on reload 
+                // but keep things stable so they can authenticate.
+                const isReturningFromAuth = window.location.hash.includes('token') || window.location.search.includes('code');
+                if (!isReturningFromAuth && !localStorage.getItem('sube_preserve_session')) {
+                    localStorage.clear();
+                    sessionStorage.clear();
+                    console.log("🧹 Session identity cache cleared on initial load.");
                 }
-
-                // Clear IndexedDB databases to prevent cached session tracking
-                if (window.indexedDB && window.indexedDB.databases) {
-                    window.indexedDB.databases().then(dbs => {
-                        dbs.forEach(db => {
-                            window.indexedDB.deleteDatabase(db.name);
-                        });
-                    });
-                }
-                console.log("🧹 Session identity cache wiped successfully.");
             } catch (e) {
                 console.warn("Storage cleanup failed:", e);
             }
 
-            // Trigger Quota Limit Display inside SubeAI
+            // Trigger SubeAI Quota Limit Overlay
             function triggerSubeQuotaBypass() {
                 setTimeout(() => {
                     const loading = document.getElementById('loadingState');
@@ -52,57 +38,84 @@
                 }, 10);
             }
 
-            // 2. Overwrite Native Alert, Confirm, and Pop-ups
+            // EXPLICIT FILTER: Do not block legitimate sign-in, authentication, or signup routes
+            const isAuthenticationRoute = (url) => {
+                if (!url) return false;
+                const normalized = String(url).toLowerCase();
+                return (
+                    normalized.includes('login') || 
+                    normalized.includes('signup') || 
+                    normalized.includes('auth') || 
+                    normalized.includes('identity') || 
+                    normalized.includes('key') || 
+                    normalized.includes('register') || 
+                    normalized.includes('oauth')
+                );
+            };
+
+            // Overwrite window.open to block payment gateways but ALLOW logins
             const originalOpen = window.open;
             window.open = function(url, target, features) {
-                if (url && (url.includes('puter') || url.includes('balance') || url.includes('upgrade') || url.includes('billing'))) {
-                    console.log("🚫 Sandbox Blocked puter window.open: " + url);
-                    triggerSubeQuotaBypass();
-                    return null;
+                if (url) {
+                    if (isAuthenticationRoute(url)) {
+                        console.log("✅ Sandbox Allowed Auth window.open: " + url);
+                        return originalOpen.apply(this, arguments);
+                    }
+                    if (url.includes('puter') || url.includes('balance') || url.includes('upgrade') || url.includes('billing')) {
+                        console.log("🚫 Sandbox Blocked Billing window.open: " + url);
+                        triggerSubeQuotaBypass();
+                        return null;
+                    }
                 }
                 return originalOpen.apply(this, arguments);
             };
 
+            // Block alert alerts unless essential
             window.alert = function(msg) {
-                console.log("🚫 Sandbox Blocked alert: " + msg);
-                if (String(msg).toLowerCase().includes('balance') || String(msg).toLowerCase().includes('puter')) {
+                const msgLower = String(msg).toLowerCase();
+                if (msgLower.includes('balance') || msgLower.includes('insufficient') || msgLower.includes('funding')) {
+                    console.log("🚫 Sandbox Blocked Billing alert: " + msg);
                     triggerSubeQuotaBypass();
+                    return true;
                 }
+                console.log("💬 Allowed alert: " + msg);
                 return true;
             };
 
-            window.confirm = function(msg) {
-                console.log("🚫 Sandbox Blocked confirm: " + msg);
-                return true;
-            };
-
-            // 3. Hijack DOM Node & Element Append/Insert to prevent injection
+            // Injector Node Guard: Block billing DOM nodes, but completely ignore Auth nodes
             const isForbiddenNode = (node) => {
                 if (!node || node.nodeType !== 1) return false;
+                
+                const src = node.tagName === 'IFRAME' ? String(node.src || "").toLowerCase() : "";
+                
+                // If it is an auth iframe, we MUST let it render!
+                if (isAuthenticationRoute(src)) {
+                    return false;
+                }
+
                 const id = String(node.id || "").toLowerCase();
                 const className = String(node.className || "").toLowerCase();
                 const text = String(node.innerText || node.textContent || "").toLowerCase();
-                const src = node.tagName === 'IFRAME' ? String(node.src || "").toLowerCase() : "";
 
-                return (
-                    id.includes("puter") || 
-                    className.includes("puter") || 
-                    src.includes("puter") ||
-                    text.includes("low balance") ||
-                    text.includes("enough funding") ||
-                    text.includes("upgrade to continue") ||
-                    text.includes("upgrade now")
-                );
+                // Check for billing terms
+                const hasQuotaText = text.includes("low balance") || 
+                                     text.includes("not enough funding") || 
+                                     text.includes("upgrade to continue") || 
+                                     text.includes("upgrade now") ||
+                                     text.includes("insufficient balance");
+                
+                const isBillingFrame = src.includes("billing") || src.includes("upgrade") || src.includes("balance") || src.includes("checkout");
+
+                return hasQuotaText || isBillingFrame;
             };
 
             const interceptNode = (proto, method) => {
                 const original = proto[method];
                 proto[method] = function(child, ref) {
                     if (isForbiddenNode(child)) {
-                        console.log("🚫 Firewall blocked dynamic Puter DOM element injection:", child);
+                        console.log("🚫 Firewall blocked dynamic Puter Billing DOM element:", child);
                         triggerSubeQuotaBypass();
-                        // Return dummy container instead of attaching bad element
-                        return document.createElement('div');
+                        return document.createElement('div'); // Dummy empty element
                     }
                     return original.apply(this, arguments);
                 };
@@ -113,17 +126,22 @@
             interceptNode(Element.prototype, 'appendChild');
             interceptNode(Element.prototype, 'insertBefore');
 
-            // 4. Overwrite attachShadow to prevent Puter from rendering elements inside hidden Shadow roots
+            // Overwrite attachShadow to prevent Puter from rendering elements inside hidden Shadow roots ONLY if they're not Auth elements
             const originalAttachShadow = Element.prototype.attachShadow;
             Element.prototype.attachShadow = function(init) {
                 const shadowRoot = originalAttachShadow.apply(this, arguments);
-                // Dynamically inject styling inside the Shadow root to block rendering
-                const style = document.createElement('style');
-                style.textContent = `* { display: none !important; opacity: 0 !important; pointer-events: none !important; width: 0px !important; height: 0px !important; }`;
-                shadowRoot.appendChild(style);
                 
-                console.log("🚫 Intercepted Puter Shadow DOM Root attachment.");
-                triggerSubeQuotaBypass();
+                // Add an observer to the shadow root to check if it tries to render a billing overlay
+                const shadowObserver = new MutationObserver(() => {
+                    const shadowText = String(shadowRoot.textContent || shadowRoot.innerHTML || "").toLowerCase();
+                    if (shadowText.includes("low balance") || shadowText.includes("funding") || shadowText.includes("upgrade now")) {
+                        console.log("🚫 Neutralized billing content inside Shadow DOM.");
+                        shadowRoot.innerHTML = `<style>* { display: none !important; opacity: 0 !important; }</style>`;
+                        triggerSubeQuotaBypass();
+                    }
+                });
+                shadowObserver.observe(shadowRoot, { childList: true, subtree: true });
+
                 return shadowRoot;
             };
         })();
@@ -153,22 +171,13 @@
             overflow-x: hidden;
         }
 
-        /* HARD-CODED STATIC CSS OVERLAYS HIDER (Strict fallback layer) */
-        [id*="puter" i], [class*="puter" i], iframe[src*="puter.com"], .puter-modal, .puter-iframe,
-        iframe[src*="puter.io"], [class*="modal" i], [class*="popup" i], body > div[style*="fixed"] {
-            display: none !important;
-            visibility: hidden !important;
-            opacity: 0 !important;
-            pointer-events: none !important;
-            width: 0px !important;
-            height: 0px !important;
-            position: absolute !important;
-            left: -9999px !important;
-            z-index: -999999 !important;
-        }
-
-        /* Suppress global overlay styles often loaded by modal engines */
-        div[style*="z-index: 2147483647"], div[style*="z-index: 2147483646"] {
+        /* SURGICAL BILLING FILTER 
+           Hide only elements we know contain billing/limit content, leaving sign-in elements completely clean!
+        */
+        .puter-modal:has([class*="balance" i]), 
+        .puter-modal:has([class*="upgrade" i]),
+        div:has(> iframe[src*="billing"]),
+        div:has(> iframe[src*="checkout"]) {
             display: none !important;
             opacity: 0 !important;
             pointer-events: none !important;
@@ -338,14 +347,19 @@
                             <div class="text-indigo-400">> Pre-routing bypass active...</div>
                         </div>
 
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-8">
+                        <!-- Direct interactive buttons -->
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-8">
+                            <button onclick="triggerIdentityBypass('login')" class="bg-emerald-600/10 hover:bg-emerald-600/20 text-emerald-300 border border-emerald-500/30 p-4 rounded-2xl text-[11px] font-bold uppercase tracking-wider flex flex-col items-center justify-center space-y-2 transition active:scale-95">
+                                <i class="ph ph-user-plus text-xl"></i>
+                                <span>Fresh Login</span>
+                            </button>
                             <button onclick="triggerIdentityBypass('session')" class="bg-indigo-600/10 hover:bg-indigo-600/20 text-indigo-300 border border-indigo-500/30 p-4 rounded-2xl text-[11px] font-bold uppercase tracking-wider flex flex-col items-center justify-center space-y-2 transition active:scale-95">
-                                <i class="ph ph-user-circle-gear text-xl"></i>
-                                <span>Reset Puter Session</span>
+                                <i class="ph ph-sign-out text-xl"></i>
+                                <span>Sign Out Session</span>
                             </button>
                             <button onclick="triggerIdentityBypass('all')" class="bg-purple-600/10 hover:bg-purple-600/20 text-purple-300 border border-purple-500/30 p-4 rounded-2xl text-[11px] font-bold uppercase tracking-wider flex flex-col items-center justify-center space-y-2 transition active:scale-95">
                                 <i class="ph ph-swap text-xl"></i>
-                                <span>Cycle Node & Proxy IP</span>
+                                <span>Cycle IP Tunnel</span>
                             </button>
                         </div>
 
@@ -444,19 +458,31 @@
             for (const mutation of mutations) {
                 for (const node of mutation.addedNodes) {
                     if (node.nodeType === 1) { // Check elements
+                        const srcStr = node.tagName === 'IFRAME' ? String(node.src || "").toLowerCase() : "";
+                        
+                        // Ignore Auth routes completely
+                        if (
+                            srcStr.includes('login') || 
+                            srcStr.includes('signup') || 
+                            srcStr.includes('auth') || 
+                            srcStr.includes('identity') || 
+                            srcStr.includes('key')
+                        ) {
+                            continue;
+                        }
+
                         const idStr = String(node.id || "").toLowerCase();
                         const classStr = String(node.className || "").toLowerCase();
-                        const srcStr = node.tagName === 'IFRAME' ? String(node.src || "").toLowerCase() : "";
                         const textContent = String(node.innerText || node.textContent || "").toLowerCase();
 
                         // Detect and immediately destroy any Puter popup attempts
                         if (
-                            idStr.includes("puter") || 
-                            classStr.includes("puter") || 
-                            srcStr.includes("puter") ||
                             textContent.includes("low balance") ||
                             textContent.includes("enough funding") ||
-                            textContent.includes("upgrade now")
+                            textContent.includes("upgrade now") ||
+                            textContent.includes("upgrade to continue") ||
+                            srcStr.includes("billing") ||
+                            srcStr.includes("balance")
                         ) {
                             node.remove(); // Eliminate from tree immediately
                             forceShowBypassConsole();
@@ -467,19 +493,30 @@
         });
         observer.observe(document.documentElement, { childList: true, subtree: true });
 
-        // Backup absolute blocker interval running every 80ms
+        // Backup absolute blocker interval running every 100ms
         setInterval(() => {
             document.querySelectorAll('div, iframe, section, p, span, h1, h2, h3').forEach(el => {
-                const styleZ = window.getComputedStyle(el).zIndex;
                 const text = String(el.innerText || el.textContent || "").toLowerCase();
-                const isPuterIframe = el.tagName === 'IFRAME' && String(el.src || "").includes('puter');
-                
+                const src = el.tagName === 'IFRAME' ? String(el.src || "").toLowerCase() : "";
+
+                // Never scan or touch auth windows
                 if (
-                    isPuterIframe ||
+                    src.includes('login') || 
+                    src.includes('signup') || 
+                    src.includes('auth') || 
+                    src.includes('identity') || 
+                    src.includes('key')
+                ) {
+                    return;
+                }
+
+                if (
                     text.includes("low balance") || 
                     text.includes("not enough funding") || 
                     text.includes("upgrade now") ||
-                    (parseInt(styleZ) >= 2147483640)
+                    text.includes("upgrade to continue") ||
+                    src.includes("billing") ||
+                    src.includes("balance")
                 ) {
                     el.style.setProperty('display', 'none', 'important');
                     el.style.setProperty('opacity', '0', 'important');
@@ -487,7 +524,7 @@
                     forceShowBypassConsole();
                 }
             });
-        }, 80);
+        }, 100);
 
         function forceShowBypassConsole() {
             const loading = document.getElementById('loadingState');
@@ -548,9 +585,9 @@
                     setTimeout(() => {
                         const line = document.createElement('div');
                         line.innerText = `> ${text}`;
-                        if (text.includes("Success") || text.includes("Active") || text.includes("Bypassed")) {
+                        if (text.includes("Success") || text.includes("Active") || text.includes("Bypassed") || text.includes("Initiated")) {
                             line.className = "text-emerald-400 font-bold";
-                        } else if (text.includes("Establishing")) {
+                        } else if (text.includes("Establishing") || text.includes("Invoking")) {
                             line.className = "text-indigo-300";
                         }
                         DOM.terminalConsole.appendChild(line);
@@ -560,6 +597,44 @@
                 });
             };
 
+            if (type === 'login') {
+                await writeLog("Invoking Puter.js Identity flow...", 100);
+                await writeLog("Ensuring SubeAI Firewall bypasses this iframe...", 200);
+                await writeLog("Launching Safe Auth popup window... Check your screen!", 300);
+                
+                // Set flag so we don't clear storage on reload
+                localStorage.setItem('sube_preserve_session', 'true');
+                
+                try {
+                    // Trigger Puter Sign In Modal safely
+                    puter.auth.signIn().then(user => {
+                        notify(`Logged in as: ${user.username}`, "Welcome");
+                        window.location.reload();
+                    }).catch(err => {
+                        console.error("Sign-in error:", err);
+                        notify("Auth window closed or cancelled.", "Auth Flow");
+                    });
+                } catch (e) {
+                    notify("Puter auth failed to spawn.", "Auth Error");
+                }
+                return;
+            }
+
+            if (type === 'session') {
+                notify("Cleaning existing local sessions...", "Account Sign Out");
+                await writeLog("Invoking puter.auth.signOut()...", 100);
+                
+                try {
+                    puter.auth.signOut();
+                } catch(e) {}
+                
+                localStorage.clear();
+                sessionStorage.clear();
+                await writeLog("Success: Session wiped. Resetting app canvas...", 300);
+                setTimeout(() => { window.location.reload(); }, 600);
+                return;
+            }
+
             notify("Deploying multi-layered identity rotation...", "Security Reset");
 
             await writeLog("Initializing identity sandboxing protocols...", 200);
@@ -568,11 +643,6 @@
             // Hard Storage Clear
             localStorage.clear();
             sessionStorage.clear();
-
-            if (type === 'session' || type === 'all' || type === 'full') {
-                await writeLog("Simulating account state rotation...", 300);
-                await writeLog("Dispatched payload to clear active browser fingerprints.", 200);
-            }
 
             if (type === 'all' || type === 'full') {
                 const chosenNode = proxyNodes[Math.floor(Math.random() * proxyNodes.length)];
