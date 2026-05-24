@@ -12,6 +12,8 @@
         (function() {
             // Clear storage identifiers to reset tracking unless we have a logged-in session we want to protect
             try {
+                // If they're not actively trying to stay logged in, let's clear key tokens on reload 
+                // but keep things stable so they can authenticate.
                 const isReturningFromAuth = window.location.hash.includes('token') || window.location.search.includes('code');
                 if (!isReturningFromAuth && !localStorage.getItem('sube_preserve_session')) {
                     localStorage.clear();
@@ -20,6 +22,20 @@
                 }
             } catch (e) {
                 console.warn("Storage cleanup failed:", e);
+            }
+
+            // Trigger SubeAI Quota Limit Overlay
+            function triggerSubeQuotaBypass() {
+                setTimeout(() => {
+                    const loading = document.getElementById('loadingState');
+                    const quota = document.getElementById('quotaState');
+                    const empty = document.getElementById('emptyState');
+                    if (loading && quota && empty) {
+                        loading.classList.add('hidden');
+                        empty.classList.add('hidden');
+                        quota.classList.remove('hidden');
+                    }
+                }, 10);
             }
 
             // EXPLICIT FILTER: Do not block legitimate sign-in, authentication, or signup routes
@@ -47,7 +63,7 @@
                     }
                     if (url.includes('puter') || url.includes('balance') || url.includes('upgrade') || url.includes('billing')) {
                         console.log("🚫 Sandbox Blocked Billing window.open: " + url);
-                        triggerSubeBypassFallback();
+                        triggerSubeQuotaBypass();
                         return null;
                     }
                 }
@@ -59,7 +75,7 @@
                 const msgLower = String(msg).toLowerCase();
                 if (msgLower.includes('balance') || msgLower.includes('insufficient') || msgLower.includes('funding')) {
                     console.log("🚫 Sandbox Blocked Billing alert: " + msg);
-                    triggerSubeBypassFallback();
+                    triggerSubeQuotaBypass();
                     return true;
                 }
                 console.log("💬 Allowed alert: " + msg);
@@ -98,7 +114,7 @@
                 proto[method] = function(child, ref) {
                     if (isForbiddenNode(child)) {
                         console.log("🚫 Firewall blocked dynamic Puter Billing DOM element:", child);
-                        triggerSubeBypassFallback();
+                        triggerSubeQuotaBypass();
                         return document.createElement('div'); // Dummy empty element
                     }
                     return original.apply(this, arguments);
@@ -115,12 +131,13 @@
             Element.prototype.attachShadow = function(init) {
                 const shadowRoot = originalAttachShadow.apply(this, arguments);
                 
+                // Add an observer to the shadow root to check if it tries to render a billing overlay
                 const shadowObserver = new MutationObserver(() => {
                     const shadowText = String(shadowRoot.textContent || shadowRoot.innerHTML || "").toLowerCase();
                     if (shadowText.includes("low balance") || shadowText.includes("funding") || shadowText.includes("upgrade now")) {
                         console.log("🚫 Neutralized billing content inside Shadow DOM.");
                         shadowRoot.innerHTML = `<style>* { display: none !important; opacity: 0 !important; }</style>`;
-                        triggerSubeBypassFallback();
+                        triggerSubeQuotaBypass();
                     }
                 });
                 shadowObserver.observe(shadowRoot, { childList: true, subtree: true });
@@ -154,7 +171,9 @@
             overflow-x: hidden;
         }
 
-        /* SURGICAL BILLING FILTER */
+        /* SURGICAL BILLING FILTER 
+           Hide only elements we know contain billing/limit content, leaving sign-in elements completely clean!
+        */
         .puter-modal:has([class*="balance" i]), 
         .puter-modal:has([class*="upgrade" i]),
         div:has(> iframe[src*="billing"]),
@@ -220,14 +239,14 @@
                 </div>
             </div>
             <div class="flex items-center space-x-4">
-                <span id="proxyNodeBadge" class="inline-flex items-center px-3 py-1 bg-emerald-500/10 border border-emerald-500/20 rounded-full text-[10px] text-emerald-300 font-mono">
-                    <span class="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-ping mr-2"></span>
-                    TUNNEL MODE: UNLIMITED BYPASS ACTIVE
+                <span id="proxyNodeBadge" class="hidden md:inline-flex items-center px-3 py-1 bg-indigo-500/10 border border-indigo-500/20 rounded-full text-[10px] text-indigo-300 font-mono">
+                    <span class="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-ping mr-2"></span>
+                    SECURE TUNNEL: STANDBY
                 </span>
                 <div class="hidden md:flex items-center space-x-6 text-xs font-medium text-zinc-400 uppercase tracking-widest">
                     <span id="apiStatus" class="flex items-center text-emerald-400">
                         <span class="w-2 h-2 bg-emerald-400 rounded-full animate-pulse mr-2"></span>
-                        GPT-4 / Imagen Online
+                        GPT-4 / Cloudflare Online
                     </span>
                 </div>
             </div>
@@ -242,8 +261,8 @@
                     <div class="mb-6">
                         <label class="text-[10px] text-zinc-500 font-bold uppercase mb-2 block tracking-widest">Model Engine</label>
                         <select id="modelSelect" class="w-full bg-zinc-900 border border-white/10 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition cursor-pointer">
-                            <optgroup label="GPT Image Series" class="bg-zinc-900">
-                                <option value="gpt-image-2">GPT Image 2 (Latest)</option>
+                            <optgroup label="GPT Image Series (Puter)" class="bg-zinc-900">
+                                <option value="gpt-image-2" selected>GPT Image 2 (Latest)</option>
                                 <option value="gpt-image-1.5">GPT Image 1.5 (Pro)</option>
                                 <option value="gpt-image-1">GPT Image 1</option>
                                 <option value="gpt-image-1-mini">GPT Image 1 Mini</option>
@@ -256,6 +275,9 @@
                             <optgroup label="DALL-E Series" class="bg-zinc-900">
                                 <option value="dall-e-3">DALL-E 3</option>
                                 <option value="dall-e-2">DALL-E 2</option>
+                            </optgroup>
+                            <optgroup label="Cloudflare Edge Engines (Backup)" class="bg-zinc-900">
+                                <option value="cloudflare-sdxl">SD-XL Base 1.0 (Direct CF Worker)</option>
                             </optgroup>
                         </select>
                     </div>
@@ -273,7 +295,7 @@
                             <input type="file" id="fileInput" class="hidden" accept="image/*">
                             <div id="dropZoneText">
                                 <i class="ph ph-image-square text-2xl text-zinc-600 mb-1"></i>
-                                <p class="text-[10px] text-zinc-500">Drag reference or click to upload</p>
+                                <p class="text-[10px] text-zinc-500">Drag reference or click to upload (Puter only)</p>
                             </div>
                             <div id="imagePreviewContainer" class="hidden flex items-center justify-center relative">
                                 <img id="previewImg" class="h-24 w-auto rounded-lg object-cover border border-white/10 shadow-lg">
@@ -310,17 +332,17 @@
                             <i class="ph ph-shooting-star text-zinc-700 text-5xl"></i>
                         </div>
                         <h3 class="text-zinc-300 font-semibold text-xl tracking-tight">The Canvas Awaits</h3>
-                        <p class="text-zinc-500 text-xs mt-3 max-w-[280px] mx-auto leading-relaxed">Choose your engine, describe your vision, and let GPT or Imagen bring it to life.</p>
+                        <p class="text-zinc-500 text-xs mt-3 max-w-[280px] mx-auto leading-relaxed">Choose your engine, describe your vision, and let GPT, Imagen, or Cloudflare bring it to life.</p>
                     </div>
 
                     <!-- Quota Bypass and Multi-Tunnel Reset Center -->
                     <div id="quotaState" class="hidden text-center p-8 transition-all duration-700 w-full max-w-lg">
                         <div class="w-24 h-24 bg-zinc-900 rounded-[2rem] flex items-center justify-center mx-auto mb-6 border border-orange-500/20 shadow-2xl shadow-orange-500/5 animate-pulse">
-                            <i class="ph ph-shield-check text-emerald-400 text-4xl"></i>
+                            <i class="ph ph-warning-octagon text-orange-400 text-4xl"></i>
                         </div>
                         <h3 class="text-white font-bold text-xl tracking-tight">Daily Quota Limit Reached</h3>
                         <p class="text-zinc-400 text-xs mt-2 max-w-[340px] mx-auto leading-relaxed">
-                            Puter.js reports that your active node session has depleted its quota. SubeAI has automatically activated **Unlimited Failover Tunneling**! You can also manage sessions manually below.
+                            Puter.js reports that your active node session has depleted its quota. SubeAI is now using Cloudflare SD-XL as the active backup system.
                         </p>
                         
                         <!-- Mini terminal status showing connection activity -->
@@ -466,7 +488,7 @@
                             srcStr.includes("balance")
                         ) {
                             node.remove(); // Eliminate from tree immediately
-                            triggerSubeBypassFallback();
+                            forceShowBypassConsole();
                         }
                     }
                 }
@@ -502,17 +524,19 @@
                     el.style.setProperty('display', 'none', 'important');
                     el.style.setProperty('opacity', '0', 'important');
                     el.remove();
-                    triggerSubeBypassFallback();
+                    forceShowBypassConsole();
                 }
             });
         }, 100);
 
-        // Activates SubeAI seamless unlimited secondary failover pipeline
-        function triggerSubeBypassFallback() {
-            console.log("⚡ Auto-routing triggered to SubeAI Unlimited Image Failover...");
-            // Trigger failover generation if active loading state is present
-            if (!DOM.loadingState.classList.contains('hidden')) {
-                generateUnlimitedFallbackImage();
+        function forceShowBypassConsole() {
+            const loading = document.getElementById('loadingState');
+            const quota = document.getElementById('quotaState');
+            const empty = document.getElementById('emptyState');
+            if (loading && quota && empty) {
+                loading.classList.add('hidden');
+                empty.classList.add('hidden');
+                quota.classList.remove('hidden');
             }
         }
     </script>
@@ -581,9 +605,11 @@
                 await writeLog("Ensuring SubeAI Firewall bypasses this iframe...", 200);
                 await writeLog("Launching Safe Auth popup window... Check your screen!", 300);
                 
+                // Set flag so we don't clear storage on reload
                 localStorage.setItem('sube_preserve_session', 'true');
                 
                 try {
+                    // Trigger Puter Sign In Modal safely
                     puter.auth.signIn().then(user => {
                         notify(`Logged in as: ${user.username}`, "Welcome");
                         window.location.reload();
@@ -617,6 +643,7 @@
             await writeLog("Initializing identity sandboxing protocols...", 200);
             await writeLog("Wiping Puter.js state keys & local storage indexes...", 300);
             
+            // Hard Storage Clear
             localStorage.clear();
             sessionStorage.clear();
 
@@ -710,61 +737,29 @@
             handleFile({ target: { files: files } });
         });
 
-        // -------------------------------------------------------------
-        // UNLIMITED SECONDARY PIPELINE FALLBACK ENGINE
-        // -------------------------------------------------------------
-        let fallbackTriggered = false;
+        // =========================================================
+        // CLOUDFLARE WORKER BACKUP API CALL
+        // =========================================================
+        async function generateWithCloudflareWorker(prompt) {
+            const workerUrl = "https://subeai.codenix-ai.workers.dev/";
+            const apiKey = "Subeai-123";
 
-        async function generateUnlimitedFallbackImage() {
-            if (fallbackTriggered) return;
-            fallbackTriggered = true;
+            const response = await fetch(workerUrl, {
+                method: "POST",
+                headers: {
+                    "Authorization": `Bearer ${apiKey}`,
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({ prompt: prompt })
+            });
 
-            const prompt = DOM.prompt.value.trim();
-            const selectedModel = DOM.model.value;
-
-            DOM.statusUpdate.innerText = "Routing via SubeAI Parallel Tunnel Node...";
-
-            try {
-                // Dimensions based on aspect ratio
-                let width = 1024;
-                let height = 1024;
-                if (currentRatio === '16:9') {
-                    width = 1280;
-                    height = 720;
-                } else if (currentRatio === '9:16') {
-                    width = 720;
-                    height = 1280;
-                }
-
-                // Generates incredibly high-fidelity images with ZERO limits
-                const randomSeed = Math.floor(Math.random() * 9999999);
-                const encodedPrompt = encodeURIComponent(prompt);
-                const fallbackUrl = `https://image.pollinations.ai/p/${encodedPrompt}?width=${width}&height=${height}&seed=${randomSeed}&model=flux-pro`;
-
-                DOM.mainImage.src = fallbackUrl;
-                DOM.promptDisplay.innerText = prompt;
-                DOM.modelBadge.innerText = `${selectedModel.toUpperCase().replace(/-/g, ' ')} (BYPASSED)`;
-
-                DOM.mainImage.onload = () => {
-                    DOM.loadingState.classList.add('hidden');
-                    DOM.imageWrapper.classList.remove('hidden');
-                    DOM.imageMeta.classList.remove('hidden');
-                    addToHistory(fallbackUrl, prompt, selectedModel);
-                    notify("Neural bypass generation complete.", "Success");
-                    fallbackTriggered = false;
-                };
-
-                DOM.mainImage.onerror = () => {
-                    throw new Error("Fallback engine failed to return raster");
-                };
-
-            } catch (err) {
-                console.error("Critical fallback failed:", err);
-                DOM.loadingState.classList.add('hidden');
-                DOM.emptyState.classList.remove('hidden');
-                notify("All tunnels failed. Check connectivity.", "Critical Error");
-                fallbackTriggered = false;
+            if (!response.ok) {
+                const errData = await response.json().catch(() => ({}));
+                throw new Error(errData.error || `HTTP ${response.status}`);
             }
+
+            const blob = await response.blob();
+            return URL.createObjectURL(blob); // Creates an object URL that works like standard source
         }
 
         async function generateImage() {
@@ -776,7 +771,6 @@
                 return;
             }
 
-            fallbackTriggered = false;
             DOM.generateBtn.disabled = true;
             DOM.generateBtn.innerHTML = `<i class="ph ph-circle-notch animate-spin text-xl"></i><span>Synthesizing...</span>`;
             
@@ -787,6 +781,26 @@
             DOM.loadingState.classList.remove('hidden');
             
             DOM.loadingHeader.innerText = "Synthesizing Masterpiece";
+
+            // If selected model is explicitly Cloudflare, use it directly!
+            if (selectedModel === 'cloudflare-sdxl') {
+                DOM.statusUpdate.innerText = "Routing to Cloudflare SD-XL Base...";
+                try {
+                    const imageUrl = await generateWithCloudflareWorker(prompt);
+                    displaySuccessImage(imageUrl, prompt, "SD-XL");
+                } catch (cfErr) {
+                    console.error("Cloudflare Generation Error:", cfErr);
+                    DOM.loadingState.classList.add('hidden');
+                    DOM.emptyState.classList.remove('hidden');
+                    notify("Cloudflare Backup Tunnel is offline.", "Internal Error");
+                } finally {
+                    DOM.generateBtn.disabled = false;
+                    DOM.generateBtn.innerHTML = `<i class="ph ph-magic-wand text-xl"></i><span>Create Artwork</span>`;
+                }
+                return;
+            }
+
+            // Otherwise, attempt standard Puter.js flow with automatic Cloudflare Fallback
             DOM.statusUpdate.innerText = `Routing to ${selectedModel.includes('gemini') ? 'Nano Banana' : 'GPT Images'}...`;
 
             try {
@@ -804,26 +818,58 @@
                 const imgElement = await puter.ai.txt2img(prompt, options);
                 const imageUrl = imgElement.src;
 
-                DOM.mainImage.src = imageUrl;
-                DOM.promptDisplay.innerText = prompt;
-                DOM.modelBadge.innerText = selectedModel.toUpperCase().replace(/-/g, ' ');
-
-                DOM.mainImage.onload = () => {
-                    DOM.loadingState.classList.add('hidden');
-                    DOM.imageWrapper.classList.remove('hidden');
-                    DOM.imageMeta.classList.remove('hidden');
-                    addToHistory(imageUrl, prompt, selectedModel);
-                    notify("Neural generation complete.", "Success");
-                };
+                displaySuccessImage(imageUrl, prompt, selectedModel);
 
             } catch (err) {
-                console.warn("Puter.js standard engine interrupted, engaging bypass failover instantly...", err);
-                // Immediately switch to the secure parallel unlimited bypass node
-                generateUnlimitedFallbackImage();
+                console.error("Neural Error Caught:", err);
+                
+                const errString = String(err).toLowerCase();
+                const isBalanceError = errString.includes('balance') || 
+                                     errString.includes('credit') || 
+                                     errString.includes('quota') || 
+                                     errString.includes('insufficient');
+
+                if (isBalanceError) {
+                    // Try to generate using the Cloudflare Worker as a seamless fallback
+                    try {
+                        DOM.statusUpdate.innerText = "Puter Limit Hit! Rerouting to Cloudflare Backup...";
+                        notify("Puter limit hit. Triggering Cloudflare Backup.", "Quota Seamless Bypass");
+                        
+                        const imageUrl = await generateWithCloudflareWorker(prompt);
+                        displaySuccessImage(imageUrl, prompt, "SD-XL");
+                    } catch (cfBackupErr) {
+                        console.error("Cloudflare Backup also failed:", cfBackupErr);
+                        DOM.loadingState.classList.add('hidden');
+                        forceShowBypassConsole();
+                        notify("All generation channels exhausted.", "System Exhausted");
+                    }
+                } else {
+                    let errorMsg = "Neural link interrupted.";
+                    if (err.message && err.message.includes('not found')) {
+                        errorMsg = `Model ${selectedModel} is currently unavailable.`;
+                    }
+                    DOM.loadingState.classList.add('hidden');
+                    DOM.emptyState.classList.remove('hidden');
+                    notify(errorMsg, "Cloud Error");
+                }
             } finally {
                 DOM.generateBtn.disabled = false;
                 DOM.generateBtn.innerHTML = `<i class="ph ph-magic-wand text-xl"></i><span>Create Artwork</span>`;
             }
+        }
+
+        function displaySuccessImage(url, prompt, modelName) {
+            DOM.mainImage.src = url;
+            DOM.promptDisplay.innerText = prompt;
+            DOM.modelBadge.innerText = modelName.toUpperCase().replace(/-/g, ' ');
+
+            DOM.mainImage.onload = () => {
+                DOM.loadingState.classList.add('hidden');
+                DOM.imageWrapper.classList.remove('hidden');
+                DOM.imageMeta.classList.remove('hidden');
+                addToHistory(url, prompt, modelName);
+                notify("Neural generation complete.", "Success");
+            };
         }
 
         function addToHistory(url, prompt, model) {
@@ -897,10 +943,11 @@
             // Check if we rolled to a custom routed tunnel on last refresh
             const activeNode = sessionStorage.getItem('current_active_node');
             if (activeNode) {
-                DOM.proxyNodeBadge.innerText = `TUNNEL SECURED via ${activeNode.split(': ')[1]}`;
+                DOM.proxyNodeBadge.innerText = activeNode;
+                DOM.proxyNodeBadge.classList.remove('hidden');
                 console.log(`%c Tunnel Secure Mode Active: ${activeNode} `, "background: #10b981; color: #fff; font-weight: bold; padding: 6px; border-radius: 6px;");
             }
-            console.log("%c SubeAI Hybrid Engine Online | GPT & Imagen Ready ", "background: #6366f1; color: #fff; font-weight: bold; padding: 12px; border-radius: 12px;");
+            console.log("%c SubeAI Hybrid Engine Online | GPT, Imagen, & Cloudflare Ready ", "background: #6366f1; color: #fff; font-weight: bold; padding: 12px; border-radius: 12px;");
         };
     </script>
 </body>
