@@ -276,8 +276,9 @@
                                 <option value="dall-e-3">DALL-E 3</option>
                                 <option value="dall-e-2">DALL-E 2</option>
                             </optgroup>
-                            <optgroup label="Cloudflare Edge Engines (Backup)" class="bg-zinc-900">
+                            <optgroup label="Cloudflare Edge Engines (Unlimited Backup)" class="bg-zinc-900">
                                 <option value="cloudflare-sdxl">SD-XL Base 1.0 (Direct CF Worker)</option>
+                                <option value="cloudflare-pollutions">Pollutions (Direct CF Worker)</option>
                             </optgroup>
                         </select>
                     </div>
@@ -740,9 +741,15 @@
         // =========================================================
         // CLOUDFLARE WORKER BACKUP API CALL
         // =========================================================
-        async function generateWithCloudflareWorker(prompt) {
+        async function generateWithCloudflareWorker(prompt, cfModel) {
             const workerUrl = "https://subeai.codenix-ai.workers.dev/";
             const apiKey = "Subeai-123";
+
+            // Map frontend selection to Cloudflare model names
+            let modelString = "@cf/stabilityai/stable-diffusion-xl-base-1.0";
+            if (cfModel === 'cloudflare-pollutions') {
+                modelString = "@cf/bytedance/stable-diffusion-xl-lightning";
+            }
 
             const response = await fetch(workerUrl, {
                 method: "POST",
@@ -750,7 +757,10 @@
                     "Authorization": `Bearer ${apiKey}`,
                     "Content-Type": "application/json"
                 },
-                body: JSON.stringify({ prompt: prompt })
+                body: JSON.stringify({ 
+                    prompt: prompt,
+                    model: modelString
+                })
             });
 
             if (!response.ok) {
@@ -782,12 +792,13 @@
             
             DOM.loadingHeader.innerText = "Synthesizing Masterpiece";
 
-            // If selected model is explicitly Cloudflare, use it directly!
-            if (selectedModel === 'cloudflare-sdxl') {
-                DOM.statusUpdate.innerText = "Routing to Cloudflare SD-XL Base...";
+            // If selected model is explicitly Cloudflare (SD-XL or Pollutions), use it directly!
+            if (selectedModel === 'cloudflare-sdxl' || selectedModel === 'cloudflare-pollutions') {
+                const modelLabel = selectedModel === 'cloudflare-pollutions' ? "Pollutions" : "SD-XL";
+                DOM.statusUpdate.innerText = `Routing to Cloudflare ${modelLabel}...`;
                 try {
-                    const imageUrl = await generateWithCloudflareWorker(prompt);
-                    displaySuccessImage(imageUrl, prompt, "SD-XL");
+                    const imageUrl = await generateWithCloudflareWorker(prompt, selectedModel);
+                    displaySuccessImage(imageUrl, prompt, modelLabel);
                 } catch (cfErr) {
                     console.error("Cloudflare Generation Error:", cfErr);
                     DOM.loadingState.classList.add('hidden');
@@ -835,7 +846,7 @@
                         DOM.statusUpdate.innerText = "Puter Limit Hit! Rerouting to Cloudflare Backup...";
                         notify("Puter limit hit. Triggering Cloudflare Backup.", "Quota Seamless Bypass");
                         
-                        const imageUrl = await generateWithCloudflareWorker(prompt);
+                        const imageUrl = await generateWithCloudflareWorker(prompt, 'cloudflare-sdxl');
                         displaySuccessImage(imageUrl, prompt, "SD-XL");
                     } catch (cfBackupErr) {
                         console.error("Cloudflare Backup also failed:", cfBackupErr);
