@@ -8,38 +8,30 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         body { scroll-behavior: smooth; }
-        .admin-sidebar { transition: all 0.3s ease; }
-        .glass-panel { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); }
         .hidden-panel { display: none; }
     </style>
 </head>
 <body class="bg-slate-50 text-slate-900 font-sans">
 
+    <!-- Admin Dashboard -->
     <div id="admin-panel" class="hidden-panel fixed inset-0 z-50 bg-slate-900 text-white flex">
-        <!-- Sidebar -->
         <aside class="w-64 bg-slate-800 p-6 flex flex-col justify-between">
             <div>
                 <h2 class="text-xl font-bold mb-8 text-blue-400">Nixora Admin</h2>
                 <nav class="space-y-4">
-                    <button onclick="showSection('overview')" class="w-full text-left p-3 rounded-lg hover:bg-slate-700 transition">Overview</button>
                     <button onclick="showSection('course-builder')" class="w-full text-left p-3 bg-blue-600 rounded-lg shadow-lg">Course Builder</button>
-                    <button onclick="showSection('community')" class="w-full text-left p-3 rounded-lg hover:bg-slate-700 transition">Community</button>
                 </nav>
             </div>
             <button onclick="closeAdmin()" class="text-slate-400 hover:text-red-400">Exit Admin</button>
         </aside>
 
-        <!-- Admin Main Content -->
         <main class="flex-1 p-10 overflow-y-auto" id="admin-content">
-            <h2 class="text-3xl font-bold mb-6">Course Builder Wizard</h2>
+            <h2 class="text-3xl font-bold mb-6">Course Builder</h2>
             <div id="wizard-container" class="bg-white text-slate-900 p-8 rounded-2xl shadow-xl max-w-2xl">
-                <!-- Wizard Steps -->
-                <div id="step-1">
-                    <h3 class="text-lg font-semibold mb-4">Step 1: Course Basics</h3>
-                    <input type="text" placeholder="Course Title" class="w-full p-3 mb-4 border rounded-lg">
-                    <textarea placeholder="Description" class="w-full p-3 mb-4 border rounded-lg h-32"></textarea>
-                    <button onclick="nextStep(2)" class="bg-blue-600 text-white px-6 py-2 rounded-lg">Next Step</button>
-                </div>
+                <h3 class="text-lg font-semibold mb-4">Step 1: Course Details</h3>
+                <input type="text" id="course-title" placeholder="Course Title" class="w-full p-3 mb-4 border rounded-lg">
+                <textarea id="course-desc" placeholder="Course Description" class="w-full p-3 mb-4 border rounded-lg h-32"></textarea>
+                <button onclick="saveCourseToSupabase()" class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700">Save & Publish Course</button>
             </div>
         </main>
     </div>
@@ -50,57 +42,44 @@
     </nav>
 
     <main id="app-container" class="max-w-7xl mx-auto p-10">
-        <header class="mb-12">
-            <h2 class="text-4xl font-bold text-slate-900 mb-2">Welcome Back!</h2>
-            <p class="text-slate-600">Continue your journey with world-class free education.</p>
-        </header>
-        <div id="courses-grid" class="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <!-- Courses dynamically loaded here -->
-        </div>
+        <header class="mb-12"><h2 class="text-4xl font-bold text-slate-900">Welcome Back!</h2></header>
+        <div id="courses-grid" class="grid grid-cols-1 md:grid-cols-3 gap-8"></div>
     </main>
 
     <script>
         const sbClient = supabase.createClient('https://rnlwrngfgvznndlekmrz.supabase.co', 'sb_publishable_mtI0_ZBvU_n5oRuqV58QHg_qJt3Gfyt');
 
-        function showSection(id) {
-            const content = document.getElementById('admin-content');
-            content.innerHTML = `<h2 class="text-3xl font-bold mb-6 capitalize">${id}</h2><p>Management interface for ${id} loading...</p>`;
+        function closeAdmin() { document.getElementById('admin-panel').classList.add('hidden-panel'); }
+
+        async function saveCourseToSupabase() {
+            const title = document.getElementById('course-title').value;
+            const description = document.getElementById('course-desc').value;
+
+            if (!title) return alert("Please enter a title");
+
+            const { data, error } = await sbClient
+                .from('courses_list')
+                .insert([{ title, description }]);
+
+            if (error) {
+                console.error("Save Error:", error);
+                alert("Error saving: " + error.message);
+            } else {
+                alert("Course saved successfully to Supabase!");
+                closeAdmin();
+            }
         }
 
-        function closeAdmin() {
-            document.getElementById('admin-panel').classList.add('hidden-panel');
-        }
-
-        function nextStep(step) {
-            const container = document.getElementById('wizard-container');
-            container.innerHTML = `
-                <h3 class="text-lg font-semibold mb-4">Step ${step}: Add Content</h3>
-                <input type="text" placeholder="Unit Title" class="w-full p-3 mb-4 border rounded-lg">
-                <input type="text" placeholder="Content URL (Video/Photo)" class="w-full p-3 mb-4 border rounded-lg">
-                <button onclick="alert('Course Saved!')" class="bg-green-600 text-white px-6 py-2 rounded-lg">Publish Course</button>
-            `;
-        }
-
-        // Admin Trigger: Ctrl + Shift + D
         window.addEventListener('keydown', (e) => {
             if (e.ctrlKey && e.shiftKey && e.key === 'D') {
                 document.getElementById('admin-panel').classList.remove('hidden-panel');
             }
         });
 
-        // Initialize App
         async function init() {
-            try {
-                const { data: { user } } = await sbClient.auth.getUser();
-                if (!user) {
-                    // Redirect to login if needed
-                    console.log("User not logged in, please use auth.html");
-                } else {
-                    document.getElementById('user-info').innerText = user.email;
-                }
-            } catch (e) { console.error(e); }
+            const { data: { user } } = await sbClient.auth.getUser();
+            if (user) document.getElementById('user-info').innerText = user.email;
         }
-
         init();
     </script>
 </body>
