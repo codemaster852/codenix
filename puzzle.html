@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mystic Woods Sliding Puzzle</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background: radial-gradient(circle at center, #1a1a2e, #16213e);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            overflow-x: hidden;
+            touch-action: manipulation;
+        }
+
+        .puzzle-grid {
+            display: grid;
+            gap: 8px;
+            background-color: rgba(255, 255, 255, 0.05);
+            padding: 12px;
+            border-radius: 16px;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5), inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+            user-select: none;
+            transition: all 0.3s ease;
+        }
+
+        .tile {
+            aspect-ratio: 1 / 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #4ecca3, #45b293);
+            color: #1a1a2e;
+            font-weight: 800;
+            font-size: 1.5rem;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: transform 0.15s cubic-bezier(0.4, 0, 0.2, 1), background 0.3s;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+
+        .tile:hover:not(.empty) {
+            transform: scale(1.02);
+            filter: brightness(1.1);
+        }
+
+        .tile:active:not(.empty) {
+            transform: scale(0.95);
+        }
+
+        .tile.empty {
+            background: rgba(255, 255, 255, 0.05);
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);
+            cursor: default;
+        }
+
+        .tile.correct {
+            background: linear-gradient(135deg, #ffd700, #ffb700);
+        }
+
+        @keyframes celebrate {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+
+        .won {
+            animation: celebrate 0.5s ease infinite;
+        }
+
+        .modal-backdrop {
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(8px);
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container max-w-md mx-auto px-4 py-8 flex flex-col items-center">
+        <header class="text-center mb-8">
+            <h1 class="text-4xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-emerald-400 to-teal-200">
+                MYSTIC PUZZLE
+            </h1>
+            <p class="text-slate-400 mt-2 font-medium">Reorder the tiles to win!</p>
+        </header>
+
+        <div class="w-full grid grid-cols-2 gap-4 mb-6">
+            <div class="bg-white/5 p-4 rounded-2xl border border-white/10 text-center">
+                <span class="block text-xs uppercase tracking-widest text-slate-500 mb-1">Moves</span>
+                <span id="move-count" class="text-2xl font-bold">0</span>
+            </div>
+            <div class="bg-white/5 p-4 rounded-2xl border border-white/10 text-center">
+                <span class="block text-xs uppercase tracking-widest text-slate-500 mb-1">Time</span>
+                <span id="timer" class="text-2xl font-bold">00:00</span>
+            </div>
+        </div>
+
+        <div id="puzzle-board" class="puzzle-grid w-full aspect-square">
+            <!-- Tiles will be injected here by JS -->
+        </div>
+
+        <div class="flex flex-wrap justify-center gap-3 mt-8">
+            <button onclick="initGame()" class="px-6 py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-bold rounded-xl transition-all shadow-lg shadow-emerald-500/20 active:scale-95">
+                New Game
+            </button>
+            <select id="difficulty" onchange="initGame()" class="px-4 py-3 bg-slate-800 text-white border border-white/10 rounded-xl outline-none cursor-pointer focus:ring-2 ring-emerald-500 transition-all">
+                <option value="3">Easy (3x3)</option>
+                <option value="4" selected>Normal (4x4)</option>
+                <option value="5">Hard (5x5)</option>
+            </select>
+        </div>
+
+        <div id="win-modal" class="fixed inset-0 modal-backdrop hidden flex items-center justify-center z-50 p-6">
+            <div class="bg-slate-900 border border-emerald-500/30 p-8 rounded-3xl text-center shadow-2xl max-w-xs w-full">
+                <div class="w-20 h-20 bg-emerald-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <svg class="w-10 h-10 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                </div>
+                <h2 class="text-2xl font-bold mb-2">Victory!</h2>
+                <p id="win-message" class="text-slate-400 mb-6">You solved the mystic path.</p>
+                <button onclick="closeModal(); initGame();" class="w-full py-4 bg-emerald-500 text-slate-900 font-extrabold rounded-2xl hover:bg-emerald-400 transition-all">
+                    Play Again
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let size = 4; // Grid size (size x size)
+        let tiles = [];
+        let moves = 0;
+        let seconds = 0;
+        let timerInterval = null;
+        let gameStarted = false;
+
+        const boardElement = document.getElementById('puzzle-board');
+        const moveElement = document.getElementById('move-count');
+        const timeElement = document.getElementById('timer');
+        const winModal = document.getElementById('win-modal');
+
+        function initGame() {
+            size = parseInt(document.getElementById('difficulty').value);
+            tiles = Array.from({length: size * size}, (_, i) => i + 1);
+            // Replace the last element with 0 (empty space)
+            tiles[tiles.length - 1] = 0;
+            
+            moves = 0;
+            seconds = 0;
+            gameStarted = false;
+            clearInterval(timerInterval);
+            
+            updateStats();
+            shuffleTiles();
+            renderBoard();
+        }
+
+        function shuffleTiles() {
+            // To ensure solvability, we start with a solved state and make many random legal moves
+            let emptyPos = tiles.indexOf(0);
+            const shuffleMoves = size * size * 50; 
+
+            for (let i = 0; i < shuffleMoves; i++) {
+                const neighbors = getNeighbors(emptyPos);
+                const randomNeighbor = neighbors[Math.floor(Math.random() * neighbors.length)];
+                
+                // Swap
+                [tiles[emptyPos], tiles[randomNeighbor]] = [tiles[randomNeighbor], tiles[emptyPos]];
+                emptyPos = randomNeighbor;
+            }
+        }
+
+        function getNeighbors(index) {
+            const neighbors = [];
+            const row = Math.floor(index / size);
+            const col = index % size;
+
+            if (row > 0) neighbors.push(index - size); // Top
+            if (row < size - 1) neighbors.push(index + size); // Bottom
+            if (col > 0) neighbors.push(index - 1); // Left
+            if (col < size - 1) neighbors.push(index + 1); // Right
+
+            return neighbors;
+        }
+
+        function renderBoard() {
+            boardElement.innerHTML = '';
+            boardElement.style.gridTemplateColumns = `repeat(${size}, 1fr)`;
+
+            tiles.forEach((value, index) => {
+                const tileDiv = document.createElement('div');
+                tileDiv.className = 'tile';
+                
+                if (value === 0) {
+                    tileDiv.classList.add('empty');
+                    tileDiv.innerText = '';
+                } else {
+                    tileDiv.innerText = value;
+                    // Highlight if in correct position
+                    if (value === index + 1) {
+                        tileDiv.classList.add('correct');
+                    }
+                    tileDiv.onclick = () => handleTileClick(index);
+                }
+                
+                boardElement.appendChild(tileDiv);
+            });
+        }
+
+        function handleTileClick(index) {
+            const emptyIndex = tiles.indexOf(0);
+            const neighbors = getNeighbors(index);
+
+            if (neighbors.includes(emptyIndex)) {
+                if (!gameStarted) {
+                    startTimer();
+                    gameStarted = true;
+                }
+
+                // Swap in array
+                [tiles[index], tiles[emptyIndex]] = [tiles[emptyIndex], tiles[index]];
+                moves++;
+                updateStats();
+                renderBoard();
+                checkWin();
+            }
+        }
+
+        function startTimer() {
+            clearInterval(timerInterval);
+            timerInterval = setInterval(() => {
+                seconds++;
+                const mins = Math.floor(seconds / 60).toString().padStart(2, '0');
+                const secs = (seconds % 60).toString().padStart(2, '0');
+                timeElement.innerText = `${mins}:${secs}`;
+            }, 1000);
+        }
+
+        function updateStats() {
+            moveElement.innerText = moves;
+            if (moves === 0) timeElement.innerText = "00:00";
+        }
+
+        function checkWin() {
+            const isWin = tiles.slice(0, -1).every((val, i) => val === i + 1);
+            if (isWin && gameStarted) {
+                clearInterval(timerInterval);
+                document.getElementById('win-message').innerText = `Completed in ${moves} moves and ${timeElement.innerText}!`;
+                winModal.classList.remove('hidden');
+                
+                // Add visual flair to board
+                document.querySelectorAll('.tile').forEach(t => t.classList.add('won'));
+            }
+        }
+
+        function closeModal() {
+            winModal.classList.add('hidden');
+        }
+
+        window.addEventListener('keydown', (e) => {
+            const emptyIndex = tiles.indexOf(0);
+            let targetIndex = -1;
+            const row = Math.floor(emptyIndex / size);
+            const col = emptyIndex % size;
+
+            if (e.key === 'ArrowUp' && row < size - 1) targetIndex = emptyIndex + size;
+            if (e.key === 'ArrowDown' && row > 0) targetIndex = emptyIndex - size;
+            if (e.key === 'ArrowLeft' && col < size - 1) targetIndex = emptyIndex + 1;
+            if (e.key === 'ArrowRight' && col > 0) targetIndex = emptyIndex - 1;
+
+            if (targetIndex !== -1) {
+                handleTileClick(targetIndex);
+            }
+        });
+
+        // Start initial game
+        window.onload = initGame;
+
+    </script>
+</body>
+</html>
