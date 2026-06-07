@@ -117,7 +117,7 @@
             try {
                 const response = await fetch(SHEET_CSV_URL);
                 const text = await response.text();
-                // Extract keys from CSV structure
+                // Filter lines for valid keys (starts with sk-, AIza, etc.)
                 apiKeys = text.split('\n')
                     .map(line => line.replace(/"/g, '').split(',')[0].trim())
                     .filter(key => key.startsWith('sk-') || key.startsWith('AIza'));
@@ -126,9 +126,10 @@
         }
 
         function getProviderDetails(key) {
-            // Detect model mapping based on key prefix
+            // Mapping providers to model IDs based on the PekPik proxy documentation
             if (key.startsWith('sk-ant-')) return { name: 'Claude', model: 'claude-opus-4-7' };
-            if (key.startsWith('AIza')) return { name: 'Gemini', model: 'gemini-2.5-flash' };
+            if (key.startsWith('AIza')) return { name: 'Gemini', model: 'gemini-3.1-flash-lite' };
+            if (key.includes('deepseek')) return { name: 'DeepSeek', model: 'deepseek-chat' };
             return { name: 'GPT', model: 'gpt-5.5' };
         }
 
@@ -154,10 +155,10 @@
 
                     if (res.ok) {
                         const data = await res.json();
-                        currentKeyIndex = (currentKeyIndex + i) % apiKeys.length; // Rotate successfully
+                        currentKeyIndex = (currentKeyIndex + i) % apiKeys.length;
                         return data.choices[0].message.content;
                     }
-                } catch (e) { console.warn(`Key failed: ${provider.name}. Trying next.`); }
+                } catch (e) { console.warn(`Key failed (${provider.name}). Rotating...`); }
             }
             throw new Error("All provided API keys exhausted or invalid.");
         }
