@@ -117,12 +117,57 @@
             try {
                 const response = await fetch(SHEET_CSV_URL);
                 const text = await response.text();
-                // Filter lines for valid keys (starts with sk-, AIza, etc.)
+                // Improved parsing to be more aggressive in finding clean keys
                 apiKeys = text.split('\n')
-                    .map(line => line.replace(/"/g, '').split(',')[0].trim())
-                    .filter(key => key.startsWith('sk-') || key.startsWith('AIza'));
-                console.log(`Nix Core: Loaded ${apiKeys.length} keys.`);
+                    .map(line => line.replace(/"/g, '').replace(/,/g, '').trim())
+                    .filter(key => key.length > 20); // Only keep strings long enough to be keys
+                console.log(`Nix Core: Successfully loaded ${apiKeys.length} potential keys.`);
             } catch (err) { console.error("Key fetch failed:", err); }
+        }
+
+        function getProviderDetails(key) {
+            // Enhanced signature matching
+            if (key.includes('ant-')) return { name: 'Claude', model: 'claude-opus-4-7' };
+            if (key.startsWith('AIza')) return { name: 'Gemini', model: 'gemini-3.1-flash-lite' };
+            if (key.includes('deepseek')) return { name: 'DeepSeek', model: 'deepseek-chat' };
+            // Default to GPT-5.5 for any sk- key that doesn't match specific models
+            return { name: 'GPT', model: 'gpt-5.5' };
+        }
+
+        async function dispatchLLMRequest(prompt) {
+            if (apiKeys.length === 0) await refreshApiKeys();
+            
+            for (let i = 0; i < apiKeys.length; i++) {
+                const key = apiKeys[(currentKeyIndex + i) % apiKeys.length];
+                const provider = getProviderDetails(key);
+                
+                console.log(`Nix Debug: Attempting provider ${provider.name} with model ${provider.model}...`);
+
+                try {
+                    const res = await fetch(PEKPIK_BASE_URL, {
+                        method: "POST",
+                        headers: { 
+                            "Authorization": `Bearer ${key}`,
+                            "Content-Type": "application/json" 
+                        },
+                        body: JSON.stringify({
+                            model: provider.model,
+                            messages: [{ role: "user", content: prompt }]
+                        })
+                    });
+
+                    if (res.ok) {
+                        const data = await res.json();
+                        currentKeyIndex = (currentKeyIndex + i) % apiKeys.length;
+                        return data.choices[0].message.content;
+                    } else {
+                        console.warn(`Nix Debug: Provider ${provider.name} failed with status ${res.status}`);
+                    }
+                } catch (e) { 
+                    console.warn(`Nix Debug: Connection error with ${provider.name}:`, e); 
+                }
+            }
+            throw new Error("All API keys failed or unauthorized. Please verify the keys in your Google Sheet.");
         }
 
         function getProviderDetails(key) {
