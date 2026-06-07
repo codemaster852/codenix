@@ -107,6 +107,7 @@
         const SUPABASE_KEY = "sb_publishable_mtI0_ZBvU_n5oRuqV58QHg_qJt3Gfyt";
         const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
         const SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/1R0QmFOr8CEelWIseXYmcboeoOgcJnFpG8XmOiFRl5VI/gviz/tq?tqx=out:csv";
+        const PEKPIK_BASE_URL = "https://aiapiv2.pekpik.com/v1/chat/completions";
         
         let apiKeys = [];
         let currentKeyIndex = 0;
@@ -116,18 +117,19 @@
             try {
                 const response = await fetch(SHEET_CSV_URL);
                 const text = await response.text();
+                // Extract keys from CSV structure
                 apiKeys = text.split('\n')
-                    .map(line => line.replace(/"/g, '').trim())
-                    .filter(key => key.startsWith('sk-') || key.startsWith('AIza') || key.includes('sk-'));
+                    .map(line => line.replace(/"/g, '').split(',')[0].trim())
+                    .filter(key => key.startsWith('sk-') || key.startsWith('AIza'));
                 console.log(`Nix Core: Loaded ${apiKeys.length} keys.`);
             } catch (err) { console.error("Key fetch failed:", err); }
         }
 
         function getProviderDetails(key) {
-            if (key.startsWith('sk-ant-')) return { name: 'Claude', url: 'https://api.anthropic.com/v1/messages', type: 'claude' };
-            if (key.startsWith('AIza')) return { name: 'Gemini', url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`, type: 'gemini' };
-            if (key.includes('deepseek')) return { name: 'DeepSeek', url: 'https://api.deepseek.com/chat/completions', type: 'openai' };
-            return { name: 'OpenAI/GPT', url: 'https://api.openai.com/v1/chat/completions', type: 'openai' };
+            // Detect model mapping based on key prefix
+            if (key.startsWith('sk-ant-')) return { name: 'Claude', model: 'claude-opus-4-7' };
+            if (key.startsWith('AIza')) return { name: 'Gemini', model: 'gemini-2.5-flash' };
+            return { name: 'GPT', model: 'gpt-5.5' };
         }
 
         async function dispatchLLMRequest(prompt) {
@@ -138,28 +140,26 @@
                 const provider = getProviderDetails(key);
                 
                 try {
-                    let body = {}, headers = { "Content-Type": "application/json" };
-                    if (provider.type === 'openai') {
-                        headers["Authorization"] = `Bearer ${key}`;
-                        body = { model: "gpt-4o", messages: [{ role: "user", content: prompt }] };
-                    } else if (provider.type === 'claude') {
-                        headers["x-api-key"] = key;
-                        headers["anthropic-version"] = "2023-06-01";
-                        body = { model: "claude-3-5-sonnet-20240620", messages: [{ role: "user", content: prompt }], max_tokens: 1024 };
-                    } else if (provider.type === 'gemini') {
-                        body = { contents: [{ parts: [{ text: prompt }] }] };
-                    }
+                    const res = await fetch(PEKPIK_BASE_URL, {
+                        method: "POST",
+                        headers: { 
+                            "Authorization": `Bearer ${key}`,
+                            "Content-Type": "application/json" 
+                        },
+                        body: JSON.stringify({
+                            model: provider.model,
+                            messages: [{ role: "user", content: prompt }]
+                        })
+                    });
 
-                    const res = await fetch(provider.url, { method: "POST", headers, body: JSON.stringify(body) });
                     if (res.ok) {
                         const data = await res.json();
-                        return provider.type === 'claude' ? data.content[0].text : 
-                               provider.type === 'gemini' ? data.candidates[0].content.parts[0].text : 
-                               data.choices[0].message.content;
+                        currentKeyIndex = (currentKeyIndex + i) % apiKeys.length; // Rotate successfully
+                        return data.choices[0].message.content;
                     }
-                } catch (e) { console.warn(`Provider ${provider.name} failed.`); }
+                } catch (e) { console.warn(`Key failed: ${provider.name}. Trying next.`); }
             }
-            throw new Error("All LLM providers exhausted.");
+            throw new Error("All provided API keys exhausted or invalid.");
         }
 
         async function computeResponse(text) {
