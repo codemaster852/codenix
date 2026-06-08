@@ -1,0 +1,1351 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nix AI Assistant</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <!-- Markdown Parser (Marked) -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <!-- Syntax Highlighting (Highlight.js) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+    <!-- LaTeX Rendering (KaTeX) -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js"></script>
+    <!-- PapaParse for Google Sheet CSV Parsing -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Plus Jakarta Sans', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        nix: {
+                            50: '#f5f3ff',
+                            100: '#e0e7ff',
+                            200: '#ddd6fe',
+                            500: '#6366f1',
+                            600: '#4f46e5',
+                            700: '#4338ca',
+                            800: '#3730a3',
+                            900: '#312e81',
+                            950: '#030712',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(31, 41, 55, 0.5);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(156, 163, 175, 0.3);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(156, 163, 175, 0.5);
+        }
+
+        /* Animations */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .message-fade {
+            animation: fadeIn 0.3s ease-out forwards;
+        }
+
+        /* Markdown rendered document styles */
+        .markdown-body {
+            line-height: 1.6;
+        }
+        .markdown-body p {
+            margin-bottom: 1rem;
+        }
+        .markdown-body pre {
+            background-color: #0f172a !important;
+            padding: 1rem;
+            border-radius: 0.75rem;
+            margin: 1rem 0;
+            overflow-x: auto;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .markdown-body code {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.9em;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 0.2rem 0.4rem;
+            border-radius: 0.25rem;
+        }
+        .markdown-body pre code {
+            background: transparent;
+            padding: 0;
+        }
+        .markdown-body h1, .markdown-body h2, .markdown-body h3 {
+            font-weight: 700;
+            margin-top: 1.5rem;
+            margin-bottom: 0.5rem;
+            color: #f3f4f6;
+        }
+        .markdown-body h1 { font-size: 1.5rem; }
+        .markdown-body h2 { font-size: 1.25rem; }
+        .markdown-body h3 { font-size: 1.1rem; }
+        .markdown-body ul, .markdown-body ol {
+            margin-left: 1.5rem;
+            margin-bottom: 1rem;
+            list-style-type: cubic-bezier;
+        }
+        .markdown-body ul { list-style-type: disc; }
+        .markdown-body ol { list-style-type: decimal; }
+        .markdown-body blockquote {
+            border-left: 4px solid #6366f1;
+            padding-left: 1rem;
+            color: #9ca3af;
+            font-style: italic;
+            margin: 1rem 0;
+        }
+        .markdown-body table {
+            width: 100%;
+            margin-bottom: 1rem;
+            border-collapse: collapse;
+        }
+        .markdown-body th, .markdown-body td {
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 0.5rem 0.75rem;
+        }
+        .markdown-body th {
+            background: rgba(99, 102, 241, 0.15);
+        }
+    </style>
+</head>
+<body class="h-full bg-nix-950 text-slate-100 flex flex-col font-sans overflow-hidden">
+
+    <!-- Toast Notifications Container -->
+    <div id="toast-container" class="fixed top-5 right-5 z-50 flex flex-col gap-3"></div>
+
+    <!-- Main App Container -->
+    <div class="flex h-full w-full overflow-hidden">
+
+        <!-- Sidebar Section -->
+        <aside id="sidebar" class="fixed inset-y-0 left-0 z-40 flex w-80 flex-col border-r border-slate-800 bg-slate-900/90 backdrop-blur-md transition-transform duration-300 lg:static lg:translate-x-0 -translate-x-full">
+            
+            <!-- Logo Brand -->
+            <div class="flex h-16 items-center justify-between px-6 border-b border-slate-800">
+                <div class="flex items-center gap-3">
+                    <div class="h-10 w-10 rounded-xl bg-gradient-to-tr from-nix-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-nix-500/20">
+                        <i class="fa-solid fa-atom text-white text-lg animate-spin" style="animation-duration: 12s;"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-xl font-bold tracking-tight bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent">Nix AI</h1>
+                        <span class="text-[10px] text-nix-500 font-semibold tracking-wider uppercase">Advanced Assistant</span>
+                    </div>
+                </div>
+                <button onclick="toggleSidebar()" class="lg:hidden p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <!-- Google Sheets Integration Dashboard -->
+            <div class="p-4 border-b border-slate-800 bg-slate-950/40">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-xs font-semibold text-slate-400 tracking-wide uppercase">Google Sheet API Keys</span>
+                    <button onclick="fetchAPIKeys()" class="p-1 text-xs text-nix-500 hover:text-nix-100 flex items-center gap-1 transition-all">
+                        <i class="fa-solid fa-rotate text-[10px]" id="sync-icon"></i> Sync
+                    </button>
+                </div>
+                
+                <!-- Connection Status -->
+                <div id="sheet-status" class="flex items-center gap-2 text-xs bg-slate-800/50 p-2.5 rounded-lg border border-slate-800 mb-3">
+                    <span class="relative flex h-2 w-2">
+                        <span id="status-pulse" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-yellow-400 opacity-75"></span>
+                        <span id="status-dot" class="relative inline-flex rounded-full h-2 w-2 bg-yellow-500"></span>
+                    </span>
+                    <span id="status-text" class="text-slate-300">Connecting to Google Sheet...</span>
+                </div>
+
+                <!-- API Keys list dropdown container -->
+                <div class="space-y-2">
+                    <label class="block text-[11px] font-medium text-slate-400">Active API Key:</label>
+                    <div class="relative">
+                        <select id="key-selector" onchange="onKeySelected()" class="w-full bg-slate-900 border border-slate-800 text-slate-200 text-xs rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-nix-500 cursor-pointer">
+                            <option value="">No Keys Loaded</option>
+                        </select>
+                    </div>
+                    
+                    <div class="flex items-center justify-between mt-1 px-1">
+                        <span class="text-[10px] text-slate-500">Auto-Rotate on failure:</span>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" id="auto-rotate-switch" checked class="sr-only peer">
+                            <div class="w-7 h-4 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-nix-500"></div>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Settings / Advanced Config Panel -->
+            <div class="p-4 border-b border-slate-800">
+                <div class="flex items-center gap-2 text-xs font-semibold text-slate-400 tracking-wide uppercase mb-3">
+                    <i class="fa-solid fa-sliders"></i> System Config
+                </div>
+                <div class="space-y-3">
+                    <div>
+                        <label class="block text-[11px] text-slate-400 mb-1">API Base URL:</label>
+                        <input type="text" id="api-base" value="https://aiapiv2.pekpik.com/v1" class="w-full bg-slate-950 border border-slate-800 text-slate-300 text-xs rounded-lg p-2 focus:outline-none focus:ring-1 focus:ring-nix-500">
+                    </div>
+                    <div>
+                        <label class="block text-[11px] text-slate-400 mb-1">Model Name:</label>
+                        <select id="api-model" onchange="onModelSelected()" class="w-full bg-slate-950 border border-slate-800 text-slate-300 text-xs rounded-lg p-2 focus:outline-none focus:ring-1 focus:ring-nix-500 cursor-pointer">
+                            <option value="smart-chat">smart-chat</option>
+                            <option value="claude-opus-4-7">claude-opus-4-7</option>
+                            <option value="gemini-2.5-flash">gemini-2.5-flash</option>
+                            <option value="kimi-k2.5">kimi-k2.5</option>
+                            <option value="deepseek-v4-flash">deepseek-v4-flash</option>
+                            <option value="google/gemini-3.1-flash-lite">google/gemini-3.1-flash-lite</option>
+                            <option value="openai/gpt-5.5">openai/gpt-5.5</option>
+                            <option value="openai/gpt-5.5-pro">openai/gpt-5.5-pro</option>
+                            <option value="qwen/qwen3.6-max-preview">qwen/qwen3.6-max-preview</option>
+                            <option value="qwen/qwen3.6-flash">qwen/qwen3.6-flash</option>
+                            <option value="custom">-- Enter Custom Model --</option>
+                        </select>
+                        <input type="text" id="api-model-custom" class="hidden w-full mt-2 bg-slate-950 border border-slate-800 text-slate-300 text-xs rounded-lg p-2 focus:outline-none focus:ring-1 focus:ring-nix-500" placeholder="e.g. gpt-4o">
+                    </div>
+                    <div>
+                        <label class="block text-[11px] text-slate-400 mb-1">Persona System Prompt:</label>
+                        <textarea id="system-prompt" class="w-full h-16 bg-slate-950 border border-slate-800 text-slate-300 text-[11px] rounded-lg p-2 focus:outline-none focus:ring-1 focus:ring-nix-500 resize-none" placeholder="You are Nix, a smart, versatile AI assistant...">You are Nix, a highly intelligent, empathetic, and sophisticated AI assistant. You explain complex ideas with crystal clarity and structure responses gracefully using markdown and clear equations when necessary.</textarea>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Chat History Sessions -->
+            <div class="flex-1 overflow-y-auto p-4">
+                <div class="flex items-center justify-between mb-3 text-xs font-semibold text-slate-400 tracking-wide uppercase">
+                    <span>Chat History</span>
+                    <button onclick="createNewConversation()" class="p-1 text-slate-400 hover:text-white" title="New Chat">
+                        <i class="fa-solid fa-plus"></i>
+                    </button>
+                </div>
+                <div id="conversations-list" class="space-y-1">
+                    <!-- Dynamic List of chat history loaded from localStorage -->
+                </div>
+            </div>
+
+            <!-- User Info / Sheet Link Info -->
+            <div class="p-4 border-t border-slate-800 bg-slate-950/20 text-center">
+                <a href="https://docs.google.com/spreadsheets/d/1R0QmFOr8CEelWIseXYmcboeoOgcJnFpG8XmOiFRl5VI/edit?usp=sharing" target="_blank" class="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-nix-500 transition-all">
+                    <i class="fa-solid fa-table-list text-green-500"></i> Open Source Keys Sheet <i class="fa-solid fa-arrow-up-right-from-square text-[9px]"></i>
+                </a>
+            </div>
+        </aside>
+
+        <!-- Main Workspace Area -->
+        <main class="flex-1 flex flex-col h-full bg-slate-950 relative overflow-hidden">
+            
+            <!-- Navbar Header -->
+            <header class="h-16 border-b border-slate-800 flex items-center justify-between px-4 lg:px-8 bg-slate-900/40 backdrop-blur-md">
+                <div class="flex items-center gap-3">
+                    <button onclick="toggleSidebar()" class="lg:hidden p-2 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800">
+                        <i class="fa-solid fa-bars text-lg"></i>
+                    </button>
+                    <div>
+                        <h2 id="current-chat-title" class="font-bold text-slate-100 text-sm lg:text-base">New Conversation</h2>
+                        <p id="current-chat-subtitle" class="text-xs text-slate-400">Connecting you to intelligent models</p>
+                    </div>
+                </div>
+
+                <!-- Action Controls -->
+                <div class="flex items-center gap-2">
+                    <button onclick="openDiagnosticsModal()" class="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-teal-500/10 to-emerald-500/10 border border-teal-500/20 text-teal-400 hover:from-teal-500/20 hover:to-emerald-500/20 rounded-lg text-xs font-semibold transition-all" title="Test All API Keys">
+                        <i class="fa-solid fa-heart-pulse"></i> Key Diagnostics
+                    </button>
+                    <button onclick="exportChat()" class="p-2 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800/80 transition-all" title="Export Conversation">
+                        <i class="fa-solid fa-download"></i>
+                    </button>
+                    <button onclick="clearCurrentConversation()" class="p-2 text-slate-400 hover:text-red-500 rounded-lg hover:bg-slate-800/80 transition-all" title="Clear Chat">
+                        <i class="fa-solid fa-trash-can"></i>
+                    </button>
+                </div>
+            </header>
+
+            <!-- Chat Content Container -->
+            <div id="chat-scroller" class="flex-1 overflow-y-auto px-4 py-6 lg:px-12 xl:px-24 space-y-6">
+                
+                <!-- Zero State Dashboard (Intro Panel) -->
+                <div id="welcome-panel" class="max-w-3xl mx-auto text-center py-12 lg:py-24 space-y-8">
+                    <div class="space-y-3">
+                        <div class="inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-tr from-nix-500/20 to-indigo-500/10 border border-nix-500/30 text-nix-500 text-3xl mb-2 animate-pulse">
+                            <i class="fa-solid fa-cube"></i>
+                        </div>
+                        <h3 class="text-3xl font-extrabold text-slate-100 tracking-tight">Meet Nix AI Assistant</h3>
+                        <p class="text-slate-400 text-sm max-w-lg mx-auto leading-relaxed">
+                            A powerful chat assistant connected to dynamically changing keys inside your Google Sheet. Auto-rotates keys when budgets exhaust.
+                        </p>
+                    </div>
+
+                    <!-- Quickstart Grid -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl mx-auto">
+                        <div onclick="applyQuickPrompt('Write a clean JavaScript quicksort algorithm with visual explanation.')" class="p-4 bg-slate-900/40 hover:bg-slate-900/80 hover:border-nix-500 border border-slate-800/80 rounded-xl text-left cursor-pointer transition-all group">
+                            <h4 class="text-xs font-semibold text-nix-500 uppercase tracking-wider mb-1">Software Dev</h4>
+                            <p class="text-sm text-slate-300 group-hover:text-white">Implement a clean Quicksort algorithm and walk through the pivot step-by-step.</p>
+                        </div>
+                        <div onclick="applyQuickPrompt('Give me a detailed breakdown of quantum physics concepts using clean LaTeX equations.')" class="p-4 bg-slate-900/40 hover:bg-slate-900/80 hover:border-nix-500 border border-slate-800/80 rounded-xl text-left cursor-pointer transition-all group">
+                            <h4 class="text-xs font-semibold text-nix-500 uppercase tracking-wider mb-1">Physics & Math</h4>
+                            <p class="text-sm text-slate-300 group-hover:text-white">Explain Quantum entanglement using complete mathematical representations.</p>
+                        </div>
+                        <div onclick="applyQuickPrompt('Help me write an eloquent welcome speech for an innovations conference.')" class="p-4 bg-slate-900/40 hover:bg-slate-900/80 hover:border-nix-500 border border-slate-800/80 rounded-xl text-left cursor-pointer transition-all group">
+                            <h4 class="text-xs font-semibold text-nix-500 uppercase tracking-wider mb-1">Creative Writing</h4>
+                            <p class="text-sm text-slate-300 group-hover:text-white">Compose a speech emphasizing technology breakthroughs for a key community event.</p>
+                        </div>
+                        <div onclick="applyQuickPrompt('Explain the difference between SQL and NoSQL databases with a comparison table.')" class="p-4 bg-slate-900/40 hover:bg-slate-900/80 hover:border-nix-500 border border-slate-800/80 rounded-xl text-left cursor-pointer transition-all group">
+                            <h4 class="text-xs font-semibold text-nix-500 uppercase tracking-wider mb-1">Architecture</h4>
+                            <p class="text-sm text-slate-300 group-hover:text-white">Draft a neat comparison table showcasing ACID properties and scalability limits.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Active Message Stream -->
+                <div id="messages-container" class="max-w-4xl mx-auto space-y-6"></div>
+
+            </div>
+
+            <!-- Loading Indicator for AI Thinking -->
+            <div id="thinking-indicator" class="hidden max-w-4xl mx-auto w-full px-4 lg:px-12 xl:px-24 mb-3">
+                <div class="flex items-start gap-4 p-4 rounded-xl bg-slate-900/40 border border-slate-800/60">
+                    <div class="h-9 w-9 rounded-lg bg-gradient-to-tr from-nix-500 to-indigo-600 flex items-center justify-center text-white shrink-0">
+                        <i class="fa-solid fa-microchip animate-bounce"></i>
+                    </div>
+                    <div class="flex-1 space-y-2 py-1">
+                        <div class="text-xs text-nix-500 font-semibold tracking-wider uppercase">Nix is formulating response...</div>
+                        <div class="flex gap-1 items-center">
+                            <div class="h-2 w-2 bg-nix-500 rounded-full animate-bounce" style="animation-delay: 0ms;"></div>
+                            <div class="h-2 w-2 bg-nix-500 rounded-full animate-bounce" style="animation-delay: 150ms;"></div>
+                            <div class="h-2 w-2 bg-nix-500 rounded-full animate-bounce" style="animation-delay: 300ms;"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Footer Message Input Bar -->
+            <footer class="border-t border-slate-800 bg-slate-900/60 backdrop-blur-md px-4 py-4 lg:px-12 xl:px-24">
+                <div class="max-w-4xl mx-auto relative">
+                    
+                    <!-- Input Form -->
+                    <form id="chat-form" onsubmit="handleFormSubmit(event)" class="relative flex items-center bg-slate-950 border border-slate-800 focus-within:border-nix-500 rounded-xl overflow-hidden transition-all shadow-inner pl-4 pr-2.5 py-2.5">
+                        
+                        <!-- Voice speech button -->
+                        <button type="button" onclick="startVoiceInput()" id="mic-btn" class="p-2 text-slate-400 hover:text-white rounded-lg transition-all" title="Voice Input">
+                            <i class="fa-solid fa-microphone"></i>
+                        </button>
+
+                        <!-- Message textarea -->
+                        <textarea id="message-input" onkeydown="handleTextareaKeydown(event)" rows="1" class="flex-1 bg-transparent border-none text-slate-100 text-sm focus:outline-none resize-none px-3 py-1.5 placeholder-slate-500 self-center" placeholder="Send a message to Nix... (Press Shift+Enter for new line)"></textarea>
+
+                        <!-- Action panel buttons -->
+                        <div class="flex items-center gap-1.5 self-center">
+                            <button type="submit" class="h-9 w-9 rounded-lg bg-nix-600 hover:bg-nix-500 text-white flex items-center justify-center transition-all shadow-md shadow-nix-600/10">
+                                <i class="fa-solid fa-paper-plane text-xs"></i>
+                            </button>
+                        </div>
+                    </form>
+                    <div class="flex justify-between items-center px-1.5 mt-1.5 text-[10px] text-slate-500">
+                        <span>Dynamic sheet fallbacks and model selection auto-synced.</span>
+                        <span id="char-counter">0 characters</span>
+                    </div>
+                </div>
+            </footer>
+        </main>
+    </div>
+
+    <!-- API Diagnostics Modal -->
+    <div id="diagnostics-modal" class="hidden fixed inset-0 z-50 overflow-hidden" role="dialog" aria-modal="true">
+        <!-- Backdrop blur overlay -->
+        <div class="absolute inset-0 bg-slate-950/85 backdrop-blur-sm" onclick="closeDiagnosticsModal()"></div>
+        
+        <!-- Modal core container -->
+        <div class="absolute inset-y-0 right-0 w-full max-w-2xl bg-slate-900 border-l border-slate-800 shadow-2xl flex flex-col h-full transform transition-transform duration-300">
+            
+            <!-- Header panel -->
+            <div class="px-6 py-5 border-b border-slate-800 flex items-center justify-between bg-slate-950/50">
+                <div class="flex items-center gap-2.5">
+                    <div class="h-9 w-9 rounded-lg bg-teal-500/10 border border-teal-500/30 text-teal-400 flex items-center justify-center">
+                        <i class="fa-solid fa-heart-pulse"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-slate-100 text-base">Key Diagnostics Panel</h3>
+                        <p class="text-xs text-slate-400">Scan and evaluate active Google Sheet key health</p>
+                    </div>
+                </div>
+                <button onclick="closeDiagnosticsModal()" class="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <!-- Dashboard Summary Stat Cards -->
+            <div class="p-6 grid grid-cols-3 gap-4 border-b border-slate-800 bg-slate-950/20">
+                <div class="bg-slate-950/60 border border-slate-800/80 rounded-xl p-4">
+                    <div class="text-[10px] uppercase tracking-wider text-slate-400 font-semibold mb-1">Active / Verified</div>
+                    <div class="flex items-baseline gap-1.5">
+                        <span id="diag-stat-active" class="text-2xl font-extrabold text-emerald-400">0</span>
+                        <span class="text-xs text-slate-500">keys</span>
+                    </div>
+                </div>
+                <div class="bg-slate-950/60 border border-slate-800/80 rounded-xl p-4">
+                    <div class="text-[10px] uppercase tracking-wider text-slate-400 font-semibold mb-1">Failed / Dead</div>
+                    <div class="flex items-baseline gap-1.5">
+                        <span id="diag-stat-failed" class="text-2xl font-extrabold text-red-400">0</span>
+                        <span class="text-xs text-slate-500">keys</span>
+                    </div>
+                </div>
+                <div class="bg-slate-950/60 border border-slate-800/80 rounded-xl p-4">
+                    <div class="text-[10px] uppercase tracking-wider text-slate-400 font-semibold mb-1">Untested</div>
+                    <div class="flex items-baseline gap-1.5">
+                        <span id="diag-stat-untested" class="text-2xl font-extrabold text-slate-400">0</span>
+                        <span class="text-xs text-slate-500">keys</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Control Bar actions -->
+            <div class="px-6 py-4 border-b border-slate-800 flex justify-between items-center bg-slate-950/10">
+                <button id="diag-btn-test-all" onclick="testAllKeys()" class="px-4 py-2 bg-gradient-to-r from-teal-500 to-emerald-600 hover:from-teal-600 hover:to-emerald-700 text-white font-bold text-xs rounded-lg shadow-md shadow-teal-500/10 flex items-center gap-2 transition-all">
+                    <i class="fa-solid fa-play"></i> Test All Keys
+                </button>
+                <div class="flex items-center gap-2 text-xs text-slate-400">
+                    <span id="diag-progress-label">Untested</span>
+                </div>
+            </div>
+
+            <!-- Diagnostics scrollable feed list -->
+            <div class="flex-1 overflow-y-auto p-6 space-y-3" id="diagnostics-list">
+                <!-- Keys lists are populated dynamically -->
+            </div>
+
+            <!-- Footer note panel -->
+            <div class="p-4 border-t border-slate-800 bg-slate-950/50 text-center text-[10px] text-slate-500">
+                <span>Testing issues ping with a light context prompt request of max 1 token. All latencies are local roundtrip estimates.</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Script Block containing logical mechanics -->
+    <script>
+        // Config and state
+        const SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/1R0QmFOr8CEelWIseXYmcboeoOgcJnFpG8XmOiFRl5VI/export?format=csv";
+        
+        const state = {
+            keys: [], // array of objects: {key: string, model: string, budget: string, description: string, health: 'untested'|'active'|'failed'|'testing', latency: null|number}
+            activeKeyIndex: 0,
+            autoRotate: true,
+            endpoint: "https://aiapiv2.pekpik.com/v1",
+            model: "smart-chat",
+            customModel: "",
+            conversations: [],
+            activeConversationId: null,
+            isThinking: false,
+            isTestingAll: false
+        };
+
+        // DOM elements cache
+        const keySelector = document.getElementById("key-selector");
+        const autoRotateSwitch = document.getElementById("auto-rotate-switch");
+        const apiBaseInput = document.getElementById("api-base");
+        const apiModelSelector = document.getElementById("api-model");
+        const apiModelCustom = document.getElementById("api-model-custom");
+        const systemPromptTextarea = document.getElementById("system-prompt");
+        const welcomePanel = document.getElementById("welcome-panel");
+        const messagesContainer = document.getElementById("messages-container");
+        const thinkingIndicator = document.getElementById("thinking-indicator");
+        const messageInput = document.getElementById("message-input");
+        const conversationsList = document.getElementById("conversations-list");
+        const currentChatTitle = document.getElementById("current-chat-title");
+        const currentChatSubtitle = document.getElementById("current-chat-subtitle");
+        const sidebar = document.getElementById("sidebar");
+        const sheetStatus = document.getElementById("sheet-status");
+        const syncIcon = document.getElementById("sync-icon");
+        const statusPulse = document.getElementById("status-pulse");
+        const statusDot = document.getElementById("status-dot");
+        const statusText = document.getElementById("status-text");
+        const charCounter = document.getElementById("char-counter");
+
+        // Diagnostics Elements
+        const diagnosticsModal = document.getElementById("diagnostics-modal");
+        const diagnosticsList = document.getElementById("diagnostics-list");
+        const diagStatActive = document.getElementById("diag-stat-active");
+        const diagStatFailed = document.getElementById("diag-stat-failed");
+        const diagStatUntested = document.getElementById("diag-stat-untested");
+        const diagBtnTestAll = document.getElementById("diag-btn-test-all");
+        const diagProgressLabel = document.getElementById("diag-progress-label");
+
+        // Initialization
+        window.addEventListener("DOMContentLoaded", () => {
+            loadConfigFromLocalStorage();
+            loadConversations();
+            fetchAPIKeys();
+            
+            // Listen to dynamic character counts
+            messageInput.addEventListener("input", () => {
+                charCounter.textContent = `${messageInput.value.length} characters`;
+                // Auto height
+                messageInput.style.height = "auto";
+                messageInput.style.height = (messageInput.scrollHeight) + "px";
+            });
+
+            // Sync switches to reflect configuration state
+            autoRotateSwitch.addEventListener("change", (e) => {
+                state.autoRotate = e.target.checked;
+                saveConfigToLocalStorage();
+                showToast("Settings Updated", "Auto-rotation state saved.", "info");
+            });
+
+            apiBaseInput.addEventListener("change", (e) => {
+                state.endpoint = e.target.value;
+                saveConfigToLocalStorage();
+            });
+
+            apiModelCustom.addEventListener("input", (e) => {
+                state.customModel = e.target.value;
+                state.model = e.target.value;
+                saveConfigToLocalStorage();
+                updateSubtitle();
+            });
+
+            systemPromptTextarea.addEventListener("change", () => {
+                saveConfigToLocalStorage();
+            });
+        });
+
+        // Diagnostics Modal Toggles
+        function openDiagnosticsModal() {
+            diagnosticsModal.classList.remove("hidden");
+            renderDiagnosticsList();
+        }
+
+        function closeDiagnosticsModal() {
+            diagnosticsModal.classList.add("hidden");
+        }
+
+        // Model Selector handling
+        function onModelSelected() {
+            const val = apiModelSelector.value;
+            if (val === "custom") {
+                apiModelCustom.classList.remove("hidden");
+                state.model = apiModelCustom.value || "smart-chat";
+            } else {
+                apiModelCustom.classList.add("hidden");
+                state.model = val;
+            }
+            saveConfigToLocalStorage();
+            updateSubtitle();
+            showToast("Model Selected", `Nix will now communicate using: ${state.model}`, "info");
+        }
+
+        function updateSubtitle() {
+            currentChatSubtitle.textContent = `Using API model: ${state.model}`;
+        }
+
+        // Toggle Sidebar Navigation Drawer
+        function toggleSidebar() {
+            sidebar.classList.toggle("-translate-x-full");
+        }
+
+        // Display beautiful alerts via Toast Notifications
+        function showToast(title, message, type = "success") {
+            const container = document.getElementById("toast-container");
+            const toast = document.createElement("div");
+            toast.className = "flex items-start gap-3 p-4 bg-slate-900 border border-slate-800 text-slate-100 rounded-xl shadow-xl max-w-sm transition-all duration-300 transform translate-y-5 opacity-0";
+            
+            let color = "text-green-500";
+            let icon = "fa-circle-check";
+            if (type === "error") {
+                color = "text-red-500";
+                icon = "fa-circle-xmark";
+            } else if (type === "warning") {
+                color = "text-yellow-500";
+                icon = "fa-triangle-exclamation";
+            } else if (type === "info") {
+                color = "text-indigo-500";
+                icon = "fa-circle-info";
+            }
+
+            toast.innerHTML = `
+                <div class="${color} text-lg mt-0.5"><i class="fa-solid ${icon}"></i></div>
+                <div class="flex-1 space-y-1">
+                    <h4 class="text-xs font-bold font-sans">${title}</h4>
+                    <p class="text-[11px] text-slate-400 font-sans">${message}</p>
+                </div>
+                <button onclick="this.parentElement.remove()" class="text-slate-500 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+            `;
+
+            container.appendChild(toast);
+            
+            setTimeout(() => {
+                toast.classList.remove("translate-y-5", "opacity-0");
+            }, 50);
+
+            setTimeout(() => {
+                toast.classList.add("translate-y-5", "opacity-0");
+                setTimeout(() => toast.remove(), 300);
+            }, 5000);
+        }
+
+        // Fetch API keys dynamically from the Google Sheet
+        function fetchAPIKeys() {
+            syncIcon.classList.add("fa-spin");
+            statusDot.className = "relative inline-flex rounded-full h-2 w-2 bg-yellow-500";
+            statusPulse.className = "animate-ping absolute inline-flex h-full w-full rounded-full bg-yellow-400 opacity-75";
+            statusText.textContent = "Syncing Google Sheet...";
+
+            Papa.parse(SHEET_CSV_URL, {
+                download: true,
+                header: true,
+                skipEmptyLines: true,
+                complete: function(results) {
+                    syncIcon.classList.remove("fa-spin");
+                    
+                    const extractedKeys = [];
+                    results.data.forEach(row => {
+                        const keyValue = row["API"] || Object.values(row)[0];
+                        const modelValue = row["Model"] || row["model"] || "smart-chat";
+                        const budgetVal = row["Budget"] || row["budget"] || "N/A";
+                        const descVal = row["Description"] || row["description"] || "N/A";
+                        
+                        if (keyValue && keyValue.trim().startsWith("sk-")) {
+                            extractedKeys.push({
+                                key: keyValue.trim(),
+                                model: modelValue.trim(),
+                                budget: budgetVal.trim(),
+                                description: descVal.trim(),
+                                health: 'untested',
+                                latency: null
+                            });
+                        }
+                    });
+
+                    if (extractedKeys.length > 0) {
+                        state.keys = extractedKeys;
+                        updateKeySelectorUI();
+                        populateModelsDropdown();
+                        
+                        // Successfully loaded keys
+                        statusDot.className = "relative inline-flex rounded-full h-2 w-2 bg-green-500";
+                        statusPulse.className = "absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75 animate-pulse";
+                        statusText.textContent = `${state.keys.length} API Keys loaded successfully.`;
+                        
+                        showToast("Sheet Synchronized", `Successfully extracted ${state.keys.length} keys and models from sheet!`, "success");
+                        saveConfigToLocalStorage();
+                    } else {
+                        statusDot.className = "relative inline-flex rounded-full h-2 w-2 bg-red-500";
+                        statusPulse.className = "";
+                        statusText.textContent = "No valid 'sk-' keys found in sheet.";
+                        showToast("No Keys Found", "Did not find any rows starting with 'sk-'. Check column naming.", "warning");
+                    }
+                },
+                error: function(err) {
+                    syncIcon.classList.remove("fa-spin");
+                    statusDot.className = "relative inline-flex rounded-full h-2 w-2 bg-red-500";
+                    statusPulse.className = "";
+                    statusText.textContent = "Sync Error. Click Sync to try again.";
+                    
+                    showToast("Sync Failed", "Could not reach Google Sheets. Ensure sheet is published & link is correct.", "error");
+                    console.error("PapaParse error: ", err);
+                }
+            });
+        }
+
+        // Dynamically build model listing from unique keys
+        function populateModelsDropdown() {
+            const uniqueModels = new Set();
+            state.keys.forEach(k => uniqueModels.add(k.model));
+            
+            // Re-populate apiModelSelector
+            apiModelSelector.innerHTML = "";
+            uniqueModels.forEach(m => {
+                const opt = document.createElement("option");
+                opt.value = m;
+                opt.textContent = m;
+                apiModelSelector.appendChild(opt);
+            });
+            
+            // Add custom choice
+            const optCustom = document.createElement("option");
+            optCustom.value = "custom";
+            optCustom.textContent = "-- Enter Custom Model --";
+            apiModelSelector.appendChild(optCustom);
+
+            // Restore selection if matching
+            if (uniqueModels.has(state.model)) {
+                apiModelSelector.value = state.model;
+            } else {
+                apiModelSelector.value = "custom";
+                apiModelCustom.classList.remove("hidden");
+                apiModelCustom.value = state.model;
+            }
+        }
+
+        // Update the key dropdown list
+        function updateKeySelectorUI() {
+            keySelector.innerHTML = "";
+            state.keys.forEach((keyObj, index) => {
+                const option = document.createElement("option");
+                option.value = index;
+                // Mask the key for visual security
+                const masked = keyObj.key.substring(0, 7) + "..." + keyObj.key.substring(keyObj.key.length - 6);
+                option.textContent = `[Key ${index + 1}] (${keyObj.model}) ${masked}`;
+                keySelector.appendChild(option);
+            });
+            keySelector.value = state.activeKeyIndex;
+        }
+
+        // When user manually picks an API key from the dropdown
+        function onKeySelected() {
+            state.activeKeyIndex = parseInt(keySelector.value);
+            const selectedKey = state.keys[state.activeKeyIndex];
+            if (selectedKey) {
+                // Auto-tune the model selector to the parsed model
+                state.model = selectedKey.model;
+                if (Array.from(apiModelSelector.options).some(o => o.value === selectedKey.model)) {
+                    apiModelSelector.value = selectedKey.model;
+                    apiModelCustom.classList.add("hidden");
+                } else {
+                    apiModelSelector.value = "custom";
+                    apiModelCustom.classList.remove("hidden");
+                    apiModelCustom.value = selectedKey.model;
+                }
+                updateSubtitle();
+            }
+            saveConfigToLocalStorage();
+            showToast("Active Key Changed", `Switched to Key ${state.activeKeyIndex + 1} (${state.model})`, "info");
+        }
+
+        // Render Diagnostics Suite lists and updates stats counters
+        function renderDiagnosticsList() {
+            diagnosticsList.innerHTML = "";
+            
+            let activeCount = 0;
+            let failedCount = 0;
+            let untestedCount = 0;
+
+            state.keys.forEach((keyObj, index) => {
+                if (keyObj.health === 'active') activeCount++;
+                else if (keyObj.health === 'failed') failedCount++;
+                else untestedCount++;
+
+                const keyCard = document.createElement("div");
+                keyCard.className = "flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 bg-slate-950/40 hover:bg-slate-950/80 border border-slate-800 rounded-xl transition-all gap-4";
+                
+                let badgeHTML = "";
+                if (keyObj.health === 'active') {
+                    badgeHTML = `<span class="px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-bold text-[10px]">🟢 ACTIVE</span>`;
+                } else if (keyObj.health === 'failed') {
+                    badgeHTML = `<span class="px-2 py-0.5 rounded bg-red-500/10 border border-red-500/30 text-red-400 font-bold text-[10px]">🔴 FAILED</span>`;
+                } else if (keyObj.health === 'testing') {
+                    badgeHTML = `<span class="px-2 py-0.5 rounded bg-blue-500/10 border border-blue-500/30 text-blue-400 font-bold text-[10px] animate-pulse">⚡ TESTING</span>`;
+                } else {
+                    badgeHTML = `<span class="px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-400 font-bold text-[10px]">⚪ UNTESTED</span>`;
+                }
+
+                const maskedKey = keyObj.key.substring(0, 10) + "..." + keyObj.key.substring(keyObj.key.length - 8);
+
+                keyCard.innerHTML = `
+                    <div class="flex-1 space-y-1 overflow-hidden min-w-0">
+                        <div class="flex items-center gap-2.5">
+                            <span class="text-xs font-bold text-slate-200">Key ${index + 1}</span>
+                            <span class="text-[11px] font-mono text-slate-500 truncate" title="${keyObj.key}">${maskedKey}</span>
+                            ${badgeHTML}
+                        </div>
+                        <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-slate-400">
+                            <span><i class="fa-solid fa-brain text-slate-500"></i> ${keyObj.model}</span>
+                            <span><i class="fa-solid fa-coins text-slate-500"></i> Budget: ${keyObj.budget}</span>
+                            ${keyObj.latency ? `<span><i class="fa-regular fa-clock text-slate-500"></i> ${keyObj.latency}ms</span>` : ''}
+                        </div>
+                        <div class="text-[10px] text-slate-500 truncate italic">${keyObj.description}</div>
+                    </div>
+                    <button onclick="testIndividualKey(${index})" class="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-lg border border-slate-700/60 transition-all self-stretch sm:self-center">
+                        Test Key
+                    </button>
+                `;
+                diagnosticsList.appendChild(keyCard);
+            });
+
+            // Sync Header Statistics Summary Counts
+            diagStatActive.textContent = activeCount;
+            diagStatFailed.textContent = failedCount;
+            diagStatUntested.textContent = untestedCount;
+        }
+
+        // Test an individual key manually
+        async function testIndividualKey(index) {
+            const keyObj = state.keys[index];
+            if (!keyObj) return;
+
+            keyObj.health = 'testing';
+            renderDiagnosticsList();
+
+            const startTime = performance.now();
+            try {
+                const response = await fetch(`${state.endpoint.replace(/\/$/, "")}/chat/completions`, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Authorization": `Bearer ${keyObj.key}`
+                    },
+                    body: JSON.stringify({
+                        model: keyObj.model,
+                        messages: [{ role: "user", content: "ping" }],
+                        max_tokens: 1
+                    })
+                });
+
+                const latency = Math.round(performance.now() - startTime);
+                keyObj.latency = latency;
+
+                if (response.status === 200) {
+                    keyObj.health = 'active';
+                    showToast(`Key ${index + 1} Active`, `Ping success in ${latency}ms!`, "success");
+                } else {
+                    keyObj.health = 'failed';
+                    showToast(`Key ${index + 1} Error`, `Status code returned: ${response.status}`, "error");
+                }
+            } catch(err) {
+                keyObj.health = 'failed';
+                keyObj.latency = null;
+                showToast(`Key ${index + 1} Offline`, "Network error or invalid server address.", "error");
+            }
+
+            renderDiagnosticsList();
+        }
+
+        // Run batch health checks across all keys sequentially
+        async function testAllKeys() {
+            if (state.isTestingAll || state.keys.length === 0) return;
+            state.isTestingAll = true;
+
+            diagBtnTestAll.disabled = true;
+            diagBtnTestAll.classList.add("opacity-50", "cursor-not-allowed");
+            diagBtnTestAll.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Diagnostics Running...`;
+
+            for (let i = 0; i < state.keys.length; i++) {
+                diagProgressLabel.textContent = `Testing Key ${i + 1} of ${state.keys.length}...`;
+                // Jump screen scroll directly to testing card
+                await testIndividualKey(i);
+            }
+
+            diagProgressLabel.textContent = "Diagnostic Run Completed";
+            diagBtnTestAll.disabled = false;
+            diagBtnTestAll.classList.remove("opacity-50", "cursor-not-allowed");
+            diagBtnTestAll.innerHTML = `<i class="fa-solid fa-play"></i> Test All Keys`;
+            state.isTestingAll = false;
+
+            showToast("Diagnostics Completed", "Check status counts of each model key above.", "success");
+        }
+
+        // Apply a predefined quick question prompt card
+        function applyQuickPrompt(text) {
+            messageInput.value = text;
+            messageInput.focus();
+            charCounter.textContent = `${text.length} characters`;
+        }
+
+        // LocalStorage Config Saving
+        function saveConfigToLocalStorage() {
+            localStorage.setItem("nix_state_config_v2", JSON.stringify({
+                activeKeyIndex: state.activeKeyIndex,
+                autoRotate: state.autoRotate,
+                endpoint: apiBaseInput.value,
+                model: state.model,
+                customModel: state.customModel,
+                systemPrompt: systemPromptTextarea.value,
+                keys: state.keys
+            }));
+        }
+
+        function loadConfigFromLocalStorage() {
+            const saved = localStorage.getItem("nix_state_config_v2");
+            if (saved) {
+                try {
+                    const parsed = JSON.parse(saved);
+                    state.activeKeyIndex = parsed.activeKeyIndex || 0;
+                    state.autoRotate = parsed.autoRotate !== undefined ? parsed.autoRotate : true;
+                    apiBaseInput.value = parsed.endpoint || "https://aiapiv2.pekpik.com/v1";
+                    state.model = parsed.model || "smart-chat";
+                    state.customModel = parsed.customModel || "";
+                    systemPromptTextarea.value = parsed.systemPrompt || "You are Nix, a highly intelligent AI assistant...";
+                    if (parsed.keys && parsed.keys.length > 0) {
+                        state.keys = parsed.keys;
+                        updateKeySelectorUI();
+                        populateModelsDropdown();
+                    }
+                    autoRotateSwitch.checked = state.autoRotate;
+                    updateSubtitle();
+                } catch(e) {
+                    console.error("Failed loading configurations.", e);
+                }
+            }
+        }
+
+        // Conversation management
+        function loadConversations() {
+            const saved = localStorage.getItem("nix_conversations");
+            if (saved) {
+                try {
+                    state.conversations = JSON.parse(saved);
+                } catch(e) {
+                    state.conversations = [];
+                }
+            }
+            if (state.conversations.length === 0) {
+                createNewConversation();
+            } else {
+                state.activeConversationId = state.conversations[0].id;
+                renderConversationsList();
+                renderCurrentMessages();
+            }
+        }
+
+        function saveConversations() {
+            localStorage.setItem("nix_conversations", JSON.stringify(state.conversations));
+            renderConversationsList();
+        }
+
+        function createNewConversation() {
+            const newId = Date.now().toString();
+            const newConv = {
+                id: newId,
+                title: `Chat Session ${state.conversations.length + 1}`,
+                timestamp: new Date().toLocaleDateString(),
+                messages: []
+            };
+            state.conversations.unshift(newConv);
+            state.activeConversationId = newId;
+            saveConversations();
+            renderCurrentMessages();
+            messageInput.value = "";
+            messageInput.focus();
+        }
+
+        function selectConversation(id) {
+            state.activeConversationId = id;
+            renderCurrentMessages();
+            renderConversationsList();
+            toggleSidebar();
+        }
+
+        function deleteConversation(id, event) {
+            event.stopPropagation();
+            state.conversations = state.conversations.filter(c => c.id !== id);
+            if (state.conversations.length === 0) {
+                createNewConversation();
+            } else if (state.activeConversationId === id) {
+                state.activeConversationId = state.conversations[0].id;
+            }
+            saveConversations();
+            renderCurrentMessages();
+        }
+
+        // Render Sidebar Conversations Feed list
+        function renderConversationsList() {
+            conversationsList.innerHTML = "";
+            state.conversations.forEach(conv => {
+                const isActive = conv.id === state.activeConversationId;
+                const item = document.createElement("div");
+                item.className = `group flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer transition-all ${isActive ? 'bg-nix-600/20 border border-nix-500/30 text-white font-semibold' : 'hover:bg-slate-800/60 text-slate-300 hover:text-white'}`;
+                item.onclick = () => selectConversation(conv.id);
+                
+                item.innerHTML = `
+                    <div class="flex items-center gap-2.5 overflow-hidden w-full">
+                        <i class="fa-regular fa-comment text-slate-400 shrink-0"></i>
+                        <span class="truncate text-xs">${conv.title}</span>
+                    </div>
+                    <button onclick="deleteConversation('${conv.id}', event)" class="opacity-0 group-hover:opacity-100 p-1 hover:text-red-400 rounded transition-all shrink-0">
+                        <i class="fa-regular fa-trash-can text-xs"></i>
+                    </button>
+                `;
+                conversationsList.appendChild(item);
+            });
+        }
+
+        // Render messages inside the current active chat workspace
+        function renderCurrentMessages() {
+            const current = state.conversations.find(c => c.id === state.activeConversationId);
+            if (!current) return;
+
+            // Set Header Titles
+            currentChatTitle.textContent = current.title;
+            updateSubtitle();
+
+            if (current.messages.length === 0) {
+                welcomePanel.classList.remove("hidden");
+                messagesContainer.innerHTML = "";
+                return;
+            }
+
+            welcomePanel.classList.add("hidden");
+            messagesContainer.innerHTML = "";
+
+            current.messages.forEach((msg, idx) => {
+                const isUser = msg.role === "user";
+                const row = document.createElement("div");
+                row.className = `flex gap-4 items-start p-5 rounded-2xl transition-all message-fade ${isUser ? 'bg-slate-900/60 border border-slate-800/40' : 'bg-slate-900/35 border border-slate-800/10'}`;
+                
+                let avatarHTML = `
+                    <div class="h-9 w-9 rounded-lg bg-gradient-to-tr from-nix-500 to-indigo-600 flex items-center justify-center text-white shrink-0">
+                        <i class="fa-solid fa-cube text-xs"></i>
+                    </div>
+                `;
+                if (isUser) {
+                    avatarHTML = `
+                        <div class="h-9 w-9 rounded-lg bg-slate-700 flex items-center justify-center text-slate-300 shrink-0 border border-slate-600">
+                            <i class="fa-regular fa-user text-xs"></i>
+                        </div>
+                    `;
+                }
+
+                let textRendered = msg.content;
+                if (!isUser) {
+                    textRendered = marked.parse(msg.content);
+                } else {
+                    const tempDiv = document.createElement("div");
+                    tempDiv.textContent = msg.content;
+                    textRendered = `<p class="whitespace-pre-wrap">${tempDiv.innerHTML}</p>`;
+                }
+
+                row.innerHTML = `
+                    ${avatarHTML}
+                    <div class="flex-1 overflow-hidden">
+                        <div class="flex items-center justify-between mb-1.5">
+                            <span class="text-xs font-bold tracking-wide uppercase ${isUser ? 'text-slate-300' : 'text-nix-500'}">
+                                ${isUser ? 'You' : 'Nix'}
+                            </span>
+                            
+                            <div class="flex items-center gap-1 opacity-60 hover:opacity-100 transition-opacity">
+                                <button onclick="copyMessageText('${idx}')" class="p-1 hover:text-white text-slate-400 rounded hover:bg-slate-800" title="Copy to clipboard">
+                                    <i class="fa-regular fa-copy text-xs"></i>
+                                </button>
+                                ${!isUser ? `
+                                <button onclick="speakResponse('${idx}')" class="p-1 hover:text-white text-slate-400 rounded hover:bg-slate-800" title="Read aloud">
+                                    <i class="fa-solid fa-volume-high text-xs"></i>
+                                </button>
+                                ` : ''}
+                            </div>
+                        </div>
+                        <div class="markdown-body text-slate-200 text-sm leading-relaxed">${textRendered}</div>
+                    </div>
+                `;
+                messagesContainer.appendChild(row);
+            });
+
+            document.querySelectorAll('pre code').forEach((block) => {
+                hljs.highlightElement(block);
+            });
+
+            renderMathInElement(messagesContainer, {
+                delimiters: [
+                    {left: '$$', right: '$$', display: true},
+                    {left: '$', right: '$', display: false},
+                    {left: '\\(', right: '\\)', display: false},
+                    {left: '\\[', right: '\\]', display: true}
+                ],
+                throwOnError: false
+            });
+
+            setTimeout(scrollChatToBottom, 100);
+        }
+
+        function scrollChatToBottom() {
+            const scroller = document.getElementById("chat-scroller");
+            scroller.scrollTo({
+                top: scroller.scrollHeight,
+                behavior: 'smooth'
+            });
+        }
+
+        function copyMessageText(index) {
+            const current = state.conversations.find(c => c.id === state.activeConversationId);
+            if (!current) return;
+            const msg = current.messages[index];
+            if (!msg) return;
+
+            const textarea = document.createElement("textarea");
+            textarea.value = msg.content;
+            textarea.style.position = "fixed";
+            document.body.appendChild(textarea);
+            textarea.select();
+            try {
+                document.execCommand('copy');
+                showToast("Copied", "Message successfully copied to clipboard.", "success");
+            } catch (err) {
+                showToast("Copy Failed", "Unable to copy message.", "error");
+            }
+            document.body.removeChild(textarea);
+        }
+
+        function speakResponse(index) {
+            const current = state.conversations.find(c => c.id === state.activeConversationId);
+            if (!current) return;
+            const msg = current.messages[index];
+            if (!msg) return;
+
+            if (window.speechSynthesis.speaking) {
+                window.speechSynthesis.cancel();
+                showToast("Voice Halted", "Text-to-speech rendering stopped.", "info");
+                return;
+            }
+
+            const cleanText = msg.content
+                .replace(/#+\s+/g, '')
+                .replace(/\*+/g, '')
+                .replace(/`{3}[\s\S]*?`{3}/g, '[Code block skipped]')
+                .replace(/`[^`]+`/g, '');
+
+            const utterance = new SpeechSynthesisUtterance(cleanText);
+            window.speechSynthesis.speak(utterance);
+            showToast("Playing Voice", "Text-to-speech rendering active.", "success");
+        }
+
+        function handleFormSubmit(event) {
+            if (event) event.preventDefault();
+            sendMessage();
+        }
+
+        function handleTextareaKeydown(event) {
+            if (event.key === "Enter" && !event.shiftKey) {
+                event.preventDefault();
+                sendMessage();
+            }
+        }
+
+        async function sendMessage() {
+            const text = messageInput.value.trim();
+            if (!text || state.isThinking) return;
+
+            const current = state.conversations.find(c => c.id === state.activeConversationId);
+            if (!current) return;
+
+            messageInput.value = "";
+            messageInput.style.height = "auto";
+            charCounter.textContent = "0 characters";
+
+            if (current.messages.length === 0) {
+                current.title = text.length > 25 ? text.substring(0, 25) + "..." : text;
+            }
+
+            current.messages.push({
+                role: "user",
+                content: text
+            });
+
+            saveConversations();
+            renderCurrentMessages();
+
+            state.isThinking = true;
+            thinkingIndicator.classList.remove("hidden");
+            scrollChatToBottom();
+
+            const payloadMessages = [
+                { role: "system", content: systemPromptTextarea.value }
+            ];
+            
+            const lastMessages = current.messages.slice(-15);
+            lastMessages.forEach(m => {
+                payloadMessages.push({ role: m.role, content: m.content });
+            });
+
+            try {
+                const aiResponseContent = await dispatchAPIRequestWithRotations(payloadMessages);
+                current.messages.push({
+                    role: "assistant",
+                    content: aiResponseContent
+                });
+                saveConversations();
+            } catch (err) {
+                current.messages.push({
+                    role: "assistant",
+                    content: `❌ **Service Connection Error:**\n\n${err.message}\n\nPlease verify that your keys inside the Google Sheet are valid and active, and check your Settings for the correct Base URL & model names.`
+                });
+                saveConversations();
+            } finally {
+                state.isThinking = false;
+                thinkingIndicator.classList.add("hidden");
+                renderCurrentMessages();
+            }
+        }
+
+        async function dispatchAPIRequestWithRotations(messagesPayload) {
+            if (state.keys.length === 0) {
+                throw new Error("No API keys found. Please sync keys from the Google Sheet first.");
+            }
+
+            let attemptCount = 0;
+            const maxAttempts = state.autoRotate ? state.keys.length : 1;
+
+            while (attemptCount < maxAttempts) {
+                const currentKeyObj = state.keys[state.activeKeyIndex];
+                const activeKey = currentKeyObj.key;
+                
+                // Prioritize active parsed key model if using auto-rotate and configured in sheet
+                const requestModel = state.autoRotate ? currentKeyObj.model : state.model;
+
+                try {
+                    const response = await fetch(`${state.endpoint.replace(/\/$/, "")}/chat/completions`, {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                            "Authorization": `Bearer ${activeKey}`
+                        },
+                        body: JSON.stringify({
+                            model: requestModel,
+                            messages: messagesPayload,
+                            temperature: 0.7,
+                            max_tokens: 2000
+                        })
+                    });
+
+                    if (response.status === 200) {
+                        const data = await response.json();
+                        const answer = data.choices?.[0]?.message?.content;
+                        if (answer) return answer;
+                        throw new Error("Empty or malformed payload returned from the active model endpoint.");
+                    }
+
+                    if (response.status === 401 || response.status === 429 || response.status === 403) {
+                        const errData = await response.json().catch(() => ({}));
+                        const errMsg = errData.error?.message || response.statusText;
+                        
+                        console.warn(`Key Index ${state.activeKeyIndex} failed: Status ${response.status} - ${errMsg}`);
+                        
+                        if (state.autoRotate && state.keys.length > 1) {
+                            const failedKeyNum = state.activeKeyIndex + 1;
+                            state.activeKeyIndex = (state.activeKeyIndex + 1) % state.keys.length;
+                            
+                            // Auto-set the model to the newly rotated key's recommended model
+                            state.model = state.keys[state.activeKeyIndex].model;
+                            
+                            saveConfigToLocalStorage();
+                            updateKeySelectorUI();
+                            populateModelsDropdown();
+                            updateSubtitle();
+
+                            showToast("API Rotation Triggered", `Key ${failedKeyNum} failed (Code ${response.status}). Automatically fell back to Key ${state.activeKeyIndex + 1} (${state.model}).`, "warning");
+                            attemptCount++;
+                            continue;
+                        } else {
+                            throw new Error(`Key ${state.activeKeyIndex + 1} returned status: ${response.status} (${errMsg}).`);
+                        }
+                    }
+
+                    throw new Error(`Endpoint returned status code: ${response.status}.`);
+                } catch (e) {
+                    if (state.autoRotate && state.keys.length > 1 && attemptCount < maxAttempts - 1) {
+                        const failedKeyNum = state.activeKeyIndex + 1;
+                        state.activeKeyIndex = (state.activeKeyIndex + 1) % state.keys.length;
+                        state.model = state.keys[state.activeKeyIndex].model;
+                        
+                        saveConfigToLocalStorage();
+                        updateKeySelectorUI();
+                        populateModelsDropdown();
+                        updateSubtitle();
+                        
+                        showToast("API Fallback Applied", `Network error with Key ${failedKeyNum}. Trying Key ${state.activeKeyIndex + 1} (${state.model})...`, "warning");
+                        attemptCount++;
+                    } else {
+                        throw new Error(e.message || "Network exception encountered while connecting to AI Server.");
+                    }
+                }
+            }
+
+            throw new Error("All synced API keys in your Google Sheet have failed or run out of quota usage.");
+        }
+
+        function startVoiceInput() {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!SpeechRecognition) {
+                showToast("Unsupported Browser", "Speech recognition is not supported on your browser.", "error");
+                return;
+            }
+
+            const micBtn = document.getElementById("mic-btn");
+            const recognition = new SpeechRecognition();
+            recognition.continuous = false;
+            recognition.lang = 'en-US';
+
+            recognition.onstart = () => {
+                micBtn.classList.add("text-red-500", "animate-ping");
+                showToast("Listening...", "Speak clearly into your microphone.", "info");
+            };
+
+            recognition.onerror = (e) => {
+                micBtn.classList.remove("text-red-500", "animate-ping");
+                showToast("Voice capture error", "Did not catch any speech elements.", "warning");
+                console.error(e);
+            };
+
+            recognition.onend = () => {
+                micBtn.classList.remove("text-red-500", "animate-ping");
+            };
+
+            recognition.onresult = (event) => {
+                const speechToText = event.results[0][0].transcript;
+                messageInput.value = (messageInput.value + " " + speechToText).trim();
+                charCounter.textContent = `${messageInput.value.length} characters`;
+                messageInput.focus();
+            };
+
+            recognition.start();
+        }
+
+        function clearCurrentConversation() {
+            const current = state.conversations.find(c => c.id === state.activeConversationId);
+            if (!current) return;
+            current.messages = [];
+            current.title = "Cleared Chat Session";
+            saveConversations();
+            renderCurrentMessages();
+            showToast("Cleared", "Conversation logs have been successfully cleared.", "success");
+        }
+
+        function exportChat() {
+            const current = state.conversations.find(c => c.id === state.activeConversationId);
+            if (!current || current.messages.length === 0) {
+                showToast("Empty Session", "No content to export.", "warning");
+                return;
+            }
+
+            let markdownExport = `# Nix AI Assistant: Chat Export\nSession Title: ${current.title}\nDate: ${current.timestamp}\n\n---\n\n`;
+            
+            current.messages.forEach(msg => {
+                const speaker = msg.role === "user" ? "YOU" : "NIX";
+                markdownExport += `### [${speaker}]\n${msg.content}\n\n`;
+            });
+
+            const blob = new Blob([markdownExport], { type: "text/markdown;charset=utf-8;" });
+            const link = document.createElement("a");
+            link.href = URL.createObjectURL(blob);
+            link.setAttribute("download", `${current.title.replace(/\s+/g, "_")}_export.md`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            showToast("Export Complete", "Markdown chat history successfully downloaded.", "success");
+        }
+    </script>
+</body>
+</html>
