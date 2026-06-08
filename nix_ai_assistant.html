@@ -6,56 +6,59 @@
     <title>Nix AI Professional</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/papa-parse@5.4.1/papaparse.min.js"></script>
     <style>
-        body { font-family: 'Inter', sans-serif; }
+        body { font-family: 'Inter', system-ui, -apple-system, sans-serif; }
+        .purple-gradient { background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); }
     </style>
 </head>
-<body class="h-full bg-slate-50 text-slate-900 flex flex-col font-sans overflow-hidden">
+<body class="h-full bg-slate-950 text-slate-200 flex flex-col font-sans overflow-hidden">
 
-    <!-- Admin Overlay (Hidden by Default) -->
-    <div id="admin-panel" class="hidden fixed inset-0 z-[100] bg-slate-950/90 p-10 overflow-y-auto">
-        <div class="max-w-4xl mx-auto bg-white rounded-2xl p-8 shadow-2xl">
-            <h2 class="text-2xl font-bold mb-6 text-slate-800">System Administrator Console</h2>
+    <!-- Hidden Admin Console -->
+    <div id="admin-panel" class="hidden fixed inset-0 z-[100] bg-slate-950/95 flex items-center justify-center p-6">
+        <div class="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-2xl p-8 shadow-2xl">
+            <h2 class="text-xl font-bold mb-6 text-white">System Configuration</h2>
             <div class="space-y-4">
-                <div>
-                    <label class="block text-sm font-semibold mb-1">Sheet CSV URL:</label>
-                    <input type="text" id="admin-sheet-url" class="w-full border rounded-lg p-2 bg-slate-50">
+                <input type="text" id="admin-sheet-url" placeholder="Google Sheet CSV URL" 
+                       class="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-sm focus:outline-none focus:border-purple-500">
+                <div class="flex gap-3">
+                    <button onclick="syncSystem()" class="flex-1 bg-purple-600 hover:bg-purple-700 text-white py-2 rounded-lg font-semibold transition-colors">Sync & Test</button>
+                    <button onclick="document.getElementById('admin-panel').classList.add('hidden')" class="bg-slate-800 hover:bg-slate-700 px-6 py-2 rounded-lg">Close</button>
                 </div>
-                <div class="flex gap-4">
-                    <button onclick="fetchAPIKeys()" class="bg-indigo-600 text-white px-4 py-2 rounded-lg font-bold">Sync Keys</button>
-                    <button onclick="document.getElementById('admin-panel').classList.add('hidden')" class="bg-slate-200 px-4 py-2 rounded-lg">Close</button>
-                </div>
-                <div id="admin-list" class="mt-6 border-t pt-4 text-xs font-mono space-y-1"></div>
+                <div id="admin-status" class="mt-4 text-xs font-mono text-slate-400"></div>
             </div>
         </div>
     </div>
 
-    <!-- Main Workspace -->
+    <!-- Layout -->
     <div class="flex h-full w-full">
-        <aside class="w-64 bg-slate-900 text-slate-300 p-6 flex flex-col">
-            <div onclick="checkAdminTrigger()" class="cursor-pointer flex items-center gap-3 mb-10">
-                <div class="h-8 w-8 rounded-full bg-indigo-500 flex items-center justify-center">
-                    <i class="fa-solid fa-robot text-white text-sm"></i>
+        <aside class="w-64 bg-black border-r border-slate-900 flex flex-col p-6">
+            <div onclick="triggerAdmin()" class="cursor-pointer flex items-center gap-3 mb-10 group">
+                <div class="h-9 w-9 rounded-xl purple-gradient flex items-center justify-center">
+                    <i class="fa-solid fa-sparkles text-white"></i>
                 </div>
-                <h1 class="text-white font-bold tracking-wide">Nix AI</h1>
+                <h1 class="text-white font-bold text-lg tracking-tight">Nix AI</h1>
             </div>
             <nav class="flex-1 space-y-2">
-                <a href="#" class="block py-2 px-3 rounded-lg bg-indigo-600/20 text-indigo-400 font-medium">New Chat</a>
+                <button class="w-full text-left py-2.5 px-4 rounded-lg bg-purple-900/20 text-purple-400 font-medium border border-purple-500/20">
+                    <i class="fa-solid fa-plus mr-2 text-xs"></i> New Conversation
+                </button>
             </nav>
         </aside>
 
-        <main class="flex-1 flex flex-col bg-white">
-            <div id="chat-scroller" class="flex-1 overflow-y-auto p-12 space-y-6">
-                <div id="messages-container" class="max-w-3xl mx-auto space-y-6"></div>
+        <main class="flex-1 flex flex-col bg-slate-950">
+            <div id="chat-container" class="flex-1 overflow-y-auto p-8 md:p-12 space-y-8">
+                <div id="messages" class="max-w-3xl mx-auto space-y-6"></div>
             </div>
             
-            <footer class="p-6 border-t">
+            <footer class="p-6">
                 <div class="max-w-3xl mx-auto">
-                    <form id="chat-form" onsubmit="handleFormSubmit(event)" class="flex items-center gap-3 border rounded-full px-5 py-3 shadow-sm hover:shadow-md transition-shadow">
-                        <input id="message-input" type="text" placeholder="How can I help you today?" class="flex-1 outline-none text-sm">
-                        <button type="submit" class="bg-indigo-600 text-white px-5 py-2 rounded-full text-sm font-bold">Send</button>
+                    <form id="chat-form" onsubmit="sendMessage(event)" class="relative flex items-center">
+                        <input id="prompt" type="text" placeholder="Message Nix AI..." 
+                               class="w-full bg-slate-900 border border-slate-800 rounded-2xl pl-6 pr-14 py-4 text-sm focus:outline-none focus:border-purple-500 shadow-xl transition-all">
+                        <button type="submit" class="absolute right-3 h-9 w-9 flex items-center justify-center rounded-xl purple-gradient text-white">
+                            <i class="fa-solid fa-arrow-up text-xs"></i>
+                        </button>
                     </form>
                 </div>
             </footer>
@@ -63,49 +66,48 @@
     </div>
 
     <script>
-        let adminClicks = 0;
-        const state = { keys: [], endpoint: "https://aiapiv2.pekpik.com/v1", model: "smart-chat", activeKeyIndex: 0 };
-        
-        function checkAdminTrigger() {
-            adminClicks++;
-            if (adminClicks >= 5) {
-                document.getElementById('admin-panel').classList.remove('hidden');
-                adminClicks = 0;
-            }
+        let clicks = 0;
+        let config = { keys: [], endpoint: "https://aiapiv2.pekpik.com/v1", currentIdx: 0 };
+
+        function triggerAdmin() {
+            if (++clicks >= 5) { document.getElementById('admin-panel').classList.remove('hidden'); clicks = 0; }
         }
 
-        async function fetchAPIKeys() {
-            const url = document.getElementById('admin-sheet-url').value || "https://docs.google.com/spreadsheets/d/1R0QmFOr8CEelWIseXYmcboeoOgcJnFpG8XmOiFRl5VI/export?format=csv";
-            Papa.parse(url, {
+        async function syncSystem() {
+            const url = document.getElementById('admin-sheet-url').value;
+            Papa.parse(url || "https://docs.google.com/spreadsheets/d/1R0QmFOr8CEelWIseXYmcboeoOgcJnFpG8XmOiFRl5VI/export?format=csv", {
                 download: true, header: true, complete: (res) => {
-                    state.keys = res.data.filter(r => r.API?.startsWith("sk-")).map(r => ({key: r.API, model: r.Model}));
-                    document.getElementById('admin-list').textContent = `Loaded ${state.keys.length} keys securely.`;
+                    config.keys = res.data.filter(r => r.API?.startsWith("sk-"));
+                    document.getElementById('admin-status').textContent = `System Synced: ${config.keys.length} models ready.`;
                 }
             });
         }
 
-        async function handleFormSubmit(e) {
+        async function sendMessage(e) {
             e.preventDefault();
-            const input = document.getElementById('message-input');
-            const container = document.getElementById('messages-container');
-            if(!input.value) return;
+            const input = document.getElementById('prompt');
+            const msgs = document.getElementById('messages');
+            if(!input.value || config.keys.length === 0) return;
 
-            // Render User
-            container.innerHTML += `<div class="text-right"><span class="bg-slate-100 p-3 rounded-2xl text-sm">${input.value}</span></div>`;
-            
-            const userMsg = input.value;
+            msgs.innerHTML += `<div class="text-right text-sm text-slate-300">${input.value}</div>`;
+            const payload = input.value;
             input.value = '';
 
-            try {
-                const res = await fetch(`${state.endpoint}/chat/completions`, {
-                    method: 'POST',
-                    headers: { 'Authorization': `Bearer ${state.keys[state.activeKeyIndex].key}`, 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ model: state.keys[state.activeKeyIndex].model, messages: [{role: 'user', content: userMsg}] })
-                });
-                const data = await res.json();
-                container.innerHTML += `<div class="text-left"><span class="bg-indigo-50 p-3 rounded-2xl text-sm">${data.choices[0].message.content}</span></div>`;
-            } catch(err) {
-                container.innerHTML += `<div class="text-left text-red-500 text-sm">Service temporarily unavailable.</div>`;
+            let success = false;
+            while(config.currentIdx < config.keys.length && !success) {
+                try {
+                    const keyObj = config.keys[config.currentIdx];
+                    const res = await fetch(`${config.endpoint}/chat/completions`, {
+                        method: 'POST',
+                        headers: { 'Authorization': `Bearer ${keyObj.API}`, 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ model: keyObj.Model, messages: [{role: 'user', content: payload}] })
+                    });
+                    const data = await res.json();
+                    msgs.innerHTML += `<div class="text-left text-sm text-slate-100 bg-slate-900 p-4 rounded-xl border border-slate-800">${data.choices[0].message.content}</div>`;
+                    success = true;
+                } catch {
+                    config.currentIdx++; // Failover to next key
+                }
             }
         }
     </script>
