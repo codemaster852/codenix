@@ -9,10 +9,9 @@
     <script src="https://cdn.jsdelivr.net/npm/papa-parse@5.4.1/papaparse.min.js"></script>
     <style>
         body { font-family: 'Inter', system-ui, -apple-system, sans-serif; }
-        .purple-gradient { background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); }
     </style>
 </head>
-<body class="h-full bg-slate-950 text-slate-200 flex flex-col font-sans overflow-hidden">
+<body class="h-full bg-slate-950 text-slate-200 flex flex-col font-sans overflow-hidden" onload="autoInit()">
 
     <!-- Hidden Admin Console -->
     <div id="admin-panel" class="hidden fixed inset-0 z-[100] bg-slate-950/95 flex items-center justify-center p-6">
@@ -34,13 +33,14 @@
     <div class="flex h-full w-full">
         <aside class="w-64 bg-black border-r border-slate-900 flex flex-col p-6">
             <div onclick="triggerAdmin()" class="cursor-pointer flex items-center gap-3 mb-10 group">
-                <div class="h-9 w-9 rounded-xl purple-gradient flex items-center justify-center">
-                    <i class="fa-solid fa-sparkles text-white"></i>
+                <div class="h-10 w-10 rounded-xl bg-slate-800 overflow-hidden border border-slate-700">
+                    <img src="https://scontent-hbe1-1.xx.fbcdn.net/v/t39.30808-6/718816493_122173678946952582_684043749236540884_n.jpg" 
+                         alt="Nix Logo" class="h-full w-full object-cover" onerror="this.src='https://ui-avatars.com/api/?name=Nix&background=4f46e5&color=fff'">
                 </div>
                 <h1 class="text-white font-bold text-lg tracking-tight">Nix AI</h1>
             </div>
             <nav class="flex-1 space-y-2">
-                <button class="w-full text-left py-2.5 px-4 rounded-lg bg-purple-900/20 text-purple-400 font-medium border border-purple-500/20">
+                <button onclick="location.reload()" class="w-full text-left py-2.5 px-4 rounded-lg bg-purple-900/20 text-purple-400 font-medium border border-purple-500/20">
                     <i class="fa-solid fa-plus mr-2 text-xs"></i> New Conversation
                 </button>
             </nav>
@@ -56,7 +56,7 @@
                     <form id="chat-form" onsubmit="sendMessage(event)" class="relative flex items-center">
                         <input id="prompt" type="text" placeholder="Message Nix AI..." 
                                class="w-full bg-slate-900 border border-slate-800 rounded-2xl pl-6 pr-14 py-4 text-sm focus:outline-none focus:border-purple-500 shadow-xl transition-all">
-                        <button type="submit" class="absolute right-3 h-9 w-9 flex items-center justify-center rounded-xl purple-gradient text-white">
+                        <button type="submit" class="absolute right-3 h-9 w-9 flex items-center justify-center rounded-xl bg-purple-600 hover:bg-purple-700 text-white transition-colors">
                             <i class="fa-solid fa-arrow-up text-xs"></i>
                         </button>
                     </form>
@@ -67,18 +67,25 @@
 
     <script>
         let clicks = 0;
+        const DEFAULT_SHEET = "https://docs.google.com/spreadsheets/d/1R0QmFOr8CEelWIseXYmcboeoOgcJnFpG8XmOiFRl5VI/export?format=csv";
         let config = { keys: [], endpoint: "https://aiapiv2.pekpik.com/v1", currentIdx: 0 };
 
         function triggerAdmin() {
             if (++clicks >= 5) { document.getElementById('admin-panel').classList.remove('hidden'); clicks = 0; }
         }
 
-        async function syncSystem() {
-            const url = document.getElementById('admin-sheet-url').value;
-            Papa.parse(url || "https://docs.google.com/spreadsheets/d/1R0QmFOr8CEelWIseXYmcboeoOgcJnFpG8XmOiFRl5VI/export?format=csv", {
+        async function autoInit() {
+            document.getElementById('admin-sheet-url').value = DEFAULT_SHEET;
+            syncSystem(true);
+        }
+
+        async function syncSystem(silent = false) {
+            const url = document.getElementById('admin-sheet-url').value || DEFAULT_SHEET;
+            Papa.parse(url, {
                 download: true, header: true, complete: (res) => {
-                    config.keys = res.data.filter(r => r.API?.startsWith("sk-"));
-                    document.getElementById('admin-status').textContent = `System Synced: ${config.keys.length} models ready.`;
+                    config.keys = res.data.filter(r => r.API && r.API.startsWith("sk-"));
+                    config.currentIdx = 0;
+                    if(!silent) document.getElementById('admin-status').textContent = `System Synced: ${config.keys.length} models ready.`;
                 }
             });
         }
@@ -89,7 +96,7 @@
             const msgs = document.getElementById('messages');
             if(!input.value || config.keys.length === 0) return;
 
-            msgs.innerHTML += `<div class="text-right text-sm text-slate-300">${input.value}</div>`;
+            msgs.innerHTML += `<div class="text-right text-sm text-slate-300"><span class="inline-block bg-slate-800 px-4 py-2 rounded-2xl">${input.value}</span></div>`;
             const payload = input.value;
             input.value = '';
 
@@ -102,13 +109,17 @@
                         headers: { 'Authorization': `Bearer ${keyObj.API}`, 'Content-Type': 'application/json' },
                         body: JSON.stringify({ model: keyObj.Model, messages: [{role: 'user', content: payload}] })
                     });
+                    
+                    if(!res.ok) throw new Error();
+                    
                     const data = await res.json();
                     msgs.innerHTML += `<div class="text-left text-sm text-slate-100 bg-slate-900 p-4 rounded-xl border border-slate-800">${data.choices[0].message.content}</div>`;
                     success = true;
                 } catch {
-                    config.currentIdx++; // Failover to next key
+                    config.currentIdx++;
                 }
             }
+            if(!success) msgs.innerHTML += `<div class="text-left text-red-400 text-sm italic">All models exhausted. Please check your API keys in the Sheet.</div>`;
         }
     </script>
 </body>
