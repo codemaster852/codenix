@@ -8,7 +8,6 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     
-    <!-- Load Pyodide first to avoid AMD loader conflicts -->
     <script src="https://cdn.jsdelivr.net/pyodide/v0.24.1/full/pyodide.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.39.0/min/vs/loader.min.js"></script>
     
@@ -100,11 +99,10 @@
             });
         }
 
-        // Initialize Monaco
         require.config({ paths: { 'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.39.0/min/vs' } });
         require(['vs/editor/editor.main'], function() {
             window.editor = monaco.editor.create(document.getElementById('editor-container'), {
-                value: "# Hello World",
+                value: "print('Hello Codenix!')",
                 language: 'python',
                 theme: 'vs-dark'
             });
@@ -113,7 +111,6 @@
 
         async function loadPyodideEngine() {
             try {
-                // Safeguard for AMD conflicts
                 const tempDefine = window.define;
                 const tempRequire = window.require;
                 window.define = undefined;
@@ -121,7 +118,6 @@
 
                 window.pyodide = await loadPyodide();
                 
-                // Restore AMD loader
                 window.define = tempDefine;
                 window.require = tempRequire;
 
@@ -135,10 +131,34 @@
 
         window.onload = loadPyodideEngine;
         
-        function appendToConsole(text) { document.getElementById('console-output').innerText += text + "\n"; }
-        function createNewFilePrompt() { alert("Prompt: New File"); }
-        function triggerImport() { alert("Prompt: Import File"); }
-        async function runPython() { appendToConsole("Running..."); }
+        function appendToConsole(text) { 
+            const consoleDiv = document.getElementById('console-output');
+            consoleDiv.innerText += text + "\n"; 
+            consoleDiv.scrollTop = consoleDiv.scrollHeight;
+        }
+
+        async function runPython() {
+            const consoleOutput = document.getElementById('console-output');
+            consoleOutput.innerText = "";
+            const code = window.editor.getValue();
+            
+            try {
+                // Redirect stdout to console
+                window.pyodide.setStdout({
+                    write: (buffer) => {
+                        appendToConsole(new TextDecoder().decode(buffer));
+                    }
+                });
+                
+                // Run the code
+                await window.pyodide.runPythonAsync(code);
+            } catch (err) {
+                appendToConsole("Error: " + err);
+            }
+        }
+
+        function createNewFilePrompt() { /* Future implementation */ }
+        function triggerImport() { /* Future implementation */ }
     </script>
 </body>
 </html>
