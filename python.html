@@ -34,6 +34,7 @@
                 <span id="status-dot" class="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500"></span>
                 <span id="status-text" class="text-slate-300 text-xs font-medium">Booting engine...</span>
             </div>
+            <button onclick="clearTerminal()" class="text-slate-400 hover:text-slate-200 text-sm"><i class="fas fa-trash-alt mr-1"></i> Clear</button>
             <button id="btn-run" onclick="runPython()" class="bg-emerald-600 hover:bg-emerald-500 text-white px-5 py-1.5 rounded-lg font-semibold transition" disabled>Run</button>
         </div>
     </header>
@@ -44,7 +45,6 @@
                 <span class="text-xs font-bold uppercase text-slate-400">Files</span>
                 <div class="flex space-x-2">
                     <button onclick="createNewFilePrompt()" class="text-slate-400 hover:text-white"><i class="fas fa-plus"></i></button>
-                    <button onclick="triggerImport()" class="text-slate-400 hover:text-white"><i class="fas fa-file-import"></i></button>
                 </div>
             </div>
             <div id="file-list" class="flex-1 overflow-y-auto p-2 space-y-1"></div>
@@ -66,36 +66,25 @@
     <script>
         function setupResizers() {
             const sidebar = document.getElementById('sidebar');
-            const editorSection = document.getElementById('editor-section');
             const outputSection = document.getElementById('output-section');
-            const resizerSidebar = document.getElementById('resizer-sidebar');
-            const resizerOutput = document.getElementById('resizer-output');
-
-            resizerSidebar.addEventListener('mousedown', (e) => {
+            document.getElementById('resizer-sidebar').addEventListener('mousedown', (e) => {
                 const onMouseMove = (e) => {
                     sidebar.style.width = `${Math.max(180, Math.min(400, e.clientX))}px`;
                     if (window.editor) window.editor.layout();
                 };
-                const onMouseUp = () => {
-                    document.removeEventListener('mousemove', onMouseMove);
-                    document.removeEventListener('mouseup', onMouseUp);
-                };
+                const onMouseUp = () => { document.removeEventListener('mousemove', onMouseMove); };
                 document.addEventListener('mousemove', onMouseMove);
-                document.addEventListener('mouseup', onMouseUp);
+                document.addEventListener('mouseup', onMouseUp, {once: true});
             });
-
-            resizerOutput.addEventListener('mousedown', (e) => {
+            document.getElementById('resizer-output').addEventListener('mousedown', (e) => {
                 const onMouseMove = (e) => {
                     const newWidth = Math.max(300, Math.min(800, window.innerWidth - e.clientX));
                     outputSection.style.width = `${newWidth}px`;
                     if (window.editor) window.editor.layout();
                 };
-                const onMouseUp = () => {
-                    document.removeEventListener('mousemove', onMouseMove);
-                    document.removeEventListener('mouseup', onMouseUp);
-                };
+                const onMouseUp = () => { document.removeEventListener('mousemove', onMouseMove); };
                 document.addEventListener('mousemove', onMouseMove);
-                document.addEventListener('mouseup', onMouseUp);
+                document.addEventListener('mouseup', onMouseUp, {once: true});
             });
         }
 
@@ -115,51 +104,47 @@
                 const tempRequire = window.require;
                 window.define = undefined;
                 window.require = undefined;
-
                 window.pyodide = await loadPyodide();
-                
                 window.define = tempDefine;
                 window.require = tempRequire;
 
                 document.getElementById('status-dot').className = "relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500";
                 document.getElementById('status-text').innerText = "Engine Active";
                 document.getElementById('btn-run').disabled = false;
-            } catch (err) {
-                console.error("Engine failed:", err);
-            }
+            } catch (err) { console.error(err); }
         }
 
         window.onload = loadPyodideEngine;
         
         function appendToConsole(text) { 
             const consoleDiv = document.getElementById('console-output');
-            consoleDiv.innerText += text + "\n"; 
+            consoleDiv.innerText += text; 
             consoleDiv.scrollTop = consoleDiv.scrollHeight;
         }
 
+        function clearTerminal() {
+            document.getElementById('console-output').innerText = "";
+        }
+
         async function runPython() {
-            const consoleOutput = document.getElementById('console-output');
-            consoleOutput.innerText = "";
+            clearTerminal();
             const code = window.editor.getValue();
-            
             try {
-                // Set custom stdout to handle all print() outputs
-                window.pyodide.setStdout({
-                    write: (buffer) => {
-                        appendToConsole(new TextDecoder().decode(buffer));
-                    }
-                });
-                
-                // Use exec() to run the entire string as a block
                 await window.pyodide.runPythonAsync(`
 import sys
-from io import StringIO
-# Reset standard output for safety
-sys.stdout = StringIO()
+import io
+
+class Printer:
+    def write(self, data):
+        import js
+        js.appendToConsole(data)
+    def flush(self): pass
+
+sys.stdout = Printer()
+sys.stderr = Printer()
+
 try:
-    exec("""${code.replace(/"/g, '\\"')}""")
-    output = sys.stdout.getvalue()
-    print(output, end='')
+    exec("""${code.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}""")
 except Exception as e:
     print(e)
                 `);
@@ -167,9 +152,6 @@ except Exception as e:
                 appendToConsole("Error: " + err);
             }
         }
-
-        function createNewFilePrompt() { }
-        function triggerImport() { }
     </script>
 </body>
 </html>
