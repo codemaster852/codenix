@@ -102,7 +102,7 @@
         require.config({ paths: { 'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.39.0/min/vs' } });
         require(['vs/editor/editor.main'], function() {
             window.editor = monaco.editor.create(document.getElementById('editor-container'), {
-                value: "print('Hello Codenix!')",
+                value: "print('Hello Codenix!')\nx = 10\nprint(f'The value of x is {x}')",
                 language: 'python',
                 theme: 'vs-dark'
             });
@@ -143,22 +143,33 @@
             const code = window.editor.getValue();
             
             try {
-                // Redirect stdout to console
+                // Set custom stdout to handle all print() outputs
                 window.pyodide.setStdout({
                     write: (buffer) => {
                         appendToConsole(new TextDecoder().decode(buffer));
                     }
                 });
                 
-                // Run the code
-                await window.pyodide.runPythonAsync(code);
+                // Use exec() to run the entire string as a block
+                await window.pyodide.runPythonAsync(`
+import sys
+from io import StringIO
+# Reset standard output for safety
+sys.stdout = StringIO()
+try:
+    exec("""${code.replace(/"/g, '\\"')}""")
+    output = sys.stdout.getvalue()
+    print(output, end='')
+except Exception as e:
+    print(e)
+                `);
             } catch (err) {
                 appendToConsole("Error: " + err);
             }
         }
 
-        function createNewFilePrompt() { /* Future implementation */ }
-        function triggerImport() { /* Future implementation */ }
+        function createNewFilePrompt() { }
+        function triggerImport() { }
     </script>
 </body>
 </html>
