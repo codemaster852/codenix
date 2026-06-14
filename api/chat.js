@@ -1,7 +1,7 @@
 // This is a Vercel Serverless Function
 export default async function handler(req, res) {
   // The API key is now saved directly in the backend file
-  const apiKey = "ak_2rU1Lo7PA23X5Is9wm3m69EY2T37J";
+  const apiKey = "ak_2cL6295Lv0MI2cI7C27xN6Ak4J28T";
 
   // Only allow POST requests (standard for chat completions)
   if (req.method !== 'POST') {
