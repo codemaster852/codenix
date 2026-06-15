@@ -73,9 +73,6 @@
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
       background-clip: text;
-      display: flex;
-      align-items: center;
-      gap: 6px;
     }
     .bluetooth-indicator {
       display: flex;
@@ -88,34 +85,24 @@
       font-weight: 600;
       color: #a0e9ff;
       cursor: pointer;
-      transition: 0.2s;
     }
-    .bluetooth-indicator:hover { background: rgba(0,200,255,0.25); }
     .bluetooth-dot {
       width: 10px;
       height: 10px;
-      background: #00ffaa;
-      border-radius: 50%;
-      box-shadow: 0 0 12px #00ffaa;
-    }
-    .bluetooth-dot.offline {
       background: #ff5e7e;
+      border-radius: 50%;
       box-shadow: 0 0 8px #ff3b5c;
     }
-    .connected-peer {
-      font-size: 0.8rem;
-      background: rgba(123,44,191,0.6);
-      padding: 4px 12px;
-      border-radius: 20px;
-      margin-left: 6px;
+    .bluetooth-dot.connected {
+      background: #00ffaa;
+      box-shadow: 0 0 12px #00ffaa;
+      animation: pulse 1.8s infinite;
     }
+    @keyframes pulse { 0% { opacity: 0.7; transform: scale(0.9); } 50% { opacity: 1; transform: scale(1.2); } 100% { opacity: 0.7; transform: scale(0.9); } }
     .device-list-overlay {
       position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background: rgba(0,0,0,0.7);
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.75);
       backdrop-filter: blur(12px);
       display: flex;
       align-items: center;
@@ -140,11 +127,9 @@
       border-radius: 20px;
       margin: 10px 0;
       cursor: pointer;
-      transition: 0.2s;
       border: 1px solid transparent;
     }
     .device-item:hover { border-color: #00c8ff; background: rgba(0,200,255,0.15); }
-    .device-name { font-weight: 600; }
     .scan-btn {
       background: #00c8ff;
       border: none;
@@ -181,11 +166,7 @@
       background: linear-gradient(135deg, #0066cc, #4b0082);
       border: 1px solid rgba(0,200,255,0.5);
     }
-    .message img, .message video {
-      max-width: 100%;
-      border-radius: 16px;
-      margin: 6px 0;
-    }
+    .message img { max-width: 100%; border-radius: 16px; margin: 6px 0; }
     .message audio { width: 100%; margin: 4px 0; }
     .voice-call-bar {
       background: rgba(123, 44, 191, 0.7);
@@ -197,18 +178,8 @@
       justify-content: space-between;
       color: white;
       font-weight: bold;
-      backdrop-filter: blur(15px);
       border: 1px solid #bb86fc;
     }
-    .call-btn {
-      background: rgba(255,255,255,0.2);
-      border: none;
-      border-radius: 50%;
-      width: 36px;
-      height: 36px;
-      cursor: pointer;
-    }
-    .end-call { background: #e53e3e; color: white; }
     .toolbar {
       display: flex;
       gap: 8px;
@@ -226,7 +197,6 @@
       padding: 10px 14px;
       border-radius: 30px;
       cursor: pointer;
-      backdrop-filter: blur(4px);
     }
     .input-row {
       display: flex;
@@ -260,19 +230,17 @@
     <div class="logo">⛓️‍💥 ChatNIx</div>
     <div class="bluetooth-indicator" id="btStatus">
       <span class="bluetooth-dot" id="btDot"></span>
-      <span id="btText">Tap to select</span>
-      <span class="connected-peer" id="connectedName" style="display:none;"></span>
+      <span id="btText">Search devices</span>
     </div>
   </div>
 
-  <!-- Device selection panel (hidden by default) -->
-  <div class="device-list-overlay" id="deviceOverlay">
+  <div class="device-list-overlay" id="deviceOverlay" style="display: none;">
     <div class="device-panel">
       <h3 style="margin-bottom:12px;">📡 Nearby Bluetooth devices</h3>
       <div id="deviceListContainer">
-        <div class="device-item" style="opacity:0.7;">🔍 Scanning...</div>
+        <div class="device-item">Press "Scan for devices"</div>
       </div>
-      <button class="scan-btn" id="refreshScanBtn">🔄 Scan again</button>
+      <button class="scan-btn" id="startScanBtn">🔍 Scan for devices</button>
       <button style="background:transparent; border:1px solid gray; color:white; margin-top:8px; width:100%; border-radius:20px; padding:8px;" id="closeOverlayBtn">Cancel</button>
     </div>
   </div>
@@ -280,13 +248,13 @@
   <div id="voiceCallPanel" style="display: none;" class="voice-call-bar">
     <span>🎙️ Voice call with <span id="callPeerName"></span></span>
     <div>
-      <button class="call-btn" id="muteToggleBtn">🔇</button>
-      <button class="call-btn end-call" id="endCallBtn">📴</button>
+      <button class="icon-btn" id="muteToggleBtn">🔇</button>
+      <button class="icon-btn end-call" id="endCallBtn" style="background:#e53e3e;">📴</button>
     </div>
   </div>
 
   <div class="chat-area" id="chatMessages">
-    <div class="message">👇 Tap Bluetooth icon to choose a contact.</div>
+    <div class="message">👋 Tap the Bluetooth icon to scan and connect.</div>
   </div>
 
   <div class="toolbar">
@@ -307,16 +275,14 @@
 
 <script>
   (function() {
-    // ----- PWA install prompt -----
+    // PWA install prompt
     window.addEventListener('beforeinstallprompt', (e) => {
       e.preventDefault();
       window.deferredPrompt = e;
     });
 
-    // ----- State -----
     const btDot = document.getElementById('btDot');
     const btText = document.getElementById('btText');
-    const connectedNameSpan = document.getElementById('connectedName');
     const deviceOverlay = document.getElementById('deviceOverlay');
     const deviceListContainer = document.getElementById('deviceListContainer');
     const chatMessages = document.getElementById('chatMessages');
@@ -324,30 +290,18 @@
     const voicePanel = document.getElementById('voiceCallPanel');
     const callPeerNameSpan = document.getElementById('callPeerName');
 
-    let selectedPeer = null; // { name, id }
-    let bluetoothActive = false;
+    let selectedDevice = null; // { name, id, deviceObject }
+    let bluetoothServer = null;
     let callActive = false;
     let muted = false;
 
-    // Mock device database
-    const mockDevices = [
-      { name: "Galaxy S24 · Alex", id: "bt_galaxy_s24" },
-      { name: "Pixel 9 · Jordan", id: "bt_pixel_9" },
-      { name: "iPhone 16 (BLE)", id: "bt_iphone_ble" },
-      { name: "OnePlus 13 · Sam", id: "bt_oneplus" },
-      { name: "Tablet · Taylor", id: "bt_tablet" }
-    ];
-
     function updateBluetoothUI() {
-      if (selectedPeer) {
-        btDot.className = 'bluetooth-dot';
-        btText.textContent = 'Connected';
-        connectedNameSpan.textContent = selectedPeer.name;
-        connectedNameSpan.style.display = 'inline';
+      if (selectedDevice) {
+        btDot.className = 'bluetooth-dot connected';
+        btText.textContent = `Connected: ${selectedDevice.name || 'Device'}`;
       } else {
-        btDot.className = 'bluetooth-dot offline';
-        btText.textContent = 'Tap to select';
-        connectedNameSpan.style.display = 'none';
+        btDot.className = 'bluetooth-dot';
+        btText.textContent = 'Search devices';
       }
     }
 
@@ -372,69 +326,107 @@
       chatMessages.appendChild(msgDiv);
       chatMessages.scrollTop = chatMessages.scrollHeight;
 
-      if (isSent && selectedPeer && bluetoothActive) {
+      if (isSent && selectedDevice) {
         setTimeout(() => {
           const echo = document.createElement('div');
           echo.className = 'message';
-          echo.textContent = `🔁 ${selectedPeer.name}: ${type==='text'?content:'received'}`;
+          echo.textContent = `🔁 ${selectedDevice.name}: ${type==='text'?content:'received'}`;
           chatMessages.appendChild(echo);
           chatMessages.scrollTop = chatMessages.scrollHeight;
         }, 800);
       }
     }
 
-    // ----- Device list rendering -----
+    // ----- Real Bluetooth scanning via Web Bluetooth API -----
+    async function scanForDevices() {
+      if (!navigator.bluetooth) {
+        alert('Web Bluetooth API not available. Use Chrome on Android/Desktop.');
+        return [];
+      }
+      try {
+        deviceListContainer.innerHTML = '<div class="device-item">⏳ Scanning... Please wait</div>';
+        const device = await navigator.bluetooth.requestDevice({
+          acceptAllDevices: true,
+          optionalServices: ['battery_service', 'device_information']
+        });
+        return [device];
+      } catch (error) {
+        console.warn(error);
+        alert('Scan cancelled or no device selected.');
+        return [];
+      }
+    }
+
     function renderDeviceList(devices) {
       deviceListContainer.innerHTML = '';
       if (!devices.length) {
-        deviceListContainer.innerHTML = '<div class="device-item">No devices found</div>';
+        deviceListContainer.innerHTML = '<div class="device-item">No devices found. Try again.</div>';
         return;
       }
       devices.forEach(device => {
         const div = document.createElement('div');
         div.className = 'device-item';
-        div.innerHTML = `<span>📱 ${device.name}</span><span style="color:#00c8ff;">Connect</span>`;
-        div.addEventListener('click', () => {
-          selectPeer(device);
+        const deviceName = device.name || 'Unnamed Device';
+        div.innerHTML = `<span>📱 ${deviceName}</span><span style="color:#00c8ff;">Connect</span>`;
+        div.addEventListener('click', async () => {
+          await connectToDevice(device);
         });
         deviceListContainer.appendChild(div);
       });
     }
 
-    function selectPeer(device) {
-      selectedPeer = device;
-      bluetoothActive = true;
+    async function connectToDevice(device) {
+      try {
+        deviceListContainer.innerHTML = '<div class="device-item">🔗 Connecting...</div>';
+        const server = await device.gatt.connect();
+        bluetoothServer = server;
+        selectedDevice = {
+          name: device.name || 'Bluetooth Device',
+          id: device.id,
+          deviceObject: device
+        };
+        updateBluetoothUI();
+        deviceOverlay.style.display = 'none';
+        addMessage(`🔵 Connected to ${selectedDevice.name}`, 'text', false);
+        device.addEventListener('gattserverdisconnected', onDisconnect);
+      } catch (error) {
+        alert('Connection failed: ' + error.message);
+        deviceListContainer.innerHTML = '<div class="device-item">Connection failed. Try again.</div>';
+      }
+    }
+
+    function onDisconnect() {
+      addMessage('🔴 Device disconnected', 'text', false);
+      selectedDevice = null;
+      bluetoothServer = null;
       updateBluetoothUI();
-      deviceOverlay.style.display = 'none';
-      addMessage(`🔵 Connected to ${device.name}`, 'text', false);
     }
 
-    function openDeviceSelector() {
-      renderDeviceList(mockDevices);
+    // Open overlay & start scan
+    document.getElementById('btStatus').addEventListener('click', () => {
       deviceOverlay.style.display = 'flex';
-    }
+    });
 
-    // Event: Bluetooth indicator opens overlay
-    document.getElementById('btStatus').addEventListener('click', openDeviceSelector);
+    document.getElementById('startScanBtn').addEventListener('click', async () => {
+      const devices = await scanForDevices();
+      renderDeviceList(devices);
+    });
+
     document.getElementById('closeOverlayBtn').addEventListener('click', () => {
       deviceOverlay.style.display = 'none';
     });
-    document.getElementById('refreshScanBtn').addEventListener('click', () => {
-      renderDeviceList(mockDevices);
-    });
 
-    // Close overlay on background click
     deviceOverlay.addEventListener('click', (e) => {
       if (e.target === deviceOverlay) deviceOverlay.style.display = 'none';
     });
 
-    // ----- Text messaging -----
+    // Text messaging
     function sendText() {
       const text = messageInput.value.trim();
       if (!text) return;
-      if (!selectedPeer) {
-        alert('Please select a Bluetooth contact first.');
-        openDeviceSelector();
+      if (!selectedDevice) {
+        alert('Connect a Bluetooth device first.');
+        deviceOverlay.style.display = 'flex';
         return;
       }
       addMessage(text, 'text', true);
@@ -445,23 +437,22 @@
       if (e.key === 'Enter') sendText();
     });
 
-    // ----- File sharing -----
+    // File sharing
     const imageInput = document.getElementById('imageFileInput');
     const voiceInput = document.getElementById('voiceFileInput');
     const appInput = document.getElementById('appFileInput');
     document.getElementById('shareImageBtn').addEventListener('click', ()=>{
-      if(!selectedPeer) { alert('Connect first'); openDeviceSelector(); return; }
+      if(!selectedDevice) { alert('Connect first'); deviceOverlay.style.display='flex'; return; }
       imageInput.click();
     });
     document.getElementById('shareVoiceBtn').addEventListener('click', ()=>{
-      if(!selectedPeer) { alert('Connect first'); openDeviceSelector(); return; }
+      if(!selectedDevice) { alert('Connect first'); deviceOverlay.style.display='flex'; return; }
       voiceInput.click();
     });
     document.getElementById('shareAppBtn').addEventListener('click', ()=>{
-      if(!selectedPeer) { alert('Connect first'); openDeviceSelector(); return; }
+      if(!selectedDevice) { alert('Connect first'); deviceOverlay.style.display='flex'; return; }
       appInput.click();
     });
-
     imageInput.addEventListener('change', (e) => {
       const file = e.target.files[0];
       if (file) { addMessage(URL.createObjectURL(file), 'image', true); imageInput.value = ''; }
@@ -475,17 +466,17 @@
       if (file) { addMessage(null, 'app', true, { name: file.name }); appInput.value = ''; }
     });
 
-    // ----- Voice call -----
+    // Voice call
     document.getElementById('startVoiceCallBtn').addEventListener('click', () => {
-      if (!selectedPeer) {
-        alert('Select a Bluetooth contact to call.');
-        openDeviceSelector();
+      if (!selectedDevice) {
+        alert('Connect a device to call.');
+        deviceOverlay.style.display = 'flex';
         return;
       }
       callActive = true;
       voicePanel.style.display = 'flex';
-      callPeerNameSpan.textContent = selectedPeer.name;
-      addMessage(`📞 Voice call with ${selectedPeer.name} started`, 'text', true);
+      callPeerNameSpan.textContent = selectedDevice.name;
+      addMessage(`📞 Voice call started with ${selectedDevice.name}`, 'text', true);
     });
     document.getElementById('endCallBtn').addEventListener('click', () => {
       callActive = false;
@@ -495,10 +486,9 @@
     document.getElementById('muteToggleBtn').addEventListener('click', () => {
       muted = !muted;
       document.getElementById('muteToggleBtn').textContent = muted ? '🔊' : '🔇';
-      addMessage(muted ? '🔇 Muted' : '🎙️ Unmuted', 'text', true);
     });
 
-    // Service worker for offline
+    // Service worker
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register("data:application/javascript," + encodeURIComponent(
         "self.addEventListener('install',e=>{self.skipWaiting()});" +
@@ -507,7 +497,6 @@
       )).catch(()=>{});
     }
 
-    // Initial state
     updateBluetoothUI();
   })();
 </script>
