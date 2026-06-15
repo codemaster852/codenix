@@ -1,366 +1,67 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ChatNix | Messenger</title>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-        body { font-family: 'Inter', sans-serif; background-color: #dadbd3; }
-        .sidebar-item:hover { background-color: #f5f6f6; }
-        .sidebar-item.active { background-color: #eff2f5; }
-        .offline-banner { display: none; }
-        .is-offline .offline-banner { display: flex; }
-        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #ced0d1; border-radius: 10px; }
-        .animate-fade-in { animation: fadeIn 0.15s ease-out; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: translateY(0); } }
-        
-        .chat-area {
-            background-color: #efeae2;
-            background-image: url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png');
-            background-repeat: repeat;
-        }
-
-        .unread-badge {
-            background-color: #25d366;
-            color: white;
-            border-radius: 50%;
-            min-width: 1.25rem;
-            height: 1.25rem;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 10px;
-            font-weight: bold;
-            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
-        }
-    </style>
+  <meta charset="UTF-8">
+  <title>ChatNIx</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- PWA manifest -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0d6efd">
+  <style>
+    body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #f4f4f4; }
+    header { background: #0d6efd; color: white; padding: 1em; text-align: center; }
+    main { padding: 1em; }
+    .chat-box { border: 1px solid #ccc; padding: 1em; background: white; height: 300px; overflow-y: auto; }
+    .controls { margin-top: 1em; }
+    button { margin: 0.2em; padding: 0.5em 1em; }
+  </style>
 </head>
-<body class="h-screen flex items-center justify-center overflow-hidden">
-    <div id="app" class="w-full h-full lg:w-[95%] lg:h-[95%] bg-[#f0f2f5] shadow-2xl flex relative overflow-hidden">
-        
-        <!-- Offline Notification -->
-        <div id="offlineBanner" class="offline-banner absolute top-0 left-0 w-full z-50 bg-orange-600 text-white py-1.5 text-xs font-bold items-center justify-center gap-2">
-            <i class="fa-solid fa-wifi-slash"></i> Offline Mode - Syncing locally
-        </div>
-
-        <!-- Sidebar -->
-        <aside class="w-1/3 min-w-[320px] max-w-[450px] bg-white border-r border-gray-200 flex flex-col h-full">
-            <header class="bg-[#f0f2f5] p-3 flex justify-between items-center border-b">
-                <div id="myAvatar" class="w-10 h-10 rounded-full bg-indigo-600 flex items-center justify-center text-white font-bold cursor-pointer">?</div>
-                <div class="flex gap-5 text-gray-500 text-lg px-2">
-                    <button id="btBtn" title="Bluetooth Chat" class="hover:text-blue-500"><i class="fa-solid fa-bluetooth"></i></button>
-                    <button id="newChatBtn" title="New Chat"><i class="fa-solid fa-message"></i></button>
-                    <button onclick="logout()" title="Sign Out" class="hover:text-red-500"><i class="fa-solid fa-right-from-bracket"></i></button>
-                </div>
-            </header>
-
-            <div class="p-2 bg-white">
-                <div class="bg-[#f0f2f5] flex items-center px-4 py-1.5 rounded-lg border border-transparent focus-within:border-indigo-300">
-                    <i class="fa-solid fa-magnifying-glass text-gray-400 text-sm"></i>
-                    <input id="userSearchInput" type="text" placeholder="Search for username..." class="bg-transparent border-none focus:outline-none ml-4 text-sm w-full py-1">
-                </div>
-            </div>
-
-            <div id="chatList" class="flex-1 overflow-y-auto custom-scrollbar">
-                <div class="p-10 text-center text-gray-400 text-sm">Initializing...</div>
-            </div>
-        </aside>
-
-        <!-- Main Content -->
-        <main id="mainChat" class="flex-1 flex flex-col relative">
-            <div id="emptyState" class="absolute inset-0 bg-[#f0f2f5] z-30 flex flex-col items-center justify-center text-center p-10 transition-all duration-500">
-                <div class="w-64 h-64 bg-slate-200 rounded-full mb-8 flex items-center justify-center">
-                    <i class="fa-solid fa-comments text-9xl text-white"></i>
-                </div>
-                <h1 class="text-3xl font-light text-gray-700">ChatNix Portal</h1>
-                <p class="text-gray-500 mt-3 max-w-sm">Select a contact or search for a username to start messaging.</p>
-            </div>
-
-            <header class="bg-[#f0f2f5] p-3 flex justify-between items-center border-b z-20">
-                <div class="flex items-center gap-3">
-                    <div id="activeAvatar" class="w-10 h-10 rounded-full bg-gray-300 flex items-center justify-center text-white font-bold">?</div>
-                    <div>
-                        <h2 id="activeName" class="font-semibold text-gray-800 leading-tight">...</h2>
-                        <span id="activeStatus" class="text-xs text-gray-500">online</span>
-                    </div>
-                </div>
-                <div class="flex gap-6 text-gray-500 text-xl px-4">
-                    <button id="voiceCallBtn" title="Voice Call" class="hover:text-green-600"><i class="fa-solid fa-phone"></i></button>
-                    <button><i class="fa-solid fa-ellipsis-vertical"></i></button>
-                </div>
-            </header>
-
-            <div id="messageArea" class="flex-1 overflow-y-auto p-6 space-y-3 z-10 chat-area custom-scrollbar flex flex-col"></div>
-
-            <footer class="bg-[#f0f2f5] p-3 flex items-center gap-3 z-20">
-                <button class="text-gray-500 text-2xl hover:text-indigo-600"><i class="fa-regular fa-face-smile"></i></button>
-                <input id="msgInput" type="text" placeholder="Type a message" class="flex-1 bg-white p-3 rounded-xl text-sm focus:outline-none shadow-sm">
-                <button id="sendBtn" class="bg-indigo-600 text-white w-11 h-11 rounded-full flex items-center justify-center hover:bg-indigo-700 shadow-md">
-                    <i class="fa-solid fa-paper-plane"></i>
-                </button>
-            </footer>
-        </main>
+<body>
+  <header>
+    <h1>ChatNIx</h1>
+    <p>Offline Bluetooth Sharing & Voice Calls</p>
+  </header>
+  <main>
+    <div class="chat-box" id="chatBox"></div>
+    <div class="controls">
+      <input type="file" id="fileInput" multiple>
+      <button onclick="shareFiles()">Share Files</button>
+      <button onclick="startVoiceCall()">Start Voice Call</button>
     </div>
+  </main>
 
-    <script>
-        const SUPABASE_URL = 'https://rnlwrngfgvznndlekmrz.supabase.co';
-        const SUPABASE_KEY = 'sb_publishable_mtI0_ZBvU_n5oRuqV58QHg_qJt3Gfyt';
-        const client = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  <script>
+    // Register service worker for offline + PWA
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('sw.js');
+    }
 
-        let currentUser = null;
-        let selectedUser = null;
-        let localDB = null;
+    // Bluetooth file sharing (Web Bluetooth API)
+    async function shareFiles() {
+      try {
+        const device = await navigator.bluetooth.requestDevice({
+          acceptAllDevices: true
+        });
+        document.getElementById('chatBox').innerHTML += "<p>Connected to: " + device.name + "</p>";
+        // Actual file transfer requires custom GATT service implementation
+      } catch (error) {
+        alert("Bluetooth error: " + error);
+      }
+    }
 
-        async function init() {
-            initIndexedDB();
-            const { data: { session } } = await client.auth.getSession();
-            if (!session) { window.location.href = 'auth.html'; return; }
-            currentUser = session.user;
-
-            const { data: profile } = await client.from('chatnix_profiles').select('username').eq('id', currentUser.id).single();
-            const displayName = profile?.username || currentUser.email.split('@')[0];
-            document.getElementById('myAvatar').innerText = displayName[0].toUpperCase();
-
-            handleConnectivity();
-            window.addEventListener('online', handleConnectivity);
-            window.addEventListener('offline', handleConnectivity);
-            
-            setupRealtime();
-            loadActiveChats();
-            requestNotifications();
-        }
-
-        function initIndexedDB() {
-            const request = indexedDB.open("ChatNixStore", 1);
-            request.onupgradeneeded = e => { e.target.result.createObjectStore("sync_queue", { keyPath: "id", autoIncrement: true }); };
-            request.onsuccess = e => { localDB = e.target.result; };
-        }
-
-        function handleConnectivity() {
-            const isOnline = navigator.onLine;
-            document.body.classList.toggle('is-offline', !isOnline);
-            if (isOnline) syncOfflineQueue();
-        }
-
-        // --- SEARCH ---
-        const searchInput = document.getElementById('userSearchInput');
-        searchInput.addEventListener('input', debounce(async (e) => {
-            const val = e.target.value.trim();
-            if (val.length < 1) { loadActiveChats(); return; }
-            const { data: profiles } = await client.from('chatnix_profiles').select('*').ilike('username', `%${val}%`).neq('id', currentUser.id).limit(10);
-            renderUserList(profiles || [], true);
-        }, 300));
-
-        // --- CHAT LOGIC ---
-        async function loadActiveChats() {
-            const { data: msgs } = await client.from('chatnix_messages').select('chat_id, sender_id, is_seen').or(`sender_id.eq.${currentUser.id},chat_id.ilike.%${currentUser.id}%`);
-            const userIds = new Set();
-            const unreadCounts = {};
-
-            msgs?.forEach(m => {
-                const parts = m.chat_id.split(':');
-                const otherId = parts.find(id => id !== currentUser.id);
-                if (otherId) {
-                    userIds.add(otherId);
-                    if (!m.is_seen && m.sender_id !== currentUser.id) {
-                        unreadCounts[otherId] = (unreadCounts[otherId] || 0) + 1;
-                    }
-                }
-            });
-            
-            if (userIds.size === 0) {
-                document.getElementById('chatList').innerHTML = `<div class="p-10 text-center text-gray-400 text-sm">Find users to start a conversation.</div>`;
-                return;
-            }
-
-            const { data: profiles } = await client.from('chatnix_profiles').select('*').in('id', Array.from(userIds));
-            renderUserList(profiles || [], false, unreadCounts);
-        }
-
-        function renderUserList(users, isSearch, unreadCounts = {}) {
-            const list = document.getElementById('chatList');
-            list.innerHTML = isSearch ? '<div class="px-4 py-2 text-[10px] font-bold text-indigo-600 bg-indigo-50 tracking-widest">SEARCH RESULTS</div>' : '';
-            
-            users.forEach(user => {
-                const unread = unreadCounts[user.id] || 0;
-                const div = document.createElement('div');
-                div.className = `sidebar-item flex items-center gap-4 p-3.5 cursor-pointer border-b border-gray-100 transition-all ${selectedUser?.id === user.id ? 'active' : ''}`;
-                div.innerHTML = `
-                    <div class="w-12 h-12 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold border border-indigo-200">${user.username[0].toUpperCase()}</div>
-                    <div class="flex-1 overflow-hidden">
-                        <div class="flex justify-between items-baseline">
-                            <h3 class="font-semibold text-gray-800 truncate">${user.username}</h3>
-                            ${unread > 0 ? `<span class="unread-badge animate-bounce">${unread}</span>` : '<span class="text-[10px] text-gray-400">active</span>'}
-                        </div>
-                        <p class="text-xs text-gray-500 truncate">${isSearch ? 'Tap to start chat' : 'Message history'}</p>
-                    </div>
-                `;
-                div.onclick = () => openChat(user);
-                list.appendChild(div);
-            });
-        }
-
-        async function openChat(user) {
-            selectedUser = user;
-            document.getElementById('emptyState').classList.add('opacity-0', 'pointer-events-none');
-            document.getElementById('activeName').innerText = user.username;
-            document.getElementById('activeAvatar').innerText = user.username[0].toUpperCase();
-            
-            const chatId = [currentUser.id, user.id].sort().join(':');
-            
-            // Mark as seen immediately
-            await client.from('chatnix_messages').update({ is_seen: true }).eq('chat_id', chatId).eq('sender_id', user.id).eq('is_seen', false);
-
-            const { data: history } = await client.from('chatnix_messages').select('*').eq('chat_id', chatId).order('created_at', { ascending: true });
-            const area = document.getElementById('messageArea');
-            area.innerHTML = '';
-            history?.forEach(msg => renderMessage(msg));
-            area.scrollTop = area.scrollHeight;
-            loadActiveChats(); 
-        }
-
-        async function sendMessage() {
-            const input = document.getElementById('msgInput');
-            const content = input.value.trim();
-            if (!content || !selectedUser) return;
-
-            const chatId = [currentUser.id, selectedUser.id].sort().join(':');
-            
-            // CRITICAL FIX: DO NOT include 'id' field to avoid 409 Conflict
-            const msgData = {
-                chat_id: chatId,
-                sender_id: currentUser.id,
-                content: content,
-                is_seen: false,
-                created_at: new Date().toISOString()
-            };
-
-            input.value = '';
-            renderMessage(msgData, !navigator.onLine);
-
-            if (navigator.onLine) {
-                const { error } = await client.from('chatnix_messages').insert([msgData]);
-                if (error) console.error("PostgREST Error:", error);
-            } else {
-                saveToOffline(msgData);
-            }
-        }
-
-        function renderMessage(msg, isPending = false) {
-            const isMe = msg.sender_id === currentUser.id;
-            const area = document.getElementById('messageArea');
-            const msgId = msg.id || 'temp-' + Date.now();
-            
-            // Avoid duplicate rendering
-            if (document.getElementById(`msg-${msgId}`)) return;
-
-            const div = document.createElement('div');
-            div.id = `msg-${msgId}`;
-            div.className = `flex ${isMe ? 'justify-end' : 'justify-start'} animate-fade-in mb-1`;
-            
-            const time = new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-            const tickColor = msg.is_seen ? 'text-blue-400' : 'text-gray-400';
-            
-            div.innerHTML = `
-                <div class="max-w-[75%] ${isMe ? 'bg-[#d9fdd3] rounded-l-xl rounded-br-xl' : 'bg-white rounded-r-xl rounded-bl-xl'} px-3 py-1.5 shadow-sm relative">
-                    <p class="text-[14px] text-gray-800 leading-normal pr-10 whitespace-pre-wrap">${msg.content}</p>
-                    <div class="flex items-center justify-end gap-1 mt-0.5">
-                        <span class="text-[9px] text-gray-400 uppercase font-medium">${time}</span>
-                        ${isMe ? `<i class="fa-solid fa-check-double text-[10px] ${isPending ? 'opacity-30' : tickColor}"></i>` : ''}
-                    </div>
-                </div>
-            `;
-            area.appendChild(div);
-            area.scrollTop = area.scrollHeight;
-        }
-
-        // --- REALTIME & NOTIFICATIONS ---
-        function setupRealtime() {
-            client.channel('chatnix_updates')
-                .on('postgres_changes', { event: '*', schema: 'public', table: 'chatnix_messages' }, async (payload) => {
-                    const msg = payload.new;
-                    if (!msg.chat_id.includes(currentUser.id)) return;
-
-                    // 1. New Message Received
-                    if (payload.eventType === 'INSERT') {
-                        if (msg.sender_id !== currentUser.id) {
-                            if (selectedUser && msg.chat_id.includes(selectedUser.id)) {
-                                renderMessage(msg);
-                                // Mark seen since chat is currently active
-                                await client.from('chatnix_messages').update({ is_seen: true }).eq('id', msg.id);
-                            } else {
-                                showNotification(msg);
-                                loadActiveChats();
-                            }
-                        } else {
-                            // My own message finally confirmed by server
-                            loadActiveChats(); 
-                        }
-                    } 
-                    // 2. Seen Status Update
-                    else if (payload.eventType === 'UPDATE') {
-                        if (msg.is_seen && msg.sender_id === currentUser.id && selectedUser && msg.chat_id.includes(selectedUser.id)) {
-                             // Update UI ticks for seen messages
-                             refreshChatArea();
-                        }
-                    }
-                })
-                .subscribe();
-        }
-
-        async function showNotification(msg) {
-            if (Notification.permission !== "granted") return;
-            const { data } = await client.from('chatnix_profiles').select('username').eq('id', msg.sender_id).single();
-            const senderName = data?.username || "New Message";
-            new Notification(`ChatNix | ${senderName}`, { body: msg.content, icon: 'https://cdn-icons-png.flaticon.com/512/733/733585.png' });
-        }
-
-        async function refreshChatArea() {
-            if (!selectedUser) return;
-            const chatId = [currentUser.id, selectedUser.id].sort().join(':');
-            const { data: history } = await client.from('chatnix_messages').select('*').eq('chat_id', chatId).order('created_at', { ascending: true });
-            const area = document.getElementById('messageArea');
-            area.innerHTML = '';
-            history?.forEach(msg => renderMessage(msg));
-        }
-
-        function saveToOffline(msg) {
-            const tx = localDB.transaction("sync_queue", "readwrite");
-            tx.objectStore("sync_queue").add(msg);
-        }
-
-        async function syncOfflineQueue() {
-            if (!localDB) return;
-            const store = localDB.transaction("sync_queue", "readwrite").objectStore("sync_queue");
-            const request = store.getAll();
-            request.onsuccess = async () => {
-                for (const task of request.result) {
-                    const { id, ...cleanMsg } = task;
-                    const { error } = await client.from('chatnix_messages').insert([cleanMsg]);
-                    if (!error) localDB.transaction("sync_queue", "readwrite").objectStore("sync_queue").delete(id);
-                }
-            };
-        }
-
-        function debounce(func, wait) {
-            let timeout;
-            return function(...args) {
-                clearTimeout(timeout);
-                timeout = setTimeout(() => func.apply(this, args), wait);
-            };
-        }
-
-        function requestNotifications() { if ("Notification" in window) Notification.requestPermission(); }
-        async function logout() { await client.auth.signOut(); window.location.href = 'auth.html'; }
-        document.getElementById('sendBtn').onclick = sendMessage;
-        document.getElementById('msgInput').onkeypress = (e) => { if(e.key === 'Enter') sendMessage(); };
-
-        init();
-    </script>
+    // Voice call mode (WebRTC)
+    async function startVoiceCall() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const audio = document.createElement('audio');
+        audio.srcObject = stream;
+        audio.play();
+        document.getElementById('chatBox').innerHTML += "<p>Voice call started...</p>";
+        // For real calls, integrate WebRTC peer connection
+      } catch (error) {
+        alert("Voice call error: " + error);
+      }
+    }
+  </script>
 </body>
 </html>
