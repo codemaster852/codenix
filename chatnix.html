@@ -53,6 +53,7 @@
       display: flex;
       flex-direction: column;
       overflow: hidden;
+      position: relative;
     }
     .header {
       padding: 16px 20px;
@@ -86,21 +87,74 @@
       font-size: 0.9rem;
       font-weight: 600;
       color: #a0e9ff;
+      cursor: pointer;
+      transition: 0.2s;
     }
+    .bluetooth-indicator:hover { background: rgba(0,200,255,0.25); }
     .bluetooth-dot {
       width: 10px;
       height: 10px;
       background: #00ffaa;
       border-radius: 50%;
       box-shadow: 0 0 12px #00ffaa;
-      animation: pulse 1.8s infinite;
     }
     .bluetooth-dot.offline {
       background: #ff5e7e;
       box-shadow: 0 0 8px #ff3b5c;
-      animation: none;
     }
-    @keyframes pulse { 0% { opacity: 0.7; transform: scale(0.9); } 50% { opacity: 1; transform: scale(1.2); } 100% { opacity: 0.7; transform: scale(0.9); } }
+    .connected-peer {
+      font-size: 0.8rem;
+      background: rgba(123,44,191,0.6);
+      padding: 4px 12px;
+      border-radius: 20px;
+      margin-left: 6px;
+    }
+    .device-list-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0,0,0,0.7);
+      backdrop-filter: blur(12px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 20;
+      border-radius: 42px;
+    }
+    .device-panel {
+      background: #0f2137;
+      width: 85%;
+      border-radius: 32px;
+      padding: 20px;
+      border: 1px solid rgba(0,200,255,0.4);
+      color: white;
+    }
+    .device-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 12px;
+      background: rgba(255,255,255,0.08);
+      border-radius: 20px;
+      margin: 10px 0;
+      cursor: pointer;
+      transition: 0.2s;
+      border: 1px solid transparent;
+    }
+    .device-item:hover { border-color: #00c8ff; background: rgba(0,200,255,0.15); }
+    .device-name { font-weight: 600; }
+    .scan-btn {
+      background: #00c8ff;
+      border: none;
+      border-radius: 30px;
+      padding: 10px 18px;
+      font-weight: bold;
+      cursor: pointer;
+      width: 100%;
+      margin-top: 10px;
+    }
     .chat-area {
       flex: 1;
       overflow-y: auto;
@@ -131,21 +185,8 @@
       max-width: 100%;
       border-radius: 16px;
       margin: 6px 0;
-      display: block;
     }
-    .message audio {
-      width: 100%;
-      margin: 4px 0;
-    }
-    .file-share {
-      background: rgba(0,0,0,0.4);
-      padding: 6px 12px;
-      border-radius: 20px;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      font-size: 0.85rem;
-    }
+    .message audio { width: 100%; margin: 4px 0; }
     .voice-call-bar {
       background: rgba(123, 44, 191, 0.7);
       margin: 8px 14px;
@@ -159,22 +200,13 @@
       backdrop-filter: blur(15px);
       border: 1px solid #bb86fc;
     }
-    .call-controls {
-      display: flex;
-      gap: 12px;
-    }
     .call-btn {
       background: rgba(255,255,255,0.2);
       border: none;
       border-radius: 50%;
       width: 36px;
       height: 36px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 1.2rem;
       cursor: pointer;
-      transition: 0.2s;
     }
     .end-call { background: #e53e3e; color: white; }
     .toolbar {
@@ -190,18 +222,12 @@
       background: rgba(255,255,255,0.1);
       border: none;
       color: #d0e4ff;
-      font-size: 1.4rem;
+      font-size: 1.3rem;
       padding: 10px 14px;
       border-radius: 30px;
       cursor: pointer;
-      display: flex;
-      align-items: center;
-      gap: 5px;
       backdrop-filter: blur(4px);
-      transition: all 0.2s;
-      font-weight: 500;
     }
-    .icon-btn:active { background: rgba(0,200,255,0.3); transform: scale(0.94); }
     .input-row {
       display: flex;
       padding: 10px 14px;
@@ -216,7 +242,6 @@
       padding: 12px 18px;
       color: white;
       outline: none;
-      font-size: 1rem;
     }
     .send-btn {
       background: #00c8ff;
@@ -225,33 +250,43 @@
       width: 46px;
       height: 46px;
       font-size: 1.3rem;
-      color: #0a1929;
-      font-weight: bold;
-      cursor: pointer;
     }
     .hidden-file-input { display: none; }
   </style>
 </head>
 <body>
-<div class="app-container">
+<div class="app-container" id="appContainer">
   <div class="header">
     <div class="logo">⛓️‍💥 ChatNIx</div>
     <div class="bluetooth-indicator" id="btStatus">
       <span class="bluetooth-dot" id="btDot"></span>
-      <span id="btText">Searching...</span>
+      <span id="btText">Tap to select</span>
+      <span class="connected-peer" id="connectedName" style="display:none;"></span>
+    </div>
+  </div>
+
+  <!-- Device selection panel (hidden by default) -->
+  <div class="device-list-overlay" id="deviceOverlay">
+    <div class="device-panel">
+      <h3 style="margin-bottom:12px;">📡 Nearby Bluetooth devices</h3>
+      <div id="deviceListContainer">
+        <div class="device-item" style="opacity:0.7;">🔍 Scanning...</div>
+      </div>
+      <button class="scan-btn" id="refreshScanBtn">🔄 Scan again</button>
+      <button style="background:transparent; border:1px solid gray; color:white; margin-top:8px; width:100%; border-radius:20px; padding:8px;" id="closeOverlayBtn">Cancel</button>
     </div>
   </div>
 
   <div id="voiceCallPanel" style="display: none;" class="voice-call-bar">
-    <span>🎙️ Voice call active</span>
-    <div class="call-controls">
+    <span>🎙️ Voice call with <span id="callPeerName"></span></span>
+    <div>
       <button class="call-btn" id="muteToggleBtn">🔇</button>
       <button class="call-btn end-call" id="endCallBtn">📴</button>
     </div>
   </div>
 
   <div class="chat-area" id="chatMessages">
-    <div class="message">👋 Welcome to ChatNIx. Bluetooth P2P ready. Share anything.</div>
+    <div class="message">👇 Tap Bluetooth icon to choose a contact.</div>
   </div>
 
   <div class="toolbar">
@@ -272,48 +307,56 @@
 
 <script>
   (function() {
-    // ---------- PWA install prompt ----------
+    // ----- PWA install prompt -----
     window.addEventListener('beforeinstallprompt', (e) => {
       e.preventDefault();
       window.deferredPrompt = e;
-      console.log('PWA install ready');
     });
 
-    // ---------- Bluetooth simulation (offline P2P concept) ----------
+    // ----- State -----
     const btDot = document.getElementById('btDot');
     const btText = document.getElementById('btText');
-    let bluetoothActive = false;
-    
-    function updateBluetoothStatus(active) {
-      bluetoothActive = active;
-      if (active) {
-        btDot.className = 'bluetooth-dot';
-        btText.textContent = 'Nearby peer';
-      } else {
-        btDot.className = 'bluetooth-dot offline';
-        btText.textContent = 'Offline';
-      }
-    }
-    // Simulate Bluetooth connection after 1.5s
-    setTimeout(() => updateBluetoothStatus(true), 1500);
-    
-    // Toggle simulation on dot click
-    document.getElementById('btStatus').addEventListener('click', () => {
-      updateBluetoothStatus(!bluetoothActive);
-    });
-
-    // ---------- Chat display ----------
+    const connectedNameSpan = document.getElementById('connectedName');
+    const deviceOverlay = document.getElementById('deviceOverlay');
+    const deviceListContainer = document.getElementById('deviceListContainer');
     const chatMessages = document.getElementById('chatMessages');
     const messageInput = document.getElementById('messageInput');
-    
+    const voicePanel = document.getElementById('voiceCallPanel');
+    const callPeerNameSpan = document.getElementById('callPeerName');
+
+    let selectedPeer = null; // { name, id }
+    let bluetoothActive = false;
+    let callActive = false;
+    let muted = false;
+
+    // Mock device database
+    const mockDevices = [
+      { name: "Galaxy S24 · Alex", id: "bt_galaxy_s24" },
+      { name: "Pixel 9 · Jordan", id: "bt_pixel_9" },
+      { name: "iPhone 16 (BLE)", id: "bt_iphone_ble" },
+      { name: "OnePlus 13 · Sam", id: "bt_oneplus" },
+      { name: "Tablet · Taylor", id: "bt_tablet" }
+    ];
+
+    function updateBluetoothUI() {
+      if (selectedPeer) {
+        btDot.className = 'bluetooth-dot';
+        btText.textContent = 'Connected';
+        connectedNameSpan.textContent = selectedPeer.name;
+        connectedNameSpan.style.display = 'inline';
+      } else {
+        btDot.className = 'bluetooth-dot offline';
+        btText.textContent = 'Tap to select';
+        connectedNameSpan.style.display = 'none';
+      }
+    }
+
     function addMessage(content, type = 'text', isSent = true, fileInfo = null) {
       const msgDiv = document.createElement('div');
       msgDiv.className = `message ${isSent ? 'sent' : ''}`;
-      
       if (type === 'image' && content) {
         const img = document.createElement('img');
         img.src = content;
-        img.alt = 'shared image';
         msgDiv.appendChild(img);
       } else if (type === 'voice' && content) {
         const audio = document.createElement('audio');
@@ -322,33 +365,78 @@
         msgDiv.appendChild(audio);
         msgDiv.innerHTML += '<div>🎵 Voice message</div>';
       } else if (type === 'app' && fileInfo) {
-        msgDiv.innerHTML = `<div class="file-share">📱 ${fileInfo.name || 'App file'} <span style="font-size:0.7rem;">(shared)</span></div>`;
+        msgDiv.innerHTML = `<div>📱 ${fileInfo.name || 'App'} shared</div>`;
       } else {
         msgDiv.textContent = content;
       }
-      
       chatMessages.appendChild(msgDiv);
       chatMessages.scrollTop = chatMessages.scrollHeight;
-      
-      // Simulate receiving echo after 800ms (Bluetooth P2P demo)
-      if (isSent && bluetoothActive) {
+
+      if (isSent && selectedPeer && bluetoothActive) {
         setTimeout(() => {
-          const echoDiv = document.createElement('div');
-          echoDiv.className = 'message';
-          if (type === 'text') echoDiv.textContent = `🔁 Echo: ${content}`;
-          else if (type === 'image') echoDiv.innerHTML = '<div>🖼️ Image received</div>';
-          else if (type === 'voice') echoDiv.innerHTML = '<div>🎤 Voice note received</div>';
-          else if (type === 'app') echoDiv.innerHTML = '<div>📦 App shared via Bluetooth</div>';
-          chatMessages.appendChild(echoDiv);
+          const echo = document.createElement('div');
+          echo.className = 'message';
+          echo.textContent = `🔁 ${selectedPeer.name}: ${type==='text'?content:'received'}`;
+          chatMessages.appendChild(echo);
           chatMessages.scrollTop = chatMessages.scrollHeight;
-        }, 900);
+        }, 800);
       }
     }
 
-    // Send text
+    // ----- Device list rendering -----
+    function renderDeviceList(devices) {
+      deviceListContainer.innerHTML = '';
+      if (!devices.length) {
+        deviceListContainer.innerHTML = '<div class="device-item">No devices found</div>';
+        return;
+      }
+      devices.forEach(device => {
+        const div = document.createElement('div');
+        div.className = 'device-item';
+        div.innerHTML = `<span>📱 ${device.name}</span><span style="color:#00c8ff;">Connect</span>`;
+        div.addEventListener('click', () => {
+          selectPeer(device);
+        });
+        deviceListContainer.appendChild(div);
+      });
+    }
+
+    function selectPeer(device) {
+      selectedPeer = device;
+      bluetoothActive = true;
+      updateBluetoothUI();
+      deviceOverlay.style.display = 'none';
+      addMessage(`🔵 Connected to ${device.name}`, 'text', false);
+    }
+
+    function openDeviceSelector() {
+      renderDeviceList(mockDevices);
+      deviceOverlay.style.display = 'flex';
+    }
+
+    // Event: Bluetooth indicator opens overlay
+    document.getElementById('btStatus').addEventListener('click', openDeviceSelector);
+    document.getElementById('closeOverlayBtn').addEventListener('click', () => {
+      deviceOverlay.style.display = 'none';
+    });
+    document.getElementById('refreshScanBtn').addEventListener('click', () => {
+      renderDeviceList(mockDevices);
+    });
+
+    // Close overlay on background click
+    deviceOverlay.addEventListener('click', (e) => {
+      if (e.target === deviceOverlay) deviceOverlay.style.display = 'none';
+    });
+
+    // ----- Text messaging -----
     function sendText() {
       const text = messageInput.value.trim();
       if (!text) return;
+      if (!selectedPeer) {
+        alert('Please select a Bluetooth contact first.');
+        openDeviceSelector();
+        return;
+      }
       addMessage(text, 'text', true);
       messageInput.value = '';
     }
@@ -357,89 +445,70 @@
       if (e.key === 'Enter') sendText();
     });
 
-    // ---------- File sharing handlers ----------
+    // ----- File sharing -----
     const imageInput = document.getElementById('imageFileInput');
     const voiceInput = document.getElementById('voiceFileInput');
     const appInput = document.getElementById('appFileInput');
-    
-    document.getElementById('shareImageBtn').addEventListener('click', () => imageInput.click());
-    document.getElementById('shareVoiceBtn').addEventListener('click', () => voiceInput.click());
-    document.getElementById('shareAppBtn').addEventListener('click', () => appInput.click());
-    
-    imageInput.addEventListener('change', (e) => {
-      const file = e.target.files[0];
-      if (file) {
-        const url = URL.createObjectURL(file);
-        addMessage(url, 'image', true);
-        imageInput.value = '';
-      }
+    document.getElementById('shareImageBtn').addEventListener('click', ()=>{
+      if(!selectedPeer) { alert('Connect first'); openDeviceSelector(); return; }
+      imageInput.click();
     });
-    
-    voiceInput.addEventListener('change', (e) => {
-      const file = e.target.files[0];
-      if (file) {
-        const url = URL.createObjectURL(file);
-        addMessage(url, 'voice', true);
-        voiceInput.value = '';
-      }
+    document.getElementById('shareVoiceBtn').addEventListener('click', ()=>{
+      if(!selectedPeer) { alert('Connect first'); openDeviceSelector(); return; }
+      voiceInput.click();
     });
-    
-    appInput.addEventListener('change', (e) => {
-      const file = e.target.files[0];
-      if (file) {
-        addMessage(null, 'app', true, { name: file.name });
-        appInput.value = '';
-      }
+    document.getElementById('shareAppBtn').addEventListener('click', ()=>{
+      if(!selectedPeer) { alert('Connect first'); openDeviceSelector(); return; }
+      appInput.click();
     });
 
-    // ---------- Voice call mode ----------
-    const voicePanel = document.getElementById('voiceCallPanel');
-    const startCallBtn = document.getElementById('startVoiceCallBtn');
-    const endCallBtn = document.getElementById('endCallBtn');
-    const muteBtn = document.getElementById('muteToggleBtn');
-    let callActive = false;
-    let muted = false;
-    
-    function startVoiceCall() {
-      if (!bluetoothActive) {
-        alert('Bluetooth peer not connected. Activate Bluetooth first.');
+    imageInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (file) { addMessage(URL.createObjectURL(file), 'image', true); imageInput.value = ''; }
+    });
+    voiceInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (file) { addMessage(URL.createObjectURL(file), 'voice', true); voiceInput.value = ''; }
+    });
+    appInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (file) { addMessage(null, 'app', true, { name: file.name }); appInput.value = ''; }
+    });
+
+    // ----- Voice call -----
+    document.getElementById('startVoiceCallBtn').addEventListener('click', () => {
+      if (!selectedPeer) {
+        alert('Select a Bluetooth contact to call.');
+        openDeviceSelector();
         return;
       }
       callActive = true;
       voicePanel.style.display = 'flex';
-      addMessage('📞 Voice call started (Bluetooth mode)', 'text', true);
-    }
-    
-    function endVoiceCall() {
+      callPeerNameSpan.textContent = selectedPeer.name;
+      addMessage(`📞 Voice call with ${selectedPeer.name} started`, 'text', true);
+    });
+    document.getElementById('endCallBtn').addEventListener('click', () => {
       callActive = false;
       voicePanel.style.display = 'none';
       addMessage('📴 Call ended', 'text', true);
-    }
-    
-    startCallBtn.addEventListener('click', startVoiceCall);
-    endCallBtn.addEventListener('click', endVoiceCall);
-    
-    muteBtn.addEventListener('click', () => {
+    });
+    document.getElementById('muteToggleBtn').addEventListener('click', () => {
       muted = !muted;
-      muteBtn.textContent = muted ? '🔊' : '🔇';
-      addMessage(muted ? '🔇 Microphone muted' : '🎙️ Microphone active', 'text', true);
+      document.getElementById('muteToggleBtn').textContent = muted ? '🔊' : '🔇';
+      addMessage(muted ? '🔇 Muted' : '🎙️ Unmuted', 'text', true);
     });
 
-    // Register service worker for offline support (basic)
+    // Service worker for offline
     if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register("data:application/javascript," + encodeURIComponent(
-          "self.addEventListener('install',e=>{self.skipWaiting()});" +
-          "self.addEventListener('activate',e=>{e.waitUntil(clients.claim())});" +
-          "self.addEventListener('fetch',e=>{e.respondWith(fetch(e.request).catch(()=>new Response('Offline')))});"
-        )).catch(() => console.log('SW registered via blob'));
-      });
+      navigator.serviceWorker.register("data:application/javascript," + encodeURIComponent(
+        "self.addEventListener('install',e=>{self.skipWaiting()});" +
+        "self.addEventListener('activate',e=>{e.waitUntil(clients.claim())});" +
+        "self.addEventListener('fetch',e=>{e.respondWith(fetch(e.request).catch(()=>new Response('Offline')))});"
+      )).catch(()=>{});
     }
 
-    // Initial Bluetooth simulation message
-    setTimeout(() => {
-      if (bluetoothActive) addMessage('🔵 Bluetooth peer connected. You can share files & call.', 'text', false);
-    }, 2000);
+    // Initial state
+    updateBluetoothUI();
   })();
 </script>
 </body>
