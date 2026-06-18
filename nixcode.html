@@ -3,404 +3,1995 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NixCode Pro | Professional IDE</title>
+    <title>NixCode - Intelligent Multi-File Web Builder & Playground</title>
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- JSZip Library for multi-file bundle exports -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <!-- Google Fonts: Inter & JetBrains Mono -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght=300;400;500;600;700;800&family=JetBrains+Mono:wght=400;500;700&display=swap" rel="stylesheet">
+    <!-- FontAwesome for Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        googleGray: {
+                            50: '#f8f9fa',
+                            100: '#f1f3f4',
+                            200: '#e8eaed',
+                            300: '#dadce0',
+                            400: '#bdc1c6',
+                            500: '#9aa0a6',
+                            600: '#70757a',
+                            700: '#5f6368',
+                            800: '#3c4043',
+                            900: '#202124',
+                        },
+                        googleBlue: {
+                            50: '#e8f0fe',
+                            100: '#d2e3fc',
+                            600: '#1a73e8',
+                            700: '#1557b0',
+                            800: '#174ea6',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=Fira+Code:wght@400;500&display=swap');
-
-        :root {
-            --brand-purple: #8b5cf6;
-            --vs-bg: #0d0d0d;
-            --vs-sidebar: #151515;
-            --vs-active: #222222;
-            --vs-border: #2a2a2a;
-            --vs-text: #e0e0e0;
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
         }
-
-        /* Custom Cursor */
-        * { cursor: none !important; }
-        #custom-cursor {
-            width: 0; height: 0;
-            border-left: 8px solid transparent;
-            border-right: 8px solid transparent;
-            border-bottom: 18px solid var(--brand-purple);
-            filter: drop-shadow(0 0 2px rgba(0,0,0,0.5));
-            position: fixed; pointer-events: none; z-index: 9999;
-            transform: rotate(-30deg);
+        ::-webkit-scrollbar-track {
+            background: #f1f3f4;
         }
-
-        body { 
-            font-family: 'Plus Jakarta Sans', sans-serif; 
-            overflow: hidden; 
-            height: 100vh; 
-            background: #000; 
-            color: var(--vs-text); 
+        ::-webkit-scrollbar-thumb {
+            background: #dadce0;
+            border-radius: 4px;
         }
-        .code-font { font-family: 'Fira Code', monospace; }
-
-        /* VS Code Style Scrollbar */
-        ::-webkit-scrollbar { width: 8px; height: 8px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: #333; border-radius: 10px; }
-        ::-webkit-scrollbar-thumb:hover { background: #444; }
-
-        .sidebar-item { transition: all 0.2s; border-left: 2px solid transparent; }
-        .sidebar-item.active { background: var(--vs-active); border-left-color: var(--brand-purple); color: #fff; }
-
-        /* Editor Layout */
-        .editor-line { 
-            display: flex; 
-            line-height: 1.6;
-            min-width: fit-content;
+        ::-webkit-scrollbar-thumb:hover {
+            background: #bdc1c6;
         }
-        .editor-line:hover { background: #1a1a1a; }
-        .line-number { 
-            width: 50px; 
-            text-align: right; 
-            padding-right: 20px; 
-            color: #555; 
-            user-select: none; 
-            font-size: 11px; 
-            flex-shrink: 0;
-            background: #0d0d0d;
-            position: sticky;
-            left: 0;
-            z-index: 5;
+        .sidebar-item-active {
+            background-color: #e8f0fe;
+            color: #1a73e8 !important;
+            font-weight: 600;
         }
-        .line-content { flex: 1; color: #d4d4d4; white-space: pre; font-size: 13px; padding-right: 40px; }
-
-        #landing-overlay.hidden { opacity: 0; pointer-events: none; transform: translateY(-20px); }
-        #app-content.blur { filter: blur(25px); pointer-events: none; opacity: 0.3; }
-
-        @keyframes pulse-purple {
-            0%, 100% { box-shadow: 0 0 0 0 rgba(139, 92, 246, 0.4); transform: scale(1); }
-            50% { box-shadow: 0 0 20px 5px rgba(139, 92, 246, 0.1); transform: scale(1.02); }
-        }
-        .loading-pulse { animation: pulse-purple 2s infinite; }
-        .tab-active { background: var(--vs-bg); border-top: 2px solid var(--brand-purple); color: white; font-weight: 600; }
-        .glass { background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.05); }
-
-        /* Preview container constraints */
-        #output-frame {
-            background: white;
-            width: 100%;
-            height: 100%;
+        iframe {
+            background-color: white;
         }
     </style>
 </head>
-<body class="dark overflow-hidden">
-    <div id="custom-cursor"></div>
+<body class="bg-googleGray-50 text-googleGray-900 font-sans min-h-screen flex overflow-hidden antialiased">
 
-    <!-- Landing / Project Manager -->
-    <div id="landing-overlay" class="fixed inset-0 z-[100] flex flex-col bg-[#050505] transition-all duration-700 overflow-y-auto">
-        <div class="max-w-6xl mx-auto w-full px-8 py-20 flex flex-col min-h-full">
-            <div class="flex items-center gap-5 mb-20">
-                <div class="w-16 h-16 bg-gradient-to-br from-violet-600 to-indigo-700 rounded-3xl flex items-center justify-center shadow-2xl">
-                    <i class="fas fa-rocket text-white text-3xl"></i>
+    <!-- Left Navigation Sidebar -->
+    <aside class="w-60 bg-white border-r border-googleGray-200 flex flex-col justify-between shrink-0 hidden md:flex">
+        <div class="p-4 space-y-6">
+            <!-- App Logo/Title -->
+            <div class="flex items-center gap-2.5 px-2">
+                <div class="h-6 w-6 rounded-md bg-gradient-to-tr from-googleBlue-600 to-indigo-400 flex items-center justify-center text-white font-extrabold text-xs">
+                    N
                 </div>
                 <div>
-                    <h1 class="text-5xl font-extrabold text-white tracking-tight">NixCode <span class="text-transparent bg-clip-text bg-gradient-to-r from-violet-400 to-indigo-400">Pro</span></h1>
-                    <p class="text-slate-500 text-xs mt-2 uppercase tracking-[0.3em] font-bold">The Professional Web Foundry</p>
+                    <span class="font-bold text-base text-googleGray-900 tracking-tight">NixCode AI</span>
+                    <span class="text-[10px] ml-1 bg-googleBlue-50 text-googleBlue-600 px-1.5 py-0.5 rounded font-mono font-bold">V2.5</span>
                 </div>
             </div>
 
-            <div class="grid grid-cols-1 lg:grid-cols-12 gap-16 flex-1">
-                <div class="lg:col-span-7 space-y-10">
-                    <div class="space-y-6">
-                        <h2 class="text-4xl font-bold text-slate-100 leading-tight">What are we <br>architecting today?</h2>
-                        <textarea id="initial-prompt" rows="4" 
-                            class="w-full bg-white/[0.03] border border-white/10 rounded-3xl p-8 text-xl text-white placeholder-slate-600 outline-none focus:border-violet-500 transition-all shadow-2xl" 
-                            placeholder="Describe your professional website..."></textarea>
-                        <button onclick="startNewProject()" class="w-full bg-violet-600 hover:bg-violet-500 text-white py-6 rounded-2xl font-bold text-xl transition-all shadow-2xl flex items-center justify-center gap-4">
-                            <span>Initialize Project</span>
-                            <i class="fas fa-chevron-right"></i>
-                        </button>
-                    </div>
+            <!-- Explore Section -->
+            <div class="space-y-1">
+                <span class="text-[10px] font-extrabold text-googleGray-500 uppercase tracking-wider px-3">Explore</span>
+                <button onclick="navigateState('home')" id="side-new-app" class="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-googleGray-700 hover:bg-googleGray-100 transition-colors sidebar-item-active">
+                    <i class="fa-solid fa-wand-magic-sparkles text-googleBlue-600 text-xs"></i>
+                    <span>Playground</span>
+                </button>
+                <button onclick="openHistory()" class="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-googleGray-600 hover:bg-googleGray-100 transition-colors">
+                    <i class="fa-regular fa-clock text-xs"></i>
+                    <span>History</span>
+                </button>
+            </div>
+
+            <!-- Build Section -->
+            <div class="space-y-1">
+                <span class="text-[10px] font-extrabold text-googleGray-500 uppercase tracking-wider px-3">Build</span>
+                <button onclick="navigateState('home')" class="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-googleGray-600 hover:bg-googleGray-100 transition-colors">
+                    <i class="fa-solid fa-plus text-xs"></i>
+                    <span>New app</span>
+                </button>
+                <button onclick="navigateState('workspace')" id="side-workspace" class="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-googleGray-600 hover:bg-googleGray-100 transition-colors">
+                    <i class="fa-solid fa-cubes text-xs"></i>
+                    <span>Active workspace</span>
+                </button>
+                <button onclick="openGallery()" class="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-googleGray-600 hover:bg-googleGray-100 transition-colors">
+                    <i class="fa-solid fa-grip text-xs"></i>
+                    <span>Gallery</span>
+                </button>
+            </div>
+
+            <!-- Manage Section -->
+            <div class="space-y-1">
+                <span class="text-[10px] font-extrabold text-googleGray-500 uppercase tracking-wider px-3">Manage</span>
+                <button onclick="openDashboard()" class="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-googleGray-600 hover:bg-googleGray-100 transition-colors">
+                    <i class="fa-solid fa-chart-line text-xs"></i>
+                    <span>Dashboard</span>
+                </button>
+                <button onclick="openDocs()" class="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-googleGray-600 hover:bg-googleGray-100 transition-colors">
+                    <i class="fa-solid fa-book-open text-xs"></i>
+                    <span>Documentation</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Premium Promo Area -->
+        <div class="p-4 border-t border-googleGray-200">
+            <div class="bg-googleGray-50 p-4 rounded-xl border border-googleGray-200 text-left space-y-2.5">
+                <p class="font-bold text-xs text-googleGray-800">Upgrade to unlock more</p>
+                <p class="text-[11px] text-googleGray-500 leading-normal">Access higher limits, high-fidelity Pro models, and rapid workspace builds.</p>
+                <button onclick="openPremiumInfo()" class="w-full bg-white hover:bg-googleGray-100 text-googleGray-800 border border-googleGray-300 rounded-lg py-1.5 text-[11px] font-semibold tracking-wide transition-all">
+                    Upgrade account
+                </button>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Main Dynamic Content Wrapper -->
+    <main class="flex-grow flex flex-col min-h-screen overflow-hidden">
+        
+        <!-- Top Header Panel -->
+        <header class="bg-white border-b border-googleGray-200 h-14 px-4 sm:px-6 flex items-center justify-between shrink-0">
+            <div class="flex items-center gap-3">
+                <button onclick="toggleMobileSidebar()" class="md:hidden text-googleGray-600 p-1 rounded hover:bg-googleGray-100">
+                    <i class="fa-solid fa-bars text-sm"></i>
+                </button>
+                <div class="flex items-center gap-2">
+                    <span id="workspace-title-display" class="font-medium text-sm text-googleGray-800">Untitled App</span>
+                    <button onclick="editProjectTitle()" title="Rename Project" class="text-googleGray-400 hover:text-googleGray-600 p-1 text-xs">
+                        <i class="fa-solid fa-pen"></i>
+                    </button>
                 </div>
-                <div class="lg:col-span-5 flex flex-col">
-                    <div class="flex items-center justify-between border-b border-white/5 pb-6 mb-6">
-                        <h2 class="text-lg font-bold text-slate-300">History</h2>
-                        <button onclick="clearAllProjects()" class="text-[10px] text-slate-500 hover:text-red-400 font-bold uppercase tracking-widest">Clear All</button>
+            </div>
+
+            <!-- System Indicators and Action Area -->
+            <div class="flex items-center gap-3">
+                <!-- API Connection Alert status -->
+                <div class="flex items-center gap-1.5 px-3 py-1 bg-emerald-50 text-emerald-700 rounded-full text-xs font-semibold border border-emerald-100">
+                    <span class="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                    <span class="text-[10px] tracking-wide font-mono">Gemini 2.5 Active</span>
+                </div>
+
+                <div class="flex items-center gap-1 bg-googleGray-100 p-0.5 rounded-lg border border-googleGray-200 text-xs font-semibold font-sans">
+                    <button onclick="setWorkspaceTab('preview')" id="header-btn-preview" class="px-3 py-1 rounded bg-white text-googleGray-800 shadow-sm transition-all flex items-center gap-1 cursor-pointer">
+                        <i class="fa-regular fa-eye text-googleBlue-600"></i>
+                        <span>Preview</span>
+                    </button>
+                    <button onclick="setWorkspaceTab('code')" id="header-btn-code" class="px-3 py-1 rounded text-googleGray-500 hover:text-googleGray-800 transition-all flex items-center gap-1 cursor-pointer font-sans">
+                        <i class="fa-solid fa-code text-indigo-500"></i>
+                        <span>Code</span>
+                    </button>
+                </div>
+
+                <button onclick="publishProject()" title="Export ZIP and download files" class="text-googleGray-600 hover:text-googleGray-800 hover:bg-googleGray-100 border border-googleGray-300 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all flex items-center gap-1.5 active:scale-95">
+                    <i class="fa-solid fa-file-zipper"></i>
+                    <span>Export ZIP</span>
+                </button>
+                <button onclick="openDeployModal()" title="Deploy Live Subdomain" class="bg-googleBlue-600 hover:bg-googleBlue-700 text-white rounded-lg px-3.5 py-1.5 text-xs font-semibold shadow-md hover:shadow-lg transition-all flex items-center gap-1.5 active:scale-95">
+                    <i class="fa-solid fa-cloud-arrow-up"></i>
+                    <span>Deploy Live</span>
+                </button>
+            </div>
+        </header>
+
+        <!-- Dynamic Screen Content -->
+        <div class="flex-grow flex relative overflow-hidden">
+            
+            <!-- VIEW STATE 1: HOME PAGE -->
+            <div id="screen-home" class="absolute inset-0 flex flex-col items-center justify-center p-4 bg-white z-20 transition-all overflow-y-auto">
+                <div class="max-w-2xl w-full text-center space-y-8 py-8">
+                    
+                    <!-- Main Welcome Title -->
+                    <div class="space-y-3">
+                        <h1 class="text-3xl sm:text-4xl font-light text-googleGray-900 tracking-tight flex items-center justify-center gap-3">
+                            <span>Build your ideas with</span>
+                            <span class="font-semibold text-googleBlue-600">NixCode</span>
+                            <span class="text-sm bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full font-mono font-bold">2.5</span>
+                        </h1>
+                        <p class="text-googleGray-500 text-sm max-w-lg mx-auto">
+                            Explain the web application you want to build. Powered directly by Gemini 2.5 Flash, NixCode plans, structures, and compiles high-fidelity, single-file HTML sites with embedded scripts and styles.
+                        </p>
                     </div>
-                    <div id="project-list" class="space-y-4 overflow-y-auto pr-2 flex-1 max-h-[400px]"></div>
+
+                    <!-- Centered Search Prompt Bar -->
+                    <div class="bg-white border border-googleGray-300 rounded-2xl p-3.5 shadow-md hover:shadow-lg focus-within:ring-2 focus-within:ring-googleBlue-100 focus-within:border-googleBlue-600 transition-all text-left space-y-3">
+                        <textarea id="home-prompt-input" rows="3" placeholder="Describe an app and let NixCode do the rest..." class="w-full bg-transparent border-0 resize-none text-sm text-googleGray-800 placeholder-googleGray-400 focus:outline-none focus:ring-0 font-sans leading-relaxed"></textarea>
+                        
+                        <div class="flex items-center justify-between pt-1">
+                            <div class="flex items-center gap-1.5">
+                                <button onclick="triggerAudioSimulation()" class="h-8 w-8 text-googleGray-500 hover:text-googleGray-700 hover:bg-googleGray-100 rounded-full flex items-center justify-center" title="Voice Input">
+                                    <i class="fa-solid fa-microphone text-xs"></i>
+                                </button>
+                                <button onclick="selectTemplatePreset()" class="h-8 w-8 text-googleGray-500 hover:text-googleGray-700 hover:bg-googleGray-100 rounded-full flex items-center justify-center" title="Add source context / media link">
+                                    <i class="fa-solid fa-plus text-xs"></i>
+                                </button>
+                            </div>
+                            
+                            <button onclick="submitHomePrompt()" class="bg-googleBlue-50 hover:bg-googleBlue-100 text-googleBlue-600 border border-googleBlue-100 rounded-xl px-4 py-2 text-xs font-semibold shadow-sm transition-all flex items-center gap-1.5">
+                                <i class="fa-solid fa-wand-magic-sparkles text-[10px]"></i>
+                                <span>I'm feeling lucky</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Quick Preset Idea Chips -->
+                    <div class="space-y-4">
+                        <span class="text-[10px] font-extrabold text-googleGray-400 uppercase tracking-wider block">Jumpstart with popular blueprints</span>
+                        <div class="flex flex-wrap items-center justify-center gap-2 max-w-xl mx-auto">
+                            <button onclick="applyPromptChip('Multi-Page SaaS Site')" class="bg-googleGray-100 hover:bg-googleGray-200 border border-googleGray-200 rounded-xl px-3 py-1.5 text-xs text-googleGray-700 transition-all flex items-center gap-1.5">
+                                <i class="fa-solid fa-cubes text-blue-500"></i>
+                                <span>Multi-Page SaaS Website</span>
+                            </button>
+                            <button onclick="applyPromptChip('Snake Game')" class="bg-googleGray-100 hover:bg-googleGray-200 border border-googleGray-200 rounded-xl px-3 py-1.5 text-xs text-googleGray-700 transition-all flex items-center gap-1.5">
+                                <i class="fa-solid fa-gamepad text-orange-500"></i>
+                                <span>Classic Snake Game</span>
+                            </button>
+                            <button onclick="applyPromptChip('Analytics Dashboard')" class="bg-googleGray-100 hover:bg-googleGray-200 border border-googleGray-200 rounded-xl px-3 py-1.5 text-xs text-googleGray-700 transition-all flex items-center gap-1.5">
+                                <i class="fa-solid fa-chart-line text-emerald-500"></i>
+                                <span>Interactive Dashboard</span>
+                            </button>
+                            <button onclick="applyPromptChip('Audio Synth Board')" class="bg-googleGray-100 hover:bg-googleGray-200 border border-googleGray-200 rounded-xl px-3 py-1.5 text-xs text-googleGray-700 transition-all flex items-center gap-1.5">
+                                <i class="fa-solid fa-music text-purple-500"></i>
+                                <span>Soundscape Synth Studio</span>
+                            </button>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+            <!-- VIEW STATE 2: ACTIVE WORKSPACE -->
+            <div id="screen-workspace" class="absolute inset-0 flex flex-col lg:flex-row bg-white z-10 transition-all">
+                
+                <!-- Left Prompt / Chat Panel (Width 360px on desktop) -->
+                <div class="w-full lg:w-[360px] border-r border-googleGray-200 flex flex-col bg-white shrink-0 h-1/2 lg:h-full relative">
+                    
+                    <!-- Chat / Prompt Feed Area -->
+                    <div id="chat-scroller" class="flex-grow overflow-y-auto p-4 space-y-4">
+                        
+                        <!-- Initial onboarding chatbot log -->
+                        <div class="flex gap-3 text-left">
+                            <div class="h-7 w-7 rounded-lg bg-googleBlue-50 border border-googleBlue-100 flex-shrink-0 flex items-center justify-center text-googleBlue-600 font-bold text-xs">
+                                N
+                            </div>
+                            <div class="space-y-1 max-w-[85%]">
+                                <div class="bg-googleGray-100 border border-googleGray-200 p-3 rounded-2xl text-xs leading-normal text-googleGray-800 space-y-2">
+                                    <p class="font-semibold text-googleGray-900">NixCode Agent</p>
+                                    <p>I can draft, structure, and compile self-contained HTML pages powered by the Gemini 2.5 Flash Engine. Tell me what you want to build and let's craft an execution checklist.</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Chat blocks generated dynamically -->
+                        <div id="dynamic-chat-elements" class="space-y-4"></div>
+
+                        <!-- Active Builder State & Steps Checklist -->
+                        <div id="planner-block" class="hidden bg-googleBlue-50/40 border border-googleBlue-100 rounded-xl p-3 text-left space-y-3">
+                            <div class="flex items-center justify-between border-b border-googleBlue-100 pb-2">
+                                <span class="text-[10px] font-bold text-googleBlue-700 uppercase tracking-wider flex items-center gap-1">
+                                    <i class="fa-solid fa-map"></i>
+                                    <span>Proposed Action Plan</span>
+                                </span>
+                                <span class="text-[9px] bg-googleBlue-100 text-googleBlue-600 px-2 py-0.5 rounded-full font-bold">AWAITING APPROVAL</span>
+                            </div>
+
+                            <!-- Step checks -->
+                            <div id="checklist-render-box" class="space-y-2">
+                                <!-- Steps render here -->
+                            </div>
+
+                            <!-- Controls -->
+                            <div class="pt-1.5 flex flex-col gap-2">
+                                <button onclick="triggerAppBuild()" class="w-full bg-googleBlue-600 hover:bg-googleBlue-700 text-white text-xs font-semibold py-2 rounded-lg transition-all shadow-sm flex items-center justify-center gap-1.5">
+                                    <i class="fa-solid fa-circle-check"></i>
+                                    <span>Approve & Start Build</span>
+                                </button>
+                                <div class="grid grid-cols-2 gap-2">
+                                    <button onclick="addPlannerStep()" class="bg-white hover:bg-googleGray-100 text-googleGray-700 border border-googleGray-300 text-[10px] font-semibold py-1 rounded-md transition-colors">
+                                        <i class="fa-solid fa-plus mr-1"></i> Add Step
+                                    </button>
+                                    <button onclick="focusWorkspaceInput('Edit the plan to include ')" class="bg-white hover:bg-googleGray-100 text-googleGray-700 border border-googleGray-300 text-[10px] font-semibold py-1 rounded-md transition-colors">
+                                        <i class="fa-solid fa-pencil mr-1"></i> Suggest Edit
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Running / Composing indicator block -->
+                        <div id="building-manifesting-block" class="hidden bg-white border border-googleGray-200 rounded-xl p-4 text-left space-y-3 shadow-sm">
+                            <div class="flex items-center gap-2">
+                                <div class="h-4 w-4 border-2 border-googleBlue-600/20 border-t-googleBlue-600 rounded-full animate-spin"></div>
+                                <span class="text-xs font-semibold text-googleBlue-600">Gemini-2.5-Flash processing...</span>
+                            </div>
+                            <div class="space-y-2 pl-6 border-l-2 border-googleGray-100 text-xs text-googleGray-500">
+                                <div id="manifesting-step-1" class="flex items-center gap-2">
+                                    <i class="fa-regular fa-circle text-googleGray-400"></i>
+                                    <span>Structuring HTML shell layout...</span>
+                                </div>
+                                <div id="manifesting-step-2" class="flex items-center gap-2">
+                                    <i class="fa-regular fa-circle text-googleGray-400"></i>
+                                    <span>Embedding custom responsive CSS rules...</span>
+                                </div>
+                                <div id="manifesting-step-3" class="flex items-center gap-2">
+                                    <i class="fa-regular fa-circle text-googleGray-400"></i>
+                                    <span>Injecting JS state engine triggers...</span>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <!-- Input Box at Bottom -->
+                    <div class="p-3 border-t border-googleGray-200 bg-white">
+                        <div class="relative bg-googleGray-100 border border-googleGray-300 rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-googleBlue-50 focus-within:border-googleBlue-600 transition-all">
+                            <textarea id="workspace-prompt-input" rows="2" placeholder="Make changes, add new pages, ask for anything..." class="w-full bg-transparent border-0 px-4 pt-3 pb-1 text-xs text-googleGray-800 placeholder-googleGray-400 focus:outline-none focus:ring-0 resize-none font-sans" onkeydown="handleWorkspaceInput(event)"></textarea>
+
+                            <div class="px-3 pb-2 flex items-center justify-between pt-1">
+                                <div class="flex items-center gap-1.5">
+                                    <button onclick="triggerAudioSimulation()" class="h-7 w-7 text-googleGray-500 hover:text-googleGray-700 hover:bg-googleGray-200 rounded-full flex items-center justify-center">
+                                        <i class="fa-solid fa-microphone text-xs"></i>
+                                    </button>
+                                    <button onclick="selectTemplatePreset()" class="h-7 w-7 text-googleGray-500 hover:text-googleGray-700 hover:bg-googleGray-200 rounded-full flex items-center justify-center">
+                                        <i class="fa-solid fa-plus text-xs"></i>
+                                    </button>
+                                </div>
+
+                                <button id="workspace-send-btn" onclick="submitWorkspacePrompt()" class="bg-googleBlue-600 hover:bg-googleBlue-700 text-white h-7 px-3.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1">
+                                    <span>Submit</span>
+                                    <i class="fa-solid fa-arrow-right text-[10px]"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- Right Screen Split: Live Preview / Code Workspace Viewport -->
+                <div class="flex-grow flex flex-col bg-googleGray-50 h-1/2 lg:h-full relative overflow-hidden">
+                    
+                    <!-- Workspace Inner File/Tab Explorer Bar -->
+                    <div class="bg-white px-4 py-2 border-b border-googleGray-200 flex items-center justify-between shrink-0">
+                        <!-- Left Dynamic Tab List -->
+                        <div class="flex items-center gap-2 overflow-x-auto text-xs py-0.5 select-none scrollbar-none flex-grow">
+                            <div id="file-tabs-explorer" class="flex items-center gap-1">
+                                <!-- Dynamic File buttons will render here -->
+                            </div>
+                            <button onclick="addNewHtmlFile()" class="p-1 px-2.5 rounded hover:bg-googleGray-100 text-googleBlue-600 hover:text-googleBlue-700 font-semibold text-[11px] flex items-center gap-1 shrink-0 cursor-pointer" title="Add Page">
+                                <i class="fa-solid fa-plus text-[10px]"></i>
+                                <span>Add Page</span>
+                            </button>
+                        </div>
+
+                        <!-- Right API Debug Console Log trigger -->
+                        <div class="flex items-center gap-2 shrink-0">
+                            <button onclick="toggleConsoleLog()" class="text-googleGray-500 hover:text-googleGray-700 hover:bg-googleGray-100 border border-googleGray-300 rounded px-2.5 py-1 text-[11px] font-semibold transition-all flex items-center gap-1">
+                                <i class="fa-solid fa-terminal text-[10px]"></i>
+                                <span>API Console</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Inner Screens: Preview Block / Code Block -->
+                    <div class="flex-grow relative overflow-hidden">
+                        
+                        <!-- VIEWPORT 1: ISOLATED LIVE IFRAME PREVIEW -->
+                        <div id="container-viewport-preview" class="absolute inset-0 flex flex-col h-full w-full bg-white z-10 transition-all duration-150">
+                            <!-- Simulated Premium Browser Header -->
+                            <div class="bg-googleGray-100 border-b border-googleGray-200 px-3 py-1.5 flex items-center justify-between shrink-0 text-xs">
+                                <div class="flex items-center gap-2">
+                                    <div class="flex gap-1">
+                                        <span class="h-2 w-2 rounded-full bg-googleGray-300"></span>
+                                        <span class="h-2 w-2 rounded-full bg-googleGray-300"></span>
+                                        <span class="h-2 w-2 rounded-full bg-googleGray-300"></span>
+                                    </div>
+                                    <div class="bg-white border border-googleGray-200 text-googleGray-500 text-[10px] font-mono px-3 py-1 rounded-md min-w-[200px] sm:min-w-[340px] flex items-center justify-between select-none">
+                                        <span id="browser-mock-address">http://nixcode.local/index.html</span>
+                                        <i class="fa-solid fa-lock text-[9px] text-emerald-500"></i>
+                                    </div>
+                                </div>
+                                <div class="flex items-center gap-2 text-googleGray-500">
+                                    <button onclick="compileAndReloadFrame()" title="Reload Frame" class="p-1 hover:text-googleGray-800 hover:bg-googleGray-200 rounded transition-all">
+                                        <i class="fa-solid fa-rotate-right text-xs"></i>
+                                    </button>
+                                    <button onclick="openMockFrameRaw()" title="Open in raw blank screen" class="p-1 hover:text-googleGray-800 hover:bg-googleGray-200 rounded transition-all">
+                                        <i class="fa-solid fa-up-right-from-square text-xs"></i>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="flex-grow relative">
+                                <div id="compilation-loading-spinner" class="absolute inset-0 bg-white/95 z-20 flex flex-col items-center justify-center gap-3 text-center p-6 hidden">
+                                    <div class="h-8 w-8 border-3 border-googleBlue-600/20 border-t-googleBlue-600 rounded-full animate-spin"></div>
+                                    <div>
+                                        <p class="text-googleGray-800 font-bold text-xs">Compiling live preview...</p>
+                                        <p class="text-googleGray-500 text-[11px] mt-0.5">Linking assets and caching document states</p>
+                                    </div>
+                                </div>
+                                <iframe id="render-iframe" class="w-full h-full border-0 bg-white" sandbox="allow-scripts allow-same-origin"></iframe>
+                            </div>
+                        </div>
+
+                        <!-- VIEWPORT 2: RAW SOURCE CODE EDITOR -->
+                        <div id="container-viewport-code" class="absolute inset-0 flex flex-col h-full w-full bg-googleGray-900 text-googleGray-100 font-mono text-xs z-0 transition-all duration-150 select-text">
+                            <!-- Code toolbar action header -->
+                            <div class="bg-googleGray-800 px-4 py-2 flex items-center justify-between text-[11px] text-googleGray-300 shrink-0 select-none">
+                                <div class="flex items-center gap-2">
+                                    <i class="fa-regular fa-file-code text-googleGray-400"></i>
+                                    <span id="code-editor-filepath" class="font-bold text-white">index.html</span>
+                                    <span class="text-googleGray-600">|</span>
+                                    <span id="code-editor-filesize" class="text-googleGray-400">0 KB</span>
+                                </div>
+                                <div class="flex items-center gap-3">
+                                    <button onclick="copyToClipboardWorkspace()" class="hover:text-white flex items-center gap-1 cursor-pointer">
+                                        <i class="fa-regular fa-copy text-googleBlue-100"></i>
+                                        <span>Copy Code</span>
+                                    </button>
+                                    <button onclick="downloadWorkspaceFile()" class="hover:text-white flex items-center gap-1 cursor-pointer">
+                                        <i class="fa-solid fa-download text-indigo-400"></i>
+                                        <span>Download</span>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Text area container -->
+                            <div class="flex-grow flex overflow-y-auto p-4 select-text">
+                                <div id="code-editor-gutter" class="text-googleGray-600 text-right pr-4 border-r border-googleGray-800 select-none mr-4 font-mono leading-relaxed" style="min-width: 2.2rem;">
+                                    <!-- Dynamic line counter -->
+                                </div>
+                                <textarea id="workspace-code-textarea" class="flex-grow bg-transparent border-0 outline-none text-googleGray-100 focus:ring-0 focus:outline-none leading-relaxed overflow-x-auto whitespace-pre font-mono p-0 h-full w-full resize-none" oninput="handleWorkspaceCodeModified(this.value)" spellcheck="false"></textarea>
+                            </div>
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </main>
+
+    <!-- GENERAL NOTIFICATION MODAL SYSTEM -->
+    <div id="system-alert-dialog" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-googleGray-900/60 backdrop-blur-sm hidden">
+        <div class="bg-white border border-googleGray-200 p-6 rounded-2xl max-w-sm w-full text-center space-y-4 shadow-xl">
+            <div id="alert-icon-wrapper" class="h-10 w-10 bg-googleBlue-50 text-googleBlue-600 border border-googleBlue-100 rounded-full flex items-center justify-center mx-auto text-sm">
+                <i class="fa-solid fa-circle-info"></i>
+            </div>
+            <div class="space-y-1">
+                <h3 id="alert-dialog-title" class="font-bold text-googleGray-900 text-sm">Action Complete</h3>
+                <p id="alert-dialog-message" class="text-xs text-googleGray-500 leading-normal">System processing feedback</p>
+            </div>
+            <button onclick="dismissSystemAlert()" class="w-full bg-googleBlue-600 hover:bg-googleBlue-700 text-white text-xs font-semibold py-2 rounded-xl transition-colors">
+                Dismiss Dialog
+            </button>
+        </div>
+    </div>
+
+    <!-- API CONSOLE LOGGER DRAWER PANEL -->
+    <div id="system-console-drawer" class="fixed bottom-0 right-0 left-0 bg-googleGray-900 text-googleGray-200 border-t border-googleGray-800 z-40 h-64 flex flex-col transition-transform transform translate-y-full">
+        <div class="bg-googleGray-800 px-4 py-2 flex items-center justify-between text-xs text-googleGray-300 font-mono">
+            <div class="flex items-center gap-2">
+                <i class="fa-solid fa-terminal text-googleBlue-100"></i>
+                <span class="font-bold">Gemini API Output & Parse Debugger</span>
+            </div>
+            <div class="flex items-center gap-2">
+                <button onclick="clearConsoleLog()" class="hover:text-white px-2 py-0.5 rounded hover:bg-googleGray-700 transition-colors">Clear</button>
+                <button onclick="toggleConsoleLog()" class="hover:text-white px-2 py-0.5 rounded hover:bg-googleGray-700 transition-colors">Close</button>
+            </div>
+        </div>
+        <div id="console-scroller-box" class="flex-grow p-4 overflow-y-auto font-mono text-[11px] space-y-2 text-left select-text bg-black/40">
+            <div class="text-googleGray-500">// System started. Waiting for Gemini 2.5 Flash API compilations.</div>
+        </div>
+    </div>
+
+    <!-- AUDIO STREAMING DIALOG PANEL -->
+    <div id="system-audio-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-googleGray-900/60 backdrop-blur-sm hidden">
+        <div class="bg-white border border-googleGray-200 p-6 rounded-2xl max-w-xs w-full text-center space-y-4 shadow-xl">
+            <div class="h-12 w-12 bg-rose-50 border border-rose-100 rounded-full flex items-center justify-center mx-auto text-rose-500 animate-pulse">
+                <i class="fa-solid fa-microphone text-base"></i>
+            </div>
+            <div class="space-y-1">
+                <h4 class="font-bold text-sm text-googleGray-900">Listening to Prompt Context</h4>
+                <p class="text-xs text-googleGray-500">Speak now. Simulating physical microphone speech to text translations.</p>
+            </div>
+            <div class="flex items-center justify-center gap-1.5 py-1">
+                <span class="h-1 bg-googleBlue-600 w-2 rounded animate-bounce" style="animation-delay: 0.1s"></span>
+                <span class="h-3 bg-googleBlue-600 w-2 rounded animate-bounce" style="animation-delay: 0.3s"></span>
+                <span class="h-5 bg-googleBlue-600 w-2 rounded animate-bounce" style="animation-delay: 0.5s"></span>
+                <span class="h-2 bg-googleBlue-600 w-2 rounded animate-bounce" style="animation-delay: 0.2s"></span>
+            </div>
+            <button onclick="dismissAudioSimulation()" class="w-full bg-googleGray-100 hover:bg-googleGray-200 text-googleGray-700 text-xs font-semibold py-1.5 rounded-lg transition-colors">
+                Cancel
+            </button>
+        </div>
+    </div>
+
+    <!-- DEPLOYMENT MODAL -->
+    <div id="deployment-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-googleGray-900/60 backdrop-blur-sm hidden">
+        <div class="bg-white border border-googleGray-200 p-6 rounded-2xl max-w-md w-full space-y-4 shadow-xl">
+            <div class="flex items-center justify-between border-b border-googleGray-100 pb-3">
+                <div class="flex items-center gap-2">
+                    <span class="h-8 w-8 rounded-lg bg-googleBlue-50 border border-googleBlue-100 flex items-center justify-center text-googleBlue-600"><i class="fa-solid fa-cloud-arrow-up"></i></span>
+                    <h3 class="font-bold text-googleGray-900 text-sm">Deploy Live on HostNix</h3>
+                </div>
+                <button onclick="closeDeployModal()" class="text-googleGray-400 hover:text-googleGray-600 transition-colors">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            
+            <!-- Setup slug View -->
+            <div id="deploy-setup-view" class="space-y-4">
+                <p class="text-xs text-googleGray-500 leading-normal">
+                    Publish your compiled HTML pages directly to HostNix. No sign-up or accounts required. Your application goes live on your custom domain prefix instantly.
+                </p>
+                <div class="space-y-1.5">
+                    <label class="text-[10px] font-bold text-googleGray-500 uppercase tracking-wider block">Choose App Domain / Slug</label>
+                    <div class="flex items-center border border-googleGray-300 rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-googleBlue-50 focus-within:border-googleBlue-600 transition-all bg-googleGray-50">
+                        <span class="bg-googleGray-100 px-3 py-2 border-r border-googleGray-200 text-xs font-mono text-googleGray-500 select-none">hostnix.vercel.app/#</span>
+                        <input id="deploy-slug-input" type="text" placeholder="my-awesome-app" class="w-full bg-white border-0 px-3 py-2 text-xs text-googleGray-800 focus:outline-none font-mono">
+                    </div>
+                    <p class="text-[10px] text-googleGray-400">Letters, numbers, and hyphens only.</p>
+                </div>
+                <button onclick="executeDeployment()" class="w-full bg-googleBlue-600 hover:bg-googleBlue-700 text-white text-xs font-semibold py-2.5 rounded-xl transition-all shadow-md active:scale-95 flex items-center justify-center gap-1.5">
+                    <i class="fa-solid fa-rocket"></i>
+                    <span>Publish with Custom Domain</span>
+                </button>
+            </div>
+
+            <!-- Loading View -->
+            <div id="deploy-loading-view" class="hidden flex flex-col items-center justify-center py-6 space-y-3 text-center">
+                <div class="h-10 w-10 border-3 border-googleBlue-600/20 border-t-googleBlue-600 rounded-full animate-spin"></div>
+                <div>
+                    <p class="text-googleGray-800 font-bold text-xs" id="deploy-status-txt">Provisioning static hosted environment...</p>
+                    <p class="text-googleGray-400 text-[11px] mt-0.5">Please wait, compiling database entries...</p>
+                </div>
+            </div>
+
+            <!-- Success View -->
+            <div id="deploy-success-view" class="hidden space-y-4">
+                <div class="h-12 w-12 bg-emerald-50 text-emerald-600 border border-emerald-100 rounded-full flex items-center justify-center mx-auto text-lg">
+                    <i class="fa-solid fa-circle-check"></i>
+                </div>
+                <div class="text-center space-y-1">
+                    <h4 class="font-bold text-googleGray-900 text-sm">Deployment Active!</h4>
+                    <p class="text-xs text-googleGray-500">Your compiled workspace is now live on the internet.</p>
+                </div>
+                <div class="bg-googleGray-50 border border-googleGray-200 rounded-xl p-3 flex items-center justify-between text-xs font-mono">
+                    <span id="deploy-live-url" class="text-googleBlue-600 truncate mr-2 select-all font-sans font-medium text-xs">https://hostnix.vercel.app/#my-awesome-app</span>
+                    <button onclick="copyDeployUrl()" class="text-googleGray-500 hover:text-googleBlue-600 p-1.5 hover:bg-googleGray-100 rounded-lg transition-all" title="Copy URL">
+                        <i class="fa-regular fa-copy"></i>
+                    </button>
+                </div>
+                <div class="flex gap-2">
+                    <button onclick="closeDeployModal()" class="flex-1 bg-googleGray-100 hover:bg-googleGray-200 text-googleGray-700 text-xs font-semibold py-2 rounded-xl transition-colors">Close</button>
+                    <a id="deploy-visit-btn" href="#" target="_blank" class="flex-1 bg-googleBlue-600 hover:bg-googleBlue-700 text-white text-xs font-semibold py-2 rounded-xl text-center transition-colors flex items-center justify-center gap-1.5">
+                        <span>Visit Site</span>
+                        <i class="fa-solid fa-arrow-up-right-from-square text-[10px]"></i>
+                    </a>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Main IDE Interface -->
-    <div id="app-content" class="h-screen flex flex-col blur transition-all duration-700">
-        <header class="h-14 bg-[#111] flex items-center justify-between px-5 z-50 border-b border-[#222] shrink-0">
-            <div class="flex items-center gap-6">
-                <button onclick="goHome()" class="text-slate-500 hover:text-white transition-colors flex items-center gap-2 text-xs font-bold uppercase tracking-widest">
-                    <i class="fas fa-th-large"></i>
-                    <span>NixCode</span>
-                </button>
-                <div class="flex items-center gap-3">
-                    <div class="w-2 h-2 rounded-full bg-green-500"></div>
-                    <span id="current-project-name" class="text-xs font-semibold text-slate-300 tracking-wide">Ready</span>
+    <!-- CORE JAVASCRIPT & GEMINI API CONNECTION LOGIC -->
+    <script>
+        // Store virtual filesystem (All in standalone HTML single files containing embedded CSS / scripts)
+        let files = {
+            'index.html': `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NixCode Web Preview</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"><\/script>
+    <style>
+        body {
+            background-image: radial-gradient(#cbd5e1 1px, transparent 1px);
+            background-size: 16px 16px;
+            background-color: #f8fafc;
+        }
+    </style>
+</head>
+<body class="text-slate-800 flex flex-col items-center justify-center min-h-screen p-4">
+    <div class="max-w-md w-full bg-white rounded-3xl shadow-xl border border-slate-100 p-8 text-center space-y-6">
+        <div class="h-16 w-16 bg-blue-50 border border-blue-100 rounded-2xl flex items-center justify-center text-blue-600 text-3xl mx-auto shadow-sm">
+            ⚡
+        </div>
+        <div class="space-y-2">
+            <h1 class="text-2xl font-bold tracking-tight text-slate-900">Virtual NixCode Sandbox</h1>
+            <p class="text-sm text-slate-500 leading-relaxed">This is index.html. CSS and JS are fully embedded inside this single document.</p>
+        </div>
+        
+        <div class="flex items-center justify-center gap-3">
+            <a href="about.html" class="text-xs font-semibold text-blue-600 hover:underline px-3 py-1.5 rounded-lg hover:bg-blue-50 transition-colors">
+                Go to About Page &rarr;
+            </a>
+        </div>
+
+        <button id="action-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-xl transition-all shadow-md active:scale-95">
+            Interactive Test Button
+        </button>
+    </div>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const btn = document.getElementById('action-btn');
+            if (btn) {
+                btn.addEventListener('click', () => {
+                    alert('Interaction script fired directly from within index.html!');
+                });
+            }
+        });
+    <\/script>
+</body>
+</html>`,
+            'about.html': `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>About Us - NixCode Sandbox</title>
+    <script src="https://cdn.tailwindcss.com"><\/script>
+</head>
+<body class="bg-slate-50 text-slate-800 flex flex-col items-center justify-center min-h-screen p-4">
+    <div class="max-w-md w-full bg-white rounded-3xl shadow-xl border border-slate-200 p-8 text-center space-y-6">
+        <div class="h-16 w-16 bg-indigo-50 border border-indigo-100 rounded-2xl flex items-center justify-center text-indigo-600 text-3xl mx-auto shadow-sm">
+            ℹ️
+        </div>
+        <div class="space-y-2">
+            <h1 class="text-2xl font-bold tracking-tight text-slate-900">About Page</h1>
+            <p class="text-sm text-slate-500 leading-relaxed">This is about.html! We support multiple HTML files linked together smoothly.</p>
+        </div>
+
+        <div class="flex items-center justify-center gap-3">
+            <a href="index.html" class="text-xs font-semibold text-indigo-600 hover:underline px-3 py-1.5 rounded-lg hover:bg-indigo-50 transition-colors">
+                &larr; Back to Home page
+            </a>
+        </div>
+    </div>
+</body>
+</html>`
+        };
+
+        // Gemini API Configuration parameters
+        const apiKey = ""; // Left empty as required by runtime environment
+        const GEMINI_API_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+
+        let currentActiveState = 'home'; // 'home' or 'workspace'
+        let workspaceActiveFile = 'index.html';
+        let workspaceActiveTab = 'preview'; // 'preview' or 'code'
+        let currentPromptText = '';
+        let activeActionPlanner = [];
+        let projectTitle = "Untitled App";
+
+        window.onload = function() {
+            // Listen for internal iframe navigations to link tabs correctly
+            window.addEventListener('message', (event) => {
+                if (event.data && event.data.type === 'navigate') {
+                    const targetFile = event.data.file;
+                    if (files[targetFile]) {
+                        setWorkspaceActiveFile(targetFile);
+                    } else {
+                        addConsoleLog("WARNING", `Prevented navigation to uncompiled file: ${targetFile}`);
+                    }
+                }
+            });
+
+            // Initial view load
+            navigateState('home');
+            renderFileTabs();
+            compileAndReloadFrame();
+            updateEditorPane();
+        };
+
+        function navigateState(state) {
+            currentActiveState = state;
+            const homeScreen = document.getElementById('screen-home');
+            const workspaceScreen = document.getElementById('screen-workspace');
+            
+            const tabPlayground = document.getElementById('side-new-app');
+            const tabWorkspace = document.getElementById('side-workspace');
+
+            if (state === 'home') {
+                homeScreen.classList.remove('hidden');
+                workspaceScreen.classList.add('hidden');
+                
+                tabPlayground.classList.add('sidebar-item-active');
+                tabWorkspace.classList.remove('sidebar-item-active');
+            } else {
+                homeScreen.classList.add('hidden');
+                workspaceScreen.classList.remove('hidden');
+                
+                tabWorkspace.classList.add('sidebar-item-active');
+                tabPlayground.classList.remove('sidebar-item-active');
+                
+                setTimeout(() => {
+                    scrollChatToBottom();
+                }, 80);
+            }
+        }
+
+        // Apply prompt chip clicks instantly
+        function applyPromptChip(type) {
+            const homeInput = document.getElementById('home-prompt-input');
+            if (type === 'Multi-Page SaaS Site') {
+                homeInput.value = "Build a professional multi-page SaaS product marketing layout. Write a highly stylized index.html with feature grids, price panels, and a navigation bar linking to contact.html and pricing.html pages with matching styles.";
+            } else if (type === 'Snake Game') {
+                homeInput.value = "Build a beautiful single-file neon classic snake game with on-screen controllers and keyboard support. Embed all layouts, neon CSS, and retro state engine scripts inside index.html.";
+            } else if (type === 'Analytics Dashboard') {
+                homeInput.value = "Create a premium interactive charts analytics dashboard inside index.html. Include stats calculations, filters, light theme toggles, and charts embedded inside the document.";
+            } else if (type === 'Audio Synth Board') {
+                homeInput.value = "Design a professional web synth audio studio in index.html. Include multi-wave tone generators, octave boards, delay sliders, and reactive glowing keys.";
+            }
+            homeInput.focus();
+        }
+
+        function submitHomePrompt() {
+            const input = document.getElementById('home-prompt-input');
+            const val = input.value.trim();
+            if (!val) return;
+
+            currentPromptText = val;
+            projectTitle = val.slice(0, 20) + (val.length > 20 ? '...' : '');
+            document.getElementById('workspace-title-display').textContent = projectTitle;
+            
+            input.value = '';
+            
+            // Switch straight into work viewport
+            navigateState('workspace');
+            
+            // Append initial user chat bubble
+            appendChatElement('user', val);
+            
+            // Trigger auto planner system
+            generateActionPlan(val);
+        }
+
+        function submitWorkspacePrompt() {
+            const input = document.getElementById('workspace-prompt-input');
+            const val = input.value.trim();
+            if (!val) return;
+
+            currentPromptText = val;
+            input.value = '';
+
+            appendChatElement('user', val);
+            generateActionPlan(val);
+        }
+
+        function handleWorkspaceInput(event) {
+            if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                submitWorkspacePrompt();
+            }
+        }
+
+        function focusWorkspaceInput(text) {
+            const input = document.getElementById('workspace-prompt-input');
+            input.value = text;
+            input.focus();
+        }
+
+        function generateActionPlan(prompt) {
+            appendChatElement('assistant', `<strong>Analyzing prompt...</strong><br>Organizing linked single-file website architecture plans with embedded styles & interactions...`, true);
+            
+            let lane1 = "Draft the responsive index.html skeleton layout.";
+            let lane2 = "Embed highly refined design templates & responsive styles into index.html.";
+            let lane3 = "Inject interactive client-side JavaScript controllers in a <script> block.";
+            let lane4 = "Synthesize additional secondary HTML views (like details.html or about.html) linking together seamlessly.";
+
+            const lPrompt = prompt.toLowerCase();
+            if (lPrompt.includes('snake') || lPrompt.includes('game')) {
+                lane1 = "Setup absolute canvas element frames and scoreboard widgets in index.html";
+                lane2 = "Add pixel-art CSS and game keyframes in an inline <style> block";
+                lane3 = "Build active game logic loop, directional vectors, and touch swipe gestures inside <script>";
+                lane4 = "Ensure all components run entirely from index.html";
+            } else if (lPrompt.includes('dashboard') || lPrompt.includes('analytics')) {
+                lane1 = "Draft responsive metric widgets and a side navigation frame inside index.html";
+                lane2 = "Embed chart style custom rules and color presets inline";
+                lane3 = "Integrate metric re-calculation triggers and light-mode toggles via embedded JS";
+                lane4 = "Craft reports.html as a secondary page mapping detailed tabular history logs";
+            } else if (lPrompt.includes('synth') || lPrompt.includes('audio') || lPrompt.includes('music')) {
+                lane1 = "Format octave piano keys, wave parameters selector, and sliders inside index.html";
+                lane2 = "Structure neon key shadows and transitions inline";
+                lane3 = "Establish AudioContext synthesizer triggers and active keyboard note listener mappings inside `<script>`";
+                lane4 = "Verify full compatibility within a single-file construct";
+            } else if (lPrompt.includes('multi-page') || lPrompt.includes('saas') || lPrompt.includes('marketing')) {
+                lane1 = "Establish index.html containing a global nav header, product hero deck, and pricing columns";
+                lane2 = "Structure contact.html featuring an interactive, responsive inquiries submission form";
+                lane3 = "Generate pricing.html compiling interactive plan selectors and custom feature FAQs";
+                lane4 = "Embed all interactive scripts and Tailwind custom rules within each page independently";
+            }
+
+            activeActionPlanner = [
+                { id: 1, text: lane1, checked: true },
+                { id: 2, text: lane2, checked: true },
+                { id: 3, text: lane3, checked: true },
+                { id: 4, text: lane4, checked: true }
+            ];
+
+            setTimeout(() => {
+                renderActionPlanner();
+            }, 800);
+        }
+
+        function renderActionPlanner() {
+            const box = document.getElementById('checklist-render-box');
+            const plannerBlock = document.getElementById('planner-block');
+            
+            box.innerHTML = '';
+            
+            activeActionPlanner.forEach(step => {
+                const row = document.createElement('div');
+                row.className = "flex items-start gap-2 bg-white/80 p-2 rounded-lg border border-googleGray-200 text-[11px] shadow-sm";
+                row.innerHTML = `
+                    <input type="checkbox" id="step-chk-${step.id}" ${step.checked ? 'checked' : ''} 
+                        onclick="togglePlannerStep(${step.id})"
+                        class="mt-0.5 rounded border-googleGray-300 text-googleBlue-600 focus:ring-googleBlue-600 h-3.5 w-3.5 cursor-pointer">
+                    <div class="flex-grow">
+                        <input type="text" value="${step.text}" 
+                            onchange="editPlannerStepText(${step.id}, this.value)"
+                            class="bg-transparent border-0 p-0 text-googleGray-800 font-medium focus:ring-0 focus:outline-none w-full text-[11px]">
+                    </div>
+                    <button onclick="removePlannerStep(${step.id})" class="text-googleGray-400 hover:text-rose-500 transition-colors">
+                        <i class="fa-solid fa-trash text-[10px]"></i>
+                    </button>
+                `;
+                box.appendChild(row);
+            });
+
+            plannerBlock.classList.remove('hidden');
+            scrollChatToBottom();
+        }
+
+        function togglePlannerStep(id) {
+            const step = activeActionPlanner.find(s => s.id === id);
+            if (step) step.checked = !step.checked;
+        }
+
+        function editPlannerStepText(id, text) {
+            const step = activeActionPlanner.find(s => s.id === id);
+            if (step) step.text = text;
+        }
+
+        function removePlannerStep(id) {
+            activeActionPlanner = activeActionPlanner.filter(s => s.id !== id);
+            renderActionPlanner();
+        }
+
+        function addPlannerStep() {
+            const nextId = activeActionPlanner.length > 0 ? Math.max(...activeActionPlanner.map(s => s.id)) + 1 : 1;
+            activeActionPlanner.push({
+                id: nextId,
+                text: "Custom requested page or script component details...",
+                checked: true
+            });
+            renderActionPlanner();
+        }
+
+        // Implementation of standard Gemini API invocation with robust exponential backoff retry mechanism
+        async function fetchGeminiWithBackoff(systemPrompt, userQuery) {
+            const payload = {
+                contents: [{ parts: [{ text: userQuery }] }],
+                systemInstruction: { parts: [{ text: systemPrompt }] }
+            };
+
+            const retryDelays = [1000, 2000, 4000, 8000, 16000];
+            
+            for (let attempt = 0; attempt <= retryDelays.length; attempt++) {
+                try {
+                    const response = await fetch(GEMINI_API_ENDPOINT, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (response.ok) {
+                        const data = await response.json();
+                        const generatedText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+                        if (generatedText) {
+                            return generatedText;
+                        }
+                        throw new Error("Gemini returned an empty candidate list or invalid payload structure.");
+                    } else {
+                        const errPayload = await response.json().catch(() => ({}));
+                        throw new Error(errPayload.error?.message || `HTTP ${response.status}: ${response.statusText}`);
+                    }
+                } catch (err) {
+                    if (attempt === retryDelays.length) {
+                        throw err; // All retries failed, raise error
+                    }
+                    // Wait with exponential backoff
+                    await new Promise(resolve => setTimeout(resolve, retryDelays[attempt]));
+                }
+            }
+        }
+
+        async function triggerAppBuild() {
+            document.getElementById('planner-block').classList.add('hidden');
+            
+            const manifestingBlock = document.getElementById('building-manifesting-block');
+            manifestingBlock.classList.remove('hidden');
+            scrollChatToBottom();
+
+            const st1 = document.getElementById('manifesting-step-1');
+            const st2 = document.getElementById('manifesting-step-2');
+            const st3 = document.getElementById('manifesting-step-3');
+
+            st1.innerHTML = `<i class="fa-regular fa-circle text-googleGray-400"></i><span>Structuring HTML shell layout...</span>`;
+            st2.innerHTML = `<i class="fa-regular fa-circle text-googleGray-400"></i><span>Embedding custom responsive CSS rules...</span>`;
+            st3.innerHTML = `<i class="fa-regular fa-circle text-googleGray-400"></i><span>Injecting JS state engine triggers...</span>`;
+
+            setTimeout(() => {
+                st1.innerHTML = `<i class="fa-solid fa-circle-notch text-googleBlue-600 animate-spin"></i><span class="text-googleGray-800 font-semibold">Generating HTML layout assets...</span>`;
+            }, 400);
+
+            const activePlanDescription = activeActionPlanner
+                .filter(s => s.checked)
+                .map((s, idx) => `${idx + 1}. ${s.text}`)
+                .join('\n');
+
+            // System prompt asking for HTML code blocks, fully embedded and structured.
+            const systemContentPrompt = `You are NixCode, an advanced multi-file web builder.
+The user wants you to build: "${currentPromptText}"
+Following this approved action plan:
+${activePlanDescription}
+
+CRITICAL RULES:
+1. Write everything inside single-file standalone HTML documents. 
+2. Any styling must be placed in inline Tailwind classes or a <style> block inside the same HTML document.
+3. Any custom JavaScript interactions must be placed inside a <script> tag inside the same HTML document.
+4. You can write multiple HTML files if needed for a multi-page app (e.g., index.html, about.html, dashboard.html). Do NOT output separate .css or .js files.
+5. Links between pages should be simple relative anchors: <a href="about.html">About</a>.
+
+You MUST wrap the output files exactly inside markdown tags using this structured format:
+
+===FILE: index.html===
+\`\`\`html
+(your index.html code with embedded styles and scripts)
+\`\`\`
+
+===FILE: about.html===
+\`\`\`html
+(your about.html code with embedded styles and scripts)
+\`\`\`
+
+Your output must be visually stunning, completely responsive on all devices, and fully functional.`;
+
+            addConsoleLog("INFO", "Dispatched structured generation request to Gemini 2.5 Flash API...");
+            
+            try {
+                // Call Gemini API with automated exponential backoff
+                const textOutput = await fetchGeminiWithBackoff(
+                    systemContentPrompt, 
+                    "Please execute the blueprint. Write beautifully designed inline HTML page(s). Do not provide separate css/js files."
+                );
+
+                addConsoleLog("SUCCESS", "Raw Gemini 2.5 response parsed successfully. Restructuring local filesystem...");
+
+                setTimeout(() => {
+                    st1.innerHTML = `<i class="fa-solid fa-circle-check text-emerald-500"></i><span class="text-googleGray-500">HTML Layouts Formatted (Complete)</span>`;
+                    st2.innerHTML = `<i class="fa-solid fa-circle-notch text-googleBlue-600 animate-spin"></i><span class="text-googleGray-800 font-semibold">Embedding responsive styles...</span>`;
+                }, 1000);
+
+                setTimeout(() => {
+                    st2.innerHTML = `<i class="fa-solid fa-circle-check text-emerald-500"></i><span class="text-googleGray-500">Styles embedded (Complete)</span>`;
+                    st3.innerHTML = `<i class="fa-solid fa-circle-notch text-googleBlue-600 animate-spin"></i><span class="text-googleGray-800 font-semibold">Injecting scripts...</span>`;
+                }, 2000);
+
+                const parseOk = parseLongCatOutput(textOutput);
+
+                setTimeout(() => {
+                    st3.innerHTML = `<i class="fa-solid fa-circle-check text-emerald-500"></i><span class="text-googleGray-500">Script injection completed (Complete)</span>`;
+                    
+                    setTimeout(() => {
+                        manifestingBlock.classList.add('hidden');
+                        
+                        if (parseOk) {
+                            appendChatElement('assistant', `
+                                <div class="space-y-2">
+                                    <p class="font-bold text-emerald-600 flex items-center gap-1">
+                                        <i class="fa-solid fa-circle-check"></i>
+                                        <span>Compilation Complete!</span>
+                                    </p>
+                                    <p>I have built the requested single-file HTML views using the Gemini 2.5 Flash API. Navigate between pages in the **Preview** or inspect the layouts in **Code**!</p>
+                                </div>
+                            `);
+                        } else {
+                            addConsoleLog("WARNING", "Standard block parse failed. Initiating fallback parsing checks...");
+                            attemptRobustFallbackParse(textOutput);
+                            appendChatElement('assistant', `
+                                <div class="space-y-2">
+                                    <p class="font-bold text-googleBlue-600 flex items-center gap-1">
+                                        <i class="fa-solid fa-circle-info"></i>
+                                        <span>Files Loaded</span>
+                                    </p>
+                                    <p>The code was successfully extracted and loaded into the workspace!</p>
+                                </div>
+                            `);
+                        }
+
+                        renderFileTabs();
+                        setWorkspaceActiveFile('index.html');
+                        compileAndReloadFrame();
+                        setWorkspaceTab('preview');
+                    }, 800);
+
+                }, 3000);
+
+            } catch (err) {
+                addConsoleLog("ERROR", `Gemini API connection failed: ${err.message}. Loading local fallback template.`);
+                
+                setTimeout(() => {
+                    st1.innerHTML = `<i class="fa-solid fa-circle-check text-emerald-500"></i><span class="text-googleGray-500">HTML Layouts Formatted (Complete)</span>`;
+                    st2.innerHTML = `<i class="fa-solid fa-circle-check text-emerald-500"></i><span class="text-googleGray-500">Styles embedded (Complete)</span>`;
+                    st3.innerHTML = `<i class="fa-solid fa-circle-check text-emerald-500"></i><span class="text-googleGray-500">Scripts injected (Complete)</span>`;
+                    
+                    setTimeout(() => {
+                        manifestingBlock.classList.add('hidden');
+                        loadAestheticFallbackPreset(currentPromptText);
+                        
+                        appendChatElement('assistant', `
+                            <div class="space-y-2">
+                                <p class="font-semibold text-googleBlue-600 flex items-center gap-1.5 text-xs">
+                                    <i class="fa-solid fa-laptop-code"></i>
+                                    <span>Workspace Ready (Fallback Loaded)</span>
+                                </p>
+                                <p>Successfully loaded an interactive template corresponding to: "${currentPromptText}". Click the tabs to inspect code or test interactions!</p>
+                            </div>
+                        `);
+
+                        renderFileTabs();
+                        setWorkspaceActiveFile('index.html');
+                        compileAndReloadFrame();
+                        setWorkspaceTab('preview');
+                    }, 1000);
+                }, 2000);
+            }
+        }
+
+        function parseLongCatOutput(rawText) {
+            // Regexp matching: ===FILE: filename.html=== followed by code block
+            const fileBlockRegex = /===\s*FILE:\s*([\w-]+\.html)\s*===[\s\S]*?```html([\s\S]*?)```/gi;
+            let match;
+            let foundAny = false;
+            const newFiles = {};
+            
+            while ((match = fileBlockRegex.exec(rawText)) !== null) {
+                const filename = match[1].trim();
+                const content = match[2].trim();
+                newFiles[filename] = content;
+                foundAny = true;
+            }
+            
+            if (!foundAny) {
+                // Secondary check for standard headings "File: filename.html" or "### filename.html"
+                const altRegex = /(?:File|###):\s*([\w-]+\.html)[\s\S]*?```html([\s\S]*?)```/gi;
+                while ((match = altRegex.exec(rawText)) !== null) {
+                    const filename = match[1].trim();
+                    const content = match[2].trim();
+                    newFiles[filename] = content;
+                    foundAny = true;
+                }
+            }
+
+            if (foundAny) {
+                files = newFiles;
+                return true;
+            }
+            return false;
+        }
+
+        function attemptRobustFallbackParse(rawText) {
+            const blocks = [];
+            const regex = /```(html)\n([\s\S]*?)```/gi;
+            let match;
+
+            while ((match = regex.exec(rawText)) !== null) {
+                blocks.push(match[2].trim());
+            }
+
+            if (blocks.length > 0) {
+                files = {};
+                blocks.forEach((code, idx) => {
+                    const filename = idx === 0 ? 'index.html' : `page-${idx + 1}.html`;
+                    files[filename] = code;
+                });
+            } else {
+                // Extreme fallback
+                files = {
+                    'index.html': rawText
+                };
+            }
+        }
+
+        function loadAestheticFallbackPreset(prompt) {
+            const lPrompt = prompt.toLowerCase();
+            
+            if (lPrompt.includes('multi-page') || lPrompt.includes('saas') || lPrompt.includes('marketing')) {
+                files = {
+                    'index.html': `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SaaS Product Pro</title>
+    <script src="https://cdn.tailwindcss.com"><\/script>
+</head>
+<body class="bg-slate-50 text-slate-900 font-sans min-h-screen flex flex-col justify-between">
+    <!-- Navbar -->
+    <header class="bg-white border-b border-slate-100 py-4 px-6 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+            <span class="h-8 w-8 bg-blue-600 rounded-lg flex items-center justify-center text-white font-extrabold text-sm">S</span>
+            <span class="font-extrabold tracking-tight">SaaSify</span>
+        </div>
+        <nav class="flex items-center gap-4 text-xs font-semibold text-slate-500">
+            <a href="index.html" class="text-blue-600">Home</a>
+            <a href="pricing.html" class="hover:text-slate-800">Pricing Plans</a>
+        </nav>
+    </header>
+
+    <!-- Hero section -->
+    <main class="max-w-4xl mx-auto px-6 py-12 text-center space-y-8 flex-grow">
+        <div class="space-y-4">
+            <h1 class="text-4xl font-extrabold tracking-tight text-slate-900 sm:text-5xl">
+                Supercharge your <span class="text-blue-600">development velocity</span>
+            </h1>
+            <p class="text-slate-500 text-sm max-w-lg mx-auto">
+                Build professional production interfaces in seconds. Code generation with smart planning and interactive deployments.
+            </p>
+        </div>
+        <div class="flex justify-center gap-3">
+            <a href="pricing.html" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-6 py-3 rounded-xl shadow-md transition-all">
+                Get Started
+            </a>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="border-t border-slate-100 py-6 text-center text-xs text-slate-400">
+        &copy; 2026 SaaSify. Built with NixCode AI.
+    </footer>
+</body>
+</html>`,
+                    'pricing.html': `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SaaS pricing plans</title>
+    <script src="https://cdn.tailwindcss.com"><\/script>
+</head>
+<body class="bg-slate-50 text-slate-900 font-sans min-h-screen flex flex-col justify-between">
+    <!-- Navbar -->
+    <header class="bg-white border-b border-slate-100 py-4 px-6 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+            <span class="h-8 w-8 bg-blue-600 rounded-lg flex items-center justify-center text-white font-extrabold text-sm">S</span>
+            <span class="font-extrabold tracking-tight">SaaSify</span>
+        </div>
+        <nav class="flex items-center gap-4 text-xs font-semibold text-slate-500">
+            <a href="index.html" class="hover:text-slate-800">Home</a>
+            <a href="pricing.html" class="text-blue-600">Pricing Plans</a>
+        </nav>
+    </header>
+
+    <!-- Pricing Grid -->
+    <main class="max-w-4xl mx-auto px-6 py-12 flex-grow space-y-8">
+        <div class="text-center">
+            <h2 class="text-3xl font-bold tracking-tight">Flexible Pricing Plans</h2>
+            <p class="text-slate-500 text-xs mt-1">Select the package that fits your growth.</p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-2xl mx-auto">
+            <div class="bg-white border border-slate-200 p-6 rounded-2xl space-y-4 shadow-sm">
+                <div>
+                    <h3 class="font-bold text-sm text-slate-900">Developer</h3>
+                    <p class="text-2xl font-extrabold text-slate-900 mt-1">$0 <span class="text-xs text-slate-400 font-normal">/mo</span></p>
                 </div>
+                <ul class="text-xs text-slate-500 space-y-2">
+                    <li><i class="fa-solid fa-check text-green-500 mr-2"></i> 1 Sandbox Environment</li>
+                    <li><i class="fa-solid fa-check text-green-500 mr-2"></i> Local exports</li>
+                </ul>
+                <button class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs py-2 rounded-xl font-semibold transition-all">Sign Up</button>
             </div>
-
-            <div class="flex items-center gap-4">
-                <button onclick="extractCode()" class="px-4 py-1.5 rounded-lg border border-white/10 text-[10px] font-bold text-slate-400 hover:bg-white/5 transition-all">
-                    <i class="fas fa-download mr-2"></i>EXTRACT
-                </button>
-                <div class="flex bg-black/40 rounded-xl p-1 border border-white/5">
-                    <button onclick="setTab('preview')" id="tab-preview-btn" class="px-6 py-1.5 rounded-lg text-[10px] font-bold transition-all bg-violet-600 text-white">PREVIEW</button>
-                    <button onclick="setTab('code')" id="tab-code-btn" class="px-6 py-1.5 rounded-lg text-[10px] font-bold transition-all text-slate-500">CODE</button>
+            
+            <div class="bg-white border-2 border-blue-500 p-6 rounded-2xl space-y-4 shadow-md relative">
+                <span class="absolute -top-3 right-4 bg-blue-600 text-white text-[9px] font-bold py-1 px-2.5 rounded-full">POPULAR</span>
+                <div>
+                    <h3 class="font-bold text-sm text-slate-900 font-extrabold">Enterprise Pro</h3>
+                    <p class="text-2xl font-extrabold text-slate-900 mt-1">$19 <span class="text-xs text-slate-400 font-normal">/mo</span></p>
                 </div>
+                <ul class="text-xs text-slate-500 space-y-2">
+                    <li><i class="fa-solid fa-check text-green-500 mr-2"></i> Unlimited Sandbox builds</li>
+                    <li><i class="fa-solid fa-check text-green-500 mr-2"></i> Custom Domain Deployments</li>
+                </ul>
+                <button class="w-full bg-blue-600 hover:bg-blue-700 text-white text-xs py-2 rounded-xl font-semibold transition-all">Go Premium</button>
             </div>
-        </header>
+        </div>
+    </main>
 
-        <div class="flex-1 flex overflow-hidden">
-            <aside class="w-72 bg-[#151515] flex flex-col border-r border-[#222] shrink-0">
-                <div class="p-4 flex items-center justify-between text-[#555]">
-                    <span class="text-[9px] font-black uppercase tracking-[0.2em]">Project Explorer</span>
-                </div>
-                <div id="file-tree" class="flex-1 overflow-y-auto px-2"></div>
+    <footer class="border-t border-slate-100 py-6 text-center text-xs text-slate-400">
+        &copy; 2026 SaaSify. Built with NixCode AI.
+    </footer>
+</body>
+</html>`
+                };
+            } else if (lPrompt.includes('snake') || lPrompt.includes('game')) {
+                files = {
+                    'index.html': `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Retro Neon Snake Game</title>
+    <script src="https://cdn.tailwindcss.com"><\/script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            background-color: #0f172a;
+            background-image: radial-gradient(#1e293b 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+        canvas {
+            image-rendering: pixelated;
+        }
+    </style>
+</head>
+<body class="bg-slate-900 text-white min-h-screen flex flex-col items-center justify-center p-4 select-none">
+    
+    <div class="max-w-md w-full bg-slate-800 border border-slate-700/80 rounded-3xl p-6 shadow-2xl space-y-5 text-center relative overflow-hidden">
+        <div class="flex items-center justify-between border-b border-slate-700 pb-3">
+            <div class="flex items-center gap-2">
+                <span class="h-8 w-8 rounded-xl bg-orange-500/10 text-orange-400 flex items-center justify-center"><i class="fa-solid fa-gamepad"></i></span>
+                <span class="font-extrabold text-sm tracking-tight text-slate-100">NEON SNAKE</span>
+            </div>
+            <div class="flex items-center gap-4 text-xs font-mono font-bold text-slate-300">
+                <div>SCORE: <span id="score-val" class="text-orange-400">0</span></div>
+                <div>HI: <span id="high-score-val" class="text-orange-400">0</span></div>
+            </div>
+        </div>
 
-                <div class="p-5 border-t border-white/5 bg-[#0d0d0d]">
-                    <div class="relative group">
-                        <textarea id="instruction-input" rows="3" 
-                            class="w-full bg-white/[0.03] border border-white/10 rounded-xl p-4 text-xs text-slate-300 placeholder-slate-700 outline-none focus:border-violet-500 transition-all resize-none" 
-                            placeholder="Refactor project..."></textarea>
-                        <button onclick="executeAIInstruction()" class="absolute right-3 bottom-3 bg-violet-600 text-white w-8 h-8 rounded-lg flex items-center justify-center hover:bg-violet-500 transition-all shadow-xl">
-                            <i class="fas fa-paper-plane text-[10px]"></i>
-                        </button>
-                    </div>
-                </div>
-            </aside>
+        <div class="relative bg-slate-950 rounded-2xl border-2 border-slate-700 overflow-hidden flex items-center justify-center h-64">
+            <canvas id="game-canvas" width="300" height="240" class="block bg-slate-950"></canvas>
+            
+            <div id="gameover-overlay" class="absolute inset-0 bg-slate-950/90 flex flex-col items-center justify-center space-y-3 hidden">
+                <span class="text-xs bg-red-500/20 text-red-400 px-3 py-1 rounded-full border border-red-500/30 font-bold uppercase tracking-widest">Game Over</span>
+                <p class="text-sm text-slate-300">Final score: <span id="final-score" class="font-bold text-white">0</span></p>
+                <button id="restart-btn" class="bg-orange-500 hover:bg-orange-600 text-white px-5 py-2 rounded-xl text-xs font-bold shadow-md transition-all active:scale-95">Play Again</button>
+            </div>
+        </div>
 
-            <main class="flex-1 flex flex-col min-w-0 bg-[#0d0d0d] relative">
-                <div id="editor-tabs" class="h-10 bg-[#151515] flex items-end overflow-x-auto border-b border-[#222] shrink-0"></div>
-                <div id="breadcrumbs" class="h-8 bg-[#0d0d0d] border-b border-[#222] flex items-center px-5 gap-2 text-[9px] text-slate-500 font-bold uppercase shrink-0">
-                    <i class="fas fa-cube text-violet-500 scale-75"></i>
-                    <span id="breadcrumb-filename">index.html</span>
-                </div>
-
-                <div class="flex-1 relative overflow-hidden">
-                    <div id="view-preview" class="absolute inset-0 z-10 transition-all duration-500">
-                        <iframe id="output-frame" class="w-full h-full border-none" src="about:blank"></iframe>
-                    </div>
-
-                    <div id="view-code" class="absolute inset-0 z-0 opacity-0 pointer-events-none flex flex-col bg-[#0d0d0d] overflow-auto">
-                        <div id="code-canvas" class="flex-1 code-font py-6"></div>
-                    </div>
-
-                    <div id="builder-loader" class="hidden absolute inset-0 z-[60] bg-black/90 backdrop-blur-xl flex flex-col items-center justify-center">
-                        <div class="w-20 h-20 rounded-[2.5rem] bg-violet-600/10 border border-violet-500/20 flex items-center justify-center mb-8 loading-pulse">
-                            <i class="fas fa-atom text-3xl text-violet-500 animate-spin"></i>
-                        </div>
-                        <h2 class="text-xs font-black text-white uppercase tracking-[0.4em]">Processing Engine</h2>
-                    </div>
-                </div>
-            </main>
+        <!-- Controls for touch screen users -->
+        <div class="grid grid-cols-3 gap-2 max-w-[180px] mx-auto pt-1">
+            <div></div>
+            <button id="ctrl-up" class="h-10 w-10 bg-slate-700 active:bg-orange-500 rounded-xl flex items-center justify-center text-white text-sm shadow active:scale-95 transition-all"><i class="fa-solid fa-chevron-up"></i></button>
+            <div></div>
+            <button id="ctrl-left" class="h-10 w-10 bg-slate-700 active:bg-orange-500 rounded-xl flex items-center justify-center text-white text-sm shadow active:scale-95 transition-all"><i class="fa-solid fa-chevron-left"></i></button>
+            <div class="h-10 w-10 bg-slate-700/30 rounded-xl flex items-center justify-center text-slate-500 text-xs"><i class="fa-solid fa-arrows-to-dot"></i></div>
+            <button id="ctrl-right" class="h-10 w-10 bg-slate-700 active:bg-orange-500 rounded-xl flex items-center justify-center text-white text-sm shadow active:scale-95 transition-all"><i class="fa-solid fa-chevron-right"></i></button>
+            <div></div>
+            <button id="ctrl-down" class="h-10 w-10 bg-slate-700 active:bg-orange-500 rounded-xl flex items-center justify-center text-white text-sm shadow active:scale-95 transition-all"><i class="fa-solid fa-chevron-down"></i></button>
+            <div></div>
         </div>
     </div>
 
     <script>
-        const API_KEY = "";
-        const ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent";
+        document.addEventListener('DOMContentLoaded', () => {
+            const canvas = document.getElementById('game-canvas');
+            const ctx = canvas.getContext('2d');
+            const scoreVal = document.getElementById('score-val');
+            const highScoreVal = document.getElementById('high-score-val');
+            const overlay = document.getElementById('gameover-overlay');
+            const finalScore = document.getElementById('final-score');
+            const restartBtn = document.getElementById('restart-btn');
 
-        let projects = JSON.parse(localStorage.getItem('nix-v2-projects')) || [];
-        let currentProject = null;
-        let activeFile = 'index.html';
+            const grid = 15;
+            let score = 0;
+            let highScore = 0;
+            let snake = [{x: 120, y: 120}, {x: 105, y: 120}, {x: 90, y: 120}];
+            let food = {x: 180, y: 180};
+            let dx = grid;
+            let dy = 0;
+            let gameInterval;
 
-        const cursor = document.getElementById('custom-cursor');
-        document.addEventListener('mousemove', (e) => {
-            cursor.style.left = (e.clientX - 8) + 'px';
-            cursor.style.top = (e.clientY - 2) + 'px';
+            function resetGame() {
+                score = 0;
+                scoreVal.textContent = score;
+                snake = [{x: 120, y: 120}, {x: 105, y: 120}, {x: 90, y: 120}];
+                dx = grid;
+                dy = 0;
+                spawnFood();
+                overlay.classList.add('hidden');
+                clearInterval(gameInterval);
+                gameInterval = setInterval(gameLoop, 140);
+            }
+
+            function spawnFood() {
+                food.x = Math.floor(Math.random() * (canvas.width / grid)) * grid;
+                food.y = Math.floor(Math.random() * (canvas.height / grid)) * grid;
+            }
+
+            function gameLoop() {
+                const head = {x: snake[0].x + dx, y: snake[0].y + dy};
+                
+                if (head.x < 0 || head.x >= canvas.width || head.y < 0 || head.y >= canvas.height) {
+                    endGame();
+                    return;
+                }
+
+                for (let i = 0; i < snake.length; i++) {
+                    if (snake[i].x === head.x && snake[i].y === head.y) {
+                        endGame();
+                        return;
+                    }
+                }
+
+                snake.unshift(head);
+
+                if (head.x === food.x && head.y === food.y) {
+                    score += 10;
+                    scoreVal.textContent = score;
+                    spawnFood();
+                } else {
+                    snake.pop();
+                }
+
+                ctx.fillStyle = '#020617';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                ctx.fillStyle = '#f97316';
+                ctx.shadowColor = '#f97316';
+                ctx.shadowBlur = 8;
+                ctx.fillRect(food.x, food.y, grid - 2, grid - 2);
+
+                ctx.fillStyle = '#38bdf8';
+                ctx.shadowColor = '#38bdf8';
+                ctx.shadowBlur = 4;
+                snake.forEach((part, idx) => {
+                    if (idx === 0) ctx.fillStyle = '#60a5fa';
+                    else ctx.fillStyle = '#38bdf8';
+                    ctx.fillRect(part.x, part.y, grid - 2, grid - 2);
+                });
+                ctx.shadowBlur = 0;
+            }
+
+            function endGame() {
+                clearInterval(gameInterval);
+                finalScore.textContent = score;
+                if (score > highScore) {
+                    highScore = score;
+                    highScoreVal.textContent = highScore;
+                }
+                overlay.classList.remove('hidden');
+            }
+
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'ArrowUp' && dy === 0) { dx = 0; dy = -grid; }
+                else if (e.key === 'ArrowDown' && dy === 0) { dx = 0; dy = grid; }
+                else if (e.key === 'ArrowLeft' && dx === 0) { dx = -grid; dy = 0; }
+                else if (e.key === 'ArrowRight' && dx === 0) { dx = grid; dy = 0; }
+            });
+
+            document.getElementById('ctrl-up').addEventListener('click', () => { if (dy === 0) { dx = 0; dy = -grid; } });
+            document.getElementById('ctrl-down').addEventListener('click', () => { if (dy === 0) { dx = 0; dy = grid; } });
+            document.getElementById('ctrl-left').addEventListener('click', () => { if (dx === 0) { dx = -grid; dy = 0; } });
+            document.getElementById('ctrl-right').addEventListener('click', () => { if (dx === 0) { dx = grid; dy = 0; } });
+
+            restartBtn.addEventListener('click', resetGame);
+            resetGame();
         });
+    <\/script>
+</body>
+</html>`
+                };
+            } else {
+                files = {
+                    'index.html': `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SaaS Metrics Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"><\/script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            background-color: #f8fafc;
+        }
+    </style>
+</head>
+<body class="text-slate-800 min-h-screen p-4 sm:p-6 flex items-center justify-center">
+    
+    <div class="max-w-3xl w-full bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 space-y-6 shadow-xl relative overflow-hidden">
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-100 pb-4">
+            <div class="flex items-center gap-3">
+                <span class="h-10 w-10 rounded-xl bg-blue-600 flex items-center justify-center text-white shadow"><i class="fa-solid fa-chart-line text-lg"></i></span>
+                <div>
+                    <h1 class="text-base font-bold text-slate-900 tracking-tight">SaaS metric dashboard</h1>
+                    <p class="text-[11px] text-slate-500">Live calculating sandbox mockup</p>
+                </div>
+            </div>
+            <button id="recalculate-btn" class="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold px-4 py-2 rounded-xl transition-colors flex items-center gap-1.5">
+                <i class="fa-solid fa-arrows-rotate text-[10px]"></i>
+                <span>Recalculate Stats</span>
+            </button>
+        </div>
 
-        window.onload = () => renderProjectHistory();
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div class="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-1">
+                <span class="text-[10px] text-slate-500 uppercase font-mono font-bold">SUBSCRIBERS</span>
+                <p id="stat-subs" class="text-2xl font-extrabold text-slate-900">45,102</p>
+                <span class="text-[10px] text-emerald-600 font-semibold flex items-center gap-1"><i class="fa-solid fa-arrow-up"></i> +12%</span>
+            </div>
+            <div class="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-1">
+                <span class="text-[10px] text-slate-500 uppercase font-mono font-bold">CONVERSION</span>
+                <p id="stat-conv" class="text-2xl font-extrabold text-slate-900">3.45%</p>
+                <span class="text-[10px] text-emerald-600 font-semibold flex items-center gap-1"><i class="fa-solid fa-arrow-up"></i> +1.2%</span>
+            </div>
+            <div class="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-1">
+                <span class="text-[10px] text-slate-500 uppercase font-mono font-bold">CONVERSIONS</span>
+                <p id="stat-engage" class="text-2xl font-extrabold text-slate-900">8.9k</p>
+                <span class="text-[10px] text-rose-500 font-semibold flex items-center gap-1"><i class="fa-solid fa-arrow-down"></i> -0.4%</span>
+            </div>
+        </div>
+    </div>
 
-        function startNewProject() {
-            const prompt = document.getElementById('initial-prompt').value.trim();
-            if (!prompt) return;
-            currentProject = {
-                id: Date.now(),
-                name: prompt.slice(0, 35) + '...',
-                files: { 'index.html': '<!-- Building... -->' },
-                lastModified: new Date().toISOString()
-            };
-            hideLanding();
-            buildApp(`INITIAL BUILD: ${prompt}`);
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const recalcBtn = document.getElementById('recalculate-btn');
+            const subsVal = document.getElementById('stat-subs');
+            const convVal = document.getElementById('stat-conv');
+            const engageVal = document.getElementById('stat-engage');
+
+            if (recalcBtn) {
+                recalcBtn.addEventListener('click', () => {
+                    subsVal.textContent = (40000 + Math.floor(Math.random() * 10000)).toLocaleString();
+                    convVal.textContent = (2 + Math.random() * 2).toFixed(2) + '%';
+                    engageVal.textContent = (8 + (Math.random() * 2).toFixed(1)) + 'k';
+                });
+            }
+        });
+    <\/script>
+</body>
+</html>`
+                };
+            }
         }
 
-        async function buildApp(instruction) {
-            setLoading(true);
-            
-            // CONTEXT GATHERING: Bundle all existing files so the AI knows the whole project
-            const projectContext = JSON.stringify(currentProject.files, null, 2);
+        function compileAndReloadFrame() {
+            const frame = document.getElementById('render-iframe');
+            if (!frame) return;
 
-            const systemMsg = `Act as a Senior Architect. Output ONLY a raw JSON object of files.
-            The website MUST be fully responsive and scrollable. 
-            Ensure index.html has: body { overflow-y: auto !important; height: auto !important; min-height: 100vh; }
-            Use Tailwind for styling.
-            CURRENT PROJECT STATE: ${projectContext}
-            USER INSTRUCTION: ${instruction}`;
+            const spinner = document.getElementById('compilation-loading-spinner');
+            if (spinner) {
+                spinner.classList.remove('hidden');
+                setTimeout(() => {
+                    spinner.classList.add('hidden');
+                }, 400);
+            }
+
+            let html = files[workspaceActiveFile] || '';
+
+            // This script intercepts navigation inside the sandbox iframe and matches the target HTML in virtual state
+            const navigationInterceptor = `
+                <script>
+                    (function() {
+                        // Patch standard alerts so they render within the preview pane non-blockingly
+                        window.alert = function(msg) {
+                            const alertBox = document.createElement('div');
+                            alertBox.style.position = 'fixed';
+                            alertBox.style.bottom = '16px';
+                            alertBox.style.right = '16px';
+                            alertBox.style.backgroundColor = '#202124';
+                            alertBox.style.color = '#ffffff';
+                            alertBox.style.padding = '12px 18px';
+                            alertBox.style.borderRadius = '12px';
+                            alertBox.style.fontSize = '12px';
+                            alertBox.style.fontFamily = 'sans-serif';
+                            alertBox.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
+                            alertBox.style.zIndex = '99999';
+                            alertBox.style.transition = 'all 0.3s ease-out';
+                            alertBox.innerHTML = "<b>App Alert:</b><br>" + msg;
+                            document.body.appendChild(alertBox);
+                            setTimeout(() => {
+                                alertBox.style.opacity = '0';
+                                setTimeout(() => alertBox.remove(), 300);
+                            }, 3000);
+                        };
+
+                        // Intercept local relative HTML anchors
+                        document.addEventListener('click', (e) => {
+                            const anchor = e.target.closest('a');
+                            if (anchor) {
+                                const href = anchor.getAttribute('href');
+                                if (href && href.endsWith('.html') && !href.startsWith('http')) {
+                                    e.preventDefault();
+                                    window.parent.postMessage({ type: 'navigate', file: href }, '*');
+                                }
+                            }
+                        });
+                    })();
+                <\/script>
+            `;
+
+            // Inject the interceptor
+            if (html.includes('</body>')) {
+                html = html.replace('</body>', `${navigationInterceptor}</body>`);
+            } else {
+                html += navigationInterceptor;
+            }
+
+            frame.srcdoc = html;
+            document.getElementById('browser-mock-address').textContent = `http://nixcode.local/${workspaceActiveFile}`;
+        }
+
+        function renderFileTabs() {
+            const explorer = document.getElementById('file-tabs-explorer');
+            explorer.innerHTML = '<span class="text-googleGray-400 font-bold uppercase text-[9px] tracking-wide mr-2">Pages:</span>';
+            
+            Object.keys(files).forEach(fileName => {
+                const isActive = (fileName === workspaceActiveFile);
+                
+                const wrapper = document.createElement('div');
+                wrapper.className = "flex items-center shrink-0";
+
+                const btn = document.createElement('button');
+                btn.onclick = () => setWorkspaceActiveFile(fileName);
+                btn.className = isActive 
+                    ? "px-2.5 py-1.5 rounded bg-googleGray-100 text-googleGray-800 border border-googleGray-200 font-mono flex items-center gap-1.5 shrink-0 transition-all cursor-pointer font-bold"
+                    : "px-2.5 py-1.5 rounded text-googleGray-500 hover:bg-googleGray-100 font-mono flex items-center gap-1.5 shrink-0 transition-all cursor-pointer";
+                
+                btn.innerHTML = `<i class="fa-brands fa-html5 text-orange-500"></i><span>${fileName}</span>`;
+                wrapper.appendChild(btn);
+
+                // Add delete option if not the main index.html file
+                if (fileName !== 'index.html') {
+                    const delBtn = document.createElement('button');
+                    delBtn.onclick = (e) => {
+                        e.stopPropagation();
+                        deleteHtmlFile(fileName);
+                    };
+                    delBtn.className = "p-1 text-googleGray-400 hover:text-rose-500 ml-0.5 transition-colors";
+                    delBtn.innerHTML = `<i class="fa-solid fa-xmark text-[10px]"></i>`;
+                    wrapper.appendChild(delBtn);
+                }
+
+                explorer.appendChild(wrapper);
+            });
+        }
+
+        function setWorkspaceActiveFile(fileName) {
+            workspaceActiveFile = fileName;
+            renderFileTabs();
+            updateEditorPane();
+            
+            if (workspaceActiveTab === 'preview') {
+                compileAndReloadFrame();
+            }
+        }
+
+        function addNewHtmlFile() {
+            const rawName = prompt("Enter filename (e.g., pricing.html):");
+            if (!rawName) return;
+
+            let cleanName = rawName.trim();
+            if (!cleanName.endsWith('.html')) {
+                cleanName += '.html';
+            }
+
+            if (files[cleanName]) {
+                triggerSystemAlert("Filename Conflict", "A file with this name already exists in your workspace.", true);
+                return;
+            }
+
+            files[cleanName] = `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${cleanName}</title>
+    <script src="https://cdn.tailwindcss.com"><\/script>
+</head>
+<body class="bg-slate-50 text-slate-800 flex flex-col items-center justify-center min-h-screen p-4">
+    <div class="max-w-md w-full bg-white rounded-3xl p-8 border border-slate-200 text-center space-y-4">
+        <h1 class="text-xl font-bold">${cleanName} Layout</h1>
+        <p class="text-xs text-slate-500">Add content here or write custom interactions.</p>
+        <a href="index.html" class="text-xs text-blue-600 hover:underline">&larr; Back to Home</a>
+    </div>
+</body>
+</html>`;
+
+            addConsoleLog("SUCCESS", `Added new webpage template: ${cleanName}`);
+            setWorkspaceActiveFile(cleanName);
+        }
+
+        function deleteHtmlFile(fileName) {
+            if (fileName === 'index.html') return;
+            if (confirm(`Are you sure you want to delete ${fileName}?`)) {
+                delete files[fileName];
+                addConsoleLog("WARNING", `Deleted file from workspace: ${fileName}`);
+                setWorkspaceActiveFile('index.html');
+            }
+        }
+
+        function updateEditorPane() {
+            const textarea = document.getElementById('workspace-code-textarea');
+            const pathDisplay = document.getElementById('code-editor-filepath');
+            const sizeDisplay = document.getElementById('code-editor-filesize');
+
+            if (textarea) {
+                const content = files[workspaceActiveFile] || '';
+                textarea.value = content;
+                pathDisplay.textContent = workspaceActiveFile;
+
+                const bytes = new Blob([content]).size;
+                sizeDisplay.textContent = `${(bytes / 1024).toFixed(2)} KB`;
+
+                renderLineGutter();
+            }
+        }
+
+        function handleWorkspaceCodeModified(newCode) {
+            files[workspaceActiveFile] = newCode;
+            
+            const bytes = new Blob([newCode]).size;
+            document.getElementById('code-editor-filesize').textContent = `${(bytes / 1024).toFixed(2)} KB`;
+
+            renderLineGutter();
+            if (workspaceActiveTab === 'preview') {
+                compileAndReloadFrame();
+            }
+        }
+
+        function renderLineGutter() {
+            const textarea = document.getElementById('workspace-code-textarea');
+            const gutter = document.getElementById('code-editor-gutter');
+            if (!textarea || !gutter) return;
+
+            const lines = textarea.value.split('\n');
+            gutter.innerHTML = '';
+            lines.forEach((_, idx) => {
+                const row = document.createElement('div');
+                row.textContent = idx + 1;
+                gutter.appendChild(row);
+            });
+        }
+
+        function setWorkspaceTab(tabName) {
+            workspaceActiveTab = tabName;
+            const containerPreview = document.getElementById('container-viewport-preview');
+            const containerCode = document.getElementById('container-viewport-code');
+
+            const headerBtnPreview = document.getElementById('header-btn-preview');
+            const headerBtnCode = document.getElementById('header-btn-code');
+
+            if (tabName === 'preview') {
+                containerPreview.style.zIndex = "10";
+                containerCode.style.zIndex = "0";
+
+                headerBtnPreview.className = "px-3 py-1 rounded bg-white text-googleGray-800 shadow-sm transition-all flex items-center gap-1 cursor-pointer";
+                headerBtnCode.className = "px-3 py-1 rounded text-googleGray-500 hover:text-googleGray-800 transition-all flex items-center gap-1 cursor-pointer";
+                
+                compileAndReloadFrame();
+            } else {
+                containerPreview.style.zIndex = "0";
+                containerCode.style.zIndex = "10";
+
+                headerBtnCode.className = "px-3 py-1 rounded bg-white text-googleGray-800 shadow-sm transition-all flex items-center gap-1 cursor-pointer";
+                headerBtnPreview.className = "px-3 py-1 rounded text-googleGray-500 hover:text-googleGray-800 transition-all flex items-center gap-1 cursor-pointer";
+
+                updateEditorPane();
+            }
+        }
+
+        function appendChatElement(role, content, isLoading = false) {
+            const container = document.getElementById('dynamic-chat-elements');
+            const wrapper = document.createElement('div');
+            wrapper.className = "flex gap-3 text-left " + (role === 'user' ? 'justify-end' : '');
+
+            let logo = `<div class="h-7 w-7 rounded-lg bg-googleBlue-50 border border-googleBlue-100 flex-shrink-0 flex items-center justify-center text-googleBlue-600 font-bold text-xs">N</div>`;
+            let bubbleClass = "bg-googleGray-100 border border-googleGray-200 p-3 rounded-2xl text-xs leading-normal text-googleGray-800 space-y-1";
+
+            if (role === 'user') {
+                logo = `<div class="h-7 w-7 rounded-lg bg-googleGray-200 flex-shrink-0 flex items-center justify-center text-googleGray-600 font-bold text-xs order-last">ME</div>`;
+                bubbleClass = "bg-googleBlue-50 border border-googleBlue-100 p-3 rounded-2xl text-xs leading-normal text-googleBlue-800 space-y-1";
+            }
+
+            wrapper.innerHTML = `
+                ${role !== 'user' ? logo : ''}
+                <div class="space-y-1 max-w-[85%]">
+                    <div class="${bubbleClass}">
+                        ${isLoading ? `
+                            <div class="flex items-center gap-2">
+                                <div class="h-3 w-3 border-2 border-googleBlue-600/20 border-t-googleBlue-600 rounded-full animate-spin"></div>
+                                <span class="text-googleGray-500 text-[11px]">${content}</span>
+                            </div>
+                        ` : content}
+                    </div>
+                    <span class="text-[9px] text-googleGray-400 font-mono ml-2 block">
+                        ${role === 'user' ? 'You' : 'NixCode'} • ${new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                    </span>
+                </div>
+                ${role === 'user' ? logo : ''}
+            `;
+
+            container.appendChild(wrapper);
+            scrollChatToBottom();
+            return wrapper;
+        }
+
+        function scrollChatToBottom() {
+            const scroller = document.getElementById('chat-scroller');
+            scroller.scrollTop = scroller.scrollHeight;
+        }
+
+        function addConsoleLog(type, text) {
+            const scroller = document.getElementById('console-scroller-box');
+            const row = document.createElement('div');
+            
+            let color = "text-googleGray-400";
+            if (type === "SUCCESS") color = "text-emerald-400";
+            else if (type === "ERROR") color = "text-rose-400 font-bold";
+            else if (type === "WARNING") color = "text-amber-400";
+
+            row.className = `font-mono text-[11px] ${color}`;
+            row.textContent = `[${new Date().toLocaleTimeString()}] [${type}] ${text}`;
+            scroller.appendChild(row);
+            scroller.scrollTop = scroller.scrollHeight;
+        }
+
+        function toggleConsoleLog() {
+            const drawer = document.getElementById('system-console-drawer');
+            if (drawer.classList.contains('translate-y-full')) {
+                drawer.classList.remove('translate-y-full');
+            } else {
+                drawer.classList.add('translate-y-full');
+            }
+        }
+
+        function clearConsoleLog() {
+            document.getElementById('console-scroller-box').innerHTML = `<div class="text-googleGray-500">// Terminal logs cleared.</div>`;
+        }
+
+        function triggerSystemAlert(title, msg, isError = false) {
+            document.getElementById('alert-dialog-title').textContent = title;
+            document.getElementById('alert-dialog-message').textContent = msg;
+            
+            const iconWrap = document.getElementById('alert-icon-wrapper');
+            if (isError) {
+                iconWrap.className = "h-10 w-10 bg-rose-50 text-rose-500 border border-rose-100 rounded-full flex items-center justify-center mx-auto text-sm";
+                iconWrap.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i>`;
+            } else {
+                iconWrap.className = "h-10 w-10 bg-googleBlue-50 text-googleBlue-600 border border-googleBlue-100 rounded-full flex items-center justify-center mx-auto text-sm";
+                iconWrap.innerHTML = `<i class="fa-solid fa-circle-info"></i>`;
+            }
+
+            document.getElementById('system-alert-dialog').classList.remove('hidden');
+        }
+
+        function dismissSystemAlert() {
+            document.getElementById('system-alert-dialog').classList.add('hidden');
+        }
+
+        function editProjectTitle() {
+            const current = projectTitle;
+            const res = prompt("Enter new project title:", current);
+            if (res && res.trim() !== '') {
+                projectTitle = res.trim();
+                document.getElementById('workspace-title-display').textContent = projectTitle;
+                addConsoleLog("INFO", `Project renamed to: ${projectTitle}`);
+            }
+        }
+
+        function copyToClipboardWorkspace() {
+            const text = files[workspaceActiveFile] || '';
+            const temp = document.createElement('textarea');
+            temp.value = text;
+            document.body.appendChild(temp);
+            temp.select();
+            document.execCommand('copy');
+            document.body.removeChild(temp);
+            triggerSystemAlert("Copied successfully!", `The source code of ${workspaceActiveFile} has been copied to your clipboard.`);
+        }
+
+        function openDeployModal() {
+            const cleanTitle = projectTitle.replace(/[^a-z0-9]/gi, '-').toLowerCase().replace(/-+/g, '-').replace(/^-|-$/g, '');
+            document.getElementById('deploy-slug-input').value = cleanTitle || 'my-app-' + Math.floor(1000 + Math.random() * 9000);
+            
+            document.getElementById('deploy-setup-view').classList.remove('hidden');
+            document.getElementById('deploy-loading-view').classList.add('hidden');
+            document.getElementById('deploy-success-view').classList.add('hidden');
+            
+            document.getElementById('deployment-modal').classList.remove('hidden');
+        }
+
+        function closeDeployModal() {
+            document.getElementById('deployment-modal').classList.add('hidden');
+        }
+
+        async function executeDeployment() {
+            const slugInput = document.getElementById('deploy-slug-input').value.trim();
+            const validSlugRegex = /^[a-z0-9-]+$/i;
+            
+            if (!slugInput) {
+                triggerSystemAlert("Validation Error", "Please input a subdomain slug name.", true);
+                return;
+            }
+            if (!validSlugRegex.test(slugInput)) {
+                triggerSystemAlert("Validation Error", "App name can only contain letters, numbers, and hyphens.", true);
+                return;
+            }
+
+            const setupView = document.getElementById('deploy-setup-view');
+            const loadingView = document.getElementById('deploy-loading-view');
+            const successView = document.getElementById('deploy-success-view');
+            const statusTxt = document.getElementById('deploy-status-txt');
+
+            setupView.classList.add('hidden');
+            loadingView.classList.remove('hidden');
+
+            statusTxt.textContent = "Checking name availability...";
+            
+            // Re-map virtual files to save exactly in matching jsonb [{name: "index.html", content: "..."}, ...] structure
+            const filesData = Object.keys(files).map(filename => {
+                return {
+                    name: filename,
+                    content: files[filename]
+                };
+            });
+
+            addConsoleLog("INFO", `Initiating PostgREST insert transaction for subdomain app slug: ${slugInput}`);
 
             try {
-                const response = await fetch(`${ENDPOINT}?key=${API_KEY}`, {
+                const response = await fetch('https://zncztttvefahofdeacxf.supabase.co/rest/v1/apps', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {
+                        'apikey': 'sb_publishable_GhwVsgutWW4EpK9Fc_3DQQ_pW_R48LM',
+                        'Authorization': 'Bearer sb_publishable_GhwVsgutWW4EpK9Fc_3DQQ_pW_R48LM',
+                        'Content-Type': 'application/json',
+                        'Prefer': 'return=representation'
+                    },
                     body: JSON.stringify({
-                        contents: [{ parts: [{ text: systemMsg }] }],
-                        generationConfig: { responseMimeType: "application/json" }
+                        slug: slugInput,
+                        files: filesData
                     })
                 });
 
-                const result = await response.json();
-                const newFiles = JSON.parse(result.candidates[0].content.parts[0].text);
-                
-                // Merge or replace files
-                currentProject.files = { ...currentProject.files, ...newFiles };
-                currentProject.lastModified = new Date().toISOString();
-                
-                saveProject();
-                refreshUI();
-                openFile(activeFile in newFiles ? activeFile : Object.keys(newFiles)[0]);
+                if (!response.ok) {
+                    const errPayload = await response.json().catch(() => ({}));
+                    if (errPayload && errPayload.code === '23505') {
+                        throw new Error("This custom subdomain app name is already taken! Please try another unique name.");
+                    }
+                    throw new Error(errPayload.message || `Supabase REST API error response: code ${response.status}`);
+                }
+
+                statusTxt.textContent = "Compiling static router configs...";
+                await new Promise(r => setTimeout(r, 600));
+
+                const liveUrl = `https://hostnix.vercel.app/#${slugInput}`;
+                document.getElementById('deploy-live-url').textContent = liveUrl;
+                document.getElementById('deploy-visit-btn').href = liveUrl;
+
+                addConsoleLog("SUCCESS", `Cloud hosting succeeded. Application deployed live at: ${liveUrl}`);
+
+                loadingView.classList.add('hidden');
+                successView.classList.remove('hidden');
+
             } catch (err) {
-                console.error(err);
-                alert("Generation Error. Check console.");
-            } finally {
-                setLoading(false);
+                addConsoleLog("ERROR", `Live deployment failed: ${err.message}`);
+                loadingView.classList.add('hidden');
+                setupView.classList.remove('hidden');
+                triggerSystemAlert("Deployment Failed", err.message, true);
             }
         }
 
-        function executeAIInstruction() {
-            const input = document.getElementById('instruction-input');
-            if (!input.value.trim()) return;
-            buildApp(input.value.trim());
-            input.value = '';
+        function copyDeployUrl() {
+            const url = document.getElementById('deploy-live-url').textContent;
+            const temp = document.createElement('textarea');
+            temp.value = url;
+            document.body.appendChild(temp);
+            temp.select();
+            document.execCommand('copy');
+            document.body.removeChild(temp);
+            triggerSystemAlert("Copied successfully!", "Subdomain URL copied to clipboard.");
         }
 
-        function refreshUI() {
-            document.getElementById('current-project-name').textContent = currentProject.name;
+        async function publishProject() {
+            addConsoleLog("INFO", "Compiling package using JSZip...");
             
-            const tree = document.getElementById('file-tree');
-            tree.innerHTML = Object.keys(currentProject.files).map(name => `
-                <div onclick="openFile('${name}')" class="sidebar-item px-4 py-2.5 mb-1 rounded-xl text-[11px] flex items-center gap-3 cursor-pointer group ${name === activeFile ? 'active' : 'text-slate-500 hover:bg-white/5'}">
-                    <i class="fas fa-file-code"></i>
-                    <span class="truncate">${name}</span>
-                </div>
-            `).join('');
+            try {
+                if (typeof JSZip === 'undefined') {
+                    throw new Error("JSZip utility is not currently loaded.");
+                }
 
-            const tabs = document.getElementById('editor-tabs');
-            tabs.innerHTML = Object.keys(currentProject.files).map(name => `
-                <div onclick="openFile('${name}')" class="h-full px-5 flex items-center gap-3 text-[10px] cursor-pointer border-r border-[#222] shrink-0 ${name === activeFile ? 'tab-active' : 'text-slate-500'}">
-                    ${name}
-                </div>
-            `).join('');
-
-            syncPreview();
-        }
-
-        function openFile(name) {
-            activeFile = name;
-            document.getElementById('breadcrumb-filename').textContent = name;
-            refreshUI();
-            
-            const canvas = document.getElementById('code-canvas');
-            const code = currentProject.files[name] || '';
-            
-            canvas.innerHTML = code.split('\n').map((line, i) => `
-                <div class="editor-line">
-                    <div class="line-number">${i + 1}</div>
-                    <div class="line-content">${escapeHtml(line)}</div>
-                </div>
-            `).join('');
-        }
-
-        function syncPreview() {
-            const frame = document.getElementById('output-frame');
-            let html = currentProject.files['index.html'] || "";
-            
-            // Inject internal assets into preview
-            for (const [name, content] of Object.entries(currentProject.files)) {
-                if (name.endsWith('.css')) html = html.replace('</head>', `<style>${content}</style></head>`);
-                if (name.endsWith('.js')) html = html.replace('</body>', `<script>${content}<\/script></body>`);
+                const zip = new JSZip();
+                
+                // Pack all generated HTML files dynamically!
+                Object.keys(files).forEach(fileName => {
+                    zip.file(fileName, files[fileName]);
+                });
+                
+                addConsoleLog("INFO", "Compressing archive binary... ");
+                const zipContent = await zip.generateAsync({type: "blob"});
+                const url = URL.createObjectURL(zipContent);
+                
+                const tag = document.createElement('a');
+                tag.href = url;
+                const cleanTitle = projectTitle.replace(/[^a-z0-9]/gi, '-').toLowerCase() || 'nixcode-project';
+                tag.download = `${cleanTitle}-bundle.zip`;
+                
+                document.body.appendChild(tag);
+                tag.click();
+                document.body.removeChild(tag);
+                URL.revokeObjectURL(url);
+                
+                addConsoleLog("SUCCESS", "Project ZIP containing single-file HTML views exported successfully.");
+                triggerSystemAlert(
+                    "Project Exported!", 
+                    `Successfully generated "${cleanTitle}-bundle.zip" containing all inline HTML pages of your project.`
+                );
+            } catch (err) {
+                addConsoleLog("ERROR", `ZIP compression failed: ${err.message}. Saving current active file instead.`);
+                downloadWorkspaceFile();
             }
-            
-            const blob = new Blob([html], { type: 'text/html' });
-            frame.src = URL.createObjectURL(blob);
         }
 
-        function extractCode() {
-            const blob = new Blob([JSON.stringify(currentProject.files, null, 2)], { type: 'application/json' });
+        function downloadWorkspaceFile() {
+            const text = files[workspaceActiveFile] || '';
+            const blob = new Blob([text], {type: 'text/html'});
             const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `nixcode-project-${currentProject.id}.json`;
-            a.click();
+            const tag = document.createElement('a');
+            tag.href = url;
+            tag.download = workspaceActiveFile;
+            document.body.appendChild(tag);
+            tag.click();
+            document.body.removeChild(tag);
+            URL.revokeObjectURL(url);
         }
 
-        function setTab(type) {
-            const p = document.getElementById('view-preview'), c = document.getElementById('view-code');
-            const pb = document.getElementById('tab-preview-btn'), cb = document.getElementById('tab-code-btn');
-            
-            p.style.opacity = type === 'preview' ? '1' : '0';
-            p.style.zIndex = type === 'preview' ? '10' : '0';
-            p.style.pointerEvents = type === 'preview' ? 'auto' : 'none';
-            c.style.opacity = type === 'code' ? '1' : '0';
-            c.style.pointerEvents = type === 'code' ? 'auto' : 'none';
-            
-            pb.className = type === 'preview' ? 'px-6 py-1.5 rounded-lg text-[10px] font-bold transition-all bg-violet-600 text-white' : 'px-6 py-1.5 rounded-lg text-[10px] font-bold transition-all text-slate-500';
-            cb.className = type === 'code' ? 'px-6 py-1.5 rounded-lg text-[10px] font-bold transition-all bg-violet-600 text-white' : 'px-6 py-1.5 rounded-lg text-[10px] font-bold transition-all text-slate-500';
-        }
-
-        function saveProject() {
-            const idx = projects.findIndex(p => p.id === currentProject.id);
-            if (idx > -1) projects[idx] = currentProject;
-            else projects.push(currentProject);
-            localStorage.setItem('nix-v2-projects', JSON.stringify(projects));
-        }
-
-        function renderProjectHistory() {
-            const container = document.getElementById('project-list');
-            if (projects.length === 0) {
-                container.innerHTML = `<div class="p-10 text-center border-2 border-dashed border-white/5 rounded-3xl text-slate-700 text-[10px] font-black uppercase">No History</div>`;
-                return;
-            }
-            container.innerHTML = projects.sort((a,b) => new Date(b.lastModified) - new Date(a.lastModified)).map(p => `
-                <div onclick="loadProject(${p.id})" class="glass p-5 rounded-2xl cursor-pointer hover:border-violet-500/50 transition-all flex items-center justify-between">
-                    <div class="flex items-center gap-5">
-                        <div class="text-sm font-bold text-slate-200 line-clamp-1">${p.name}</div>
-                    </div>
-                    <i class="fas fa-chevron-right text-slate-800"></i>
-                </div>
-            `).join('');
-        }
-
-        function loadProject(id) {
-            currentProject = projects.find(p => p.id === id);
-            hideLanding();
-            refreshUI();
-        }
-
-        function hideLanding() {
-            document.getElementById('landing-overlay').classList.add('hidden');
-            document.getElementById('app-content').classList.remove('blur');
-        }
-
-        function goHome() {
-            document.getElementById('landing-overlay').classList.remove('hidden');
-            document.getElementById('app-content').classList.add('blur');
-            renderProjectHistory();
-        }
-
-        function clearAllProjects() {
-            if(confirm("Wipe all projects?")) {
-                localStorage.removeItem('nix-v2-projects');
-                projects = [];
-                renderProjectHistory();
+        function openMockFrameRaw() {
+            const html = files[workspaceActiveFile] || '';
+            const w = window.open();
+            if (w) {
+                w.document.write(html);
+                w.document.close();
+            } else {
+                triggerSystemAlert("Permission Blocked", "Please enable popups to open active blank tabs.", true);
             }
         }
 
-        function setLoading(s) { document.getElementById('builder-loader').classList.toggle('hidden', !s); }
-        function escapeHtml(text) { return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+        // Dummy panels
+        function triggerAudioSimulation() { document.getElementById('system-audio-modal').classList.remove('hidden'); }
+        function dismissAudioSimulation() { document.getElementById('system-audio-modal').classList.add('hidden'); }
+        function selectTemplatePreset() { triggerSystemAlert("Template Selector", "Load media or custom contextual template files."); }
+        function openHistory() { triggerSystemAlert("History Logs", "No previous compilation versions found for current browser session."); }
+        function openGallery() { triggerSystemAlert("Templates Gallery", "Browse professional blueprints inside documentation."); }
+        function openDashboard() { triggerSystemAlert("Analytics Dashboard", "Calculations and usage statistics are in active healthy status."); }
+        function openDocs() { triggerSystemAlert("Docs Integration", "Visit developers.google.com/gemini to read more about Gemini endpoints."); }
+        function openPremiumInfo() { triggerSystemAlert("Premium Upgrade", "Upgrade NixCode workspace to unlock unlimited deployments."); }
+        function toggleMobileSidebar() { triggerSystemAlert("Mobile Menu", "Fully responsive. Adjust screen resolutions to switch viewport states."); }
     </script>
 </body>
 </html>
