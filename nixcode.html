@@ -168,6 +168,9 @@
                 <div class="flex items-center gap-1.5 px-3 py-1 bg-emerald-50 text-emerald-700 rounded-full text-xs font-semibold border border-emerald-100">
                     <span class="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
                     <span class="text-[10px] tracking-wide font-mono">Nix Model Active</span>
+                    <button onclick="openApiKeyConfigModal()" class="text-googleGray-500 hover:text-googleBlue-600 ml-1 transition-colors" title="Dify API Configuration">
+                        <i class="fa-solid fa-key text-[10px]"></i>
+                    </button>
                 </div>
 
                 <div class="flex items-center gap-1 bg-googleGray-100 p-0.5 rounded-lg border border-googleGray-200 text-xs font-semibold font-sans">
@@ -470,6 +473,44 @@
 
     </main>
 
+    <!-- API KEY & CONFIG OVERRIDE MODAL -->
+    <div id="api-config-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 hidden">
+        <div class="bg-gradient-to-b from-slate-800 to-slate-950 border border-slate-700 rounded-2xl max-w-md w-full p-6 text-white shadow-2xl">
+            <div class="flex justify-between items-center mb-4 border-b border-slate-700 pb-2">
+                <h3 class="text-xl font-bold text-yellow-400 flex items-center gap-2">
+                    <i class="fa-solid fa-sliders text-sm"></i>
+                    <span>Dify API Configurations</span>
+                </h3>
+                <button onclick="closeApiKeyConfigModal()" class="text-googleGray-400 hover:text-white">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div class="space-y-4">
+                <div class="space-y-1.5">
+                    <label class="text-[10px] font-bold text-googleGray-400 uppercase tracking-wider block">Dify API URL Base</label>
+                    <input id="dify-endpoint-input" type="text" value="https://api.dify.ai/v1" class="w-full bg-googleGray-900 border border-slate-700 rounded-lg px-3 py-2 text-xs font-mono text-white focus:ring-1 focus:ring-googleBlue-600 outline-none">
+                </div>
+                <div class="space-y-1.5">
+                    <label class="text-[10px] font-bold text-googleGray-400 uppercase tracking-wider block">App Token Identifier (API Key)</label>
+                    <input id="dify-key-input" type="password" placeholder="Enter dify-bearer-token..." class="w-full bg-googleGray-900 border border-slate-700 rounded-lg px-3 py-2 text-xs font-mono text-white focus:ring-1 focus:ring-googleBlue-600 outline-none">
+                    <p class="text-[9px] text-googleGray-500">This key is securely stored in your local browser sandbox to allow continuous operations without 401 response errors.</p>
+                </div>
+                <div class="space-y-1.5">
+                    <label class="text-[10px] font-bold text-googleGray-400 uppercase tracking-wider block">Dify App ID Context</label>
+                    <input id="dify-app-id-input" type="text" value="app-RdRhyDHRg95SO2s5NtIjlVVI" class="w-full bg-googleGray-900 border border-slate-700 rounded-lg px-3 py-2 text-xs font-mono text-white focus:ring-1 focus:ring-googleBlue-600 outline-none">
+                </div>
+            </div>
+            <div class="flex gap-2 pt-4">
+                <button onclick="closeApiKeyConfigModal()" class="flex-1 bg-googleGray-800 hover:bg-googleGray-700 text-googleGray-300 text-xs font-semibold py-2 rounded-xl transition-colors">
+                    Close
+                </button>
+                <button onclick="saveApiKeyConfigurations()" class="flex-1 bg-googleBlue-600 hover:bg-googleBlue-700 text-white text-xs font-semibold py-2 rounded-xl transition-colors">
+                    Save Configurations
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- GENERAL NOTIFICATION MODAL SYSTEM -->
     <div id="system-alert-dialog" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-googleGray-900/60 backdrop-blur-sm hidden">
         <div class="bg-white border border-googleGray-200 p-6 rounded-2xl max-w-sm w-full text-center space-y-4 shadow-xl">
@@ -673,10 +714,8 @@
 </html>`
         };
 
-        // Dify API Configuration parameters
-        const apiKey = ""; // API token placeholder (resolved by runtime environment)
-        const DIFY_API_ENDPOINT = "https://api.dify.ai/v1/chat-messages";
-        const DIFY_NIX_APP_ID = "app-RdRhyDHRg95SO2s5NtIjlVVI";
+        // Standard token configuration (injected by environment context)
+        const apiKey = ""; 
 
         let currentActiveState = 'home'; // 'home' or 'workspace'
         let workspaceActiveFile = 'index.html';
@@ -684,7 +723,18 @@
         let currentPromptText = '';
         let activeActionPlanner = [];
         let projectTitle = "Untitled App";
-        let difyConversationId = ""; // Retain session memory in active chat pipeline
+        let difyConversationId = ""; // Retain continuous Dify session id
+
+        // Load Dify configurations from local storage on bootstrap
+        function getDifyEndpoint() {
+            return localStorage.getItem('dify_endpoint_override') || 'https://api.dify.ai/v1';
+        }
+        function getDifyApiKey() {
+            return localStorage.getItem('dify_api_key_override') || apiKey;
+        }
+        function getDifyAppId() {
+            return localStorage.getItem('dify_app_id_override') || 'app-RdRhyDHRg95SO2s5NtIjlVVI';
+        }
 
         window.onload = function() {
             // Listen for internal iframe navigations to link tabs correctly
@@ -698,6 +748,11 @@
                     }
                 }
             });
+
+            // Initialize values in inputs
+            document.getElementById('dify-endpoint-input').value = getDifyEndpoint();
+            document.getElementById('dify-key-input').value = getDifyApiKey();
+            document.getElementById('dify-app-id-input').value = getDifyAppId();
 
             // Initial view load
             navigateState('home');
@@ -891,51 +946,86 @@
             renderActionPlanner();
         }
 
-        // Implementation of standard Dify API invocation with robust exponential backoff retry mechanism
-        async function fetchDifyWithBackoff(systemPrompt, userQuery) {
-            // Dify structured query body incorporating system instruction within query block
+        // Implementation of standard Dify API invocation with robust streaming and exponential backoff retry mechanism
+        async function fetchDifyStreamWithBackoff(systemPrompt, userQuery, onChunk) {
             const queryMessage = `${systemPrompt}\n\nClient Request: ${userQuery}`;
+            const targetEndpoint = `${getDifyEndpoint()}/chat-messages`;
             const payload = {
                 inputs: {},
                 query: queryMessage,
-                response_mode: "blocking",
+                response_mode: "streaming", // Using robust streaming to handle long-running generations safely without HTTP timeout limits
                 user: "nixcode-sandbox-client",
                 conversation_id: difyConversationId || ""
             };
 
             const retryDelays = [1000, 2000, 4000, 8000, 16000];
-            
+            const currentToken = getDifyApiKey();
+
             for (let attempt = 0; attempt <= retryDelays.length; attempt++) {
                 try {
-                    const response = await fetch(DIFY_API_ENDPOINT, {
+                    addConsoleLog("INFO", `POST ${targetEndpoint} - Attempt ${attempt + 1}/${retryDelays.length + 1}`);
+                    const response = await fetch(targetEndpoint, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${apiKey}`
+                            'Authorization': `Bearer ${currentToken}`
                         },
                         body: JSON.stringify(payload)
                     });
 
-                    if (response.ok) {
-                        const data = await response.json();
-                        // Dify yields output in 'answer' parameter field
-                        const generatedText = data.answer;
-                        if (generatedText) {
-                            if (data.conversation_id) {
-                                difyConversationId = data.conversation_id; // Store current chat stream session id
-                            }
-                            return generatedText;
-                        }
-                        throw new Error("Dify API returned an empty output stream.");
-                    } else {
+                    if (!response.ok) {
                         const errPayload = await response.json().catch(() => ({}));
-                        throw new Error(errPayload.message || `HTTP ${response.status}: ${response.statusText}`);
+                        const errMsg = errPayload.message || `HTTP ${response.status}: ${response.statusText}`;
+                        addConsoleLog("ERROR", `API reported: ${errMsg}`);
+                        throw new Error(errMsg);
                     }
+
+                    const reader = response.body.getReader();
+                    const decoder = new TextDecoder("utf-8");
+                    let buffer = "";
+                    let fullAnswer = "";
+
+                    while (true) {
+                        const { value, done } = await reader.read();
+                        if (done) break;
+
+                        buffer += decoder.decode(value, { stream: true });
+                        const lines = buffer.split("\n");
+                        buffer = lines.pop(); // keep partial chunk line
+
+                        for (const line of lines) {
+                            const cleanLine = line.trim();
+                            if (!cleanLine || !cleanLine.startsWith("data:")) continue;
+
+                            const jsonStr = cleanLine.substring(5).trim();
+                            try {
+                                const parsed = JSON.parse(jsonStr);
+                                if (parsed.event === "message" || parsed.event === "agent_message") {
+                                    fullAnswer += parsed.answer;
+                                    if (onChunk) {
+                                        onChunk(parsed.answer);
+                                    }
+                                } else if (parsed.event === "message_end") {
+                                    if (parsed.conversation_id) {
+                                        difyConversationId = parsed.conversation_id; // Preserve chat continuity
+                                    }
+                                } else if (parsed.event === "error") {
+                                    addConsoleLog("ERROR", `Dify Stream error status ${parsed.status}: ${parsed.message}`);
+                                    throw new Error(parsed.message || "Streaming error occurred.");
+                                }
+                            } catch (e) {
+                                // Skip unparseable chunks or non-standard keep-alive streams safely
+                            }
+                        }
+                    }
+
+                    return fullAnswer;
+
                 } catch (err) {
                     if (attempt === retryDelays.length) {
-                        throw err; // All retries failed, bubble error up
+                        throw err; // Out of retries, throw the final error
                     }
-                    // Wait with exponential backoff
+                    addConsoleLog("WARNING", `Request failed. Retrying in ${retryDelays[attempt]}ms...`);
                     await new Promise(resolve => setTimeout(resolve, retryDelays[attempt]));
                 }
             }
@@ -992,16 +1082,33 @@ You MUST wrap the output files exactly inside markdown tags using this structure
 
 Your output must be visually stunning, completely responsive on all devices, and fully functional.`;
 
-            addConsoleLog("INFO", `Dispatched structured compilation query to Dify App Engine with ID: ${DIFY_NIX_APP_ID}`);
+            addConsoleLog("INFO", `Dispatched structured compilation query to Dify App Engine with ID: ${getDifyAppId()}`);
             
             try {
-                // Call Dify API using Nix Model App ID Context with automated backoff retries
-                const textOutput = await fetchDifyWithBackoff(
+                // Prepare streaming callback bubble in Chat Feed
+                let activeAssistantBubble = appendChatElement('assistant', 'Stream compilation initialized. Nix model is generating your workspace pages...', true);
+                let streamingTextContent = "";
+
+                // Call Dify API using Nix Model App ID Context with automated backoff retries and streaming feedback
+                const textOutput = await fetchDifyStreamWithBackoff(
                     systemContentPrompt, 
-                    "Please execute the blueprint. Write beautifully designed inline HTML page(s). Do not provide separate css/js files."
+                    "Please execute the blueprint. Write beautifully designed inline HTML page(s). Do not provide separate css/js files.",
+                    (chunk) => {
+                        streamingTextContent += chunk;
+                        // Periodically show generating feedback inside workspace terminal and bubble
+                        activeAssistantBubble.querySelector('.text-googleGray-500').innerHTML = `
+                            <div class="space-y-1">
+                                <div class="flex items-center gap-2">
+                                    <div class="h-3 w-3 border-2 border-googleBlue-600/20 border-t-googleBlue-600 rounded-full animate-spin"></div>
+                                    <span class="font-bold text-googleBlue-600 font-mono text-[10px]">Streaming nix-model response...</span>
+                                </div>
+                                <div class="text-[11px] leading-relaxed max-h-32 overflow-hidden truncate whitespace-pre-wrap">${streamingTextContent}</div>
+                            </div>
+                        `;
+                    }
                 );
 
-                addConsoleLog("SUCCESS", "Dify API response received and parsed. Processing assets inside virtual workspace sandbox...");
+                addConsoleLog("SUCCESS", "Dify Stream completed successfully. Processing raw generation...");
 
                 setTimeout(() => {
                     st1.innerHTML = `<i class="fa-solid fa-circle-check text-emerald-500"></i><span class="text-googleGray-500">HTML Layouts Formatted (Complete)</span>`;
@@ -1021,6 +1128,9 @@ Your output must be visually stunning, completely responsive on all devices, and
                     setTimeout(() => {
                         manifestingBlock.classList.add('hidden');
                         
+                        // Clean up streaming assistant loading state
+                        activeAssistantBubble.remove();
+
                         if (parseOk) {
                             appendChatElement('assistant', `
                                 <div class="space-y-2">
@@ -1736,9 +1846,9 @@ Your output must be visually stunning, completely responsive on all devices, and
                 <div class="space-y-1 max-w-[85%]">
                     <div class="${bubbleClass}">
                         ${isLoading ? `
-                            <div class="flex items-center gap-2">
+                            <div class="flex items-center gap-2 text-googleGray-500">
                                 <div class="h-3 w-3 border-2 border-googleBlue-600/20 border-t-googleBlue-600 rounded-full animate-spin"></div>
-                                <span class="text-googleGray-500 text-[11px]">${content}</span>
+                                <span>${content}</span>
                             </div>
                         ` : content}
                     </div>
@@ -1841,6 +1951,28 @@ Your output must be visually stunning, completely responsive on all devices, and
 
         function closeDeployModal() {
             document.getElementById('deployment-modal').classList.add('hidden');
+        }
+
+        function openApiKeyConfigModal() {
+            document.getElementById('api-config-modal').classList.remove('hidden');
+        }
+
+        function closeApiKeyConfigModal() {
+            document.getElementById('api-config-modal').classList.add('hidden');
+        }
+
+        function saveApiKeyConfigurations() {
+            const endpoint = document.getElementById('dify-endpoint-input').value.trim();
+            const key = document.getElementById('dify-key-input').value.trim();
+            const appId = document.getElementById('dify-app-id-input').value.trim();
+
+            localStorage.setItem('dify_endpoint_override', endpoint);
+            localStorage.setItem('dify_api_key_override', key);
+            localStorage.setItem('dify_app_id_override', appId);
+
+            addConsoleLog("SUCCESS", "Dify configuration parameters updated in local storage.");
+            triggerSystemAlert("Configurations Saved", "Nix App API keys and host headers have been applied successfully.");
+            closeApiKeyConfigModal();
         }
 
         async function executeDeployment() {
