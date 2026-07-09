@@ -3,97 +3,928 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard | Codenix AI Studio</title>
+    <title>Portal | Codenix AI Studio</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Supabase JS Library -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
     <style>
-        body { font-family: 'Inter', sans-serif; }
+        :root {
+            --primary-purple: #8b5cf6;
+            --primary-dark: #0f172a;
+            --primary-light: #ffffff;
+        }
+
+        /* Fully hide the system cursor globally */
+        *, body, html, button, a, div, img {
+            cursor: none !important;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            transition: background-color 0.3s, color 0.3s;
+            overflow-x: hidden;
+        }
+
+        /* Custom Triangle Cursor */
+        #custom-cursor {
+            width: 0;
+            height: 0;
+            border-left: 8px solid transparent;
+            border-right: 8px solid transparent;
+            border-bottom: 16px solid var(--primary-purple);
+            position: fixed;
+            pointer-events: none;
+            z-index: 9999;
+            transform: translate(-50%, -50%);
+            transition: transform 0.05s linear;
+        }
+
+        .glass-card {
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(139, 92, 246, 0.1);
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        .glass-card:hover {
+            border-color: var(--primary-purple);
+            transform: translateY(-4px);
+            box-shadow: 0 20px 40px -15px rgba(139, 92, 246, 0.25);
+        }
+
+        /* Dark Mode Styles */
+        body.dark {
+            background-color: var(--primary-dark);
+            color: white;
+        }
+
+        /* Light Mode Styles */
+        body.light {
+            background-color: var(--primary-light);
+            color: #1e293b;
+        }
+        
+        body.light .glass-card {
+            background-color: rgba(241, 245, 249, 0.7);
+            border: 1px solid rgba(139, 92, 246, 0.15);
+        }
+        
+        body.light .glass-card:hover {
+            background-color: rgba(255, 255, 255, 1);
+            border-color: var(--primary-purple);
+        }
+
+        .dropdown-menu {
+            transform-origin: top right;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            opacity: 0;
+            transform: scale(0.95) translateY(-10px);
+            pointer-events: none;
+        }
+
+        .dropdown-menu.active {
+            opacity: 1;
+            transform: scale(1) translateY(0);
+            pointer-events: auto;
+        }
+
+        .avatar-shimmer {
+            background: linear-gradient(90deg, #1e293b 25%, #334155 50%, #1e293b 75%);
+            background-size: 200% 100%;
+            animation: shimmer 1.5s infinite;
+        }
+
+        @keyframes shimmer {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+
+        /* Badge glow effect */
+        @keyframes pulse-glow {
+            0%, 100% { opacity: 0.7; transform: scale(1); }
+            50% { opacity: 1; transform: scale(1.03); }
+        }
+        .badge-glow {
+            animation: pulse-glow 2s infinite ease-in-out;
+        }
+
+        /* Mobile Adjustments */
+        @media (max-width: 640px) {
+            #custom-cursor { display: none; }
+            *, body, html, button, a, div, img {
+                cursor: auto !important;
+            }
+        }
     </style>
 </head>
-<body class="bg-slate-950 text-slate-50 min-h-screen">
+<body class="dark">
+    <!-- Custom Cursor -->
+    <div id="custom-cursor"></div>
 
-    <!-- Loading State -->
-    <div id="loading" class="flex items-center justify-center min-h-screen">
-        <div class="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-violet-500"></div>
-    </div>
-
-    <!-- Main Content -->
-    <main id="content" class="hidden container mx-auto p-6 md:p-12">
-        <header class="flex justify-between items-center mb-12">
-            <div>
-                <h1 class="text-4xl font-extrabold tracking-tight">Welcome back, <span id="user-name" class="text-violet-400">User</span>!</h1>
-                <p class="text-slate-400 mt-2">Manage your AI studio and project sections.</p>
+    <!-- Navigation -->
+    <nav class="sticky top-0 z-50 backdrop-blur-md border-b border-white/5 bg-slate-900/40 dark:bg-slate-950/40">
+        <div class="flex justify-between items-center p-4 max-w-7xl mx-auto">
+            <div class="text-2xl font-black tracking-tighter">
+                CODENIX<span class="text-purple-500">AI</span>
             </div>
-            <button onclick="logout()" class="bg-slate-800 hover:bg-slate-700 px-6 py-2 rounded-full text-sm font-semibold transition">
-                Sign Out
-            </button>
-        </header>
+            
+            <div class="flex items-center gap-4 md:gap-6">
+                <!-- Notifications Bell Dropdown Container -->
+                <div class="relative">
+                    <button id="notif-btn" class="relative p-2 rounded-xl bg-white/5 hover:bg-purple-500/20 transition-all border border-white/10" aria-label="Toggle Notifications">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-slate-300 hover:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                        </svg>
+                        <!-- Unread alert dot -->
+                        <span id="notif-badge" class="hidden absolute top-1 right-1 flex h-2 w-2">
+                            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75"></span>
+                            <span class="relative inline-flex rounded-full h-2 w-2 bg-purple-500"></span>
+                        </span>
+                    </button>
 
-        <!-- Dynamic Sections Grid -->
-        <section id="sections-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <!-- Sections will be injected here -->
+                    <!-- Notifications Dropdown Box -->
+                    <div id="notif-dropdown" class="dropdown-menu absolute right-0 mt-3 w-80 rounded-3xl bg-slate-900/95 border border-white/10 shadow-2xl backdrop-blur-2xl p-4 z-50 text-left">
+                        <div class="flex items-center justify-between pb-3 border-b border-white/5 mb-3">
+                            <h4 class="text-xs font-black tracking-wider text-purple-400 uppercase">Updates & Feed</h4>
+                            <span id="notif-count" class="text-[10px] bg-purple-500/20 text-purple-300 font-bold px-2 py-0.5 rounded-full">0</span>
+                        </div>
+                        <div id="notif-list" class="space-y-3 max-h-80 overflow-y-auto pr-1">
+                            <!-- Populated Dynamically -->
+                            <p class="text-xs text-slate-400 text-center py-4">Checking for new system updates...</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Theme Toggle -->
+                <button id="theme-toggle" class="p-2 rounded-xl bg-white/5 hover:bg-purple-500/20 transition-all border border-white/10" aria-label="Toggle Theme">
+                    <svg id="theme-icon" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 9h-1m15.364-6.364l-.707.707M6.343 17.657l-.707.707m12.728 0l-.707-.707M6.343 6.343l-.707-.707M12 5a7 7 0 100 14 7 7 0 000-14z" />
+                    </svg>
+                </button>
+
+                <!-- Profile Container -->
+                <div class="relative">
+                    <button id="profile-btn" class="flex items-center gap-3 p-1 pr-4 rounded-full bg-white/5 border border-white/10 hover:border-purple-500/50 hover:bg-white/10 transition-all active:scale-95">
+                        <div class="relative h-8 w-8 rounded-full overflow-hidden border border-purple-500/30 bg-slate-800">
+                            <div id="avatar-loader" class="absolute inset-0 avatar-shimmer"></div>
+                            <img id="user-avatar" src="" alt="" class="h-full w-full object-cover opacity-0 transition-opacity duration-300">
+                        </div>
+                        <span id="user-name-abbr" class="text-sm font-bold opacity-80 tracking-tight">Syncing...</span>
+                    </button>
+
+                    <!-- Profile Dropdown -->
+                    <div id="profile-dropdown" class="dropdown-menu absolute right-0 mt-3 w-72 rounded-[2rem] bg-slate-900/95 border border-white/10 shadow-2xl backdrop-blur-2xl p-3 z-50">
+                        <div class="px-5 py-4 border-b border-white/5 mb-2">
+                            <p class="text-[10px] uppercase tracking-[0.2em] text-purple-400 font-black">Authorized User</p>
+                            <p id="user-email-display" class="text-sm font-medium truncate text-white mt-1">loading account...</p>
+                        </div>
+                        
+                        <div class="space-y-1">
+                            <a href="profile.html" class="flex items-center gap-3 px-4 py-3 rounded-2xl hover:bg-white/5 transition-colors group">
+                                <div class="p-2 rounded-lg bg-purple-500/10 text-purple-400">
+                                    <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                                </div>
+                                <span class="text-sm font-semibold text-white">My Profile</span>
+                            </a>
+                            
+                            <a href="profile.html#settings" class="flex items-center gap-3 px-4 py-3 rounded-2xl hover:bg-white/5 transition-colors group">
+                                <div class="p-2 rounded-lg bg-slate-500/10 text-slate-400">
+                                    <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                                </div>
+                                <span class="text-sm font-semibold text-white">Settings</span>
+                            </a>
+                        </div>
+
+                        <div class="h-px bg-white/5 my-2 mx-4"></div>
+                        
+                        <button onclick="signOut()" class="w-full flex items-center gap-3 px-4 py-3 rounded-2xl hover:bg-red-500/10 text-red-400 transition-all group">
+                            <div class="p-2 rounded-lg bg-red-500/10">
+                                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+                            </div>
+                            <span class="text-sm font-bold text-red-400">Sign Out</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Container -->
+    <main class="max-w-7xl mx-auto px-6 pt-12 pb-24">
+        
+        <!-- Welcome Terminal Banner Section -->
+        <section class="mb-16">
+            <div class="p-8 md:p-12 rounded-[3rem] bg-gradient-to-r from-purple-900/40 via-slate-900/60 to-purple-800/20 border border-purple-500/20 backdrop-blur-xl relative overflow-hidden shadow-2xl">
+                <!-- Decorative background light flares -->
+                <div class="absolute top-0 right-0 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl pointer-events-none"></div>
+                <div class="absolute -left-12 -bottom-12 w-64 h-64 bg-indigo-500/5 rounded-full blur-2xl pointer-events-none"></div>
+
+                <div class="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-8">
+                    <div>
+                        <!-- High tech breadcrumb/badge -->
+                        <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-500/10 border border-purple-500/30 text-[10px] font-black tracking-widest text-purple-300 uppercase mb-4">
+                            <span class="flex h-2 w-2 rounded-full bg-green-400 animate-pulse"></span>
+                            Secure Link Active
+                        </div>
+                        
+                        <h1 id="welcome-title" class="text-4xl md:text-6xl font-black tracking-tight text-white mb-4">
+                            Welcome, <span class="text-purple-400" id="user-display-name">Operative</span>
+                        </h1>
+                        <p class="text-lg text-slate-300 max-w-2xl font-light leading-relaxed">
+                            Accessing your customized Codenix AI Workspace terminal. Real-time development engines and design nodes are configured and ready.
+                        </p>
+                    </div>
+
+                    <!-- Side Stats Module -->
+                    <div class="flex flex-col gap-3 min-w-[200px]">
+                        <div class="p-4 rounded-2xl bg-slate-950/40 border border-white/5 backdrop-blur-md">
+                            <span class="text-[10px] text-purple-400 uppercase font-black tracking-widest block mb-1">LOCAL RUNTIME</span>
+                            <span id="runtime-clock" class="text-xl font-mono font-bold text-white">00:00:00 AM</span>
+                        </div>
+                        <div class="p-4 rounded-2xl bg-slate-950/40 border border-white/5 backdrop-blur-md flex items-center justify-between">
+                            <div>
+                                <span class="text-[10px] text-purple-400 uppercase font-black tracking-widest block">OPERATIVES ONLINE</span>
+                                <span id="live-users" class="text-sm font-bold text-slate-200">ESTABLISHING...</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </section>
+
+        <!-- Broadcast & Operations Feed Widget (Notifications shown in the main sections) -->
+        <section id="main-notifications-panel" class="mb-16 hidden">
+            <div class="p-8 rounded-[2.5rem] bg-slate-900/60 border border-purple-500/20 backdrop-blur-xl">
+                <div class="flex items-center justify-between mb-6 pb-4 border-b border-white/5">
+                    <div class="flex items-center gap-3">
+                        <span class="p-2 rounded-xl bg-purple-500/10 text-purple-400 border border-purple-500/20 animate-pulse">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                            </svg>
+                        </span>
+                        <div>
+                            <h2 class="text-lg font-black tracking-widest uppercase text-white">Live Operations Feed</h2>
+                            <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">Real-time alerts broadcasted from HQ</p>
+                        </div>
+                    </div>
+                    <span class="px-3 py-1 text-[9px] font-black tracking-widest bg-purple-500/10 text-purple-300 border border-purple-500/20 rounded-full" id="main-notif-badge-count">0 ACTIVE</span>
+                </div>
+
+                <!-- Live Alerts Grid -->
+                <div id="main-notifications-list" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <!-- Dynamic notifications entries play here -->
+                </div>
+            </div>
+        </section>
+
+        <!-- Category Filter Tabs -->
+        <div class="flex flex-wrap justify-center gap-3 mb-12" id="category-tabs">
+            <button onclick="filterCategory('all')" class="tab-btn px-6 py-2.5 rounded-full text-xs font-black tracking-widest uppercase transition-all duration-300 border border-purple-500 bg-purple-500 text-white shadow-lg shadow-purple-500/20" data-category="all">
+                All Sections
+            </button>
+        </div>
+
+        <!-- Dynamic Portal Sections (Big Containers with smaller sub-tools) -->
+        <div id="portal-sections" class="space-y-16">
+            <!-- Dynamic loading message -->
+            <div class="py-12 flex flex-col items-center justify-center gap-4">
+                <div class="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-purple-500"></div>
+                <p class="text-sm font-bold tracking-widest text-purple-400 uppercase">Constructing Ecosystem Grid...</p>
+            </div>
+        </div>
     </main>
 
+    <!-- Unified Popup Modal (For 'Messages' type elements) -->
+    <div id="system-alert-modal" class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md hidden transition-opacity duration-300 opacity-0">
+        <div class="relative w-full max-w-2xl rounded-[2.5rem] bg-slate-900 border border-purple-500/30 shadow-2xl overflow-hidden p-6 md:p-8">
+            <button id="close-alert-btn" class="absolute top-5 right-5 p-2 rounded-xl bg-white/5 hover:bg-purple-500/20 text-slate-400 hover:text-white transition-all">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+
+            <!-- Modal Header -->
+            <div class="mb-4">
+                <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-purple-500/10 border border-purple-500/20 text-[9px] font-black tracking-widest text-purple-400 uppercase mb-3">
+                    <span class="h-1.5 w-1.5 rounded-full bg-purple-500 animate-pulse"></span> System Broadcast
+                </span>
+                <h3 id="alert-title" class="text-2xl md:text-3xl font-extrabold tracking-tight text-white leading-tight">System Message</h3>
+            </div>
+
+            <!-- Modal Visual Player Area (Video/Image) -->
+            <div id="alert-media-container" class="mb-6 rounded-2xl overflow-hidden bg-black/50 border border-white/5 aspect-video flex items-center justify-center text-slate-500">
+                <!-- Dynamically assigned video or img -->
+            </div>
+
+            <!-- Modal Description -->
+            <div class="mb-6">
+                <p id="alert-body" class="text-sm text-slate-300 leading-relaxed font-light">
+                    Incoming broadcast node parsed. Standby for ecosystem system update.
+                </p>
+            </div>
+
+            <!-- Action buttons -->
+            <div class="flex justify-end">
+                <button id="acknowledge-alert-btn" class="px-6 py-3 rounded-full bg-purple-600 hover:bg-purple-500 text-white text-xs font-black uppercase tracking-widest shadow-lg shadow-purple-500/20 transition-all active:scale-95">
+                    Acknowledge Message
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <footer class="text-center p-20 opacity-20 text-[10px] font-black tracking-[0.4em] uppercase">
+        &copy; 2026 Codenix AI Studio &bull; Precision Systems
+    </footer>
+
     <script>
-        const SUPABASE_URL = 'https://rnlwrngfgvznndlekmrz.supabase.co';
-        const SUPABASE_KEY = 'sb_publishable_mtI0_ZBvU_n5oRuqV58QHg_qJt3Gfyt';
-        // Replace with your actual published CSV link from Google Sheets
-        const SPREADSHEET_CSV_URL = 'YOUR_PUBLISHED_CSV_URL_HERE'; 
+        // Supabase Setup
+        const SUPABASE_URL = "https://rnlwrngfgvznndlekmrz.supabase.co";
+        const SUPABASE_KEY = "sb_publishable_mtI0_ZBvU_n5oRuqV58QHg_qJt3Gfyt";
+        
+        // Google Sheet Setup
+        const GOOGLE_SHEET_ID = "150MBM7hasO1yQi9iBpsM6wU9LojacaKRGmRzXIQZgPs";
+        
+        let supabaseClient;
+        if (typeof window.supabase !== 'undefined') {
+            supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        }
 
-        window.supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        const body = document.body;
+        const themeToggle = document.getElementById('theme-toggle');
+        const cursor = document.getElementById('custom-cursor');
+        const liveUserSpan = document.getElementById('live-users');
+        const profileBtn = document.getElementById('profile-btn');
+        const profileDropdown = document.getElementById('profile-dropdown');
+        const userAvatar = document.getElementById('user-avatar');
+        const avatarLoader = document.getElementById('avatar-loader');
+        const portalSectionsContainer = document.getElementById('portal-sections');
+        const userDisplayName = document.getElementById('user-display-name');
+        const runtimeClock = document.getElementById('runtime-clock');
+        const categoryTabsContainer = document.getElementById('category-tabs');
 
+        // UI Hooks for Notifications and Alerts
+        const notifBtn = document.getElementById('notif-btn');
+        const notifDropdown = document.getElementById('notif-dropdown');
+        const notifBadge = document.getElementById('notif-badge');
+        const notifList = document.getElementById('notif-list');
+        const notifCount = document.getElementById('notif-count');
+
+        // New Hooks for notifications shown in the main page sections
+        const mainNotificationsPanel = document.getElementById('main-notifications-panel');
+        const mainNotificationsList = document.getElementById('main-notifications-list');
+        const mainNotifBadgeCount = document.getElementById('main-notif-badge-count');
+
+        const systemAlertModal = document.getElementById('system-alert-modal');
+        const alertTitle = document.getElementById('alert-title');
+        const alertBody = document.getElementById('alert-body');
+        const alertMediaContainer = document.getElementById('alert-media-container');
+        const closeAlertBtn = document.getElementById('close-alert-btn');
+        const acknowledgeAlertBtn = document.getElementById('acknowledge-alert-btn');
+
+        let rawEcosystemData = {}; // Grouped: { "Section Type": [ {toolName, link}, ... ] }
+        let activeCategoryFilter = "all";
+
+        // Lists to gather Notifications & Messages separately
+        let parsedNotifications = [];
+        let parsedMessages = [];
+
+        // Fallback layout mapping exactly what is shown in the spreadsheet image structure
+        const FALLBACK_SECTIONS = {
+            "New": [
+                { name: "DaleAI", link: "daleai.html" }
+            ],
+            "Ecosystem": [
+                { name: "Nix4", link: "nix4.html" },
+                { name: "Auxiliary Labs", link: "others.html" }
+            ]
+        };
+
+        // Realtime clock helper
+        function initClock() {
+            setInterval(() => {
+                const now = new Date();
+                runtimeClock.textContent = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            }, 1000);
+        }
+
+        // Intelligently parse media URLs (Google Drive files, FB links, YT clips, regular images/video files)
+        function getEmbeddableMediaHTML(url) {
+            if (!url || url === '#') return '';
+            
+            // Normalize spaces/formatting
+            url = url.trim();
+
+            // Google Drive detection (view links, direct links)
+            const driveReg = /drive\.google\.com\/(?:file\/d\/([^\/\?&]+)|open\?id=([^\/\?&]+))/;
+            const driveMatch = url.match(driveReg);
+            if (driveMatch) {
+                const driveId = driveMatch[1] || driveMatch[2];
+                // Google Drive preview embeds handle pictures, audio players, PDF renderers and video players flawlessly
+                const previewUrl = `https://drive.google.com/file/d/${driveId}/preview`;
+                return `<iframe src="${previewUrl}" class="w-full h-full border-0" allow="autoplay" allowfullscreen></iframe>`;
+            }
+
+            // Facebook Video link detection
+            if (url.includes('facebook.com') || url.includes('fb.watch')) {
+                const fbEmbed = `https://www.facebook.com/plugins/video.php?href=${encodeURIComponent(url)}&show_text=0&autoplay=true`;
+                return `<iframe src="${fbEmbed}" class="w-full h-full border-0" scrolling="no" frameborder="0" allowfullscreen="true" allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share"></iframe>`;
+            }
+
+            // YouTube detection
+            const ytReg = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+            const ytMatch = url.match(ytReg);
+            if (ytMatch && ytMatch[2].length === 11) {
+                return `<iframe class="w-full h-full border-0" src="https://www.youtube.com/embed/${ytMatch[2]}?autoplay=1&mute=1" title="Broadcast Video" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>`;
+            }
+
+            // Native video extensions
+            const isVideo = url.endsWith('.mp4') || url.endsWith('.webm') || url.endsWith('.ogg') || url.includes('video');
+            if (isVideo) {
+                return `
+                    <video controls autoplay muted class="w-full h-full object-cover">
+                        <source src="${url}" type="video/mp4">
+                        Your browser does not support the video tag.
+                    </video>
+                `;
+            }
+
+            // Assume standard image, with immediate fallback frame handler on error
+            return `
+                <img src="${url}" alt="Attachment" class="w-full h-full object-cover" onerror="this.outerHTML='<iframe class=\\'w-full h-full border-0\\' src=\\'${url}\\'></iframe>'">
+            `;
+        }
+
+        // Parse Google Sheet using Visualization JSON endpoint
         async function fetchSpreadsheetSections() {
             try {
-                const response = await fetch(SPREADSHEET_CSV_URL);
-                const csvText = await response.text();
-                const rows = csvText.split('\n').map(row => row.split(','));
-                const headers = rows.shift();
-                return rows.filter(row => row.length === headers.length).map(row => {
-                    let obj = {};
-                    headers.forEach((header, i) => obj[header.trim()] = row[i]?.trim());
-                    return obj;
+                const url = `https://docs.google.com/spreadsheets/d/${GOOGLE_SHEET_ID}/gviz/tq?tqx=out:json`;
+                const response = await fetch(url);
+                const text = await response.text();
+                
+                // Trim standard google protective envelope wrapper '/*O_o*/\ngoogle.visualization.Query.setResponse(...)'
+                const jsonStart = text.indexOf('({') + 1;
+                const jsonEnd = text.lastIndexOf('})') + 1;
+                const jsonString = text.slice(jsonStart, jsonEnd);
+                const data = JSON.parse(jsonString);
+                
+                const rows = data.table.rows;
+                const parsedGrouped = {};
+                parsedNotifications = [];
+                parsedMessages = [];
+
+                rows.forEach(row => {
+                    const cells = row.c || [];
+                    const getValue = (idx) => (cells[idx] ? (cells[idx].v ?? cells[idx].f ?? '') : '');
+
+                    // Col A: Section Type
+                    const sectionType = getValue(0).toString().trim();
+                    if (!sectionType || sectionType.toLowerCase() === 'section type') return; // Skip headers
+
+                    // Gather system notifications dynamically (Col A == "Notifications" or "notifications")
+                    if (sectionType.toLowerCase() === 'notifications') {
+                        const title = getValue(1).toString().trim();
+                        const link = getValue(2).toString().trim();
+                        if (title) {
+                            parsedNotifications.push({ title, link });
+                        }
+                        return; // Exclude notifications from forming standard workspace grid layouts
+                    }
+
+                    // Gather popups (Col A == "Messages" or "messages")
+                    if (sectionType.toLowerCase() === 'messages') {
+                        const title = getValue(1).toString().trim();
+                        const link = getValue(2).toString().trim();
+                        if (title) {
+                            parsedMessages.push({ title, mediaUrl: link });
+                        }
+                        return; // Exclude messages from standard grid systems
+                    }
+
+                    if (!parsedGrouped[sectionType]) {
+                        parsedGrouped[sectionType] = [];
+                    }
+
+                    // Extract matching tool pairs (Tool, Link), (Tool2, Link2), (Tool3, Link3)
+                    const tools = [];
+                    // Tool 1 (Col B, C)
+                    if (getValue(1)) {
+                        const link = getValue(2).toString().trim();
+                        tools.push({ name: getValue(1).toString().trim(), link: link });
+                    }
+                    // Tool 2 (Col D, E)
+                    if (getValue(3)) {
+                        const link = getValue(4).toString().trim();
+                        tools.push({ name: getValue(3).toString().trim(), link: link });
+                    }
+                    // Tool 3 (Col F, G)
+                    if (getValue(5)) {
+                        const link = getValue(6).toString().trim();
+                        tools.push({ name: getValue(5).toString().trim(), link: link });
+                    }
+
+                    parsedGrouped[sectionType].push(...tools);
                 });
-            } catch (error) {
-                console.error('Error loading sheet data:', error);
-                return [];
+
+                // Remove sections with zero tools
+                Object.keys(parsedGrouped).forEach(key => {
+                    if (parsedGrouped[key].length === 0) {
+                        delete parsedGrouped[key];
+                    }
+                });
+
+                // Post-process Notifications Feed & Modal Prompts
+                setupNotificationUI(parsedNotifications);
+                setupSystemMessages(parsedMessages);
+
+                return Object.keys(parsedGrouped).length > 0 ? parsedGrouped : FALLBACK_SECTIONS;
+            } catch (err) {
+                console.warn("Spreadsheet lookup failed. Implementing premium fallback layout.", err);
+                return FALLBACK_SECTIONS;
             }
         }
 
-        async function init() {
-            const { data: { user } } = await window.supabaseClient.auth.getUser();
-            if (!user) {
-                window.location.href = '/start/';
+        // Render Notifications Feed in both Header drop-down and main section elements
+        function setupNotificationUI(notifications) {
+            if (notifications.length === 0) {
+                // Header Dropdown view
+                notifList.innerHTML = `<p class="text-xs text-slate-400 text-center py-4">No active system updates.</p>`;
+                notifCount.textContent = "0";
+                notifBadge.classList.add('hidden');
+                
+                // Hide Main Section Panel completely
+                mainNotificationsPanel.classList.add('hidden');
                 return;
             }
 
-            document.getElementById('user-name').innerText = user.user_metadata.full_name || user.email.split('@')[0];
-            
-            // Fetch dynamic data
-            const sections = await fetchSpreadsheetSections();
-            const grid = document.getElementById('sections-grid');
-            
-            sections.forEach(s => {
-                const card = document.createElement('div');
-                card.className = "bg-slate-900 p-6 rounded-2xl border border-slate-800 hover:border-violet-500 transition";
-                card.innerHTML = `
-                    <h2 class="text-xl font-bold mb-4">${s.Title || 'Project Section'}</h2>
-                    <p class="text-slate-400">${s.Description || 'Manage this part of your studio.'}</p>
+            // 1. Sync header navigation bell widgets
+            notifCount.textContent = notifications.length;
+            notifBadge.classList.remove('hidden');
+
+            const makeListHTML = (list) => list.map(notif => {
+                const targetLink = notif.link && notif.link !== '#' ? notif.link : 'javascript:void(0)';
+                return `
+                    <a href="${targetLink}" ${targetLink !== 'javascript:void(0)' ? 'target="_blank"' : ''} class="block p-3 rounded-2xl hover:bg-white/5 border border-transparent hover:border-white/5 transition-all duration-200 group">
+                        <div class="flex items-start gap-3">
+                            <span class="flex-shrink-0 mt-0.5 h-2 w-2 rounded-full bg-purple-500 animate-pulse"></span>
+                            <div>
+                                <p class="text-xs text-slate-200 font-medium leading-relaxed group-hover:text-purple-400 transition-colors">${notif.title}</p>
+                                ${notif.link && notif.link !== '#' ? `
+                                    <span class="inline-flex items-center gap-1 text-[10px] text-purple-400 font-bold mt-1">
+                                        View details
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                                        </svg>
+                                    </span>
+                                ` : ''}
+                            </div>
+                        </div>
+                    </a>
                 `;
-                grid.appendChild(card);
+            }).join('');
+
+            notifList.innerHTML = makeListHTML(notifications);
+
+            // 2. Render Notifications in the Main Page Section as dynamic card elements
+            mainNotifBadgeCount.textContent = `${notifications.length} ACTIVE`;
+            mainNotificationsPanel.classList.remove('hidden');
+
+            mainNotificationsList.innerHTML = notifications.map(notif => {
+                const targetLink = notif.link && notif.link !== '#' ? notif.link : 'javascript:void(0)';
+                return `
+                    <div onclick="if('${targetLink}' !== 'javascript:void(0)') { window.open('${targetLink}', '_blank'); }" class="glass-card p-5 rounded-3xl bg-slate-950/40 border border-white/5 cursor-pointer hover:border-purple-500/30 group flex items-start gap-4 transition-all">
+                        <div class="p-3 rounded-xl bg-purple-500/10 text-purple-400 group-hover:bg-purple-500 group-hover:text-white transition-all">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <span class="text-[9px] text-purple-400 tracking-wider font-mono font-bold uppercase block mb-1">Incoming Transmission</span>
+                            <p class="text-sm font-semibold text-slate-100 group-hover:text-white transition-colors leading-relaxed">${notif.title}</p>
+                            ${notif.link && notif.link !== '#' ? `
+                                <span class="inline-flex items-center gap-1 text-xs text-purple-400 font-bold mt-2.5">
+                                    Acknowledge Broadcast
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                                    </svg>
+                                </span>
+                            ` : ''}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            applyHoverBindings();
+        }
+
+        // Render One-Time system message alert dynamically
+        function setupSystemMessages(messages) {
+            if (messages.length === 0) return;
+            
+            // Show only the latest available system message alert
+            const activeMsg = messages[messages.length - 1];
+            const msgHash = `msg_seen_${btoa(activeMsg.title).substring(0, 16)}`;
+
+            // Check localStorage to ensure this message is shown as a "One-Time" prompt
+            if (localStorage.getItem(msgHash)) {
+                return; 
+            }
+
+            // Populate system modal alert details
+            alertTitle.textContent = "Broadcast Transmission";
+            alertBody.textContent = activeMsg.title;
+
+            // Use our advanced link converter to generate embed HTML
+            const mediaUrl = activeMsg.mediaUrl;
+            
+            if (mediaUrl && mediaUrl !== '#') {
+                alertMediaContainer.innerHTML = getEmbeddableMediaHTML(mediaUrl);
+                alertMediaContainer.classList.remove('hidden');
+            } else {
+                alertMediaContainer.classList.add('hidden');
+                alertMediaContainer.innerHTML = '';
+            }
+
+            // Smooth interactive transition open
+            setTimeout(() => {
+                systemAlertModal.classList.remove('hidden');
+                setTimeout(() => {
+                    systemAlertModal.classList.add('opacity-100');
+                }, 50);
+            }, 1000);
+
+            // Closing behavior saves acknowledged flag in LocalStorage
+            const dismissAction = () => {
+                systemAlertModal.classList.remove('opacity-100');
+                localStorage.setItem(msgHash, 'true');
+                setTimeout(() => {
+                    systemAlertModal.classList.add('hidden');
+                    alertMediaContainer.innerHTML = ''; // Cease video playback immediately when closing
+                }, 300);
+            };
+
+            closeAlertBtn.addEventListener('click', dismissAction);
+            acknowledgeAlertBtn.addEventListener('click', dismissAction);
+        }
+
+        // Toggle Notifications Dropdown Box
+        notifBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            profileDropdown.classList.remove('active'); // close companion dropdowns
+            notifDropdown.classList.toggle('active');
+        });
+
+        // Toggle Profile Dropdown Menu
+        profileBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            notifDropdown.classList.remove('active'); // close companion dropdowns
+            profileDropdown.classList.toggle('active');
+        });
+
+        document.addEventListener('click', () => {
+            profileDropdown.classList.remove('active');
+            notifDropdown.classList.remove('active');
+        });
+
+        // Visual icon dispatcher depending on tool names
+        function getToolIcon(toolName) {
+            const lowerName = toolName.toLowerCase();
+            if (lowerName.includes('dale') || lowerName.includes('image')) {
+                return `<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>`;
+            }
+            if (lowerName.includes('nix') || lowerName.includes('system') || lowerName.includes('ai')) {
+                return `<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>`;
+            }
+            if (lowerName.includes('code') || lowerName.includes('dev')) {
+                return `<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" /></svg>`;
+            }
+            // Fallback default icon
+            return `<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" /></svg>`;
+        }
+
+        // Render dynamic categories and tools inside "Big Sections" with "Smaller Sections"
+        function renderEcosystem() {
+            let sectionsHtml = '';
+            
+            Object.keys(rawEcosystemData).forEach(sectionTitle => {
+                // Apply tab filter if any specific tab is activated
+                if (activeCategoryFilter !== 'all' && activeCategoryFilter.toLowerCase() !== sectionTitle.toLowerCase()) {
+                    return;
+                }
+
+                const toolsList = rawEcosystemData[sectionTitle];
+
+                sectionsHtml += `
+                    <div class="space-y-6">
+                        <!-- Big Section Header -->
+                        <div class="flex items-center gap-4">
+                            <h2 class="text-2xl md:text-3xl font-black uppercase tracking-wider text-white dark:text-white light:text-slate-800">
+                                ${sectionTitle}
+                            </h2>
+                            <div class="h-px flex-1 bg-gradient-to-r from-purple-500/30 to-transparent"></div>
+                            <span class="px-3 py-1 text-[9px] font-black tracking-widest bg-purple-500/10 text-purple-400 border border-purple-500/20 rounded-full">
+                                ${toolsList.length} ${toolsList.length === 1 ? 'NODE' : 'NODES'}
+                            </span>
+                        </div>
+
+                        <!-- Grid of Smaller Sections (Tools) -->
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                            ${toolsList.map(tool => {
+                                return `
+                                    <div onclick="window.location.href='${tool.link}'" class="glass-card p-6 rounded-[2rem] bg-slate-900/40 border border-white/5 cursor-pointer group flex items-start gap-4 hover:border-purple-500/30">
+                                        <!-- Tool Icon Box -->
+                                        <div class="p-3 rounded-2xl bg-purple-500/10 text-purple-400 border border-purple-500/20 group-hover:bg-purple-500 group-hover:text-white transition-all duration-300">
+                                            ${getToolIcon(tool.name)}
+                                        </div>
+                                        
+                                        <!-- Tool Info -->
+                                        <div class="flex-1 min-w-0">
+                                            <h3 class="text-lg font-bold text-white dark:text-white light:text-slate-800 group-hover:text-purple-400 transition-colors truncate">
+                                                ${tool.name}
+                                            </h3>
+                                            <p class="text-[10px] text-purple-300 tracking-wider font-mono font-bold uppercase mt-0.5 truncate opacity-80">
+                                                ${tool.link}
+                                            </p>
+                                            <span class="inline-flex items-center gap-1 text-[11px] font-bold text-purple-400 mt-3 group-hover:translate-x-1.5 transition-transform duration-300">
+                                                Launch Terminal
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
+                                            </span>
+                                        </div>
+                                    </div>
+                                `;
+                            }).join('')}
+                        </div>
+                    </div>
+                `;
             });
 
-            document.getElementById('loading').classList.add('hidden');
-            document.getElementById('content').classList.remove('hidden');
+            if (sectionsHtml === '') {
+                sectionsHtml = `
+                    <div class="py-16 text-center">
+                        <p class="text-sm font-semibold opacity-40 uppercase tracking-widest text-slate-400">No tools configured in this ecosystem tab.</p>
+                    </div>
+                `;
+            }
+
+            portalSectionsContainer.innerHTML = sectionsHtml;
+            applyHoverBindings();
         }
 
-        async function logout() {
-            await window.supabaseClient.auth.signOut();
-            window.location.href = '/start/';
+        // Generate Tab Bar dynamically
+        function generateCategoryTabs() {
+            let tabsHtml = `
+                <button onclick="filterCategory('all')" class="tab-btn px-6 py-2.5 rounded-full text-xs font-black tracking-widest uppercase transition-all duration-300 border ${activeCategoryFilter === 'all' ? 'border-purple-500 bg-purple-500 text-white shadow-lg' : 'border-white/10 text-slate-400 hover:border-purple-500/50 hover:bg-purple-500/10'}" data-category="all">
+                    All Sections
+                </button>
+            `;
+
+            Object.keys(rawEcosystemData).forEach(sectionTitle => {
+                const isActive = activeCategoryFilter.toLowerCase() === sectionTitle.toLowerCase();
+                tabsHtml += `
+                    <button onclick="filterCategory('${sectionTitle.toLowerCase()}')" class="tab-btn px-6 py-2.5 rounded-full text-xs font-black tracking-widest uppercase transition-all duration-300 border ${isActive ? 'border-purple-500 bg-purple-500 text-white shadow-lg' : 'border-white/10 text-slate-400 hover:border-purple-500/50 hover:bg-purple-500/10'}" data-category="${sectionTitle.toLowerCase()}">
+                        ${sectionTitle}
+                    </button>
+                `;
+            });
+
+            categoryTabsContainer.innerHTML = tabsHtml;
         }
 
-        init();
+        function filterCategory(categoryName) {
+            activeCategoryFilter = categoryName;
+            generateCategoryTabs();
+            renderEcosystem();
+        }
+
+        // Custom Triangle Cursor Logic
+        document.addEventListener('mousemove', (e) => {
+            cursor.style.left = e.clientX + 'px';
+            cursor.style.top = e.clientY + 'px';
+        });
+
+        function applyHoverBindings() {
+            document.querySelectorAll('.glass-card, button, a').forEach(el => {
+                el.removeEventListener('mouseenter', cursorIn);
+                el.removeEventListener('mouseleave', cursorOut);
+                
+                el.addEventListener('mouseenter', cursorIn);
+                el.addEventListener('mouseleave', cursorOut);
+            });
+        }
+
+        function cursorIn() {
+            cursor.style.transform = 'translate(-50%, -50%) scale(1.4)';
+            cursor.style.borderBottomColor = '#a78bfa';
+        }
+
+        function cursorOut() {
+            cursor.style.transform = 'translate(-50%, -50%) scale(1)';
+            cursor.style.borderBottomColor = '#8b5cf6';
+        }
+
+        // Profile details synchronization
+        async function checkUser() {
+            if (!supabaseClient) return;
+            
+            const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
+            
+            if (!user || authError) {
+                window.location.href = 'auth.html';
+                return;
+            }
+
+            document.getElementById('user-email-display').textContent = user.email;
+            
+            try {
+                const { data: profile, error } = await supabaseClient
+                    .from('profiles')
+                    .select('avatar_url, username, full_name')
+                    .eq('id', user.id)
+                    .single();
+
+                const displayName = profile?.username || profile?.full_name || user.email.split('@')[0];
+                document.getElementById('user-name-abbr').textContent = displayName;
+                userDisplayName.textContent = displayName;
+
+                let finalAvatarUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=8b5cf6&color=fff&bold=true`;
+                
+                if (profile?.avatar_url) {
+                    if (profile.avatar_url.startsWith('http')) {
+                        finalAvatarUrl = profile.avatar_url;
+                    } else {
+                        const { data } = supabaseClient.storage
+                            .from('avatars')
+                            .getPublicUrl(profile.avatar_url);
+                        finalAvatarUrl = `${data.publicUrl}?t=${new Date().getTime()}`;
+                    }
+                }
+
+                userAvatar.src = finalAvatarUrl;
+                userAvatar.onload = () => {
+                    userAvatar.classList.remove('opacity-0');
+                    avatarLoader.classList.add('hidden');
+                };
+                
+                userAvatar.onerror = () => {
+                    userAvatar.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=8b5cf6&color=fff&bold=true`;
+                    userAvatar.classList.remove('opacity-0');
+                    avatarLoader.classList.add('hidden');
+                };
+
+            } catch (err) {
+                console.error("Profile load sync issue:", err);
+                const fallbackName = user.email.split('@')[0];
+                document.getElementById('user-name-abbr').textContent = fallbackName;
+                userDisplayName.textContent = fallbackName;
+                userAvatar.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(fallbackName)}&background=8b5cf6&color=fff&bold=true`;
+                userAvatar.onload = () => {
+                    userAvatar.classList.remove('opacity-0');
+                    avatarLoader.classList.add('hidden');
+                };
+            }
+
+            fetchLiveUsers();
+        }
+
+        async function signOut() {
+            if (!supabaseClient) return;
+            await supabaseClient.auth.signOut();
+            window.location.href = 'auth.html';
+        }
+
+        async function fetchLiveUsers() {
+            if (!supabaseClient) return;
+            try {
+                const { count } = await supabaseClient
+                    .from('profiles')
+                    .select('*', { count: 'exact', head: true });
+                
+                liveUserSpan.textContent = `${(count || 2491).toLocaleString()} CODENIX AGENTS`;
+            } catch (e) {
+                liveUserSpan.textContent = "2,491 CODENIX AGENTS";
+            }
+        }
+
+        // Theme Toggle Logic
+        themeToggle.addEventListener('click', () => {
+            const isDark = body.classList.contains('dark');
+            body.classList.toggle('dark', !isDark);
+            body.classList.toggle('light', isDark);
+            localStorage.setItem('theme', isDark ? 'light' : 'dark');
+        });
+
+        // Initialize Workspace Pipeline
+        window.onload = async () => {
+            const savedTheme = localStorage.getItem('theme') || 'dark';
+            body.className = savedTheme;
+            
+            initClock();
+            checkUser();
+
+            // Load dynamically from Spreadsheet
+            rawEcosystemData = await fetchSpreadsheetSections();
+            generateCategoryTabs();
+            renderEcosystem();
+        };
     </script>
 </body>
 </html>
