@@ -13,54 +13,77 @@
 </head>
 <body class="bg-slate-950 text-slate-50 min-h-screen">
 
+    <!-- Loading State -->
     <div id="loading" class="flex items-center justify-center min-h-screen">
         <div class="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-violet-500"></div>
     </div>
 
+    <!-- Main Content -->
     <main id="content" class="hidden container mx-auto p-6 md:p-12">
         <header class="flex justify-between items-center mb-12">
             <div>
                 <h1 class="text-4xl font-extrabold tracking-tight">Welcome back, <span id="user-name" class="text-violet-400">User</span>!</h1>
-                <p class="text-slate-400 mt-2">Manage your AI projects and settings here.</p>
+                <p class="text-slate-400 mt-2">Manage your AI studio and project sections.</p>
             </div>
             <button onclick="logout()" class="bg-slate-800 hover:bg-slate-700 px-6 py-2 rounded-full text-sm font-semibold transition">
                 Sign Out
             </button>
         </header>
 
-        <section class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <div class="bg-slate-900 p-6 rounded-2xl border border-slate-800">
-                <h2 class="text-xl font-bold mb-4">Project Status</h2>
-                <p class="text-slate-400">Your AI studio is active and ready for your next deployment.</p>
-            </div>
-            <div class="bg-slate-900 p-6 rounded-2xl border border-slate-800">
-                <h2 class="text-xl font-bold mb-4">Quick Actions</h2>
-                <button class="w-full bg-violet-600 hover:bg-violet-500 text-white py-2 rounded-lg transition mb-2">Create New Agent</button>
-                <button class="w-full bg-slate-800 hover:bg-slate-700 py-2 rounded-lg transition">View Logs</button>
-            </div>
+        <!-- Dynamic Sections Grid -->
+        <section id="sections-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <!-- Sections will be injected here -->
         </section>
     </main>
 
     <script>
-        // Supabase configuration
         const SUPABASE_URL = 'https://rnlwrngfgvznndlekmrz.supabase.co';
         const SUPABASE_KEY = 'sb_publishable_mtI0_ZBvU_n5oRuqV58QHg_qJt3Gfyt';
-        
-        // Ensure supabase instance is initialized globally once safely
+        // Replace with your actual published CSV link from Google Sheets
+        const SPREADSHEET_CSV_URL = 'YOUR_PUBLISHED_CSV_URL_HERE'; 
+
         window.supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        async function fetchSpreadsheetSections() {
+            try {
+                const response = await fetch(SPREADSHEET_CSV_URL);
+                const csvText = await response.text();
+                const rows = csvText.split('\n').map(row => row.split(','));
+                const headers = rows.shift();
+                return rows.filter(row => row.length === headers.length).map(row => {
+                    let obj = {};
+                    headers.forEach((header, i) => obj[header.trim()] = row[i]?.trim());
+                    return obj;
+                });
+            } catch (error) {
+                console.error('Error loading sheet data:', error);
+                return [];
+            }
+        }
 
         async function init() {
             const { data: { user } } = await window.supabaseClient.auth.getUser();
-            
             if (!user) {
                 window.location.href = '/start/';
                 return;
             }
 
-            // Set User Data
             document.getElementById('user-name').innerText = user.user_metadata.full_name || user.email.split('@')[0];
             
-            // Show content
+            // Fetch dynamic data
+            const sections = await fetchSpreadsheetSections();
+            const grid = document.getElementById('sections-grid');
+            
+            sections.forEach(s => {
+                const card = document.createElement('div');
+                card.className = "bg-slate-900 p-6 rounded-2xl border border-slate-800 hover:border-violet-500 transition";
+                card.innerHTML = `
+                    <h2 class="text-xl font-bold mb-4">${s.Title || 'Project Section'}</h2>
+                    <p class="text-slate-400">${s.Description || 'Manage this part of your studio.'}</p>
+                `;
+                grid.appendChild(card);
+            });
+
             document.getElementById('loading').classList.add('hidden');
             document.getElementById('content').classList.remove('hidden');
         }
