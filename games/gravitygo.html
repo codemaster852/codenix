@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Go Gravity: Chaos Edition (Joystick + Controller)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;900&display=swap');
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: #050508;
+            font-family: 'Inter', sans-serif;
+            touch-action: none;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+        canvas { display: block; }
+        #ui-layer {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            z-index: 10;
+        }
+        .btn {
+            pointer-events: auto;
+            background: rgba(255, 255, 255, 0.05);
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            padding: 16px 40px;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: 4px;
+            cursor: pointer;
+            transition: 0.2s;
+            border-radius: 4px; 
+            backdrop-filter: blur(10px);
+        }
+        .btn:hover { background: rgba(255, 255, 255, 0.15); transform: translateY(-2px); border-color: #00f2ff; }
+        .btn:active { transform: scale(0.95); background: #ff0055; }
+        
+        .score-box {
+            position: absolute;
+            top: env(safe-area-inset-top, 20px);
+            right: 25px;
+            text-align: right;
+            pointer-events: none;
+        }
+
+        .glitch-title {
+            font-size: clamp(3rem, 12vw, 5rem);
+            font-weight: 900;
+            font-style: italic;
+            text-shadow: 4px 4px 0px #ff0055, -4px -4px 0px #00f2ff;
+            line-height: 0.9;
+            animation: glitch-anim 0.3s infinite;
+        }
+
+        @keyframes glitch-anim {
+            0% { transform: translate(0); }
+            20% { transform: translate(-2px, 1px); }
+            40% { transform: translate(-1px, -2px); }
+            60% { transform: translate(2px, 1px); }
+            80% { transform: translate(1px, -1px); }
+            100% { transform: translate(0); }
+        }
+
+        #action-text {
+            position: absolute;
+            font-weight: 900;
+            font-style: italic;
+            font-size: 60px;
+            color: white;
+            opacity: 0;
+            pointer-events: none;
+            text-shadow: 0 0 20px rgba(255,255,255,0.8);
+            transition: opacity 0.2s, transform 0.2s;
+        }
+
+        .flash {
+            position: fixed;
+            top:0; left:0; width:100%; height:100%;
+            background: white;
+            pointer-events: none;
+            opacity: 0;
+            z-index: 100;
+        }
+
+        /* Virtual Joystick Styles */
+        #joystick-container {
+            position: absolute;
+            bottom: 40px;
+            left: 40px;
+            width: 120px;
+            height: 120px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            border-radius: 50%;
+            pointer-events: auto;
+            display: none; /* Only shown in certain modes or on touch */
+            z-index: 20;
+        }
+        #joystick-knob {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 50px;
+            height: 50px;
+            background: #00f2ff;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            box-shadow: 0 0 15px #00f2ff;
+        }
+
+        .controller-status {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            font-size: 10px;
+            letter-spacing: 1px;
+            color: #666;
+            text-transform: uppercase;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="flash-overlay" class="flash"></div>
+
+    <div id="ui-layer">
+        <div id="menu-screen" class="flex flex-col items-center">
+            <h1 class="glitch-title mb-4 text-center">CHAOS<br>GRAVITY</h1>
+            <p class="text-[10px] tracking-[0.4em] text-cyan-400 mb-8 opacity-80 uppercase text-center">
+                Tap/A: Gravity | DoubleTap/B: Jump<br>Joystick/Analog Supported
+            </p>
+            
+            <button class="btn mb-4 w-72" onclick="initGame('STORY')">ENTER HELL</button>
+            <button class="btn w-72" onclick="initGame('OPEN')">ENDLESS CHAOS</button>
+            <div class="mt-8 flex gap-4 pointer-events-auto">
+                <label class="flex items-center gap-2 text-xs text-gray-400 cursor-pointer">
+                    <input type="checkbox" id="joystick-toggle" onchange="toggleJoystick(this.checked)"> SHOW JOYSTICK
+                </label>
+            </div>
+        </div>
+
+        <div id="action-text">TRICKED!</div>
+
+        <div id="end-screen" class="hidden flex flex-col items-center">
+            <h2 id="end-title" class="text-6xl font-black italic mb-2">ERASED</h2>
+            <p id="end-msg" class="text-red-500 mb-8 font-mono text-xl"></p>
+            <button class="btn w-64 mb-4" onclick="restart()">REVIVE</button>
+            <button class="btn w-64 opacity-50 text-sm" onclick="location.reload()">ABORT</button>
+        </div>
+
+        <div id="hud" class="hidden score-box">
+            <div id="score-val" class="text-6xl font-black italic text-white">0</div>
+            <div class="text-[10px] text-cyan-400 tracking-widest">DISTANCE</div>
+        </div>
+
+        <div class="controller-status" id="con-status">No Controller Detected</div>
+    </div>
+
+    <!-- External Input: Virtual Joystick -->
+    <div id="joystick-container">
+        <div id="joystick-knob"></div>
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        
+        // --- External Inputs State ---
+        let gamepad = null;
+        let joystickActive = false;
+        let joystickData = { x: 0, y: 0 };
+        const joystickContainer = document.getElementById('joystick-container');
+        const joystickKnob = document.getElementById('joystick-knob');
+
+        // --- Audio Helpers ---
+        function playSfx(f, t, d, v=0.1) {
+            try {
+                if (audioCtx.state === 'suspended') audioCtx.resume();
+                const o = audioCtx.createOscillator();
+                const g = audioCtx.createGain();
+                o.type = t; o.frequency.setValueAtTime(f, audioCtx.currentTime);
+                g.gain.setValueAtTime(v, audioCtx.currentTime);
+                g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime+d);
+                o.connect(g); g.connect(audioCtx.destination);
+                o.start(); o.stop(audioCtx.currentTime+d);
+            } catch(e) {}
+        }
+
+        const sfx = {
+            flip: () => playSfx(250, 'square', 0.15, 0.08),
+            jump: () => playSfx(550, 'triangle', 0.2, 0.1),
+            death: () => { playSfx(80, 'sawtooth', 0.8, 0.2); playSfx(40, 'square', 0.5, 0.2); },
+            troll: () => playSfx(120, 'sine', 0.5, 0.15),
+            land: () => playSfx(180, 'triangle', 0.1, 0.05)
+        };
+
+        // --- Game Logic Constants & State ---
+        let state = 'MENU';
+        let mode = 'STORY';
+        let score = 0;
+        let lastTap = 0;
+        let frame = 0;
+        let gameSpeed = 10;
+        let worldTilt = 0;
+        let targetTilt = 0;
+        let screenShake = 0;
+        let bgScroll = 0;
+        let obstacles = [];
+        let particles = [];
+        let groundY, ceilingY;
+
+        let player = {
+            x: 0, y: 0, w: 38, h: 38,
+            velY: 0, grav: 1.2, dir: 1, 
+            rot: 0, jumps: 0, 
+            trail: [],
+            squash: 1, stretch: 1,
+            color: '#00f2ff'
+        };
+
+        function resize() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            groundY = canvas.height * 0.75;
+            ceilingY = canvas.height * 0.25;
+            player.x = canvas.width * 0.18;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        function triggerFlash(intensity = 0.3) {
+            const flash = document.getElementById('flash-overlay');
+            flash.style.opacity = intensity;
+            setTimeout(() => flash.style.opacity = 0, 60);
+        }
+
+        // --- Input Management (Keyboard, Touch, Gamepad, Joystick) ---
+        
+        function handleAction(type) {
+            if (state !== 'PLAYING') return;
+
+            const now = Date.now();
+            const timespan = now - lastTap;
+            
+            if (type === 'jump' || (type === 'tap' && timespan < 250)) { 
+                // JUMP Logic
+                if (player.jumps < 2) {
+                    player.velY = -15 * player.dir;
+                    player.jumps++;
+                    player.squash = 0.4; player.stretch = 1.6;
+                    sfx.jump();
+                    spawnParticles(player.x + player.w/2, player.y + (player.dir > 0 ? player.h : 0), 'white', 12);
+                    screenShake = 6;
+                }
+            } else if (type === 'flip' || type === 'tap') {
+                // FLIP Logic
+                player.dir *= -1;
+                player.jumps = 1; // Count flip as first action
+                player.stretch = 1.4;
+                sfx.flip();
+                triggerFlash(0.08);
+            }
+            lastTap = now;
+        }
+
+        // Virtual Joystick Logic
+        function toggleJoystick(show) {
+            joystickContainer.style.display = show ? 'block' : 'none';
+        }
+
+        joystickContainer.addEventListener('touchstart', (e) => {
+            joystickActive = true;
+            updateJoystick(e.targetTouches[0]);
+        });
+        window.addEventListener('touchmove', (e) => {
+            if (!joystickActive) return;
+            updateJoystick(e.targetTouches[0]);
+        }, {passive: false});
+        window.addEventListener('touchend', () => {
+            joystickActive = false;
+            joystickKnob.style.transform = `translate(-50%, -50%)`;
+            joystickData = { x: 0, y: 0 };
+        });
+
+        function updateJoystick(touch) {
+            const rect = joystickContainer.getBoundingClientRect();
+            const centerX = rect.left + rect.width / 2;
+            const centerY = rect.top + rect.height / 2;
+            let dx = touch.clientX - centerX;
+            let dy = touch.clientY - centerY;
+            const dist = Math.sqrt(dx*dx + dy*dy);
+            const maxDist = rect.width / 2;
+
+            if (dist > maxDist) {
+                dx *= maxDist / dist;
+                dy *= maxDist / dist;
+            }
+
+            joystickKnob.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+            
+            // Normalize
+            const ny = dy / maxDist;
+            // Trigger flip on rapid vertical change
+            if (Math.abs(ny) > 0.6 && Math.sign(ny) !== Math.sign(joystickData.y)) {
+                handleAction('tap');
+            }
+            joystickData = { x: dx/maxDist, y: ny };
+        }
+
+        // Gamepad Loop
+        function checkGamepad() {
+            const gps = navigator.getGamepads();
+            gamepad = gps[0];
+            const status = document.getElementById('con-status');
+            if (gamepad) {
+                status.innerText = "🎮 Connected: " + gamepad.id.split('(')[0];
+                status.style.color = "#00f2ff";
+                
+                // Button 0 (A) or 1 (B)
+                if (gamepad.buttons[0].pressed && !gamepad.prevBtn0) handleAction('tap');
+                if (gamepad.buttons[1].pressed && !gamepad.prevBtn1) handleAction('jump');
+                
+                // Analog Y
+                const yAxis = gamepad.axes[1];
+                if (Math.abs(yAxis) > 0.5 && Math.sign(yAxis) !== Math.sign(gamepad.prevY)) {
+                     handleAction('tap');
+                }
+
+                gamepad.prevBtn0 = gamepad.buttons[0].pressed;
+                gamepad.prevBtn1 = gamepad.buttons[1].pressed;
+                gamepad.prevY = yAxis;
+            }
+        }
+
+        window.addEventListener('touchstart', (e) => { if (!joystickActive) handleAction('tap'); });
+        window.addEventListener('mousedown', (e) => { handleAction('tap'); });
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') handleAction('tap');
+            if (e.code === 'ArrowUp' || e.code === 'KeyW') handleAction('jump');
+        });
+
+        // --- Core Engine ---
+
+        function initGame(m) {
+            mode = m;
+            state = 'PLAYING';
+            score = 0;
+            frame = 0;
+            gameSpeed = 10;
+            targetTilt = 0;
+            worldTilt = 0;
+            obstacles = [];
+            particles = [];
+            player.y = groundY - player.h;
+            player.dir = 1;
+            player.velY = 0;
+            player.jumps = 0;
+            
+            document.getElementById('menu-screen').classList.add('hidden');
+            document.getElementById('end-screen').classList.add('hidden');
+            document.getElementById('hud').classList.remove('hidden');
+            triggerFlash(0.5);
+        }
+
+        function spawnParticles(x, y, color, count) {
+            for(let i=0; i<count; i++) {
+                particles.push({
+                    x, y, 
+                    vx: (Math.random()-0.5)*18, 
+                    vy: (Math.random()-0.5)*18,
+                    life: 1.0, 
+                    color,
+                    size: Math.random() * 6 + 2
+                });
+            }
+        }
+
+        function showTrollText(txt) {
+            const el = document.getElementById('action-text');
+            el.innerText = txt;
+            el.style.left = Math.random()*40 + 20 + '%';
+            el.style.top = '35%';
+            el.style.opacity = 1;
+            el.style.transform = `rotate(${(Math.random()-0.5)*30}deg) scale(1.5)`;
+            setTimeout(() => {
+                el.style.opacity = 0;
+                el.style.transform = `scale(1)`;
+            }, 1000);
+            sfx.troll();
+        }
+
+        function spawnObstacle() {
+            const isTop = Math.random() > 0.5;
+            const h = 50 + Math.random() * 80;
+            
+            const roll = Math.random();
+            let type = 'normal';
+            if (roll > 0.88) type = 'falling';
+            else if (roll > 0.78) type = 'fake';
+            else if (roll > 0.68) type = 'sideways';
+
+            obstacles.push({
+                x: canvas.width + 100,
+                y: isTop ? ceilingY : groundY - h,
+                w: 42, h: h,
+                pos: isTop ? 'top' : 'bottom',
+                type,
+                active: true,
+                triggered: false,
+                vx: 0, vy: 0,
+                opacity: 1
+            });
+        }
+
+        function update() {
+            if (state !== 'PLAYING') return;
+            
+            checkGamepad();
+            frame++;
+            score += 0.2;
+            bgScroll -= gameSpeed * 0.4;
+            document.getElementById('score-val').innerText = Math.floor(score);
+
+            // Chaos Progression
+            if (frame % 600 === 0) {
+                const r = Math.random();
+                if (r > 0.7) {
+                    targetTilt = targetTilt === 0 ? Math.PI : 0;
+                    showTrollText("UPSIDE DOWN!");
+                } else {
+                    targetTilt = (Math.random()-0.5) * 0.6;
+                    showTrollText("DIZZY?");
+                }
+            }
+            if (frame % 1000 === 0) {
+                gameSpeed += 2;
+                showTrollText("FASTER!!");
+            }
+
+            worldTilt += (targetTilt - worldTilt) * 0.05;
+
+            // Player Physics
+            player.velY += player.grav * player.dir;
+            player.y += player.velY;
+            player.rot += (0.12 + (Math.abs(player.velY) * 0.03)) * player.dir;
+            
+            player.squash += (1 - player.squash) * 0.25;
+            player.stretch += (1 - player.stretch) * 0.25;
+
+            // Bounds
+            if (player.y + player.h > groundY) {
+                if (player.velY > 2) {
+                    player.squash = 1.5; player.stretch = 0.5;
+                    sfx.land();
+                    spawnParticles(player.x + player.w/2, groundY, player.color, 6);
+                }
+                player.y = groundY - player.h;
+                player.velY = 0; player.jumps = 0;
+            }
+            if (player.y < ceilingY) {
+                if (player.velY < -2) {
+                    player.squash = 1.5; player.stretch = 0.5;
+                    sfx.land();
+                    spawnParticles(player.x + player.w/2, ceilingY, player.color, 6);
+                }
+                player.y = ceilingY;
+                player.velY = 0; player.jumps = 0;
+            }
+
+            // Trail
+            if (frame % 2 === 0) {
+                player.trail.push({x: player.x, y: player.y, r: player.rot, s: player.squash, st: player.stretch});
+            }
+            if (player.trail.length > 10) player.trail.shift();
+
+            // Particles
+            particles.forEach((p, i) => {
+                p.x += p.vx; p.y += p.vy;
+                p.life -= 0.025;
+                if (p.life <= 0) particles.splice(i, 1);
+            });
+
+            // Obstacles Spawning
+            let spawnRate = Math.max(20, Math.floor(60 - gameSpeed * 1.5));
+            if (frame % spawnRate === 0) spawnObstacle();
+
+            obstacles.forEach((o, i) => {
+                let curV = gameSpeed;
+                if (o.type === 'sideways' && o.triggered) curV *= 2.2;
+                
+                o.x -= curV;
+                o.y += o.vy;
+
+                const dist = o.x - player.x;
+
+                // Chaos Triggers
+                if (!o.triggered && dist < 400) {
+                    o.triggered = true;
+                    if (o.type === 'falling') {
+                        o.vy = o.pos === 'top' ? 14 : -14;
+                        sfx.troll();
+                    }
+                }
+                
+                if (o.type === 'fake' && dist < 180) {
+                    o.opacity -= 0.08;
+                    if (o.opacity <= 0) o.active = false;
+                }
+
+                // Collision Detection
+                const margin = 12;
+                if (o.active && o.opacity > 0.4 &&
+                    player.x + margin < o.x + o.w && player.x + player.w - margin > o.x &&
+                    player.y + margin < o.y + o.h && player.y + player.h - margin > o.y) {
+                    die();
+                }
+
+                if (o.x < -200) obstacles.splice(i, 1);
+            });
+
+            if (screenShake > 0) screenShake *= 0.92;
+        }
+
+        function die() {
+            state = 'DEAD';
+            sfx.death();
+            screenShake = 40;
+            triggerFlash(0.7);
+            spawnParticles(player.x + player.w/2, player.y + player.h/2, '#ff0055', 50);
+            document.getElementById('end-screen').classList.remove('hidden');
+            document.getElementById('end-msg').innerText = `DISTANCE: ${Math.floor(score)}m`;
+        }
+
+        function restart() {
+            initGame(mode);
+        }
+
+        function draw() {
+            ctx.save();
+            
+            // Screen Shake
+            if (screenShake > 1) {
+                ctx.translate((Math.random()-0.5)*screenShake, (Math.random()-0.5)*screenShake);
+            }
+            
+            ctx.fillStyle = '#050508';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Grid Background
+            ctx.strokeStyle = '#121218';
+            ctx.lineWidth = 2;
+            for(let x = bgScroll % 80; x < canvas.width; x += 80) {
+                ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke();
+            }
+
+            // Camera Transformation
+            ctx.translate(canvas.width/2, canvas.height/2);
+            ctx.rotate(worldTilt);
+            ctx.translate(-canvas.width/2, -canvas.height/2);
+
+            // Bounds/Rails
+            ctx.strokeStyle = '#00f2ff';
+            ctx.lineWidth = 4;
+            ctx.globalAlpha = 0.2;
+            ctx.beginPath();
+            ctx.moveTo(0, groundY); ctx.lineTo(canvas.width, groundY);
+            ctx.moveTo(0, ceilingY); ctx.lineTo(canvas.width, ceilingY);
+            ctx.stroke();
+            ctx.globalAlpha = 1;
+
+            // Particles
+            particles.forEach(p => {
+                ctx.globalAlpha = p.life;
+                ctx.fillStyle = p.color;
+                ctx.fillRect(p.x, p.y, p.size, p.size);
+            });
+
+            // Player Trail
+            player.trail.forEach((t, i) => {
+                ctx.globalAlpha = (i / player.trail.length) * 0.3;
+                ctx.fillStyle = '#ff0055';
+                ctx.save();
+                ctx.translate(t.x + player.w/2, t.y + player.h/2);
+                ctx.rotate(t.r);
+                ctx.scale(t.s, t.st);
+                ctx.fillRect(-player.w/2, -player.h/2, player.w, player.h);
+                ctx.restore();
+            });
+
+            // Obstacles (Spikes)
+            obstacles.forEach(o => {
+                if (!o.active) return;
+                ctx.globalAlpha = o.opacity;
+                ctx.fillStyle = o.triggered && o.type !== 'fake' ? 'white' : '#1a1a25';
+                if (o.type === 'fake') ctx.strokeStyle = '#333';
+                
+                ctx.beginPath();
+                if (o.pos === 'bottom') {
+                    ctx.moveTo(o.x, o.y + o.h); 
+                    ctx.lineTo(o.x + o.w/2, o.y); 
+                    ctx.lineTo(o.x + o.w, o.y + o.h);
+                } else {
+                    ctx.moveTo(o.x, o.y); 
+                    ctx.lineTo(o.x + o.w/2, o.y + o.h); 
+                    ctx.lineTo(o.x + o.w, o.y);
+                }
+                ctx.fill();
+                if(o.type === 'fake') ctx.stroke();
+            });
+
+            // Player Avatar
+            if (state !== 'DEAD' && state !== 'MENU') {
+                ctx.save();
+                ctx.translate(player.x + player.w/2, player.y + player.h/2);
+                ctx.rotate(player.rot);
+                ctx.scale(player.squash, player.stretch);
+                
+                // Glow
+                ctx.shadowBlur = 20;
+                ctx.shadowColor = player.color;
+                ctx.fillStyle = player.color;
+                ctx.fillRect(-player.w/2, -player.h/2, player.w, player.h);
+                
+                // Border
+                ctx.shadowBlur = 0;
+                ctx.strokeStyle = 'white';
+                ctx.lineWidth = 4;
+                ctx.strokeRect(-player.w/2, -player.h/2, player.w, player.h);
+
+                // Face
+                ctx.fillStyle = 'white';
+                let offset = (player.velY * 0.4);
+                ctx.fillRect(6, -12 + offset, 8, 8); 
+                ctx.fillRect(6, 4 + offset, 8, 8);
+                ctx.restore();
+            }
+
+            ctx.restore();
+            requestAnimationFrame(() => { update(); draw(); });
+        }
+
+        draw();
+    </script>
+</body>
+</html>

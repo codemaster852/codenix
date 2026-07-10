@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Classic Wooden Pinball - Large Screen</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #121212;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            touch-action: none;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            width: 100vw;
+        }
+        canvas {
+            display: block;
+            background: #d2b48c;
+            border: 14px solid #4e342e;
+            border-radius: 12px;
+            box-shadow: 0 30px 60px rgba(0,0,0,0.9), inset 0 0 120px rgba(0,0,0,0.3);
+        }
+        .controls-overlay {
+            position: absolute;
+            bottom: 30px;
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            padding: 0 60px;
+            pointer-events: none;
+            z-index: 50;
+        }
+        .touch-btn {
+            width: 90px;
+            height: 90px;
+            background: rgba(255, 255, 255, 0.15);
+            border: 3px solid rgba(255,255,255,0.5);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            pointer-events: auto;
+            user-select: none;
+            font-weight: bold;
+            transition: all 0.1s;
+            backdrop-filter: blur(8px);
+        }
+        .touch-btn:active { transform: scale(0.85); background: rgba(255, 255, 255, 0.3); }
+        
+        #ui-layer {
+            position: absolute;
+            top: 25px;
+            display: flex;
+            gap: 60px;
+            pointer-events: none;
+            z-index: 100;
+            background: rgba(0,0,0,0.8);
+            padding: 15px 45px;
+            border-radius: 50px;
+            color: white;
+            border: 2px solid #6d4c41;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.6);
+        }
+        .score-val { font-size: 2.2rem; font-weight: 900; font-family: 'Courier New', Courier, monospace; line-height: 1; }
+        .label { font-size: 0.8rem; text-transform: uppercase; color: #8d6e63; letter-spacing: 2px; margin-bottom: 4px; }
+
+        #game-over {
+            position: absolute;
+            inset: 0;
+            background: rgba(0,0,0,0.9);
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 200;
+            color: white;
+            text-align: center;
+        }
+        #gamepad-status {
+            position: absolute;
+            bottom: 130px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 0.75rem;
+            color: #4ade80;
+            background: rgba(0,0,0,0.7);
+            padding: 6px 16px;
+            border-radius: 20px;
+            opacity: 0;
+            transition: opacity 0.4s;
+            letter-spacing: 1px;
+            border: 1px solid #4ade80;
+        }
+        .gp-active #gamepad-status { opacity: 1; }
+    </style>
+</head>
+<body>
+
+    <div id="ui-layer">
+        <div class="text-center">
+            <div class="label">CPU</div>
+            <div id="cpu-score" class="score-val text-red-500">0</div>
+        </div>
+        <div class="text-center border-l border-white/10 pl-12">
+            <div class="label">PLAYER</div>
+            <div id="player-score" class="score-val text-blue-400">0</div>
+            <div id="player-lives" class="text-lg mt-2 tracking-widest text-yellow-500">●●●●●</div>
+        </div>
+    </div>
+
+    <div id="game-over">
+        <h2 id="win-text" class="text-7xl font-black mb-8 italic tracking-tighter">GAME OVER</h2>
+        <button onclick="restartGame()" class="px-16 py-6 bg-amber-800 text-white text-xl font-bold rounded-full shadow-2xl hover:bg-amber-700 transition-all active:scale-95 border-b-4 border-amber-950">RELAUNCH BALL</button>
+        <p class="mt-6 text-gray-500 text-sm uppercase tracking-widest font-medium">Press 'A' on Controller</p>
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
+
+    <div id="gamepad-status">🎮 EXTERNAL JOYSTICK CONNECTED</div>
+
+    <div class="controls-overlay">
+        <div class="touch-btn" id="leftBtn">LEFT</div>
+        <div class="touch-btn" id="rightBtn">RIGHT</div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const cpuScoreEl = document.getElementById('cpu-score');
+        const playerScoreEl = document.getElementById('player-score');
+        const playerLivesEl = document.getElementById('player-lives');
+        const gameOverScreen = document.getElementById('game-over');
+
+        const CONFIG = {
+            width: 600, // BIGGER WIDTH (was 450)
+            height: 900, // BIGGER HEIGHT (was 800)
+            gravity: 0,
+            ballRadius: 18, // SLIGHTLY BIGGER BALL FOR THE BIGGER SCREEN
+            flipperLength: 120, // LONGER FLIPPERS
+            flipperWidth: 28,
+            flipperSpeed: 0.65,
+            maxFlipperAngle: 0.6,
+            restitution: 0.9,
+            friction: 1.0,
+            maxSpeed: 24,
+            initialLives: 5
+        };
+
+        let state = {
+            playerScore: 0,
+            cpuScore: 0,
+            playerLives: CONFIG.initialLives,
+            gameEnded: false,
+            ball: { x: 300, y: 450, vx: 0, vy: 0, active: false },
+            flippers: [
+                { id: 'pL', x: 180, y: 830, angle: 0, targetAngle: 0, side: 'left', isCPU: false },
+                { id: 'pR', x: 420, y: 830, angle: 0, targetAngle: 0, side: 'right', isCPU: false },
+                { id: 'cL', x: 180, y: 70, angle: 0, targetAngle: 0, side: 'left', isCPU: true },
+                { id: 'cR', x: 420, y: 70, angle: 0, targetAngle: 0, side: 'right', isCPU: true }
+            ],
+            bumpers: [],
+            respawnTimer: 0,
+            gamepadConnected: false
+        };
+
+        let woodPattern;
+        function createWoodPattern() {
+            const pCanvas = document.createElement('canvas');
+            pCanvas.width = 400; pCanvas.height = 400;
+            const pCtx = pCanvas.getContext('2d');
+            pCtx.fillStyle = '#bc8f8f';
+            pCtx.fillRect(0, 0, 400, 400);
+            pCtx.strokeStyle = 'rgba(80, 50, 20, 0.25)';
+            pCtx.lineWidth = 3;
+            for(let i=0; i<80; i++) {
+                pCtx.beginPath();
+                const x = Math.random() * 400;
+                pCtx.moveTo(x, 0);
+                pCtx.bezierCurveTo(x+30, 150, x-30, 250, x, 400);
+                pCtx.stroke();
+            }
+            woodPattern = ctx.createPattern(pCanvas, 'repeat');
+        }
+
+        function init() {
+            resize();
+            createWoodPattern();
+            createMap();
+            resetBall();
+            requestAnimationFrame(tick);
+        }
+
+        function createMap() {
+            const centerX = CONFIG.width / 2;
+            const centerY = CONFIG.height / 2;
+            state.bumpers = [
+                { x: centerX, y: centerY - 80, r: 40, color: '#2196f3', pulse: 0 }, 
+                { x: centerX, y: centerY + 80, r: 40, color: '#f44336', pulse: 0 }, 
+                { x: centerX - 160, y: centerY, r: 30, color: '#2196f3', pulse: 0 },
+                { x: centerX + 160, y: centerY, r: 30, color: '#f44336', pulse: 0 },
+                { x: centerX - 100, y: centerY - 220, r: 25, color: '#2196f3', pulse: 0 },
+                { x: centerX + 100, y: centerY - 220, r: 25, color: '#2196f3', pulse: 0 },
+                { x: centerX - 100, y: centerY + 220, r: 25, color: '#f44336', pulse: 0 },
+                { x: centerX + 100, y: centerY + 220, r: 25, color: '#f44336', pulse: 0 }
+            ];
+        }
+
+        function resize() {
+            const winW = window.innerWidth;
+            const winH = window.innerHeight;
+            const scale = Math.min(winW / (CONFIG.width + 40), (winH - 120) / (CONFIG.height + 40));
+            
+            canvas.width = CONFIG.width;
+            canvas.height = CONFIG.height;
+            canvas.style.width = (CONFIG.width * scale) + 'px';
+            canvas.style.height = (CONFIG.height * scale) + 'px';
+        }
+
+        function resetBall() {
+            if (state.playerLives <= 0) { endGame(); return; }
+            state.ball.active = false;
+            state.ball.vx = 0; state.ball.vy = 0;
+            state.ball.x = CONFIG.width / 2;
+            state.ball.y = CONFIG.height / 2;
+            state.respawnTimer = 60;
+            playerLivesEl.textContent = "●".repeat(state.playerLives) + "○".repeat(CONFIG.initialLives - state.playerLives);
+        }
+
+        function endGame() {
+            state.gameEnded = true;
+            gameOverScreen.style.display = 'flex';
+        }
+
+        function restartGame() {
+            state.playerScore = 0; state.cpuScore = 0; state.playerLives = CONFIG.initialLives;
+            state.gameEnded = false;
+            cpuScoreEl.textContent = "0"; playerScoreEl.textContent = "0";
+            gameOverScreen.style.display = 'none';
+            resetBall();
+        }
+
+        function launchBall() {
+            if (state.gameEnded) return;
+            state.ball.vx = (Math.random() - 0.5) * 15;
+            state.ball.vy = Math.random() > 0.5 ? 10 : -10;
+            state.ball.active = true;
+        }
+
+        const setPlayerInput = (side, active) => {
+            const flipper = state.flippers.find(f => !f.isCPU && f.side === side);
+            if (flipper) flipper.targetAngle = active ? (side === 'left' ? -CONFIG.maxFlipperAngle : CONFIG.maxFlipperAngle) : 0;
+        };
+
+        window.addEventListener('keydown', e => {
+            if (e.key === 'ArrowLeft' || e.key === 'a') setPlayerInput('left', true);
+            if (e.key === 'ArrowRight' || e.key === 'd') setPlayerInput('right', true);
+        });
+        window.addEventListener('keyup', e => {
+            if (e.key === 'ArrowLeft' || e.key === 'a') setPlayerInput('left', false);
+            if (e.key === 'ArrowRight' || e.key === 'd') setPlayerInput('right', false);
+        });
+
+        window.addEventListener("gamepadconnected", () => {
+            state.gamepadConnected = true;
+            document.body.classList.add('gp-active');
+        });
+
+        window.addEventListener("gamepaddisconnected", () => {
+            const gps = navigator.getGamepads();
+            if (!gps[0]) {
+                state.gamepadConnected = false;
+                document.body.classList.remove('gp-active');
+            }
+        });
+
+        function updateGamepad() {
+            const gamepads = navigator.getGamepads();
+            let gp = null;
+            for (let i = 0; i < gamepads.length; i++) {
+                if (gamepads[i]) { gp = gamepads[i]; break; }
+            }
+            if (!gp) return;
+
+            const isPressed = (idx) => gp.buttons[idx] && gp.buttons[idx].pressed;
+            
+            // Buttons: L1(4), R1(5), L2(6), R2(7), D-Pad(14,15)
+            const leftTrigger = isPressed(4) || isPressed(6) || isPressed(14);
+            const rightTrigger = isPressed(5) || isPressed(7) || isPressed(15);
+            
+            const stickValue = gp.axes && gp.axes[0] ? gp.axes[0] : 0;
+            const stickLeft = stickValue < -0.3;
+            const stickRight = stickValue > 0.3;
+
+            setPlayerInput('left', leftTrigger || stickLeft);
+            setPlayerInput('right', rightTrigger || stickRight);
+
+            if (state.gameEnded && isPressed(0)) restartGame();
+        }
+
+        const lBtn = document.getElementById('leftBtn'), rBtn = document.getElementById('rightBtn');
+        ['touchstart', 'mousedown'].forEach(ev => {
+            lBtn.addEventListener(ev, e => { e.preventDefault(); setPlayerInput('left', true); });
+            rBtn.addEventListener(ev, e => { e.preventDefault(); setPlayerInput('right', true); });
+        });
+        ['touchend', 'mouseup'].forEach(ev => {
+            window.addEventListener(ev, () => { setPlayerInput('left', false); setPlayerInput('right', false); });
+        });
+
+        function update() {
+            if (state.gamepadConnected) updateGamepad();
+            if (state.gameEnded) return;
+            
+            const ball = state.ball;
+            if (!ball.active) {
+                if (--state.respawnTimer <= 0) launchBall();
+                return;
+            }
+
+            // Invincible AI
+            state.flippers.filter(f => f.isCPU).forEach(f => {
+                if (ball.vy < 0 && ball.y < 350) {
+                    const dx = ball.x - f.x;
+                    const inRange = f.side === 'left' ? (dx > -20 && dx < CONFIG.flipperLength) : (dx < 20 && dx > -CONFIG.flipperLength);
+                    if (inRange && ball.y < 160) f.targetAngle = f.side === 'left' ? CONFIG.maxFlipperAngle : -CONFIG.maxFlipperAngle;
+                    else f.targetAngle = 0;
+                } else f.targetAngle = 0;
+            });
+
+            state.flippers.forEach(f => f.angle += (f.targetAngle - f.angle) * CONFIG.flipperSpeed);
+            
+            ball.x += ball.vx; ball.y += ball.vy;
+
+            // Walls
+            const wallDist = 45;
+            if (ball.x < wallDist + CONFIG.ballRadius || ball.x > CONFIG.width - wallDist - CONFIG.ballRadius) {
+                ball.vx *= -1;
+                ball.x = ball.x < CONFIG.width/2 ? wallDist + CONFIG.ballRadius + 1 : CONFIG.width - wallDist - CONFIG.ballRadius - 1;
+            }
+
+            // Pit check
+            if (ball.y > CONFIG.height + 50) { 
+                state.cpuScore++; state.playerLives--; 
+                cpuScoreEl.textContent = state.cpuScore; resetBall(); 
+            } else if (ball.y < -50) { 
+                state.playerScore++; playerScoreEl.textContent = state.playerScore; resetBall(); 
+            }
+
+            // Bumpers
+            state.bumpers.forEach(b => {
+                const dx = ball.x - b.x, dy = ball.y - b.y, dist = Math.sqrt(dx*dx + dy*dy);
+                if (dist < b.r + CONFIG.ballRadius) {
+                    const nx = dx / dist, ny = dy / dist;
+                    const vDotN = ball.vx * nx + ball.vy * ny;
+                    ball.vx = (ball.vx - 2.1 * vDotN * nx); 
+                    ball.vy = (ball.vy - 2.1 * vDotN * ny);
+                    ball.x = b.x + nx * (b.r + CONFIG.ballRadius + 2);
+                    ball.y = b.y + ny * (b.r + CONFIG.ballRadius + 2);
+                    b.pulse = 12;
+                }
+                if (b.pulse > 0) b.pulse *= 0.85;
+            });
+
+            state.flippers.forEach(f => collideBallFlipper(ball, f));
+            
+            const speed = Math.sqrt(ball.vx**2 + ball.vy**2);
+            if (speed > CONFIG.maxSpeed) { ball.vx *= (CONFIG.maxSpeed/speed); ball.vy *= (CONFIG.maxSpeed/speed); }
+            if (Math.abs(ball.vy) < 1) ball.vy = ball.vy > 0 ? 2 : -2;
+        }
+
+        function collideBallFlipper(ball, f) {
+            const dx = ball.x - f.x, dy = ball.y - f.y;
+            const cos = Math.cos(-f.angle), sin = Math.sin(-f.angle);
+            const lx = dx * cos - dy * sin, ly = dx * sin + dy * cos;
+            const isRight = f.side === 'right';
+            const xMin = isRight ? -CONFIG.flipperLength : 0, xMax = isRight ? 0 : CONFIG.flipperLength;
+            
+            if (lx > xMin - CONFIG.ballRadius && lx < xMax + CONFIG.ballRadius && Math.abs(ly) < CONFIG.flipperWidth/2 + CONFIG.ballRadius) {
+                const nx = -Math.sin(f.angle) * (ly > 0 ? 1 : -1), ny = Math.cos(f.angle) * (ly > 0 ? 1 : -1);
+                const angularVel = (f.targetAngle - f.angle) * 50;
+                ball.vx = (ball.vx - 2 * (ball.vx*nx + ball.vy*ny) * nx) + (-Math.sin(f.angle) * angularVel * (Math.abs(lx)/6));
+                ball.vy = (ball.vy - 2 * (ball.vx*nx + ball.vy*ny) * ny) + (Math.cos(f.angle) * angularVel * (Math.abs(lx)/6));
+                ball.x += nx * 8; ball.y += ny * 8;
+            }
+        }
+
+        function draw() {
+            ctx.fillStyle = woodPattern;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Outer rail lines
+            ctx.lineWidth = 24;
+            ctx.lineCap = 'round';
+            ctx.strokeStyle = '#1565c0'; 
+            ctx.beginPath(); ctx.moveTo(0, 250); ctx.lineTo(150, 130); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(CONFIG.width, 250); ctx.lineTo(CONFIG.width-150, 130); ctx.stroke();
+            
+            ctx.strokeStyle = '#c62828'; 
+            ctx.beginPath(); ctx.moveTo(0, 650); ctx.lineTo(150, 770); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(CONFIG.width, 650); ctx.lineTo(CONFIG.width-150, 770); ctx.stroke();
+
+            // Bumpers
+            state.bumpers.forEach(b => {
+                ctx.beginPath(); ctx.arc(b.x, b.y, b.r + b.pulse, 0, Math.PI*2);
+                const grad = ctx.createRadialGradient(b.x-b.r/3, b.y-b.r/3, 0, b.x, b.y, b.r + b.pulse);
+                grad.addColorStop(0, '#fff'); grad.addColorStop(0.3, b.color); grad.addColorStop(1, '#111');
+                ctx.fillStyle = grad; ctx.fill();
+                ctx.strokeStyle = 'rgba(255,255,255,0.8)'; ctx.lineWidth = 3; ctx.stroke();
+            });
+
+            // Flippers
+            state.flippers.forEach(f => {
+                ctx.save(); ctx.translate(f.x, f.y); ctx.rotate(f.angle);
+                ctx.fillStyle = '#f5f5f5';
+                const xPos = f.side === 'left' ? 0 : -CONFIG.flipperLength;
+                ctx.beginPath(); ctx.roundRect(xPos, -CONFIG.flipperWidth/2, CONFIG.flipperLength, CONFIG.flipperWidth, [15]); ctx.fill();
+                ctx.strokeStyle = '#2d1b18'; ctx.lineWidth = 5; ctx.stroke();
+                ctx.fillStyle = f.isCPU ? '#f44336' : '#2196f3';
+                ctx.beginPath(); ctx.arc(0, 0, 12, 0, Math.PI*2); ctx.fill();
+                ctx.restore();
+            });
+
+            // Ball
+            const ball = state.ball;
+            if (ball.active || state.respawnTimer > 0) {
+                ctx.save();
+                ctx.shadowBlur = 15; ctx.shadowColor = 'rgba(0,0,0,0.6)';
+                ctx.beginPath(); ctx.arc(ball.x, ball.y, CONFIG.ballRadius, 0, Math.PI*2);
+                const bGrad = ctx.createRadialGradient(ball.x - CONFIG.ballRadius/3, ball.y - CONFIG.ballRadius/3, 0, ball.x, ball.y, CONFIG.ballRadius);
+                bGrad.addColorStop(0, '#fff'); bGrad.addColorStop(0.7, '#aaa'); bGrad.addColorStop(1, '#333');
+                ctx.fillStyle = bGrad; ctx.fill(); 
+                ctx.strokeStyle = '#000'; ctx.lineWidth = 1; ctx.stroke();
+                ctx.restore();
+            }
+        }
+
+        function tick() { update(); draw(); requestAnimationFrame(tick); }
+        window.onload = init;
+        window.onresize = resize;
+    </script>
+</body>
+</html>

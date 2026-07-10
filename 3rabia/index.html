@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>محرر لغة عربية المطور</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .editor-container { height: calc(100vh - 180px); }
+        /* تصميم كود بلوك */
+        #editor {
+            font-family: 'Courier New', Courier, monospace;
+            line-height: 1.6;
+            tab-size: 4;
+        }
+        .tag-highlight { color: #f87171; font-weight: bold; }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-100 p-4">
+
+    <header class="flex justify-between items-center pb-4 border-b border-gray-700 mb-4">
+        <h1 class="text-xl font-bold text-blue-400">محرر "عربية" المتقدم</h1>
+        <button onclick="toggleGuide()" class="bg-gray-700 px-3 py-1 rounded hover:bg-gray-600 text-sm">❓ دليل الاستخدام</button>
+    </header>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 editor-container">
+        <textarea id="editor" class="w-full h-full p-4 bg-gray-950 text-green-400 border border-blue-500/30 rounded-lg shadow-inner text-lg outline-none focus:ring-2 focus:ring-blue-500" placeholder="ابدأ الكتابة هنا..."></textarea>
+        <iframe id="preview" class="w-full h-full bg-white rounded-lg shadow border-0"></iframe>
+    </div>
+
+    <div class="mt-4 flex gap-2">
+        <button onclick="runCode()" id="runBtn" class="bg-blue-600 px-6 py-2 rounded-lg font-bold hover:bg-blue-500 transition-all">تشغيل الكود</button>
+        <button onclick="exportHTML()" class="bg-green-600 px-6 py-2 rounded-lg font-bold hover:bg-green-500 transition-all">تصدير HTML</button>
+        <button onclick="clearEditor()" class="bg-red-600 px-6 py-2 rounded-lg font-bold hover:bg-red-500 transition-all">مسح</button>
+    </div>
+
+    <script>
+        const editor = document.getElementById('editor');
+        const apiKey = "ak_2ZH8KZ4ow4zs4DH2oa26T5CH89a1p";
+
+        // اختصار لوحة المفاتيح للهيكل: !
+        editor.addEventListener('keydown', (e) => {
+            if (e.key === '!' && editor.selectionStart === 0) {
+                e.preventDefault();
+                editor.value = "(عربية)\n\t(مقدمة)\n\t\t(عنوان)صفحتي(!عنوان)\n\t(!مقدمة)\n\t(جسم)\n\t\t(عنوان1)مرحباً(!عنوان1)\n\t(!جسم)\n(!عربية)";
+            }
+            // إغلاق تلقائي متقدم عند الضغط على مفتاح Enter بعد الوسم
+            if (e.key === 'Enter') {
+                const text = editor.value;
+                const pos = editor.selectionStart;
+                const line = text.substring(0, pos).split('\n').pop();
+                const match = line.match(/\(([^!][^)]*)\)$/);
+                if (match) {
+                    const tag = match[1];
+                    const selfClosing = ['سطر', 'فاصل', 'صورة', 'إدخال'];
+                    if (!selfClosing.includes(tag)) {
+                        e.preventDefault();
+                        const insert = '\n\t(!' + tag + ')\n';
+                        editor.value = text.slice(0, pos) + insert + text.slice(pos);
+                        editor.setSelectionRange(pos + 1, pos + 1);
+                    }
+                }
+            }
+        });
+
+        async function runCode() {
+            const btn = document.getElementById('runBtn');
+            btn.innerText = "جاري المعالجة...";
+            btn.disabled = true;
+
+            try {
+                const response = await fetch("https://api.longcat.chat/openai/v1/chat/completions", {
+                    method: "POST",
+                    headers: {
+                        "Authorization": `Bearer ${apiKey}`,
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        model: "LongCat-2.0-Preview",
+                        messages: [
+                            { role: "system", content: "You are a compiler for '3rabia' language. Translate the following Arabic-syntax code into valid HTML/CSS/JS. Return ONLY the final HTML code." },
+                            { role: "user", content: editor.value }
+                        ]
+                    })
+                });
+
+                const data = await response.json();
+                const translatedHTML = data.choices[0].message.content;
+
+                const iframe = document.getElementById('preview');
+                const doc = iframe.contentDocument || iframe.contentWindow.document;
+                doc.open();
+                doc.write(translatedHTML);
+                doc.close();
+            } catch (error) {
+                alert("حدث خطأ في الاتصال بالسيرفر.");
+            } finally {
+                btn.innerText = "تشغيل الكود";
+                btn.disabled = false;
+            }
+        }
+
+        function exportHTML() {
+            const content = document.getElementById('preview').contentDocument.documentElement.outerHTML;
+            const blob = new Blob([content], {type: 'text/html'});
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = 'مشروع_عربية.html';
+            a.click();
+        }
+
+        function clearEditor() { if(confirm("هل أنت متأكد؟")) editor.value = ""; }
+        function toggleGuide() { alert("الاختصارات:\n1. اكتب ! في بداية السطر لتوليد الهيكل.\n2. عند فتح وسم مثل (حاوية) اضغط Enter ليتم إغلاقه تلقائياً."); }
+    </script>
+</body>
+</html>

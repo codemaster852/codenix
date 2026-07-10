@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Codenix Snake</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background-color: #fafaf9; }
+        .game-canvas {
+            background-color: #1c1917;
+            border-radius: 12px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+            image-rendering: pixelated;
+        }
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+        }
+        .shake { animation: shake 0.3s ease-in-out; }
+    </style>
+</head>
+<body class="flex flex-col items-center justify-center min-h-screen font-sans overflow-hidden">
+
+    <div id="loading" class="fixed inset-0 bg-stone-100 z-50 flex flex-col items-center justify-center transition-opacity duration-1000">
+        <img src="https://scontent-hbe1-1.xx.fbcdn.net/v/t39.30808-6/718816493_122173678946952582_684043749236540884_n.jpg?stp=dst-jpg_tt6&cstp=mx1254x1254&ctp=s1254x1254&_nc_cat=105&ccb=1-7&_nc_sid=6ee11a&_nc_ohc=NyAhiEYLoB8Q7kNvwGODnCy&_nc_oc=AdqdVkG_VLNmSb8AnL8cFGXEKw1SUyQivNB9lXGNwFEpnhMd_XTTsYoIeL6jSWs6fi4&_nc_zt=23&_nc_ht=scontent-hbe1-1.xx&_nc_gid=NitylyVfvXU5I7nHDBYDTg&_nc_ss=7c2a8&oh=00_Af9Er0CMINn2Laf0DWkeVLYIeT4WjAlJZNNF6JsE0zR3cg&oe=6A2C7D41" 
+             onerror="this.src='https://placehold.co/150x150/e7e5e4/57534e?text=Codenix'"
+             class="w-32 h-32 rounded-full mb-6 border-4 border-stone-200 shadow-lg">
+        <h1 class="text-4xl font-extrabold text-stone-800">Codenix Snake</h1>
+        <p class="text-stone-500 mt-2 tracking-widest uppercase text-sm">by Codenix</p>
+    </div>
+
+    <div class="text-center mb-4">
+        <h1 class="text-4xl font-extrabold text-stone-700 mb-1">Codenix Snake</h1>
+        <div class="text-xl text-stone-500">Score: <span id="score" class="font-bold text-stone-800">0</span></div>
+    </div>
+
+    <div class="relative">
+        <canvas id="gameCanvas" width="400" height="400" class="game-canvas"></canvas>
+        
+        <!-- Game Over Overlay -->
+        <div id="game-over" class="hidden absolute inset-0 bg-stone-900/90 rounded-xl flex flex-col items-center justify-center z-20">
+            <h2 class="text-white text-3xl font-bold mb-4">Game Over!</h2>
+            <button onclick="resetGame()" class="px-6 py-2 bg-yellow-500 text-stone-900 font-bold rounded-lg hover:bg-yellow-400 transition shadow-lg">Play Again</button>
+        </div>
+    </div>
+
+    <div class="mt-6 text-stone-400 text-sm">Use Arrow Keys to Navigate</div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreEl = document.getElementById('score');
+        const gameOverEl = document.getElementById('game-over');
+
+        let snake = [{ x: 10, y: 10 }];
+        let food = { x: 15, y: 15 };
+        let dx = 1;
+        let dy = 0;
+        let score = 0;
+        let gameRunning = false;
+        let audioCtx = null;
+        let lastTimestamp = 0;
+        const gridSize = 20;
+        const tileCount = 20;
+
+        // Initialize Audio context
+        function initAudio() {
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+
+        function playSound(type) {
+            if (!audioCtx) return;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            
+            if (type === 'eat') {
+                osc.frequency.setValueAtTime(800, audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(1200, audioCtx.currentTime + 0.1);
+                gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.1);
+            } else if (type === 'die') {
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(150, audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(50, audioCtx.currentTime + 0.5);
+                gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.5);
+            }
+        }
+
+        function gameLoop(timestamp) {
+            if (!gameRunning) return;
+            
+            if (timestamp - lastTimestamp > 100) {
+                moveSnake();
+                draw();
+                lastTimestamp = timestamp;
+            }
+            requestAnimationFrame(gameLoop);
+        }
+
+        function moveSnake() {
+            const head = { x: snake[0].x + dx, y: snake[0].y + dy };
+            
+            // Wall collision
+            if (head.x < 0 || head.x >= tileCount || head.y < 0 || head.y >= tileCount) {
+                gameOver();
+                return;
+            }
+
+            // Self collision
+            for (let part of snake) {
+                if (part.x === head.x && part.y === head.y) {
+                    gameOver();
+                    return;
+                }
+            }
+
+            snake.unshift(head);
+
+            // Food eating
+            if (head.x === food.x && head.y === food.y) {
+                score += 10;
+                scoreEl.textContent = score;
+                playSound('eat');
+                spawnFood();
+            } else {
+                snake.pop();
+            }
+        }
+
+        function draw() {
+            ctx.fillStyle = '#1c1917';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Draw Snake
+            ctx.fillStyle = '#f59e0b';
+            snake.forEach(part => {
+                ctx.fillRect(part.x * gridSize, part.y * gridSize, gridSize - 2, gridSize - 2);
+            });
+
+            // Draw Food
+            ctx.fillStyle = '#ef4444';
+            ctx.fillRect(food.x * gridSize, food.y * gridSize, gridSize - 2, gridSize - 2);
+        }
+
+        function spawnFood() {
+            food = {
+                x: Math.floor(Math.random() * tileCount),
+                y: Math.floor(Math.random() * tileCount)
+            };
+        }
+
+        function gameOver() {
+            gameRunning = false;
+            playSound('die');
+            canvas.classList.add('shake');
+            setTimeout(() => {
+                gameOverEl.classList.remove('hidden');
+            }, 300);
+        }
+
+        function resetGame() {
+            snake = [{ x: 10, y: 10 }];
+            dx = 1; dy = 0;
+            score = 0;
+            scoreEl.textContent = score;
+            gameOverEl.classList.add('hidden');
+            canvas.classList.remove('shake');
+            gameRunning = true;
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Controls
+        window.addEventListener('keydown', e => {
+            initAudio();
+            switch(e.key) {
+                case 'ArrowUp': if (dy === 0) { dx = 0; dy = -1; } break;
+                case 'ArrowDown': if (dy === 0) { dx = 0; dy = 1; } break;
+                case 'ArrowLeft': if (dx === 0) { dx = -1; dy = 0; } break;
+                case 'ArrowRight': if (dx === 0) { dx = 1; dy = 0; } break;
+            }
+            if (!gameRunning && gameOverEl.classList.contains('hidden')) {
+                gameRunning = true;
+                requestAnimationFrame(gameLoop);
+            }
+        });
+
+        // Launch logic
+        window.onload = () => {
+            setTimeout(() => {
+                document.getElementById('loading').style.opacity = '0';
+                setTimeout(() => document.getElementById('loading').remove(), 1000);
+            }, 1500);
+            draw();
+        };
+    </script>
+</body>
+</html>

@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neon Flappy Bird</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background-color: #050505; font-family: 'Inter', sans-serif; color: white; }
+        #game-container { position: relative; width: 100vw; height: 100vh; }
+        canvas { display: block; touch-action: none; }
+        #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; pointer-events: none; }
+        .ui-element { pointer-events: auto; }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <canvas id="gameCanvas"></canvas>
+        <div id="ui-layer">
+            <div id="start-screen" class="ui-element text-center p-8 bg-black/90 rounded-3xl border border-yellow-500/50 backdrop-blur-xl shadow-2xl">
+                <img src="https://scontent.fcai19-5.fna.fbcdn.net/v/t39.30808-6/718816493_122173678946952582_684043749236540884_n.jpg?stp=dst-jpg_tt6&cstp=mx1254x1254&ctp=s1254x1254&_nc_cat=105&ccb=1-7&_nc_sid=6ee11a&_nc_ohc=NyAhiEYLoB8Q7kNvwFbTEIO&_nc_oc=AdovsxhYERhZFj24nqRsIlMMZSN7z9WeoMJ4yLWp6AdnY_fEOKwHF9uK-dm1pUKXtP8&_nc_zt=23&_nc_ht=scontent.fcai19-5.fna&_nc_gid=JTXBJBAwm-vv_jrW9_8m-A&_nc_ss=7c2a8&oh=00_Af8voq0resqH-BGxisl6H-qo28mVIAFuYtr6a9zX4yhdEw&oe=6A2D9681" 
+                     onerror="this.src='https://placehold.co/200x200/1e293b/white?text=CODENIX'"
+                     alt="Codenix Logo" class="w-32 h-32 mx-auto rounded-full mb-6 border-4 border-yellow-500 shadow-lg shadow-yellow-500/50">
+                <h1 class="text-4xl font-black mb-2 text-yellow-400 tracking-tight">FLAPPY NEON</h1>
+                <p class="mb-8 text-gray-400">Keep the bird in flight.</p>
+                <button onclick="startGame()" class="px-10 py-4 bg-yellow-600 hover:bg-yellow-500 rounded-full font-bold transition-all transform hover:scale-110 active:scale-95 cursor-pointer shadow-xl shadow-yellow-600/30">FLAP</button>
+            </div>
+            
+            <div id="score-display" class="hidden absolute top-8 left-8 text-3xl font-black text-white/80 tabular-nums">SCORE: 0</div>
+            
+            <div id="game-over-screen" class="hidden ui-element text-center p-8 bg-black/90 rounded-3xl border border-red-500/50 backdrop-blur-xl shadow-2xl">
+                <h2 class="text-4xl font-bold mb-4 text-red-500">CRASHED!</h2>
+                <p id="final-score" class="text-xl text-gray-300 mb-6">Final Score: 0</p>
+                <button onclick="location.reload()" class="px-8 py-3 bg-red-600 hover:bg-red-700 rounded-full font-bold transition-all hover:scale-105 active:scale-95">RETRY</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const startScreen = document.getElementById('start-screen');
+        const scoreEl = document.getElementById('score-display');
+        const gameOverScreen = document.getElementById('game-over-screen');
+        const finalScoreEl = document.getElementById('final-score');
+
+        let width, height;
+        let gameRunning = false;
+        let score = 0;
+        let bird = { y: 200, v: 0, r: 15 };
+        let pipes = [];
+        let frame = 0;
+
+        function resize() {
+            width = window.innerWidth;
+            height = window.innerHeight;
+            canvas.width = width;
+            canvas.height = height;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        function flap() {
+            if (!gameRunning) return;
+            bird.v = -8;
+        }
+
+        window.addEventListener('keydown', (e) => { if (e.code === 'Space') flap(); });
+        window.addEventListener('touchstart', flap);
+        window.addEventListener('mousedown', flap);
+
+        function startGame() {
+            gameRunning = true;
+            startScreen.classList.add('hidden');
+            scoreEl.classList.remove('hidden');
+            requestAnimationFrame(gameLoop);
+        }
+
+        function gameLoop() {
+            if (!gameRunning) return;
+
+            // Physics
+            bird.v += 0.5;
+            bird.y += bird.v;
+
+            if (bird.y > height || bird.y < 0) return gameOver();
+
+            // Pipes
+            if (frame % 100 === 0) {
+                let gapY = 150 + Math.random() * (height - 300);
+                pipes.push({ x: width, top: gapY - 100, bottom: height - (gapY + 100) });
+            }
+
+            // Draw
+            ctx.fillStyle = '#050505';
+            ctx.fillRect(0, 0, width, height);
+
+            ctx.fillStyle = '#eab308';
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = '#eab308';
+            ctx.beginPath();
+            ctx.arc(100, bird.y, bird.r, 0, Math.PI * 2);
+            ctx.fill();
+
+            pipes.forEach((p, i) => {
+                p.x -= 4;
+                ctx.fillStyle = '#f97316';
+                ctx.shadowColor = '#f97316';
+                ctx.fillRect(p.x, 0, 50, p.top);
+                ctx.fillRect(p.x, height - p.bottom, 50, p.bottom);
+                
+                // Collision
+                if (100 + bird.r > p.x && 100 - bird.r < p.x + 50 && (bird.y - bird.r < p.top || bird.y + bird.r > height - p.bottom)) {
+                    gameOver();
+                }
+
+                if (p.x === 96) { score++; scoreEl.innerText = 'SCORE: ' + score; }
+                if (p.x < -50) pipes.splice(i, 1);
+            });
+
+            ctx.shadowBlur = 0;
+            frame++;
+            requestAnimationFrame(gameLoop);
+        }
+
+        function gameOver() {
+            gameRunning = false;
+            scoreEl.classList.add('hidden');
+            gameOverScreen.classList.remove('hidden');
+            finalScoreEl.innerText = 'Final Score: ' + score;
+        }
+    </script>
+</body>
+</html>

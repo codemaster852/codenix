@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hostnix Form & Quiz Creator</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Vue 3 -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+    <!-- Google Fonts (Inter + DM Sans) -->
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body { 
+            font-family: 'Inter', sans-serif; 
+            background: radial-gradient(circle at 10% 20%, rgba(243, 244, 246, 1) 0%, rgba(229, 231, 235, 1) 90.1%); 
+        }
+        .header-font {
+            font-family: 'DM Sans', sans-serif;
+        }
+        .fade-enter-active, .fade-leave-active { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+        .fade-enter-from, .fade-leave-to { opacity: 0; transform: translateY(10px); }
+        [v-cloak] { display: none; }
+    </style>
+</head>
+<body class="min-h-screen text-gray-800 flex flex-col antialiased">
+    <div id="app" v-cloak class="min-h-screen flex flex-col">
+        <!-- Main Navigation Bar -->
+        <nav class="bg-white/80 backdrop-blur-md border-b border-gray-200/80 sticky top-0 z-30 shadow-sm px-4 sm:px-6">
+            <div class="max-w-7xl mx-auto flex items-center justify-between h-16">
+                <!-- Logo brand section -->
+                <div class="flex items-center space-x-3">
+                    <div class="bg-gradient-to-tr from-indigo-600 to-violet-500 p-2.5 rounded-xl text-white shadow-md shadow-indigo-200">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+                    </div>
+                    <div>
+                        <span class="font-bold text-lg text-gray-900 tracking-tight header-font block">Hostnix Form Maker</span>
+                        <span class="text-xs text-indigo-600 font-semibold tracking-wider uppercase block -mt-1">Creator Suite</span>
+                    </div>
+                </div>
+                
+                <!-- Action bar triggers -->
+                <div class="flex items-center space-x-3">
+                    <button @click="publishForm" :disabled="isPublishing || questions.length === 0" class="inline-flex items-center px-6 py-3 border border-transparent text-sm font-semibold rounded-xl text-white bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 shadow-lg shadow-indigo-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-40 disabled:cursor-not-allowed transition-all active:scale-[0.98]">
+                        <svg v-if="isPublishing" class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <svg v-else class="w-4.5 h-4.5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                        {{ isPublishing ? 'Publishing...' : 'Publish Form' }}
+                    </button>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Content Body Grid split into config sidebar & form editor preview -->
+        <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 grid grid-cols-1 lg:grid-cols-12 gap-8">
+            
+            <!-- Left Grid: App Properties (33%) -->
+            <div class="lg:col-span-4 space-y-6">
+                <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-200/80 sticky top-24">
+                    <h2 class="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">Form Settings</h2>
+                    
+                    <div class="space-y-5">
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-1.5">App/Form Title</label>
+                            <input v-model="formTitle" type="text" placeholder="E.g., Customer Feedback" class="block w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:border-indigo-500 focus:ring-indigo-500 transition-colors bg-gray-50/50">
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-1.5">Description or Instructions</label>
+                            <textarea v-model="formDescription" rows="3" placeholder="Tell your respondents what this assessment or questionnaire is about..." class="block w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:border-indigo-500 focus:ring-indigo-500 transition-colors bg-gray-50/50 resize-none"></textarea>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-1.5">Custom Path Slug (Optional)</label>
+                            <div class="flex rounded-xl shadow-sm border border-gray-200 overflow-hidden bg-gray-50/50">
+                                <span class="bg-gray-100 px-3 py-3 border-r border-gray-200 text-xs text-gray-500 flex items-center select-none font-semibold">hostnix.vercel.app/#</span>
+                                <input v-model="appSlug" type="text" placeholder="it-quiz" class="block w-full border-0 focus:ring-0 text-sm px-3 bg-transparent font-medium">
+                            </div>
+                            <p class="text-[11px] text-gray-400 mt-1">Leaves clean URL mapping. Leave blank for auto-generation.</p>
+                        </div>
+
+                        <div class="border-t border-gray-100 pt-5">
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">Accent Palette Color</label>
+                            <div class="flex items-center space-x-2">
+                                <button v-for="color in themeColors" :key="color.name" @click="selectedTheme = color" :class="[selectedTheme.name === color.name ? 'ring-2 ring-offset-2 ' + color.ring : '', color.bg]" class="w-8 h-8 rounded-full border border-black/10 transition-all transform active:scale-95" :title="color.name"></button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Grid: Live Question Deck Builder (66%) -->
+            <div class="lg:col-span-8 space-y-6">
+                <!-- Section Header -->
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h1 class="text-xl font-bold text-gray-900 tracking-tight header-font">Interactive Builder View</h1>
+                        <p class="text-sm text-gray-500">Edit, structure, and mark correct answers dynamically.</p>
+                    </div>
+                    <span class="bg-white/90 border border-gray-200 text-gray-600 text-xs font-semibold px-3 py-1.5 rounded-xl shadow-xs">
+                        {{ questions.length }} {{ questions.length === 1 ? 'Question' : 'Questions' }}
+                    </span>
+                </div>
+
+                <!-- Questions Board -->
+                <transition-group name="fade" tag="div" class="space-y-6">
+                    <div v-for="(q, index) in questions" :key="q.id" class="bg-white rounded-2xl shadow-xs border border-gray-200/80 hover:shadow-md transition-shadow group relative overflow-hidden">
+                        
+                        <!-- Top status visual ribbon accent -->
+                        <div class="h-1.5 w-full" :class="selectedTheme.bg"></div>
+
+                        <!-- Right context buttons -->
+                        <div class="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity flex items-center space-x-2">
+                            <button @click="removeQuestion(index)" class="text-gray-400 hover:text-red-500 p-2 hover:bg-gray-50 rounded-lg transition-colors" title="Delete Question">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                            </button>
+                        </div>
+
+                        <!-- Card internal elements -->
+                        <div class="p-6 sm:p-8">
+                            <div class="flex items-center space-x-2.5 mb-4">
+                                <span class="text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded-md" :class="q.type === 'choice' ? 'bg-indigo-50 text-indigo-700 border border-indigo-100' : 'bg-emerald-50 text-emerald-700 border border-emerald-100'">
+                                    {{ q.type === 'choice' ? 'Multiple Choice (Quiz)' : 'Text Answer (Survey)' }}
+                                </span>
+                                <span class="text-xs font-bold text-gray-400">#0{{ index + 1 }}</span>
+                            </div>
+
+                            <div class="mb-5">
+                                <input v-model="q.text" type="text" placeholder="Write your question text here..." class="block w-full border-b border-gray-200 focus:border-indigo-600 focus:ring-0 text-lg font-semibold py-2 px-0 bg-transparent transition-colors placeholder-gray-300">
+                            </div>
+
+                            <!-- Multiple Choice Structure Panel -->
+                            <div v-if="q.type === 'choice'" class="space-y-3.5">
+                                <div class="text-xs font-bold text-gray-400 tracking-wider uppercase mb-1">Answer Selection & Answer Key</div>
+                                <div v-for="(opt, optIndex) in q.options" :key="optIndex" class="flex items-center space-x-3.5 bg-gray-50/50 p-3 rounded-xl border border-gray-150 transition-all hover:bg-gray-50">
+                                    
+                                    <!-- Select Correct Answer Toggle -->
+                                    <label class="flex items-center cursor-pointer" title="Mark as correct answer">
+                                        <input type="radio" :name="'correct_'+q.id" :value="optIndex" v-model="q.correct" class="h-5 w-5 border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer">
+                                        <span v-if="q.correct === optIndex" class="ml-2 text-[10px] uppercase font-black text-green-600 tracking-wide bg-green-50 border border-green-200 px-1.5 py-0.5 rounded">Correct</span>
+                                        <span v-else class="ml-2 text-[10px] uppercase font-bold text-gray-400 tracking-wide px-1.5 py-0.5">Incorrect</span>
+                                    </label>
+
+                                    <!-- Option text -->
+                                    <input v-model="q.options[optIndex]" type="text" class="flex-1 bg-transparent border-0 border-b border-gray-200 focus:border-indigo-500 focus:ring-0 px-0 py-1 text-sm font-medium text-gray-700">
+                                    
+                                    <!-- Option removal -->
+                                    <button v-if="q.options.length > 2" @click="removeOption(q, optIndex)" class="text-gray-400 hover:text-red-500 p-1.5 hover:bg-white rounded-md border border-transparent hover:border-gray-150 transition-all">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                                    </button>
+                                </div>
+
+                                <!-- Add option trigger -->
+                                <div class="pt-1.5">
+                                    <button @click="addOption(q)" class="text-indigo-600 hover:text-indigo-800 text-xs font-bold inline-flex items-center px-3 py-1.5 rounded-lg hover:bg-indigo-50 border border-dashed border-indigo-200 transition-all">
+                                        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg> 
+                                        Add Optional Answer Choice
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Text Area Survey Panel -->
+                            <div v-if="q.type === 'text'" class="pt-1">
+                                <textarea disabled rows="3" class="block w-full border border-gray-200 rounded-xl bg-gray-50/50 px-4 py-3 text-sm text-gray-400 cursor-not-allowed border-dashed" placeholder="The respondent will enter descriptive or open-ended thoughts here..."></textarea>
+                            </div>
+                        </div>
+                    </div>
+                </transition-group>
+
+                <!-- Bottom Action Block to add cards -->
+                <div class="mt-8 flex flex-col sm:flex-row items-center justify-center gap-4 bg-white/40 p-5 rounded-2xl border border-gray-200/50 backdrop-blur-xs">
+                    <button @click="addQuestion('choice')" class="w-full sm:w-auto flex items-center justify-center px-6 py-3.5 border border-transparent shadow-sm text-sm font-semibold rounded-xl text-white bg-indigo-600 hover:bg-indigo-700 transition-colors">
+                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path></svg>
+                        Add Quiz Question (Self-Grading)
+                    </button>
+                    <button @click="addQuestion('text')" class="w-full sm:w-auto flex items-center justify-center px-6 py-3.5 border border-gray-300 shadow-sm text-sm font-semibold rounded-xl text-gray-700 bg-white hover:bg-gray-50 transition-colors">
+                        <svg class="w-5 h-5 mr-2 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h7"></path></svg>
+                        Add Open-Ended Form Question
+                    </button>
+                </div>
+
+                <!-- Empty state block -->
+                <div v-if="questions.length === 0" class="text-center py-16 bg-white/50 rounded-2xl border border-dashed border-gray-250">
+                    <svg class="mx-auto h-16 w-16 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 13h6m-3-3v6m-9 1V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
+                    </svg>
+                    <h3 class="mt-4 text-base font-bold text-gray-900 header-font">Your canvas is blank</h3>
+                    <p class="mt-1.5 text-sm text-gray-500 max-w-sm mx-auto">Create beautiful self-grading quizzes or surveys by adding questions from the control deck below.</p>
+                </div>
+            </div>
+        </main>
+
+        <!-- Success Modal Overlay -->
+        <transition name="fade">
+            <div v-if="publishResult" class="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+                <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+                    <div class="fixed inset-0 bg-gray-500/75 backdrop-blur-sm transition-opacity" @click="publishResult = null"></div>
+                    <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+                    
+                    <div class="inline-block align-bottom bg-white rounded-2xl px-6 pt-5 pb-6 text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full sm:p-8">
+                        <div>
+                            <div class="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-green-150 text-green-600 shadow-md">
+                                <svg class="h-8 w-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path></svg>
+                            </div>
+                            <div class="mt-5 text-center sm:mt-6">
+                                <h3 class="text-2xl leading-6 font-bold text-gray-900 header-font" id="modal-title">Assessment Live & Deployed!</h3>
+                                <div class="mt-3">
+                                    <p class="text-sm text-gray-500 mb-5">Your gorgeous form was built successfully and has been compiled onto the Hostnix App pipeline. Anyone can now submit responses using this absolute URL:</p>
+                                    
+                                    <div class="bg-gray-50 border border-gray-200 rounded-xl p-4 flex items-center justify-between space-x-3 mb-6 shadow-inner">
+                                        <a :href="'https://hostnix.vercel.app/#' + publishResult.slug" target="_blank" class="text-sm font-semibold text-indigo-600 hover:underline truncate text-left pr-2 select-all flex-1">
+                                            hostnix.vercel.app/#{{ publishResult.slug }}
+                                        </a>
+                                        <button @click="copySlug" class="flex-shrink-0 text-gray-500 hover:text-indigo-600 bg-white border border-gray-200 rounded-lg p-2 shadow-xs transition-colors" title="Copy Full Link">
+                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+                                        </button>
+                                    </div>
+                                    <p class="text-xs text-gray-400">Click the hyperlink above to test user response inputs or view the layout rendering instantly.</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mt-6 flex space-x-3">
+                            <button type="button" @click="publishResult = null" class="flex-1 justify-center rounded-xl border border-gray-200 shadow-xs px-4 py-3 bg-white text-base font-bold text-gray-700 hover:bg-gray-50 transition-colors sm:text-sm">
+                                Close
+                            </button>
+                            <a :href="'https://hostnix.vercel.app/#' + publishResult.slug" target="_blank" class="flex-1 text-center justify-center rounded-xl border border-transparent shadow-md px-4 py-3 bg-indigo-600 text-base font-bold text-white hover:bg-indigo-700 transition-colors sm:text-sm flex items-center justify-center">
+                                Open Form
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </transition>
+        
+        <!-- Error Alerts -->
+        <transition name="fade">
+            <div v-if="errorMessage" class="fixed bottom-4 right-4 bg-red-50 border-l-4 border-red-500 text-red-700 p-4 rounded-xl shadow-lg flex items-center space-x-3 z-50 max-w-sm" role="alert">
+                <svg class="h-5 w-5 text-red-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                <div>
+                    <span class="font-bold block text-sm">Failed to publish</span>
+                    <span class="block text-xs opacity-90">{{ errorMessage }}</span>
+                </div>
+                <button @click="errorMessage = null" class="text-red-400 hover:text-red-600"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>
+            </div>
+        </transition>
+
+    </div>
+
+    <script>
+        const { createApp, ref } = Vue;
+
+        // Supabase Endpoint parameters
+        const SUPABASE_URL = 'https://zncztttvefahofdeacxf.supabase.co';
+        const SUPABASE_KEY = 'sb_publishable_GhwVsgutWW4EpK9Fc_3DQQ_pW_R48LM';
+
+        function safeHTMLEscape(str) {
+            if (!str) return '';
+            return String(str).replace(/[&<>'"]/g, 
+                tag => ({
+                    '&': '&amp;',
+                    '<': '&lt;',
+                    '>': '&gt;',
+                    "'": '&#39;',
+                    '"': '&quot;'
+                }[tag] || tag)
+            );
+        }
+
+        // Generate the gorgeous, self-contained HTML layout code
+        function generateStandaloneHTML(title, description, questions, theme) {
+            const safeQuestionsData = JSON.stringify(questions).replace(/</g, '\\u003c');
+            
+            // Build absolute robust pre-rendered question DOM elements with styling
+            let questionsHTML = '';
+            questions.forEach((q, i) => {
+                questionsHTML += `
+                <div class="bg-white p-6 sm:p-8 rounded-2xl border border-gray-100 shadow-sm transition-all relative overflow-hidden group">
+                    <div class="absolute left-0 top-0 bottom-0 w-1 ${theme.gradFrom}"></div>
+                    <div class="flex items-center space-x-2.5 mb-5">
+                        <span class="text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded-md bg-gray-50 border border-gray-150">
+                            Question ${i + 1}
+                        </span>
+                        ${q.type === 'choice' ? '<span class="text-xs font-semibold text-gray-400">(Single Choice)</span>' : ''}
+                    </div>
+                    <h3 class="text-lg font-bold text-gray-900 mb-5 leading-snug">${safeHTMLEscape(q.text)}</h3>
+                `;
+                
+                if (q.type === 'choice') {
+                    questionsHTML += `<div class="space-y-3">`;
+                    q.options.forEach((opt, j) => {
+                        questionsHTML += `
+                        <label class="flex items-center p-4 border border-gray-200 rounded-xl hover:border-${theme.accent}-500 hover:bg-${theme.accent}-50/30 cursor-pointer bg-white transition-all shadow-xs relative group-active:scale-[0.99]">
+                            <input type="radio" name="q_${i}" value="${j}" required class="h-5 w-5 text-${theme.accent}-600 focus:ring-${theme.accent}-500 border-gray-300">
+                            <span class="ml-3.5 text-gray-700 font-medium">${safeHTMLEscape(opt)}</span>
+                        </label>
+                        `;
+                    });
+                    questionsHTML += `</div>`;
+                } else if (q.type === 'text') {
+                    questionsHTML += `
+                    <textarea name="q_${i}" required rows="4" class="shadow-inner focus:ring-${theme.accent}-500 focus:border-${theme.accent}-500 block w-full text-sm border-gray-200 rounded-xl p-4 border bg-gray-50/50 resize-none transition-colors" placeholder="Write your long answer here..."></textarea>
+                    `;
+                }
+                questionsHTML += `</div>`;
+            });
+
+            return `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${safeHTMLEscape(title)}</title>
+    <script src="https://cdn.tailwindcss.com"><\/script>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
+        .slide-up { animation: slideUp 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+        .score-radial { background: conic-gradient(#4f46e5 var(--p), #e2e8f0 0); }
+    </style>
+</head>
+<body class="min-h-screen py-8 px-4 sm:py-12 sm:px-6 lg:px-8">
+    <div class="max-w-2xl mx-auto">
+        <div class="bg-white rounded-3xl shadow-xl shadow-slate-100/60 border border-slate-100 overflow-hidden slide-up">
+            <!-- Colored Hero Bar -->
+            <div class="bg-gradient-to-r ${theme.gradFrom} ${theme.gradTo} px-8 py-12 text-white text-center relative overflow-hidden">
+                <div class="absolute -top-12 -left-12 w-40 h-40 bg-white/5 rounded-full blur-2xl"></div>
+                <div class="absolute -bottom-12 -right-12 w-40 h-40 bg-white/5 rounded-full blur-2xl"></div>
+                <div class="relative z-10">
+                    <h1 id="appTitle" class="text-3xl font-extrabold mb-3 leading-tight tracking-tight" style="font-family: 'DM Sans', sans-serif;">${safeHTMLEscape(title)}</h1>
+                    <p id="appDesc" class="text-white/80 text-sm font-medium max-w-lg mx-auto leading-relaxed">${safeHTMLEscape(description)}</p>
+                </div>
+            </div>
+            
+            <div class="p-6 sm:p-10 bg-slate-50/50">
+                <form id="submissionForm" class="space-y-6">
+                    <div id="questionsContainer" class="space-y-6">
+                        ${questionsHTML}
+                    </div>
+                    <div class="pt-6">
+                        <button type="submit" class="w-full flex justify-center py-4 px-4 border border-transparent rounded-2xl shadow-lg shadow-${theme.accent}-100 text-base font-bold text-white bg-gradient-to-r ${theme.gradFrom} ${theme.gradTo} hover:opacity-95 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-${theme.accent}-500 transition-all transform active:scale-[0.99]">
+                            Submit Assessment
+                        </button>
+                    </div>
+                </form>
+                <div id="resultsContainer" class="hidden"></div>
+            </div>
+        </div>
+        <div class="mt-8 text-center text-xs text-gray-400 font-semibold tracking-wide">
+            Powered by Hostnix Forms
+        </div>
+    </div>
+
+    <script>
+        const qs = ${safeQuestionsData};
+        const form = document.getElementById('submissionForm');
+        const results = document.getElementById('resultsContainer');
+
+        if (form) {
+            form.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const formData = new FormData(form);
+                let score = 0;
+                let totalQuizQs = 0;
+                
+                const reviewContainer = document.createElement('div');
+                reviewContainer.className = 'space-y-6 slide-up pt-4';
+                
+                // Detailed grading analysis breakdown
+                const answersDiv = document.createElement('div');
+                answersDiv.className = 'space-y-4';
+
+                qs.forEach((q, i) => {
+                    const answerVal = formData.get('q_' + i);
+                    const qBox = document.createElement('div');
+                    qBox.className = 'p-6 bg-white rounded-2xl border border-gray-150/80 shadow-xs relative overflow-hidden';
+                    
+                    const qText = document.createElement('p');
+                    qText.className = 'font-bold text-gray-950 text-base mb-3 leading-snug';
+                    qText.textContent = (i + 1) + '. ' + q.text;
+                    qBox.appendChild(qText);
+
+                    if (q.type === 'choice') {
+                        totalQuizQs++;
+                        const ansIndex = parseInt(answerVal);
+                        const isCorrect = ansIndex === q.correct;
+                        if (isCorrect) score++;
+
+                        // Indicator bar
+                        const sideBar = document.createElement('div');
+                        sideBar.className = 'absolute left-0 top-0 bottom-0 w-1.5 ' + (isCorrect ? 'bg-emerald-500' : 'bg-red-500');
+                        qBox.appendChild(sideBar);
+
+                        const ansReview = document.createElement('div');
+                        ansReview.className = 'flex items-center space-x-2 text-sm font-semibold p-3.5 rounded-xl border ' + 
+                            (isCorrect ? 'bg-emerald-50/50 border-emerald-150 text-emerald-800' : 'bg-red-50/50 border-red-150 text-red-800');
+                        
+                        let iconHtml = isCorrect 
+                            ? '<svg class="w-5 h-5 flex-shrink-0 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>'
+                            : '<svg class="w-5 h-5 flex-shrink-0 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>';
+                        
+                        ansReview.innerHTML = iconHtml + '<span>Your Selection: ' + safeEscapeHTML(q.options[ansIndex] || 'None') + '</span>';
+                        qBox.appendChild(ansReview);
+
+                        if (!isCorrect) {
+                            const correctAns = document.createElement('p');
+                            correctAns.className = 'text-xs text-gray-500 font-bold tracking-wide uppercase mt-2 px-3.5 py-1.5 bg-emerald-50/30 border border-dashed border-emerald-150 rounded-lg text-emerald-700 flex items-center inline-flex';
+                            correctAns.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-2"></span>Correct Answer Key: ' + safeEscapeHTML(q.options[q.correct]);
+                            qBox.appendChild(correctAns);
+                        }
+                    } else {
+                        // Open Survey answer presentation
+                        const sideBar = document.createElement('div');
+                        sideBar.className = 'absolute left-0 top-0 bottom-0 w-1.5 bg-indigo-500';
+                        qBox.appendChild(sideBar);
+
+                        const ansReview = document.createElement('div');
+                        ansReview.className = 'mt-2 text-sm text-gray-700 bg-gray-50 p-4 rounded-xl border border-gray-150/80 font-medium leading-relaxed';
+                        ansReview.textContent = answerVal || 'No answer submitted.';
+                        qBox.appendChild(ansReview);
+                    }
+                    answersDiv.appendChild(qBox);
+                });
+                
+                // Add Gorgeous Scorecard UI
+                if (totalQuizQs > 0) {
+                    const scoreBox = document.createElement('div');
+                    const percentage = Math.round((score / totalQuizQs) * 100);
+                    const passed = percentage >= 50;
+                    
+                    scoreBox.className = 'p-8 rounded-3xl border text-center relative overflow-hidden shadow-sm ' + 
+                        (passed ? 'bg-emerald-50/50 border-emerald-150' : 'bg-red-50/50 border-red-150');
+                    
+                    scoreBox.innerHTML = \`
+                        <div class="relative z-10 flex flex-col items-center">
+                            <span class="text-xs font-black uppercase tracking-widest \${passed ? 'text-emerald-700' : 'text-red-700'} mb-2">Assessment Results</span>
+                            <div class="text-6xl font-black mb-2 \${passed ? 'text-emerald-800' : 'text-red-800'}">\${percentage}%</div>
+                            <div class="text-sm font-semibold text-gray-600">You answered \${score} out of \${totalQuizQs} correctly</div>
+                            <div class="mt-4 px-4 py-1.5 rounded-full text-xs font-bold \${passed ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}">
+                                \${passed ? 'PASSED ASSESSMENT' : 'FAILED ASSESSMENT'}
+                            </div>
+                        </div>
+                    \`;
+                    reviewContainer.appendChild(scoreBox);
+                } else {
+                    // Regular Form submission message if no test questions
+                    const standardThanks = document.createElement('div');
+                    standardThanks.className = 'p-8 rounded-3xl border border-green-150 bg-green-50/40 text-center shadow-xs';
+                    standardThanks.innerHTML = \`
+                        <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100 mb-3 text-green-600">
+                            <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path></svg>
+                        </div>
+                        <h3 class="text-lg font-bold text-gray-900">Submission Successful!</h3>
+                        <p class="text-sm text-gray-500 mt-1.5">Thank you for filling out our form. Your feedback has been logged securely.</p>
+                    \`;
+                    reviewContainer.appendChild(standardThanks);
+                }
+
+                reviewContainer.appendChild(answersDiv);
+                form.style.display = 'none';
+                results.innerHTML = '';
+                results.appendChild(reviewContainer);
+                results.classList.remove('hidden');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            });
+        }
+
+        function safeEscapeHTML(str) {
+            if (!str) return '';
+            return String(str).replace(/[&<>'"]/g, 
+                tag => ({
+                    '&': '&amp;',
+                    '<': '&lt;',
+                    '>': '&gt;',
+                    "'": '&#39;',
+                    '"': '&quot;'
+                }[tag] || tag)
+            );
+        }
+    <\/script>
+</body>
+</html>`;
+        }
+
+        createApp({
+            setup() {
+                // Pre-populated data variables
+                const formTitle = ref('JavaScript & DOM Assessment');
+                const formDescription = ref('Test your knowledge of Javascript and absolute layout development.');
+                const appSlug = ref('');
+                
+                const themeColors = [
+                    { name: 'Indigo', bg: 'bg-indigo-600', ring: 'ring-indigo-500', accent: 'indigo', gradFrom: 'from-indigo-600', gradTo: 'to-violet-500' },
+                    { name: 'Emerald', bg: 'bg-emerald-600', ring: 'ring-emerald-500', accent: 'emerald', gradFrom: 'from-emerald-600', gradTo: 'to-teal-500' },
+                    { name: 'Rose', bg: 'bg-rose-600', ring: 'ring-rose-500', accent: 'rose', gradFrom: 'from-rose-600', gradTo: 'to-orange-500' },
+                    { name: 'Amber', bg: 'bg-amber-500', ring: 'ring-amber-400', accent: 'amber', gradFrom: 'from-amber-500', gradTo: 'to-yellow-500' },
+                    { name: 'Charcoal', bg: 'bg-slate-800', ring: 'ring-slate-700', accent: 'slate', gradFrom: 'from-slate-800', gradTo: 'to-slate-950' }
+                ];
+                const selectedTheme = ref(themeColors[0]);
+
+                const questions = ref([
+                    {
+                        id: Date.now(),
+                        type: 'choice',
+                        text: 'Which HTML element holds JavaScript script logic tag files?',
+                        options: ['<js>', '<javascript>', '<script>', '<style>'],
+                        correct: 2
+                    },
+                    {
+                        id: Date.now() + 1,
+                        type: 'text',
+                        text: 'Describe how closures handle lexical environmental boundaries.'
+                    }
+                ]);
+                const isPublishing = ref(false);
+                const publishResult = ref(null);
+                const errorMessage = ref(null);
+
+                const addQuestion = (type) => {
+                    if (type === 'choice') {
+                        questions.value.push({
+                            id: Date.now(),
+                            type: 'choice',
+                            text: '',
+                            options: ['Option 1', 'Option 2'],
+                            correct: 0
+                        });
+                    } else {
+                        questions.value.push({
+                            id: Date.now(),
+                            type: 'text',
+                            text: ''
+                        });
+                    }
+                };
+
+                const removeQuestion = (index) => questions.value.splice(index, 1);
+                const addOption = (q) => q.options.push(`Option ${q.options.length + 1}`);
+                const removeOption = (q, optIndex) => q.options.splice(optIndex, 1);
+
+                const copySlug = () => {
+                    if (publishResult.value) {
+                        const targetURL = `https://hostnix.vercel.app/#${publishResult.value.slug}`;
+                        
+                        // Robust Clipboard fallback strategy
+                        const textArea = document.createElement("textarea");
+                        textArea.value = targetURL;
+                        textArea.style.position = "fixed";
+                        textArea.style.left = "-9999px";
+                        textArea.style.top = "-9999px";
+                        document.body.appendChild(textArea);
+                        
+                        textArea.focus();
+                        textArea.select();
+                        
+                        try {
+                            document.execCommand('copy');
+                        } catch(e) {
+                            console.error("Iframe Clipboard access denied.", e);
+                        }
+                        document.body.removeChild(textArea);
+                    }
+                };
+
+                const publishForm = async () => {
+                    isPublishing.value = true;
+                    errorMessage.value = null;
+
+                    try {
+                        // Clean customized slug name format
+                        let slug = appSlug.value.trim().replace(/[^a-zA-Z0-9-]/g, '-').toLowerCase();
+                        if (!slug) {
+                            slug = Math.random().toString(36).substring(2, 10);
+                        }
+                        
+                        // Generate beautifully styled HTML content
+                        const htmlContent = generateStandaloneHTML(formTitle.value, formDescription.value, questions.value, selectedTheme.value);
+                        
+                        // Prepare exact target database schema
+                        const payload = {
+                            slug: slug,
+                            files: [
+                                {
+                                    name: "index.html",
+                                    content: htmlContent
+                                }
+                            ]
+                        };
+
+                        const response = await fetch(`${SUPABASE_URL}/rest/v1/apps`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'apikey': SUPABASE_KEY,
+                                'Authorization': `Bearer ${SUPABASE_KEY}`,
+                                'Prefer': 'return=minimal'
+                            },
+                            body: JSON.stringify(payload)
+                        });
+
+                        if (!response.ok) {
+                            const errorData = await response.json().catch(() => ({}));
+                            throw new Error(errorData.message || 'Check database constraints or custom slug collision.');
+                        }
+
+                        // Complete successfully
+                        publishResult.value = { slug };
+
+                    } catch (err) {
+                        console.error('Publish Failure:', err);
+                        errorMessage.value = err.message || 'An unexpected error occurred during build compilation.';
+                    } finally {
+                        isPublishing.value = false;
+                    }
+                };
+
+                return {
+                    formTitle,
+                    formDescription,
+                    appSlug,
+                    questions,
+                    themeColors,
+                    selectedTheme,
+                    addQuestion,
+                    removeQuestion,
+                    addOption,
+                    removeOption,
+                    publishForm,
+                    isPublishing,
+                    publishResult,
+                    errorMessage,
+                    copySlug
+                };
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>

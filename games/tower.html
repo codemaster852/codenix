@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tower Clash: Human vs AI</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            overflow: hidden;
+            background-color: #0f172a;
+            color: white;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+            touch-action: manipulation;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        .game-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+        }
+
+        .tower-section {
+            flex: 1;
+            position: relative;
+            border-right: 1px solid rgba(255, 255, 255, 0.1);
+            overflow: hidden;
+        }
+
+        .tower-section:last-child {
+            border-right: none;
+        }
+
+        .label-overlay {
+            position: absolute;
+            top: 20px;
+            width: 100%;
+            text-align: center;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        .score-box {
+            font-size: 3rem;
+            font-weight: 900;
+            text-shadow: 0 4px 10px rgba(0,0,0,0.5);
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        #menu-overlay {
+            background: rgba(15, 23, 42, 0.9);
+            backdrop-filter: blur(8px);
+        }
+
+        .btn-primary {
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .btn-primary:active {
+            transform: scale(0.95);
+        }
+    </style>
+</head>
+<body>
+
+<div id="game-ui" class="game-container">
+    <!-- Human Side -->
+    <div class="tower-section" id="human-side">
+        <div class="label-overlay">
+            <span class="badge bg-blue-600 mb-2">You</span>
+            <div id="human-score" class="score-box">0</div>
+        </div>
+        <canvas id="human-canvas"></canvas>
+    </div>
+
+    <!-- AI Side -->
+    <div class="tower-section" id="ai-side">
+        <div class="label-overlay">
+            <span class="badge bg-red-600 mb-2">AI Overlord</span>
+            <div id="ai-score" class="score-box">0</div>
+        </div>
+        <canvas id="ai-canvas"></canvas>
+    </div>
+</div>
+
+<!-- Main Menu -->
+<div id="menu-overlay" class="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div class="bg-slate-800 p-8 rounded-3xl shadow-2xl max-w-md w-full text-center border border-slate-700">
+        <h1 class="text-4xl font-black mb-2 bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">TOWER CLASH</h1>
+        <p class="text-slate-400 mb-8 italic">Stack higher. Align perfectly. Beat the machine.</p>
+        
+        <div class="space-y-4">
+            <button onclick="startGame('easy')" class="btn-primary w-full bg-blue-600 hover:bg-blue-500 py-4 rounded-xl font-bold text-lg shadow-lg">Start Game (Normal AI)</button>
+            <button onclick="startGame('hard')" class="btn-primary w-full bg-indigo-600 hover:bg-indigo-500 py-4 rounded-xl font-bold text-lg shadow-lg">Start Game (Pro AI)</button>
+        </div>
+
+        <div class="mt-8 text-sm text-slate-500">
+            <p>Tap or click to drop your block.</p>
+            <p>Alignment is key—misplaced parts fall off!</p>
+        </div>
+    </div>
+</div>
+
+<!-- Game Over Overlay -->
+<div id="gameover-overlay" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+    <div class="bg-slate-800 p-10 rounded-3xl shadow-2xl text-center border border-slate-700">
+        <h2 id="result-title" class="text-5xl font-black mb-4">YOU WIN!</h2>
+        <p id="result-desc" class="text-slate-400 mb-8"></p>
+        <button onclick="resetGame()" class="btn-primary bg-white text-slate-900 px-8 py-3 rounded-xl font-black text-xl hover:bg-slate-200">REMATCH</button>
+    </div>
+</div>
+
+<script>
+const COLORS = [
+    '#3b82f6', '#6366f1', '#8b5cf6', '#a855f7', '#d946ef', '#ec4899', '#f43f5e'
+];
+
+const AI_COLORS = [
+    '#f43f5e', '#fb7185', '#fda4af', '#fecdd3', '#fff1f2'
+];
+
+const CONFIG = {
+    blockHeight: 40,
+    baseWidth: 200,
+    speedBase: 2.5,
+    speedInc: 0.05,
+    cameraLerp: 0.05
+};
+
+let gameState = 'menu'; // menu, playing, gameover
+let difficulty = 'easy';
+
+class TowerGame {
+    constructor(canvasId, scoreId, isAI = false) {
+        this.canvas = document.getElementById(canvasId);
+        this.ctx = this.canvas.getContext('2d');
+        this.scoreElement = document.getElementById(scoreId);
+        this.isAI = isAI;
+        
+        this.blocks = [];
+        this.debris = [];
+        this.currentBlock = null;
+        this.cameraY = 0;
+        this.targetCameraY = 0;
+        this.speed = CONFIG.speedBase;
+        this.isGameOver = false;
+        
+        this.resize();
+        window.addEventListener('resize', () => this.resize());
+    }
+
+    resize() {
+        const parent = this.canvas.parentElement;
+        this.canvas.width = parent.clientWidth * window.devicePixelRatio;
+        this.canvas.height = parent.clientHeight * window.devicePixelRatio;
+        this.ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+        this.drawWidth = parent.clientWidth;
+        this.drawHeight = parent.clientHeight;
+    }
+
+    reset() {
+        this.blocks = [
+            {
+                x: (this.drawWidth - CONFIG.baseWidth) / 2,
+                y: this.drawHeight - CONFIG.blockHeight,
+                w: CONFIG.baseWidth,
+                color: this.isAI ? '#ef4444' : '#3b82f6'
+            }
+        ];
+        this.debris = [];
+        this.cameraY = 0;
+        this.targetCameraY = 0;
+        this.speed = CONFIG.speedBase;
+        this.isGameOver = false;
+        this.scoreElement.innerText = "0";
+        this.createNewBlock();
+    }
+
+    createNewBlock() {
+        const lastBlock = this.blocks[this.blocks.length - 1];
+        const index = this.blocks.length;
+        const color = this.isAI ? 
+            AI_COLORS[index % AI_COLORS.length] : 
+            COLORS[index % COLORS.length];
+
+        this.currentBlock = {
+            x: 0,
+            y: lastBlock.y - CONFIG.blockHeight,
+            w: lastBlock.w,
+            dir: 1,
+            color: color
+        };
+        
+        // Increase speed slightly every block
+        this.speed += CONFIG.speedInc;
+    }
+
+    update() {
+        if (this.isGameOver || gameState !== 'playing') return;
+
+        // Move current block
+        this.currentBlock.x += this.speed * this.currentBlock.dir;
+
+        // Bounce off edges
+        if (this.currentBlock.x + this.currentBlock.w > this.drawWidth || this.currentBlock.x < 0) {
+            this.currentBlock.dir *= -1;
+        }
+
+        // AI Logic
+        if (this.isAI) {
+            this.updateAI();
+        }
+
+        // Smooth Camera
+        this.cameraY += (this.targetCameraY - this.cameraY) * CONFIG.cameraLerp;
+
+        // Update Debris
+        this.debris.forEach((d, i) => {
+            d.y += d.vy;
+            d.vy += 0.5; // gravity
+            d.rotation += d.vr;
+            if (d.y > this.drawHeight + 100) this.debris.splice(i, 1);
+        });
+    }
+
+    updateAI() {
+        const lastBlock = this.blocks[this.blocks.length - 1];
+        const centerLast = lastBlock.x + lastBlock.w / 2;
+        const centerCurrent = this.currentBlock.x + this.currentBlock.w / 2;
+        
+        // Difficulty modifiers
+        const errorMargin = difficulty === 'easy' ? 15 : 5;
+        const reactionDelay = difficulty === 'easy' ? 0.05 : 0.1;
+
+        // AI attempts to drop when close to center
+        if (Math.abs(centerLast - centerCurrent) < (Math.random() * errorMargin)) {
+            // Add a tiny random delay so it's not perfect
+            if (Math.random() > reactionDelay) {
+                this.placeBlock();
+            }
+        }
+    }
+
+    placeBlock() {
+        if (this.isGameOver) return;
+
+        const lastBlock = this.blocks[this.blocks.length - 1];
+        const overlapStart = Math.max(this.currentBlock.x, lastBlock.x);
+        const overlapEnd = Math.min(this.currentBlock.x + this.currentBlock.w, lastBlock.x + lastBlock.w);
+        const overlapWidth = overlapEnd - overlapStart;
+
+        if (overlapWidth <= 0) {
+            this.gameOver();
+            return;
+        }
+
+        // Add debris for the cut-off part
+        const isLeftCut = this.currentBlock.x < lastBlock.x;
+        const cutWidth = this.currentBlock.w - overlapWidth;
+        if (cutWidth > 2) {
+            this.debris.push({
+                x: isLeftCut ? this.currentBlock.x : overlapEnd,
+                y: this.currentBlock.y,
+                w: cutWidth,
+                color: this.currentBlock.color,
+                vy: 0,
+                vr: (Math.random() - 0.5) * 0.2,
+                rotation: 0
+            });
+        }
+
+        // Successfully placed
+        this.blocks.push({
+            x: overlapStart,
+            y: this.currentBlock.y,
+            w: overlapWidth,
+            color: this.currentBlock.color
+        });
+
+        const score = this.blocks.length - 1;
+        this.scoreElement.innerText = score;
+
+        // Adjust camera
+        if (this.blocks.length > 5) {
+            this.targetCameraY = (this.blocks.length - 5) * CONFIG.blockHeight;
+        }
+
+        this.createNewBlock();
+        
+        // Shake effect
+        this.canvas.style.transform = `translateY(2px)`;
+        setTimeout(() => this.canvas.style.transform = `translateY(0)`, 50);
+    }
+
+    draw() {
+        this.ctx.clearRect(0, 0, this.drawWidth, this.drawHeight);
+        
+        this.ctx.save();
+        this.ctx.translate(0, this.cameraY);
+
+        // Draw static blocks
+        this.blocks.forEach((b, index) => {
+            this.ctx.fillStyle = b.color;
+            // Add a little shadow/depth
+            this.ctx.shadowBlur = 10;
+            this.ctx.shadowColor = 'rgba(0,0,0,0.3)';
+            this.ctx.fillRect(b.x, b.y, b.w, CONFIG.blockHeight);
+            
+            // Highlight on top
+            this.ctx.fillStyle = 'rgba(255,255,255,0.1)';
+            this.ctx.fillRect(b.x, b.y, b.w, 2);
+        });
+
+        // Draw debris
+        this.debris.forEach(d => {
+            this.ctx.save();
+            this.ctx.translate(d.x + d.w/2, d.y + CONFIG.blockHeight/2);
+            this.ctx.rotate(d.rotation);
+            this.ctx.fillStyle = d.color;
+            this.ctx.fillRect(-d.w/2, -CONFIG.blockHeight/2, d.w, CONFIG.blockHeight);
+            this.ctx.restore();
+        });
+
+        // Draw moving block
+        if (this.currentBlock && !this.isGameOver && gameState === 'playing') {
+            this.ctx.fillStyle = this.currentBlock.color;
+            this.ctx.shadowBlur = 15;
+            this.ctx.shadowColor = this.currentBlock.color;
+            this.ctx.fillRect(this.currentBlock.x, this.currentBlock.y, this.currentBlock.w, CONFIG.blockHeight);
+        }
+
+        this.ctx.restore();
+    }
+
+    gameOver() {
+        this.isGameOver = true;
+        checkGlobalGameOver();
+    }
+}
+
+const humanGame = new TowerGame('human-canvas', 'human-score', false);
+const aiGame = new TowerGame('ai-canvas', 'ai-score', true);
+
+function startGame(diff) {
+    difficulty = diff;
+    document.getElementById('menu-overlay').classList.add('hidden');
+    document.getElementById('gameover-overlay').classList.add('hidden');
+    gameState = 'playing';
+    humanGame.reset();
+    aiGame.reset();
+}
+
+function resetGame() {
+    document.getElementById('menu-overlay').classList.remove('hidden');
+    document.getElementById('gameover-overlay').classList.add('hidden');
+    gameState = 'menu';
+}
+
+function checkGlobalGameOver() {
+    if (humanGame.isGameOver && aiGame.isGameOver) {
+        gameState = 'gameover';
+        const hScore = humanGame.blocks.length - 1;
+        const aScore = aiGame.blocks.length - 1;
+        
+        const title = document.getElementById('result-title');
+        const desc = document.getElementById('result-desc');
+        
+        if (hScore > aScore) {
+            title.innerText = "VICTORY!";
+            title.className = "text-5xl font-black mb-4 text-green-400";
+            desc.innerText = `You out-stacked the AI by ${hScore - aScore} blocks!`;
+        } else if (aScore > hScore) {
+            title.innerText = "DEFEATED";
+            title.className = "text-5xl font-black mb-4 text-red-500";
+            desc.innerText = `The AI built ${aScore - hScore} blocks higher than you.`;
+        } else {
+            title.innerText = "STALEMATE";
+            title.className = "text-5xl font-black mb-4 text-yellow-400";
+            desc.innerText = `An exactly even match at ${hScore} blocks!`;
+        }
+        
+        document.getElementById('gameover-overlay').classList.remove('hidden');
+    }
+}
+
+function loop() {
+    humanGame.update();
+    aiGame.update();
+    
+    humanGame.draw();
+    aiGame.draw();
+    
+    requestAnimationFrame(loop);
+}
+
+// Controls
+window.addEventListener('mousedown', (e) => {
+    if (gameState === 'playing' && !humanGame.isGameOver) {
+        // Ensure we only trigger on the human side or just global click
+        humanGame.placeBlock();
+    }
+});
+
+window.addEventListener('keydown', (e) => {
+    if (e.code === 'Space' && gameState === 'playing' && !humanGame.isGameOver) {
+        humanGame.placeBlock();
+    }
+});
+
+// Start loop
+requestAnimationFrame(loop);
+
+</script>
+</body>
+</html>

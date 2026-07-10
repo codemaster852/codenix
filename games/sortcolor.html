@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Color Sort Puzzle - Pro</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @keyframes pour { 0% { transform: translateY(0); } 50% { transform: translateY(20px); } 100% { transform: translateY(0); } }
+        @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }
+        .tube { width: 50px; height: 160px; border: 4px solid #374151; border-top: none; border-bottom-left-radius: 20px; border-bottom-right-radius: 20px; display: flex; flex-direction: column-reverse; align-items: center; cursor: pointer; position: relative; transition: all 0.3s; }
+        .tube.selected { border-color: #fbbf24; transform: translateY(-10px) scale(1.05); }
+        .tube.locked { cursor: default; border-color: #10b981; }
+        .tube.shaking { animation: shake 0.2s ease-in-out; }
+        .ball { width: 40px; height: 40px; border-radius: 50%; border: 2px solid rgba(0,0,0,0.1); transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        .pouring { animation: pour 0.4s ease-in-out; }
+    </style>
+</head>
+<body class="bg-slate-950 min-h-screen flex flex-col items-center p-4">
+    <div class="text-white text-center mb-6 w-full max-w-2xl">
+        <h1 id="admin-trigger" class="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-blue-500 cursor-pointer">SORT MASTER</h1>
+        <p class="text-slate-400 font-medium">Level <span id="level-display" class="text-white">1</span> | Undos Left: <span id="undo-display">3</span></p>
+        <div class="flex gap-2 justify-center mt-4">
+            <button onclick="resetLevel()" class="bg-slate-700 px-4 py-2 rounded text-sm hover:bg-slate-600">Restart Level</button>
+            <button onclick="undoMove()" class="bg-slate-700 px-4 py-2 rounded text-sm hover:bg-slate-600">Undo Move</button>
+        </div>
+    </div>
+    
+    <div id="admin-panel" class="hidden fixed bottom-4 bg-slate-800 p-4 rounded-xl shadow-2xl flex gap-4 border border-slate-600">
+        <button onclick="changeLevel(-1)" class="bg-slate-600 px-3 py-1 rounded text-white font-bold">Prev</button>
+        <input id="lvl-input" type="number" placeholder="Level" class="w-20 bg-slate-900 text-white px-2 rounded">
+        <button onclick="jumpToLevel()" class="bg-emerald-600 px-3 py-1 rounded text-white font-bold">Jump</button>
+        <button onclick="changeLevel(1)" class="bg-slate-600 px-3 py-1 rounded text-white font-bold">Next</button>
+    </div>
+
+    <div id="game-board" class="flex flex-wrap gap-4 justify-center max-w-4xl"></div>
+
+    <script>
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        let clickCount = 0, isAdmin = false, undos = 3, history = [];
+
+        document.getElementById('admin-trigger').onclick = () => {
+            clickCount++;
+            if (clickCount >= 10) {
+                if (prompt("Enter Admin Password:") === "Sort2026_#Go") {
+                    isAdmin = true;
+                    document.getElementById('admin-panel').classList.remove('hidden');
+                }
+                clickCount = 0;
+            }
+        };
+
+        function playSound(freq, type = 'sine', vol = 0.1) {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = type; osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+            gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            osc.start(); osc.stop(audioCtx.currentTime + 0.2);
+        }
+
+        const COLORS = ['#ef4444', '#3b82f6', '#22c55e', '#eab308', '#a855f7', '#ec4899', '#06b6d4', '#f97316', '#f43f5e', '#6366f1', '#fb923c', '#c084fc'];
+        let currentLevel = parseInt(localStorage.getItem('colorSortLevel')) || 1;
+        let tubes = [], selectedTubeIndex = null, numColors = 0;
+
+        function generateLevel(level) {
+            numColors = Math.min(3 + Math.floor((level - 1) / 10), 12);
+            let flatBalls = [];
+            for(let i=0; i<numColors; i++) for(let j=0; j<4; j++) flatBalls.push(COLORS[i]);
+            flatBalls.sort(() => Math.random() - 0.5);
+            let newTubes = Array.from({length: numColors + 2}, () => []);
+            for(let i=0; i<numColors; i++) for(let j=0; j<4; j++) newTubes[i].push(flatBalls.pop());
+            return newTubes;
+        }
+
+        function isTubeSolved(tube) { return tube.length === 4 && tube.every(c => c === tube[0]); }
+
+        function render() {
+            const board = document.getElementById('game-board');
+            document.getElementById('level-display').innerText = currentLevel;
+            document.getElementById('undo-display').innerText = isAdmin ? '∞' : undos;
+            board.innerHTML = '';
+            tubes.forEach((tube, index) => {
+                const tubeEl = document.createElement('div');
+                const solved = isTubeSolved(tube);
+                tubeEl.className = `tube ${selectedTubeIndex === index ? 'selected' : ''} ${solved ? 'locked' : ''}`;
+                tubeEl.onclick = () => !solved && handleTubeClick(index, tubeEl);
+                tube.forEach(color => {
+                    const ball = document.createElement('div');
+                    ball.className = 'ball';
+                    ball.style.backgroundColor = color;
+                    tubeEl.appendChild(ball);
+                });
+                board.appendChild(tubeEl);
+            });
+            checkLose();
+        }
+
+        function handleTubeClick(index, el) {
+            if (selectedTubeIndex === null) {
+                if (tubes[index].length > 0) { selectedTubeIndex = index; playSound(500); render(); }
+            } else {
+                if (selectedTubeIndex !== index) {
+                    const source = tubes[selectedTubeIndex];
+                    const target = tubes[index];
+                    const color = source[source.length - 1];
+                    let count = 0;
+                    for(let i = source.length - 1; i >= 0; i--) { if (source[i] === color) count++; else break; }
+                    const space = 4 - target.length;
+                    const moveCount = Math.min(count, space);
+                    
+                    if (moveCount > 0 && (target.length === 0 || target[target.length - 1] === color)) {
+                        history.push(JSON.parse(JSON.stringify(tubes)));
+                        el.classList.add('pouring');
+                        for(let i = 0; i < moveCount; i++) target.push(source.pop());
+                        playSound(700);
+                        setTimeout(() => { el.classList.remove('pouring'); render(); checkWin(); }, 400);
+                    } else {
+                        el.classList.add('shaking');
+                        playSound(200, 'sawtooth', 0.05);
+                        setTimeout(() => el.classList.remove('shaking'), 200);
+                    }
+                }
+                selectedTubeIndex = null;
+                render();
+            }
+        }
+
+        function undoMove() {
+            if ((isAdmin || undos > 0) && history.length > 0) {
+                tubes = history.pop();
+                if (!isAdmin) undos--;
+                render();
+            }
+        }
+
+        function checkLose() {
+            let possible = false;
+            for(let i=0; i<tubes.length; i++) {
+                for(let j=0; j<tubes.length; j++) {
+                    if(i !== j && tubes[i].length > 0 && tubes[j].length < 4 && (tubes[j].length === 0 || tubes[j][tubes[j].length-1] === tubes[i][tubes[i].length-1])) possible = true;
+                }
+            }
+            if (!possible && !tubes.every(t => t.length === 0 || isTubeSolved(t))) {
+                if (confirm("No moves left! Restart level?")) resetLevel();
+            }
+        }
+
+        function checkWin() {
+            if (tubes.every(t => t.length === 0 || isTubeSolved(t))) {
+                currentLevel = Math.min(10000, currentLevel + 1);
+                localStorage.setItem('colorSortLevel', currentLevel);
+                setTimeout(() => { alert("Level Complete!"); resetLevel(); }, 500);
+            }
+        }
+        function resetLevel() { selectedTubeIndex = null; tubes = generateLevel(currentLevel); undos = 3; history = []; render(); }
+        function changeLevel(delta) { currentLevel = Math.max(1, Math.min(10000, currentLevel + delta)); localStorage.setItem('colorSortLevel', currentLevel); resetLevel(); }
+        function jumpToLevel() { const val = document.getElementById('lvl-input').value; if(val) { currentLevel = Math.max(1, Math.min(10000, parseInt(val))); localStorage.setItem('colorSortLevel', currentLevel); resetLevel(); } }
+        resetLevel();
+    </script>
+</body>
+</html>

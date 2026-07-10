@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neon Maze Explorer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --neon-cyan: #00f3ff;
+            --neon-purple: #bc13fe;
+            --dark-bg: #0a0a0f;
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--dark-bg);
+            color: white;
+            overflow-x: hidden;
+        }
+        .orbitron { font-family: 'Orbitron', sans-serif; }
+        .neon-border {
+            box-shadow: 0 0 10px var(--neon-cyan), inset 0 0 5px var(--neon-cyan);
+            border: 1px solid var(--neon-cyan);
+        }
+        .neon-text {
+            text-shadow: 0 0 8px var(--neon-cyan);
+        }
+        canvas {
+            image-rendering: pixelated;
+            max-width: 100%;
+            height: auto;
+            border-radius: 12px;
+            box-shadow: 0 0 25px rgba(0, 243, 255, 0.2);
+        }
+        .d-pad-btn {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(0, 243, 255, 0.3);
+            backdrop-filter: blur(5px);
+            transition: all 0.2s;
+        }
+        .d-pad-btn:active {
+            background: var(--neon-cyan);
+            color: black;
+            transform: scale(0.9);
+        }
+        /* Custom scrollbar for game history if needed */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--neon-purple); border-radius: 10px; }
+    </style>
+</head>
+<body class="flex flex-col min-h-screen items-center justify-center p-4">
+
+    <div class="max-w-4xl w-full flex flex-col gap-6">
+        
+        <!-- Header Section -->
+        <header class="text-center space-y-2">
+            <h1 class="orbitron text-4xl md:text-5xl font-bold tracking-widest neon-text uppercase">Neon Maze</h1>
+            <p class="text-gray-400 text-sm md:text-base">Navigate the grid. Reach the portal.</p>
+        </header>
+
+        <!-- Stats Bar -->
+        <div class="grid grid-cols-3 gap-4">
+            <div class="bg-gray-900/50 p-3 rounded-xl border border-gray-800 text-center">
+                <span class="block text-xs uppercase text-gray-500 font-bold">Level</span>
+                <span id="level-display" class="orbitron text-xl text-cyan-400">1</span>
+            </div>
+            <div class="bg-gray-900/50 p-3 rounded-xl border border-gray-800 text-center">
+                <span class="block text-xs uppercase text-gray-500 font-bold">Moves</span>
+                <span id="moves-display" class="orbitron text-xl text-purple-400">0</span>
+            </div>
+            <div class="bg-gray-900/50 p-3 rounded-xl border border-gray-800 text-center">
+                <span class="block text-xs uppercase text-gray-500 font-bold">Time</span>
+                <span id="timer-display" class="orbitron text-xl text-yellow-400">00:00</span>
+            </div>
+        </div>
+
+        <!-- Main Game Area -->
+        <div class="relative flex flex-col items-center">
+            <canvas id="mazeCanvas" class="bg-black/80"></canvas>
+            
+            <!-- Win Overlay -->
+            <div id="win-overlay" class="absolute inset-0 bg-black/90 flex flex-col items-center justify-center rounded-xl hidden z-10">
+                <h2 class="orbitron text-4xl text-green-400 mb-4 animate-bounce">MAZE CLEARED</h2>
+                <button onclick="nextLevel()" class="px-8 py-3 bg-cyan-500 hover:bg-cyan-400 text-black font-bold rounded-full transition transform hover:scale-105">
+                    NEXT LEVEL
+                </button>
+            </div>
+        </div>
+
+        <!-- Controls Section -->
+        <div class="flex flex-col md:flex-row gap-6 items-center justify-between bg-gray-900/30 p-6 rounded-2xl backdrop-blur-sm border border-gray-800">
+            
+            <!-- Mobile D-Pad -->
+            <div class="grid grid-cols-3 gap-2 w-32 md:w-40 lg:hidden">
+                <div></div>
+                <button onclick="move('up')" class="d-pad-btn p-4 rounded-xl flex justify-center"><svg width="24" height="24" fill="currentColor" viewBox="0 0 24 24"><path d="M12 4l-8 8h16l-8-8z"/></svg></button>
+                <div></div>
+                <button onclick="move('left')" class="d-pad-btn p-4 rounded-xl flex justify-center"><svg width="24" height="24" fill="currentColor" viewBox="0 0 24 24"><path d="M4 12l8-8v16l-8-8z"/></svg></button>
+                <button onclick="move('down')" class="d-pad-btn p-4 rounded-xl flex justify-center"><svg width="24" height="24" fill="currentColor" viewBox="0 0 24 24"><path d="M12 20l8-8H4l8 8z"/></svg></button>
+                <button onclick="move('right')" class="d-pad-btn p-4 rounded-xl flex justify-center"><svg width="24" height="24" fill="currentColor" viewBox="0 0 24 24"><path d="M20 12l-8 8V4l8 8z"/></svg></button>
+            </div>
+
+            <!-- Game Settings & Restart -->
+            <div class="flex flex-col gap-4 w-full md:w-auto">
+                <div class="flex items-center gap-3">
+                    <label class="text-sm text-gray-400 uppercase font-bold">Difficulty</label>
+                    <select id="difficulty" onchange="resetGame()" class="bg-gray-800 text-white border border-gray-700 px-3 py-1 rounded-lg outline-none focus:border-cyan-500">
+                        <option value="10">Easy</option>
+                        <option value="20" selected>Medium</option>
+                        <option value="30">Hard</option>
+                        <option value="40">Insane</option>
+                    </select>
+                </div>
+                <button onclick="resetGame()" class="w-full md:w-auto px-6 py-2 border-2 border-purple-500/50 hover:border-purple-500 text-purple-400 font-bold rounded-lg transition">
+                    RESET GAME
+                </button>
+            </div>
+
+            <!-- Keyboard Help -->
+            <div class="hidden lg:block text-right text-gray-500 text-sm">
+                <p>Use <b>Arrow Keys</b> or <b>WASD</b> to move.</p>
+                <p>Reach the purple glowing exit!</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('mazeCanvas');
+        const ctx = canvas.getContext('2d');
+        const levelDisplay = document.getElementById('level-display');
+        const movesDisplay = document.getElementById('moves-display');
+        const timerDisplay = document.getElementById('timer-display');
+        const winOverlay = document.getElementById('win-overlay');
+        const difficultySelect = document.getElementById('difficulty');
+
+        let rows, cols;
+        let cellSize;
+        let maze = [];
+        let player = { x: 0, y: 0 };
+        let goal = { x: 0, y: 0 };
+        let moves = 0;
+        let currentLevel = 1;
+        let startTime;
+        let timerInterval;
+
+        class Cell {
+            constructor(r, c) {
+                this.r = r;
+                this.c = c;
+                this.walls = [true, true, true, true]; // Top, Right, Bottom, Left
+                this.visited = false;
+            }
+
+            show() {
+                const x = this.c * cellSize;
+                const y = this.r * cellSize;
+                ctx.strokeStyle = '#222';
+                ctx.lineWidth = 2;
+                
+                if (this.walls[0]) line(x, y, x + cellSize, y); // Top
+                if (this.walls[1]) line(x + cellSize, y, x + cellSize, y + cellSize); // Right
+                if (this.walls[2]) line(x + cellSize, y + cellSize, x, y + cellSize); // Bottom
+                if (this.walls[3]) line(x, y + cellSize, x, y); // Left
+
+                if (this.visited) {
+                    ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+                    ctx.fillRect(x, y, cellSize, cellSize);
+                }
+            }
+        }
+
+        function line(x1, y1, x2, y2) {
+            ctx.beginPath();
+            ctx.moveTo(x1, y1);
+            ctx.lineTo(x2, y2);
+            ctx.stroke();
+        }
+
+        function generateMaze() {
+            rows = parseInt(difficultySelect.value);
+            cols = rows;
+            const canvasSize = Math.min(window.innerWidth - 40, 600);
+            canvas.width = canvasSize;
+            canvas.height = canvasSize;
+            cellSize = canvas.width / cols;
+
+            maze = [];
+            for (let r = 0; r < rows; r++) {
+                let row = [];
+                for (let c = 0; c < cols; c++) {
+                    row.push(new Cell(r, c));
+                }
+                maze.push(row);
+            }
+
+            let current = maze[0][0];
+            current.visited = true;
+            let stack = [];
+
+            // Loop-based DFS to prevent call stack issues on large mazes
+            while (true) {
+                let next = getUnvisitedNeighbor(current);
+                if (next) {
+                    next.visited = true;
+                    stack.push(current);
+                    removeWalls(current, next);
+                    current = next;
+                } else if (stack.length > 0) {
+                    current = stack.pop();
+                } else {
+                    break;
+                }
+            }
+
+            player = { x: 0, y: 0 };
+            goal = { x: cols - 1, y: rows - 1 };
+            draw();
+        }
+
+        function getUnvisitedNeighbor(cell) {
+            let neighbors = [];
+            let r = cell.r;
+            let c = cell.c;
+
+            if (r > 0 && !maze[r - 1][c].visited) neighbors.push(maze[r - 1][c]);
+            if (c < cols - 1 && !maze[r][c + 1].visited) neighbors.push(maze[r][c + 1]);
+            if (r < rows - 1 && !maze[r + 1][c].visited) neighbors.push(maze[r + 1][c]);
+            if (c > 0 && !maze[r][c - 1].visited) neighbors.push(maze[r][c - 1]);
+
+            if (neighbors.length > 0) {
+                let index = Math.floor(Math.random() * neighbors.length);
+                return neighbors[index];
+            }
+            return undefined;
+        }
+
+        function removeWalls(a, b) {
+            let x = a.c - b.c;
+            if (x === 1) {
+                a.walls[3] = false;
+                b.walls[1] = false;
+            } else if (x === -1) {
+                a.walls[1] = false;
+                b.walls[3] = false;
+            }
+            let y = a.r - b.r;
+            if (y === 1) {
+                a.walls[0] = false;
+                b.walls[2] = false;
+            } else if (y === -1) {
+                a.walls[2] = false;
+                b.walls[0] = false;
+            }
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw Maze
+            for (let r = 0; r < rows; r++) {
+                for (let c = 0; c < cols; c++) {
+                    maze[r][c].show();
+                }
+            }
+
+            // Draw Exit (Goal)
+            ctx.fillStyle = '#bc13fe';
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = '#bc13fe';
+            ctx.beginPath();
+            ctx.arc(goal.x * cellSize + cellSize / 2, goal.y * cellSize + cellSize / 2, cellSize * 0.3, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+
+            // Draw Player
+            ctx.fillStyle = '#00f3ff';
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = '#00f3ff';
+            const padding = cellSize * 0.2;
+            ctx.beginPath();
+            ctx.roundRect(player.x * cellSize + padding, player.y * cellSize + padding, cellSize - padding * 2, cellSize - padding * 2, 4);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+        }
+
+        function move(dir) {
+            if (winOverlay.classList.contains('hidden') === false) return;
+
+            let r = player.y;
+            let c = player.x;
+            let moved = false;
+
+            if (dir === 'up' && !maze[r][c].walls[0]) { player.y--; moved = true; }
+            if (dir === 'right' && !maze[r][c].walls[1]) { player.x++; moved = true; }
+            if (dir === 'down' && !maze[r][c].walls[2]) { player.y++; moved = true; }
+            if (dir === 'left' && !maze[r][c].walls[3]) { player.x--; moved = true; }
+
+            if (moved) {
+                moves++;
+                movesDisplay.innerText = moves;
+                draw();
+                checkWin();
+            }
+        }
+
+        function checkWin() {
+            if (player.x === goal.x && player.y === goal.y) {
+                clearInterval(timerInterval);
+                winOverlay.classList.remove('hidden');
+            }
+        }
+
+        function resetGame() {
+            clearInterval(timerInterval);
+            moves = 0;
+            currentLevel = 1;
+            movesDisplay.innerText = "0";
+            levelDisplay.innerText = "1";
+            winOverlay.classList.add('hidden');
+            generateMaze();
+            startTimer();
+        }
+
+        function nextLevel() {
+            currentLevel++;
+            levelDisplay.innerText = currentLevel;
+            winOverlay.classList.add('hidden');
+            generateMaze();
+            startTimer();
+        }
+
+        function startTimer() {
+            startTime = Date.now();
+            timerInterval = setInterval(() => {
+                let elapsed = Math.floor((Date.now() - startTime) / 1000);
+                let mins = Math.floor(elapsed / 60).toString().padStart(2, '0');
+                let secs = (elapsed % 60).toString().padStart(2, '0');
+                timerDisplay.innerText = `${mins}:${secs}`;
+            }, 1000);
+        }
+
+        window.addEventListener('keydown', (e) => {
+            switch(e.key) {
+                case 'ArrowUp': case 'w': case 'W': move('up'); break;
+                case 'ArrowDown': case 's': case 'S': move('down'); break;
+                case 'ArrowLeft': case 'a': case 'A': move('left'); break;
+                case 'ArrowRight': case 'd': case 'D': move('right'); break;
+            }
+        });
+
+        // Initialize on load
+        window.onload = () => {
+            generateMaze();
+            startTimer();
+        };
+
+        // Resize handler
+        window.addEventListener('resize', () => {
+            const canvasSize = Math.min(window.innerWidth - 40, 600);
+            canvas.width = canvasSize;
+            canvas.height = canvasSize;
+            cellSize = canvas.width / cols;
+            draw();
+        });
+
+    </script>
+</body>
+</html>

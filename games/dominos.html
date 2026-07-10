@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Domnix Dominoes</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0f172a;
+            color: #f8fafc;
+            overflow-x: hidden;
+            touch-action: manipulation;
+        }
+
+        .domino-board {
+            background: radial-gradient(circle, #1e293b 0%, #0f172a 100%);
+            min-height: 400px;
+            box-shadow: inset 0 0 100px rgba(0,0,0,0.5);
+        }
+
+        .domino {
+            width: 60px;
+            height: 100px;
+            background: #ffffff;
+            color: #000;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 8px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            position: relative;
+            flex-shrink: 0;
+            user-select: none;
+        }
+
+        .domino:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
+        }
+
+        .domino.horizontal {
+            width: 100px;
+            height: 60px;
+            flex-direction: row;
+        }
+
+        .domino.disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+
+        .pip-container {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            grid-template-rows: repeat(3, 1fr);
+            width: 100%;
+            height: 40%;
+            gap: 2px;
+        }
+
+        .pip {
+            width: 8px;
+            height: 8px;
+            background: #000;
+            border-radius: 50%;
+            justify-self: center;
+            align-self: center;
+        }
+
+        .divider {
+            width: 100%;
+            height: 2px;
+            background: #cbd5e1;
+            margin: 4px 0;
+        }
+
+        .divider-horizontal {
+            height: 100%;
+            width: 2px;
+            background: #cbd5e1;
+            margin: 0 4px;
+        }
+
+        /* Pip Layouts */
+        .pip-0 .pip { display: none; }
+        .pip-1 .pip:nth-child(5) { display: block; }
+        .pip-1 .pip:not(:nth-child(5)) { display: none; }
+        
+        .pip-2 .pip:nth-child(1), .pip-2 .pip:nth-child(9) { display: block; }
+        .pip-2 .pip:not(:nth-child(1)):not(:nth-child(9)) { display: none; }
+
+        .pip-3 .pip:nth-child(1), .pip-3 .pip:nth-child(5), .pip-3 .pip:nth-child(9) { display: block; }
+        .pip-3 .pip:not(:nth-child(1)):not(:nth-child(5)):not(:nth-child(9)) { display: none; }
+
+        .pip-4 .pip:nth-child(1), .pip-4 .pip:nth-child(3), .pip-4 .pip:nth-child(7), .pip-4 .pip:nth-child(9) { display: block; }
+        .pip-4 .pip:not(:nth-child(1)):not(:nth-child(3)):not(:nth-child(7)):not(:nth-child(9)) { display: none; }
+
+        .pip-5 .pip:nth-child(1), .pip-5 .pip:nth-child(3), .pip-5 .pip:nth-child(5), .pip-5 .pip:nth-child(7), .pip-5 .pip:nth-child(9) { display: block; }
+        .pip-5 .pip:not(:nth-child(1)):not(:nth-child(3)):not(:nth-child(5)):not(:nth-child(7)):not(:nth-child(9)) { display: none; }
+
+        .pip-6 .pip:nth-child(1), .pip-6 .pip:nth-child(3), .pip-6 .pip:nth-child(4), .pip-6 .pip:nth-child(6), .pip-6 .pip:nth-child(7), .pip-6 .pip:nth-child(9) { display: block; }
+        .pip-6 .pip:not(:nth-child(1)):not(:nth-child(3)):not(:nth-child(4)):not(:nth-child(6)):not(:nth-child(7)):not(:nth-child(9)) { display: none; }
+
+        .board-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-wrap: nowrap;
+            overflow-x: auto;
+            padding: 40px;
+            gap: 4px;
+            scrollbar-width: thin;
+        }
+
+        .status-msg {
+            animation: fadeIn 0.3s ease-in-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .modal-overlay {
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(4px);
+        }
+    </style>
+</head>
+<body class="flex flex-col min-h-screen">
+
+    <!-- Header -->
+    <header class="p-4 bg-slate-800 flex justify-between items-center border-b border-slate-700 shadow-lg">
+        <h1 class="text-2xl font-extrabold tracking-tighter text-blue-400">DOMNIX <span class="text-white font-light text-sm uppercase tracking-widest ml-1">Engine v1.0</span></h1>
+        <div class="flex gap-4 items-center">
+            <div id="turn-indicator" class="px-3 py-1 rounded-full bg-blue-600 text-sm font-bold animate-pulse">Your Turn</div>
+            <button onclick="resetGame()" class="bg-slate-700 hover:bg-slate-600 px-4 py-1 rounded text-sm transition">New Game</button>
+        </div>
+    </header>
+
+    <!-- Main Game Area -->
+    <main class="flex-grow flex flex-col p-4">
+        <!-- AI Side -->
+        <div class="flex flex-col items-center mb-4">
+            <div class="text-slate-400 text-xs mb-2">DOMNIX ENGINE HAND</div>
+            <div id="ai-hand-display" class="flex gap-1">
+                <!-- AI tiles are hidden, just show counts -->
+            </div>
+        </div>
+
+        <!-- The Board -->
+        <div class="flex-grow relative rounded-2xl domino-board flex items-center justify-center overflow-hidden">
+            <div id="board-container" class="board-container w-full h-full">
+                <!-- Board dominoes will be rendered here -->
+            </div>
+            
+            <div id="game-status" class="absolute top-4 left-1/2 -translate-x-1/2 status-msg bg-slate-900/80 px-6 py-2 rounded-full text-blue-300 font-semibold border border-blue-500/30 hidden">
+                Domnix is thinking...
+            </div>
+        </div>
+
+        <!-- Boneyard -->
+        <div class="mt-4 flex justify-center items-center gap-4">
+            <button id="draw-btn" onclick="handleDraw()" class="bg-amber-600 hover:bg-amber-500 disabled:opacity-30 disabled:cursor-not-allowed px-6 py-3 rounded-xl font-bold flex items-center gap-2 transition transform active:scale-95 shadow-lg">
+                <span>🎴 Draw from Boneyard</span>
+                <span id="boneyard-count" class="bg-black/20 px-2 py-0.5 rounded text-sm">14</span>
+            </button>
+            <div id="skip-btn-container" class="hidden">
+                <button onclick="handleSkip()" class="bg-red-600 hover:bg-red-500 px-6 py-3 rounded-xl font-bold transition transform active:scale-95 shadow-lg">Skip Turn</button>
+            </div>
+        </div>
+
+        <!-- Player Hand -->
+        <div class="mt-6">
+            <div class="text-slate-400 text-xs text-center mb-3">YOUR TILES</div>
+            <div id="player-hand" class="flex flex-wrap justify-center gap-3">
+                <!-- Player tiles rendered here -->
+            </div>
+        </div>
+    </main>
+
+    <!-- End Game Modal -->
+    <div id="game-modal" class="fixed inset-0 z-50 flex items-center justify-center modal-overlay hidden">
+        <div class="bg-slate-800 p-8 rounded-3xl border border-slate-600 shadow-2xl max-w-sm w-full text-center">
+            <h2 id="modal-title" class="text-3xl font-black mb-2">Victory!</h2>
+            <p id="modal-body" class="text-slate-300 mb-6">You defeated Domnix by 12 points.</p>
+            <button onclick="resetGame()" class="w-full bg-blue-600 hover:bg-blue-500 py-3 rounded-xl font-bold text-lg shadow-lg transition">Play Again</button>
+        </div>
+    </div>
+
+    <script>
+        const GAME_STATE = {
+            deck: [],
+            boneyard: [],
+            playerHand: [],
+            aiHand: [],
+            board: [],
+            turn: 'player', // 'player' or 'ai'
+            gameOver: false,
+            leftEnd: null,
+            rightEnd: null
+        };
+
+        // Create domino template
+        function createDominoElement(val1, val2, isHorizontal = false, isHidden = false) {
+            const domino = document.createElement('div');
+            domino.className = `domino ${isHorizontal ? 'horizontal' : ''}`;
+            
+            if (isHidden) {
+                domino.style.background = 'linear-gradient(45deg, #1e293b, #334155)';
+                domino.style.cursor = 'default';
+                domino.innerHTML = `<div class="w-full h-full flex items-center justify-center opacity-20">
+                    <svg class="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 20 20"><path d="M7 3a1 1 0 000 2h6a1 1 0 100-2H7zM4 7a1 1 0 011-1h10a1 1 0 110 2H5a1 1 0 01-1-1zM2 11a2 2 0 012-2h12a2 2 0 012 2v4a2 2 0 01-2 2H4a2 2 0 01-2-2v-4z"></path></svg>
+                </div>`;
+                return domino;
+            }
+
+            const pipsHtml = (val) => `
+                <div class="pip-container pip-${val}">
+                    <div class="pip"></div><div class="pip"></div><div class="pip"></div>
+                    <div class="pip"></div><div class="pip"></div><div class="pip"></div>
+                    <div class="pip"></div><div class="pip"></div><div class="pip"></div>
+                </div>
+            `;
+
+            domino.innerHTML = `
+                ${pipsHtml(val1)}
+                <div class="${isHorizontal ? 'divider-horizontal' : 'divider'}"></div>
+                ${pipsHtml(val2)}
+            `;
+
+            return domino;
+        }
+
+        function initGame() {
+            GAME_STATE.deck = [];
+            GAME_STATE.board = [];
+            GAME_STATE.playerHand = [];
+            GAME_STATE.aiHand = [];
+            GAME_STATE.boneyard = [];
+            GAME_STATE.leftEnd = null;
+            GAME_STATE.rightEnd = null;
+            GAME_STATE.gameOver = false;
+            GAME_STATE.turn = 'player';
+
+            // Generate 28 tiles
+            for (let i = 0; i <= 6; i++) {
+                for (let j = i; j <= 6; j++) {
+                    GAME_STATE.deck.push([i, j]);
+                }
+            }
+
+            // Shuffle
+            for (let i = GAME_STATE.deck.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [GAME_STATE.deck[i], GAME_STATE.deck[j]] = [GAME_STATE.deck[j], GAME_STATE.deck[i]];
+            }
+
+            // Deal
+            GAME_STATE.playerHand = GAME_STATE.deck.splice(0, 7);
+            GAME_STATE.aiHand = GAME_STATE.deck.splice(0, 7);
+            GAME_STATE.boneyard = GAME_STATE.deck;
+
+            renderAll();
+            checkFirstTurn();
+            hideModal();
+        }
+
+        function checkFirstTurn() {
+            // Usually person with highest double goes first, but we'll stick to player start for simplicity
+            updateTurnUI();
+        }
+
+        function renderAll() {
+            renderPlayerHand();
+            renderAIHand();
+            renderBoard();
+            updateBoneyardUI();
+            updateTurnUI();
+        }
+
+        function renderPlayerHand() {
+            const container = document.getElementById('player-hand');
+            container.innerHTML = '';
+            
+            GAME_STATE.playerHand.forEach((tile, index) => {
+                const dom = createDominoElement(tile[0], tile[1]);
+                
+                // Check if playable
+                const canPlay = isPlayable(tile);
+                if (!canPlay && GAME_STATE.turn === 'player') {
+                    dom.classList.add('disabled');
+                }
+
+                dom.onclick = () => {
+                    if (GAME_STATE.turn !== 'player' || !canPlay) return;
+                    handlePlayerMove(index, tile);
+                };
+
+                container.appendChild(dom);
+            });
+        }
+
+        function renderAIHand() {
+            const container = document.getElementById('ai-hand-display');
+            container.innerHTML = '';
+            GAME_STATE.aiHand.forEach(() => {
+                container.appendChild(createDominoElement(0, 0, false, true));
+            });
+        }
+
+        function renderBoard() {
+            const container = document.getElementById('board-container');
+            container.innerHTML = '';
+            
+            GAME_STATE.board.forEach(tile => {
+                const dom = createDominoElement(tile[0], tile[1], true);
+                dom.style.cursor = 'default';
+                container.appendChild(dom);
+            });
+            
+            // Auto scroll to right
+            container.scrollLeft = container.scrollWidth;
+        }
+
+        function updateBoneyardUI() {
+            document.getElementById('boneyard-count').innerText = GAME_STATE.boneyard.length;
+            const btn = document.getElementById('draw-btn');
+            btn.disabled = GAME_STATE.boneyard.length === 0 || GAME_STATE.turn !== 'player' || hasValidMove(GAME_STATE.playerHand);
+        }
+
+        function updateTurnUI() {
+            const indicator = document.getElementById('turn-indicator');
+            const skipContainer = document.getElementById('skip-btn-container');
+            
+            if (GAME_STATE.turn === 'player') {
+                indicator.innerText = 'Your Turn';
+                indicator.className = 'px-3 py-1 rounded-full bg-blue-600 text-sm font-bold animate-pulse';
+                
+                // Show skip only if boneyard empty and no moves
+                const noMoves = !hasValidMove(GAME_STATE.playerHand);
+                const noBoneyard = GAME_STATE.boneyard.length === 0;
+                skipContainer.classList.toggle('hidden', !(noMoves && noBoneyard));
+            } else {
+                indicator.innerText = 'Domnix is playing...';
+                indicator.className = 'px-3 py-1 rounded-full bg-slate-700 text-sm font-bold';
+                skipContainer.classList.add('hidden');
+            }
+        }
+
+        function isPlayable(tile) {
+            if (GAME_STATE.board.length === 0) return true;
+            return tile[0] === GAME_STATE.leftEnd || tile[1] === GAME_STATE.leftEnd ||
+                   tile[0] === GAME_STATE.rightEnd || tile[1] === GAME_STATE.rightEnd;
+        }
+
+        function hasValidMove(hand) {
+            return hand.some(tile => isPlayable(tile));
+        }
+
+        function handlePlayerMove(index, tile) {
+            // Determine side to play on
+            let side = 'right';
+            
+            if (GAME_STATE.board.length > 0) {
+                const matchesLeft = (tile[0] === GAME_STATE.leftEnd || tile[1] === GAME_STATE.leftEnd);
+                const matchesRight = (tile[0] === GAME_STATE.rightEnd || tile[1] === GAME_STATE.rightEnd);
+                
+                if (matchesLeft && matchesRight) {
+                    // In a simple web version, we'll just prioritize right or let logic decide
+                    side = 'right'; 
+                } else if (matchesLeft) {
+                    side = 'left';
+                }
+            }
+
+            playToBoard(index, 'player', side);
+            
+            if (checkWin()) return;
+            
+            GAME_STATE.turn = 'ai';
+            renderAll();
+            setTimeout(domnixEngineTurn, 1000);
+        }
+
+        function playToBoard(index, playerType, side) {
+            const hand = playerType === 'player' ? GAME_STATE.playerHand : GAME_STATE.aiHand;
+            let tile = hand.splice(index, 1)[0];
+
+            if (GAME_STATE.board.length === 0) {
+                GAME_STATE.board.push(tile);
+                GAME_STATE.leftEnd = tile[0];
+                GAME_STATE.rightEnd = tile[1];
+            } else {
+                if (side === 'left') {
+                    // Match with leftEnd
+                    if (tile[1] === GAME_STATE.leftEnd) {
+                        GAME_STATE.board.unshift(tile);
+                        GAME_STATE.leftEnd = tile[0];
+                    } else {
+                        tile = [tile[1], tile[0]]; // Flip
+                        GAME_STATE.board.unshift(tile);
+                        GAME_STATE.leftEnd = tile[0];
+                    }
+                } else {
+                    // Match with rightEnd
+                    if (tile[0] === GAME_STATE.rightEnd) {
+                        GAME_STATE.board.push(tile);
+                        GAME_STATE.rightEnd = tile[1];
+                    } else {
+                        tile = [tile[1], tile[0]]; // Flip
+                        GAME_STATE.board.push(tile);
+                        GAME_STATE.rightEnd = tile[1];
+                    }
+                }
+            }
+        }
+
+        function handleDraw() {
+            if (GAME_STATE.boneyard.length > 0) {
+                const tile = GAME_STATE.boneyard.pop();
+                GAME_STATE.playerHand.push(tile);
+                renderAll();
+            }
+        }
+
+        function handleSkip() {
+            GAME_STATE.turn = 'ai';
+            renderAll();
+            setTimeout(domnixEngineTurn, 1000);
+        }
+
+        function domnixEngineTurn() {
+            if (GAME_STATE.gameOver) return;
+            
+            document.getElementById('game-status').classList.remove('hidden');
+            
+            // AI Logic:
+            // 1. Check if can play
+            let playableIndex = -1;
+            let targetSide = 'right';
+
+            // Find first playable tile
+            for(let i=0; i<GAME_STATE.aiHand.length; i++) {
+                const tile = GAME_STATE.aiHand[i];
+                if (tile[0] === GAME_STATE.rightEnd || tile[1] === GAME_STATE.rightEnd) {
+                    playableIndex = i;
+                    targetSide = 'right';
+                    break;
+                }
+                if (tile[0] === GAME_STATE.leftEnd || tile[1] === GAME_STATE.leftEnd) {
+                    playableIndex = i;
+                    targetSide = 'left';
+                    break;
+                }
+            }
+
+            if (playableIndex !== -1) {
+                playToBoard(playableIndex, 'ai', targetSide);
+                document.getElementById('game-status').classList.add('hidden');
+                
+                if (checkWin()) return;
+                
+                GAME_STATE.turn = 'player';
+                renderAll();
+            } else {
+                // Cannot play, must draw
+                if (GAME_STATE.boneyard.length > 0) {
+                    const drawnTile = GAME_STATE.boneyard.pop();
+                    GAME_STATE.aiHand.push(drawnTile);
+                    renderAll();
+                    // AI tries again after drawing
+                    setTimeout(domnixEngineTurn, 800);
+                } else {
+                    // No boneyard, AI skips
+                    document.getElementById('game-status').innerText = 'Domnix skips turn!';
+                    setTimeout(() => {
+                        document.getElementById('game-status').classList.add('hidden');
+                        document.getElementById('game-status').innerText = 'Domnix is thinking...';
+                        GAME_STATE.turn = 'player';
+                        renderAll();
+                        checkBlockage();
+                    }, 1500);
+                }
+            }
+        }
+
+        function checkWin() {
+            if (GAME_STATE.playerHand.length === 0) {
+                endGame('player');
+                return true;
+            }
+            if (GAME_STATE.aiHand.length === 0) {
+                endGame('ai');
+                return true;
+            }
+            return false;
+        }
+
+        function checkBlockage() {
+            // If neither can play and boneyard is empty
+            if (GAME_STATE.boneyard.length === 0 && !hasValidMove(GAME_STATE.playerHand) && !hasValidMove(GAME_STATE.aiHand)) {
+                // Count pips
+                const pScore = GAME_STATE.playerHand.reduce((acc, t) => acc + t[0] + t[1], 0);
+                const aiScore = GAME_STATE.aiHand.reduce((acc, t) => acc + t[0] + t[1], 0);
+                
+                if (pScore < aiScore) endGame('player', `Blocked! You win by score (${pScore} vs ${aiScore})`);
+                else if (aiScore < pScore) endGame('ai', `Blocked! Domnix wins by score (${aiScore} vs ${pScore})`);
+                else endGame('tie', "It's a dead heat tie!");
+            }
+        }
+
+        function endGame(winner, customMsg) {
+            GAME_STATE.gameOver = true;
+            const modal = document.getElementById('game-modal');
+            const title = document.getElementById('modal-title');
+            const body = document.getElementById('modal-body');
+
+            modal.classList.remove('hidden');
+
+            if (winner === 'player') {
+                title.innerText = "Victory!";
+                title.className = "text-3xl font-black mb-2 text-green-400";
+                body.innerText = customMsg || "You successfully outplayed the Domnix engine!";
+            } else if (winner === 'ai') {
+                title.innerText = "Defeat";
+                title.className = "text-3xl font-black mb-2 text-red-400";
+                body.innerText = customMsg || "Domnix has calculated a winning strategy.";
+            } else {
+                title.innerText = "Draw";
+                body.innerText = "The game is blocked and scores are equal.";
+            }
+        }
+
+        function hideModal() {
+            document.getElementById('game-modal').classList.add('hidden');
+        }
+
+        function resetGame() {
+            initGame();
+        }
+
+        // Initialize on load
+        window.onload = initGame;
+    </script>
+</body>
+</html>

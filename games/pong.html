@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Codenix Pong</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background-color: #fafaf9; }
+        .game-canvas {
+            background-color: #1c1917;
+            border-radius: 12px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+            cursor: none;
+            touch-action: none;
+        }
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+        }
+        .shake { animation: shake 0.3s ease-in-out; }
+    </style>
+</head>
+<body class="flex flex-col items-center justify-center min-h-screen font-sans overflow-hidden">
+
+    <div id="loading" class="fixed inset-0 bg-stone-100 z-50 flex flex-col items-center justify-center transition-opacity duration-1000">
+        <img src="https://scontent-hbe1-1.xx.fbcdn.net/v/t39.30808-6/718816493_122173678946952582_684043749236540884_n.jpg?stp=dst-jpg_tt6&cstp=mx1254x1254&ctp=s1254x1254&_nc_cat=105&ccb=1-7&_nc_sid=6ee11a&_nc_ohc=NyAhiEYLoB8Q7kNvwGODnCy&_nc_oc=AdqdVkG_VLNmSb8AnL8cFGXEKw1SUyQivNB9lXGNwFEpnhMd_XTTsYoIeL6jSWs6fi4&_nc_zt=23&_nc_ht=scontent-hbe1-1.xx&_nc_gid=NitylyVfvXU5I7nHDBYDTg&_nc_ss=7c2a8&oh=00_Af9Er0CMINn2Laf0DWkeVLYIeT4WjAlJZNNF6JsE0zR3cg&oe=6A2C7D41" 
+             onerror="this.src='https://placehold.co/150x150/e7e5e4/57534e?text=Codenix'"
+             class="w-32 h-32 rounded-full mb-6 border-4 border-stone-200 shadow-lg">
+        <h1 class="text-4xl font-extrabold text-stone-800">Codenix Pong</h1>
+        <p class="text-stone-500 mt-2 tracking-widest uppercase text-sm">by Codenix</p>
+    </div>
+
+    <div class="text-center mb-4">
+        <h1 class="text-4xl font-extrabold text-stone-700 mb-1">Codenix Pong</h1>
+        <div class="text-xl text-stone-500">Score: <span id="score" class="font-bold text-stone-800">0 - 0</span></div>
+    </div>
+
+    <div class="relative">
+        <canvas id="gameCanvas" width="600" height="400" class="game-canvas"></canvas>
+        
+        <!-- Game Over Overlay -->
+        <div id="game-over" class="hidden absolute inset-0 bg-stone-900/90 rounded-xl flex flex-col items-center justify-center z-20">
+            <h2 id="result-text" class="text-white text-3xl font-bold mb-4">Game Over!</h2>
+            <button onclick="resetGame()" class="px-6 py-2 bg-yellow-500 text-stone-900 font-bold rounded-lg hover:bg-yellow-400 transition shadow-lg">Play Again</button>
+        </div>
+    </div>
+
+    <div class="mt-6 text-stone-400 text-sm">Move Mouse/Touch to Control Paddle</div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreEl = document.getElementById('score');
+        const gameOverEl = document.getElementById('game-over');
+        const resultText = document.getElementById('result-text');
+
+        let audioCtx = null;
+        let gameRunning = false;
+        
+        // Game State
+        const paddleWidth = 10, paddleHeight = 80;
+        let playerY = 160, computerY = 160;
+        let ball = { x: 300, y: 200, dx: 5, dy: 5, size: 8 };
+        let score = { player: 0, computer: 0 };
+
+        function initAudio() {
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+
+        function playSound(type) {
+            if (!audioCtx) return;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            
+            if (type === 'hit') {
+                osc.frequency.setValueAtTime(400, audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(800, audioCtx.currentTime + 0.1);
+                gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.1);
+            } else if (type === 'score') {
+                osc.frequency.setValueAtTime(200, audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(100, audioCtx.currentTime + 0.3);
+                gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.3);
+            }
+        }
+
+        function update() {
+            if (!gameRunning) return;
+
+            // Ball movement
+            ball.x += ball.dx;
+            ball.y += ball.dy;
+
+            // Wall bounce
+            if (ball.y <= 0 || ball.y >= canvas.height) ball.dy *= -1;
+
+            // Paddle bounce
+            if (ball.x <= paddleWidth + 5 && ball.y >= playerY && ball.y <= playerY + paddleHeight) {
+                ball.dx *= -1.05; // Speed up
+                playSound('hit');
+            }
+            if (ball.x >= canvas.width - paddleWidth - 5 && ball.y >= computerY && ball.y <= computerY + paddleHeight) {
+                ball.dx *= -1.05;
+                playSound('hit');
+            }
+
+            // AI movement
+            const computerSpeed = 4.5;
+            if (computerY + paddleHeight/2 < ball.y) computerY += computerSpeed;
+            else computerY -= computerSpeed;
+
+            // Scoring
+            if (ball.x < 0) { score.computer++; resetBall(); playSound('score'); }
+            if (ball.x > canvas.width) { score.player++; resetBall(); playSound('score'); }
+
+            scoreEl.textContent = `${score.player} - ${score.computer}`;
+
+            if (score.player >= 5 || score.computer >= 5) {
+                endGame(score.player >= 5);
+            }
+        }
+
+        function resetBall() {
+            ball = { x: 300, y: 200, dx: (Math.random() > 0.5 ? 5 : -5), dy: (Math.random() > 0.5 ? 5 : -5), size: 8 };
+        }
+
+        function draw() {
+            ctx.fillStyle = '#1c1917';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Paddles
+            ctx.fillStyle = '#f59e0b';
+            ctx.fillRect(10, playerY, paddleWidth, paddleHeight);
+            ctx.fillStyle = '#ef4444';
+            ctx.fillRect(canvas.width - 20, computerY, paddleWidth, paddleHeight);
+
+            // Ball
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.arc(ball.x, ball.y, ball.size, 0, Math.PI * 2);
+            ctx.fill();
+
+            requestAnimationFrame(() => {
+                update();
+                draw();
+            });
+        }
+
+        function endGame(won) {
+            gameRunning = false;
+            resultText.textContent = won ? "You Won!" : "Game Over!";
+            gameOverEl.classList.remove('hidden');
+        }
+
+        function resetGame() {
+            score = { player: 0, computer: 0 };
+            scoreEl.textContent = "0 - 0";
+            gameOverEl.classList.add('hidden');
+            gameRunning = true;
+            resetBall();
+        }
+
+        // Controls
+        canvas.addEventListener('mousemove', e => {
+            initAudio();
+            const rect = canvas.getBoundingClientRect();
+            playerY = e.clientY - rect.top - paddleHeight/2;
+            if (!gameRunning && gameOverEl.classList.contains('hidden')) gameRunning = true;
+        });
+
+        canvas.addEventListener('touchmove', e => {
+            initAudio();
+            const rect = canvas.getBoundingClientRect();
+            playerY = e.touches[0].clientY - rect.top - paddleHeight/2;
+            if (!gameRunning && gameOverEl.classList.contains('hidden')) gameRunning = true;
+            e.preventDefault();
+        });
+
+        window.onload = () => {
+            setTimeout(() => {
+                document.getElementById('loading').style.opacity = '0';
+                setTimeout(() => document.getElementById('loading').remove(), 1000);
+            }, 1500);
+            draw();
+        };
+    </script>
+</body>
+</html>

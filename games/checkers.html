@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Grandmaster Checkers</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --board-dark: #475569;
+            --board-light: #f8fafc;
+            --piece-red: #ef4444;
+            --piece-black: #1e293b;
+            --highlight: rgba(59, 130, 246, 0.4);
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f1f5f9;
+            color: #1e293b;
+            touch-action: manipulation;
+            user-select: none;
+            overflow-x: hidden;
+        }
+
+        .board-container {
+            aspect-ratio: 1 / 1;
+            width: 100%;
+            max-width: 500px;
+            border: 12px solid #334155;
+            border-radius: 12px;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+            background: #334155;
+        }
+
+        .board {
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            grid-template-rows: repeat(8, 1fr);
+            width: 100%;
+            height: 100%;
+        }
+
+        .square {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+
+        .square.dark { background-color: var(--board-dark); }
+        .square.light { background-color: var(--board-light); }
+
+        .piece {
+            width: 80%;
+            height: 80%;
+            border-radius: 50%;
+            cursor: pointer;
+            position: relative;
+            z-index: 10;
+            transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            box-shadow: 0 4px 0 rgba(0,0,0,0.3);
+            border: 3px solid rgba(255,255,255,0.2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .piece.red { background-color: var(--piece-red); }
+        .piece.black { background-color: var(--piece-black); }
+
+        .piece.king::after {
+            content: '👑';
+            font-size: 1.2rem;
+            color: #fbbf24;
+            text-shadow: 0 2px 2px rgba(0,0,0,0.5);
+        }
+
+        .piece.selected {
+            transform: scale(1.1);
+            outline: 4px solid #3b82f6;
+            outline-offset: 2px;
+        }
+
+        .must-jump {
+            animation: pulse-red 1.5s infinite;
+        }
+
+        @keyframes pulse-red {
+            0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7), 0 4px 0 rgba(0,0,0,0.3); }
+            70% { box-shadow: 0 0 0 15px rgba(239, 68, 68, 0), 0 4px 0 rgba(0,0,0,0.3); }
+            100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0), 0 4px 0 rgba(0,0,0,0.3); }
+        }
+
+        .shake {
+            animation: shake 0.4s cubic-bezier(.36,.07,.19,.97) both;
+        }
+
+        @keyframes shake {
+            10%, 90% { transform: translate3d(-1px, 0, 0); }
+            20%, 80% { transform: translate3d(2px, 0, 0); }
+            30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+            40%, 60% { transform: translate3d(4px, 0, 0); }
+        }
+
+        .move-indicator {
+            position: absolute;
+            width: 25%;
+            height: 25%;
+            background: var(--highlight);
+            border-radius: 50%;
+            z-index: 5;
+            pointer-events: none;
+        }
+
+        .capture-indicator {
+            width: 40%;
+            height: 40%;
+            background: rgba(239, 68, 68, 0.3);
+            border: 2px dashed rgba(239, 68, 68, 0.6);
+        }
+
+        #overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.85);
+            z-index: 100;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(8px);
+        }
+    </style>
+</head>
+<body class="min-h-screen p-4 flex flex-col items-center">
+
+    <header class="mb-6 text-center">
+        <h1 class="text-4xl font-extrabold text-slate-800 tracking-tight">Checkers <span class="text-red-500">Elite</span></h1>
+        <div id="status-container" class="mt-2 flex items-center justify-center gap-2">
+            <span id="turn-indicator" class="w-3 h-3 rounded-full bg-red-500 animate-pulse"></span>
+            <p id="turn-display" class="text-slate-600 font-bold uppercase text-sm tracking-widest">Your Turn</p>
+        </div>
+        <p id="alert-msg" class="text-red-600 font-bold text-xs mt-1 h-4 transition-opacity duration-300 opacity-0 uppercase">Jump Required!</p>
+    </header>
+
+    <main class="flex flex-col lg:flex-row gap-8 items-center justify-center w-full max-w-6xl">
+        
+        <!-- Stats Panel -->
+        <div class="w-full lg:w-64 bg-white p-6 rounded-2xl shadow-xl border border-slate-200 flex flex-col gap-6">
+            <div class="space-y-4">
+                <div class="flex justify-between items-end border-b border-slate-100 pb-2">
+                    <div>
+                        <p class="text-[10px] text-slate-400 uppercase font-black tracking-tighter">Player</p>
+                        <p class="text-sm font-bold text-slate-700">RED TEAM</p>
+                    </div>
+                    <p id="player-score" class="text-3xl font-black text-red-500 line-height-1">12</p>
+                </div>
+                <div class="flex justify-between items-end border-b border-slate-100 pb-2">
+                    <div>
+                        <p class="text-[10px] text-slate-400 uppercase font-black tracking-tighter">Computer</p>
+                        <p class="text-sm font-bold text-slate-700">BLACK TEAM</p>
+                    </div>
+                    <p id="cpu-score" class="text-3xl font-black text-slate-800 line-height-1">12</p>
+                </div>
+            </div>
+            
+            <button onclick="resetGame()" class="w-full bg-slate-800 text-white py-3 rounded-xl hover:bg-slate-700 transition-all font-bold shadow-lg shadow-slate-200 active:scale-95">
+                New Game
+            </button>
+        </div>
+
+        <div class="board-container">
+            <div id="board" class="board"></div>
+        </div>
+
+    </main>
+
+    <!-- Winner Overlay -->
+    <div id="overlay">
+        <div class="bg-white p-10 rounded-3xl shadow-2xl text-center max-w-sm w-full mx-4 border-4 border-slate-100">
+            <div id="winner-icon" class="text-6xl mb-4">🏆</div>
+            <h2 id="winner-text" class="text-4xl font-black text-slate-800 mb-2">Victory!</h2>
+            <p id="winner-subtext" class="text-slate-500 mb-8 font-medium">You dominated the board.</p>
+            <button onclick="resetGame()" class="w-full bg-blue-600 text-white py-4 rounded-2xl font-bold hover:bg-blue-500 shadow-xl shadow-blue-100 transition-all active:scale-95">Play Again</button>
+        </div>
+    </div>
+
+    <script>
+        const RED = 1;
+        const BLACK = 2;
+        const RED_KING = 3;
+        const BLACK_KING = 4;
+        const EMPTY = 0;
+
+        let board = [];
+        let turn = RED;
+        let selected = null;
+        let validMoves = [];
+        let isAiThinking = false;
+        let mustJumpPieces = [];
+
+        // Helper functions
+        const isRed = p => p === RED || p === RED_KING;
+        const isBlack = p => p === BLACK || p === BLACK_KING;
+        const isKing = p => p === RED_KING || p === BLACK_KING;
+
+        function initBoard() {
+            board = Array(8).fill(null).map(() => Array(8).fill(EMPTY));
+            for (let r = 0; r < 8; r++) {
+                for (let c = 0; c < 8; c++) {
+                    if ((r + c) % 2 !== 0) {
+                        if (r < 3) board[r][c] = BLACK;
+                        else if (r > 4) board[r][c] = RED;
+                    }
+                }
+            }
+        }
+
+        function render() {
+            const boardEl = document.getElementById('board');
+            boardEl.innerHTML = '';
+            
+            let redCount = 0;
+            let blackCount = 0;
+
+            // Check for mandatory jumps at the start of the turn
+            const allJumps = getAllPossibleJumps(turn);
+            mustJumpPieces = allJumps.map(m => `${m.fromR},${m.fromC}`);
+            
+            const alertMsg = document.getElementById('alert-msg');
+            if (turn === RED && allJumps.length > 0) {
+                alertMsg.style.opacity = '1';
+            } else {
+                alertMsg.style.opacity = '0';
+            }
+
+            for (let r = 0; r < 8; r++) {
+                for (let c = 0; c < 8; c++) {
+                    const square = document.createElement('div');
+                    square.className = `square ${(r + c) % 2 === 0 ? 'light' : 'dark'}`;
+                    
+                    const p = board[r][c];
+                    if (p !== EMPTY) {
+                        const pieceEl = document.createElement('div');
+                        pieceEl.className = `piece ${isRed(p) ? 'red' : 'black'} ${isKing(p) ? 'king' : ''}`;
+                        
+                        // Add selection and jump feedback
+                        if (selected && selected.r === r && selected.c === c) pieceEl.classList.add('selected');
+                        if (turn === RED && mustJumpPieces.includes(`${r},${c}`)) pieceEl.classList.add('must-jump');
+                        
+                        if (isRed(p)) redCount++; else blackCount++;
+                        
+                        pieceEl.onclick = (e) => {
+                            e.stopPropagation();
+                            handlePieceClick(r, c, pieceEl);
+                        };
+                        square.appendChild(pieceEl);
+                    }
+
+                    // Render move indicators
+                    const move = validMoves.find(m => m.toR === r && m.toC === c);
+                    if (move) {
+                        const indicator = document.createElement('div');
+                        indicator.className = `move-indicator ${move.jump ? 'capture-indicator' : ''}`;
+                        square.appendChild(indicator);
+                        square.onclick = () => handleMove(move);
+                    }
+
+                    boardEl.appendChild(square);
+                }
+            }
+
+            // Update UI scores
+            document.getElementById('player-score').innerText = redCount;
+            document.getElementById('cpu-score').innerText = blackCount;
+            
+            const turnDisplay = document.getElementById('turn-display');
+            const turnIndicator = document.getElementById('turn-indicator');
+            
+            if (turn === RED) {
+                turnDisplay.innerText = "Your Turn";
+                turnIndicator.className = "w-3 h-3 rounded-full bg-red-500 animate-pulse";
+            } else {
+                turnDisplay.innerText = "CPU Thinking...";
+                turnIndicator.className = "w-3 h-3 rounded-full bg-slate-800 animate-bounce";
+            }
+
+            checkGameOver(redCount, blackCount);
+        }
+
+        function handlePieceClick(r, c, element) {
+            if (turn !== RED || isAiThinking) return;
+            
+            const p = board[r][c];
+            if (!isRed(p)) return;
+
+            // If a jump is mandatory, restrict selection
+            if (mustJumpPieces.length > 0 && !mustJumpPieces.includes(`${r},${c}`)) {
+                element.classList.add('shake');
+                setTimeout(() => element.classList.remove('shake'), 400);
+                return;
+            }
+
+            let moves = getPieceMoves(r, c, board);
+            
+            // Only allow jump moves if a jump is available anywhere on the board
+            if (mustJumpPieces.length > 0) {
+                moves = moves.filter(m => m.jump);
+            }
+            
+            if (moves.length === 0) {
+                element.classList.add('shake');
+                setTimeout(() => element.classList.remove('shake'), 400);
+                return;
+            }
+
+            selected = {r, c};
+            validMoves = moves;
+            render();
+        }
+
+        function getPieceMoves(r, c, state) {
+            const p = state[r][c];
+            if (p === EMPTY) return [];
+            
+            const moves = [];
+            const directions = [];
+            
+            // Red moves up, Black moves down, Kings move both
+            if (isRed(p) || p === BLACK_KING) directions.push([-1, -1], [-1, 1]);
+            if (isBlack(p) || p === RED_KING) directions.push([1, -1], [1, 1]);
+
+            directions.forEach(([dr, dc]) => {
+                const nr = r + dr, nc = c + dc;
+                
+                if (nr >= 0 && nr < 8 && nc >= 0 && nc < 8) {
+                    if (state[nr][nc] === EMPTY) {
+                        moves.push({ fromR: r, fromC: c, toR: nr, toC: nc, jump: false });
+                    } else if (isRed(p) !== isRed(state[nr][nc])) {
+                        // Check for jump
+                        const jr = nr + dr, jc = nc + dc;
+                        if (jr >= 0 && jr < 8 && jc >= 0 && jc < 8 && state[jr][jc] === EMPTY) {
+                            moves.push({ fromR: r, fromC: c, toR: jr, toC: jc, jump: true, capR: nr, capC: nc });
+                        }
+                    }
+                }
+            });
+            return moves;
+        }
+
+        function getAllPossibleJumps(player) {
+            let jumps = [];
+            for (let r = 0; r < 8; r++) {
+                for (let c = 0; c < 8; c++) {
+                    const p = board[r][c];
+                    if (p !== EMPTY && isRed(p) === (player === RED)) {
+                        const pieceJumps = getPieceMoves(r, c, board).filter(m => m.jump);
+                        jumps = jumps.concat(pieceJumps);
+                    }
+                }
+            }
+            return jumps;
+        }
+
+        function handleMove(move) {
+            applyMove(board, move);
+            
+            // Check for multi-jump
+            if (move.jump) {
+                const nextJumps = getPieceMoves(move.toR, move.toC, board).filter(m => m.jump);
+                if (nextJumps.length > 0) {
+                    selected = { r: move.toR, c: move.toC };
+                    validMoves = nextJumps;
+                    render();
+                    return;
+                }
+            }
+
+            selected = null;
+            validMoves = [];
+            turn = (turn === RED) ? BLACK : RED;
+            render();
+
+            if (turn === BLACK) {
+                isAiThinking = true;
+                setTimeout(cpuMove, 800);
+            }
+        }
+
+        function applyMove(state, move) {
+            let p = state[move.fromR][move.fromC];
+            
+            // Kinging logic
+            if (p === RED && move.toR === 0) p = RED_KING;
+            if (p === BLACK && move.toR === 7) p = BLACK_KING;
+            
+            state[move.toR][move.toC] = p;
+            state[move.fromR][move.fromC] = EMPTY;
+            if (move.jump) state[move.capR][move.capC] = EMPTY;
+        }
+
+        function cpuMove() {
+            const jumps = getAllPossibleJumps(BLACK);
+            let possibleMoves = jumps.length > 0 ? jumps : [];
+
+            if (possibleMoves.length === 0) {
+                for (let r = 0; r < 8; r++) {
+                    for (let c = 0; c < 8; c++) {
+                        const p = board[r][c];
+                        if (p !== EMPTY && isBlack(p)) {
+                            possibleMoves = possibleMoves.concat(getPieceMoves(r, c, board));
+                        }
+                    }
+                }
+            }
+
+            if (possibleMoves.length > 0) {
+                const choice = possibleMoves[Math.floor(Math.random() * possibleMoves.length)];
+                handleMove(choice);
+            }
+            isAiThinking = false;
+        }
+
+        function checkGameOver(red, black) {
+            if (red === 0 || black === 0) {
+                const overlay = document.getElementById('overlay');
+                const winText = document.getElementById('winner-text');
+                const winSub = document.getElementById('winner-subtext');
+                
+                winText.innerText = red === 0 ? "CPU Wins!" : "Victory!";
+                winSub.innerText = red === 0 ? "The computer outsmarted you this time." : "You've proven your strategic dominance.";
+                document.getElementById('winner-icon').innerText = red === 0 ? "💻" : "🏆";
+                overlay.style.display = 'flex';
+            }
+        }
+
+        function resetGame() {
+            document.getElementById('overlay').style.display = 'none';
+            turn = RED;
+            selected = null;
+            validMoves = [];
+            isAiThinking = false;
+            initBoard();
+            render();
+        }
+
+        // Initialize on load
+        window.onload = resetGame;
+    </script>
+</body>
+</html>

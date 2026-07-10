@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Codenix Memory Match</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background-color: #fafaf9; }
+        .perspective { perspective: 1000px; }
+        .card-inner {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            text-align: center;
+            transition: transform 0.6s;
+            transform-style: preserve-3d;
+            cursor: pointer;
+        }
+        .card.flipped .card-inner { transform: rotateY(180deg); }
+        .card-front, .card-back {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            backface-visibility: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px;
+            font-size: 2rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+        .card-front { background-color: #e7e5e4; color: #a8a29e; }
+        .card-back { background-color: #f59e0b; color: white; transform: rotateY(180deg); }
+        
+        @keyframes success {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
+        .match { animation: success 0.5s ease-in-out; }
+    </style>
+</head>
+<body class="flex flex-col items-center justify-center min-h-screen font-sans overflow-hidden">
+
+    <div id="loading" class="fixed inset-0 bg-stone-100 z-50 flex flex-col items-center justify-center transition-opacity duration-1000">
+        <img src="https://scontent-hbe1-1.xx.fbcdn.net/v/t39.30808-6/718816493_122173678946952582_684043749236540884_n.jpg?stp=dst-jpg_tt6&cstp=mx1254x1254&ctp=s1254x1254&_nc_cat=105&ccb=1-7&_nc_sid=6ee11a&_nc_ohc=NyAhiEYLoB8Q7kNvwGODnCy&_nc_oc=AdqdVkG_VLNmSb8AnL8cFGXEKw1SUyQivNB9lXGNwFEpnhMd_XTTsYoIeL6jSWs6fi4&_nc_zt=23&_nc_ht=scontent-hbe1-1.xx&_nc_gid=NitylyVfvXU5I7nHDBYDTg&_nc_ss=7c2a8&oh=00_Af9Er0CMINn2Laf0DWkeVLYIeT4WjAlJZNNF6JsE0zR3cg&oe=6A2C7D41" 
+             onerror="this.src='https://placehold.co/150x150/e7e5e4/57534e?text=Codenix'"
+             class="w-32 h-32 rounded-full mb-6 border-4 border-stone-200 shadow-lg">
+        <h1 class="text-4xl font-extrabold text-stone-800">Codenix Memory</h1>
+        <p class="text-stone-500 mt-2 tracking-widest uppercase text-sm">by Codenix</p>
+    </div>
+
+    <div class="text-center mb-6">
+        <h1 class="text-4xl font-extrabold text-stone-700 mb-1">Codenix Memory</h1>
+        <div class="text-xl text-stone-500">Pairs Found: <span id="score" class="font-bold text-stone-800">0</span>/8</div>
+    </div>
+
+    <div id="grid" class="grid grid-cols-4 gap-3 w-80 h-80 sm:w-96 sm:h-96">
+        <!-- Cards injected by JS -->
+    </div>
+
+    <div id="game-over" class="hidden absolute inset-0 bg-stone-900/90 rounded-xl flex flex-col items-center justify-center z-20">
+        <h2 class="text-white text-3xl font-bold mb-4">You Won!</h2>
+        <button onclick="resetGame()" class="px-6 py-2 bg-yellow-500 text-stone-900 font-bold rounded-lg hover:bg-yellow-400 transition shadow-lg">Play Again</button>
+    </div>
+
+    <!-- Level Selection Modal -->
+    <div id="level-selection" class="absolute inset-0 bg-stone-100 z-30 flex flex-col items-center justify-center">
+        <h2 class="text-2xl font-bold text-stone-800 mb-6">Select Difficulty</h2>
+        <div class="flex flex-col gap-3">
+            <button onclick="startGame(0)" class="px-8 py-3 bg-stone-800 text-white rounded-lg hover:bg-stone-700 transition">Easy (4x4)</button>
+            <button onclick="startGame(1)" class="px-8 py-3 bg-stone-800 text-white rounded-lg hover:bg-stone-700 transition">Medium (4x6)</button>
+            <button onclick="startGame(2)" class="px-8 py-3 bg-stone-800 text-white rounded-lg hover:bg-stone-700 transition">Hard (6x6)</button>
+        </div>
+    </div>
+
+    <script>
+        const gridEl = document.getElementById('grid');
+        const scoreEl = document.getElementById('score');
+        const gameOverEl = document.getElementById('game-over');
+        const levelSelectionEl = document.getElementById('level-selection');
+        
+        // Updated emoji set (removed rainbow, added more)
+        const allEmojis = ['🚀', '🌟', '💎', '🎮', '💡', '🎨', '🔥', '🛸', '🌌', '🧊', '🧿', '🧸', '🪁', '🍄', '🌻', '🐚', '🪐', '🍀'];
+        
+        const levels = [
+            { name: 'Easy', grid: 'grid-cols-4 w-80 h-80', pairs: 8 },
+            { name: 'Medium', grid: 'grid-cols-4 sm:grid-cols-6 w-80 h-[480px]', pairs: 12 },
+            { name: 'Hard', grid: 'grid-cols-6 w-80 h-80 sm:w-[480px] sm:h-[480px]', pairs: 18 }
+        ];
+
+        let currentLevel = 0;
+        let cards = [];
+        let flipped = [];
+        let matches = 0;
+        let lockBoard = false;
+        let audioCtx = null;
+
+        function initAudio() {
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+
+        function playSound(type) {
+            if (!audioCtx) return;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            
+            if (type === 'flip') {
+                osc.frequency.setValueAtTime(600, audioCtx.currentTime);
+                gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.1);
+            } else if (type === 'match') {
+                osc.frequency.setValueAtTime(800, audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(1200, audioCtx.currentTime + 0.3);
+                gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.3);
+            }
+        }
+
+        function createBoard() {
+            gridEl.className = `grid gap-2 ${levels[currentLevel].grid}`;
+            gridEl.innerHTML = '';
+            cards.forEach((emoji, index) => {
+                const card = document.createElement('div');
+                card.className = 'card perspective w-full h-full';
+                card.innerHTML = `
+                    <div class="card-inner">
+                        <div class="card-front">?</div>
+                        <div class="card-back">${emoji}</div>
+                    </div>
+                `;
+                card.addEventListener('click', () => flipCard(card, emoji));
+                gridEl.appendChild(card);
+            });
+        }
+
+        function startGame(levelIdx) {
+            currentLevel = levelIdx;
+            levelSelectionEl.classList.add('hidden');
+            const numPairs = levels[levelIdx].pairs;
+            const selectedEmojis = allEmojis.slice(0, numPairs);
+            cards = [...selectedEmojis, ...selectedEmojis].sort(() => Math.random() - 0.5);
+            matches = 0;
+            scoreEl.textContent = `0/${numPairs}`;
+            createBoard();
+        }
+
+        function flipCard(card, emoji) {
+            if (lockBoard || card.classList.contains('flipped')) return;
+            
+            initAudio();
+            playSound('flip');
+            card.classList.add('flipped');
+            flipped.push({ card, emoji });
+
+            if (flipped.length === 2) {
+                checkMatch();
+            }
+        }
+
+        function checkMatch() {
+            lockBoard = true;
+            const [c1, c2] = flipped;
+
+            if (c1.emoji === c2.emoji) {
+                matches++;
+                scoreEl.textContent = `${matches}/${levels[currentLevel].pairs}`;
+                playSound('match');
+                c1.card.classList.add('match');
+                c2.card.classList.add('match');
+                flipped = [];
+                lockBoard = false;
+                if (matches === levels[currentLevel].pairs) {
+                    setTimeout(() => gameOverEl.classList.remove('hidden'), 500);
+                }
+            } else {
+                setTimeout(() => {
+                    c1.card.classList.remove('flipped');
+                    c2.card.classList.remove('flipped');
+                    flipped = [];
+                    lockBoard = false;
+                }, 1000);
+            }
+        }
+
+        function resetGame() {
+            matches = 0;
+            gameOverEl.classList.add('hidden');
+            levelSelectionEl.classList.remove('hidden');
+        }
+
+        window.onload = () => {
+            setTimeout(() => {
+                document.getElementById('loading').style.opacity = '0';
+                setTimeout(() => document.getElementById('loading').remove(), 1000);
+            }, 1500);
+        };
+    </script>
+</body>
+</html>

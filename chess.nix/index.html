@@ -1,0 +1,894 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>chess.nix | bots</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome for Chess Pieces -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Chess.js for move validation & state -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;600&family=Inter:wght@300;400;600;700&display=swap');
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #020617; /* slate-950 */
+            color: #f8fafc;
+            overflow-x: hidden;
+        }
+
+        .nix-font {
+            font-family: 'Fira Code', monospace;
+        }
+
+        /* Premium Glassmorphism Panels */
+        .glass-panel {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        }
+
+        /* Adaptive Board Sizing */
+        .board-width {
+            width: 100%;
+            /* Constrains size to viewport height minus the navbar and UI margins */
+            max-width: min(600px, 100%, calc(100vh - 280px));
+        }
+
+        /* Chess Board Styles - Classic Green/Cream */
+        .board-container {
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            grid-template-rows: repeat(8, 1fr);
+            aspect-ratio: 1 / 1;
+            border: 6px solid #1e293b;
+            border-radius: 6px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+            position: relative;
+        }
+
+        .square {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            /* Dynamically scales font (pieces) based on the current bottleneck */
+            font-size: min(10vw, calc((100vh - 280px) / 9), 3.8rem);
+            position: relative;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .square-light { background-color: #ebecd0; color: #739552; }
+        .square-dark { background-color: #739552; color: #ebecd0; }
+
+        .square.selected { background-color: rgba(250, 204, 21, 0.8) !important; } /* Yellow highlight */
+        .square.last-move { background-color: rgba(250, 204, 21, 0.5) !important; }
+
+        .possible-move::after {
+            content: '';
+            position: absolute;
+            width: 20%;
+            height: 20%;
+            background-color: rgba(0, 0, 0, 0.15);
+            border-radius: 50%;
+        }
+
+        .possible-capture::after {
+            content: '';
+            position: absolute;
+            width: 85%;
+            height: 85%;
+            border: 5px solid rgba(0, 0, 0, 0.15);
+            border-radius: 50%;
+            background-color: transparent;
+        }
+
+        /* Board Coordinates */
+        .coord-rank { position: absolute; top: 4px; left: 4px; font-size: 0.65rem; font-weight: 700; line-height: 1; pointer-events: none;}
+        .coord-file { position: absolute; bottom: 2px; right: 4px; font-size: 0.65rem; font-weight: 700; line-height: 1; pointer-events: none;}
+
+        /* Piece Enhancements */
+        .piece-white {
+            color: #ffffff;
+            filter: drop-shadow(0 4px 3px rgba(0,0,0,0.4));
+            -webkit-text-stroke: 1px #333;
+        }
+
+        .piece-black {
+            color: #111827;
+            filter: drop-shadow(0 4px 3px rgba(0,0,0,0.5));
+            -webkit-text-stroke: 1px #555;
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #475569; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #64748b; }
+        
+        .loader {
+            border: 3px solid rgba(255,255,255,0.1);
+            border-top: 3px solid #10b981;
+            border-radius: 50%;
+            width: 16px;
+            height: 16px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-950">
+
+    <!-- Navbar -->
+    <nav class="glass-panel border-b border-slate-700/50 py-4 px-6 flex justify-between items-center shadow-lg sticky top-0 z-10">
+        <div class="flex items-center gap-3">
+            <div class="bg-emerald-500/20 p-2 rounded-lg border border-emerald-500/30">
+                <i class="fa-solid fa-chess-knight text-emerald-400 text-2xl"></i>
+            </div>
+            <h1 class="text-2xl font-bold nix-font tracking-tight">chess.nix <span class="text-slate-500 font-light text-lg">| bots</span></h1>
+        </div>
+        <div class="flex items-center gap-4 text-sm font-medium">
+            <div class="hidden sm:flex flex-col items-end">
+                <span id="nav-title" class="text-emerald-400 text-xs uppercase tracking-wider font-bold">Unrated</span>
+                <span id="nav-rating" class="text-slate-300">Rating: 1200</span>
+            </div>
+            <div class="h-10 w-10 bg-slate-800 rounded-full flex justify-center items-center border-2 border-emerald-500 shadow-lg shadow-emerald-500/20">
+                <i class="fa-solid fa-user text-slate-300"></i>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="flex-grow flex flex-col lg:flex-row p-4 lg:p-8 gap-8 max-w-7xl mx-auto w-full">
+        
+        <!-- Left Column: Board -->
+        <div class="flex-grow flex flex-col items-center lg:items-end w-full lg:w-2/3">
+            
+            <!-- Opponent Info -->
+            <div class="board-width flex justify-between items-center mb-3 px-2 transition-all">
+                <div class="flex items-center gap-3">
+                    <div class="h-12 w-12 bg-slate-800 rounded-lg flex justify-center items-center border border-slate-600 shadow-md">
+                        <i class="fa-solid fa-robot text-slate-300 text-xl"></i>
+                    </div>
+                    <div>
+                        <div class="font-bold flex items-center gap-2 text-lg">
+                            <span id="opp-name">NixBot</span>
+                            <span id="opp-rating" class="bg-slate-700/80 border border-slate-600 text-xs px-2 py-0.5 rounded text-slate-300 font-mono">1200</span>
+                        </div>
+                        <div id="bot-status" class="text-xs text-emerald-400 flex items-center gap-2 h-4 font-medium">
+                            Waiting for match...
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- The Board -->
+            <div id="board" class="board-container board-width transition-all">
+                <!-- Squares injected by JS -->
+            </div>
+
+            <!-- Player Info -->
+            <div class="board-width flex justify-between items-center mt-3 px-2 transition-all">
+                <div class="flex items-center gap-3">
+                    <div class="h-12 w-12 bg-slate-800 rounded-lg flex justify-center items-center border border-emerald-500 shadow-md shadow-emerald-900/30">
+                        <i class="fa-solid fa-user text-emerald-400 text-xl"></i>
+                    </div>
+                    <div>
+                        <div class="font-bold flex items-center gap-2 text-lg">
+                            <span>You</span>
+                            <span id="player-rating-badge" class="bg-emerald-900/40 text-emerald-400 border border-emerald-700/50 text-xs px-2 py-0.5 rounded font-mono">1200</span>
+                            <span id="player-title-badge" class="text-xs text-yellow-400 font-bold tracking-wider"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column: Sidebar -->
+        <div class="w-full lg:w-1/3 flex flex-col gap-6">
+            
+            <!-- Profile Card -->
+            <div class="glass-panel rounded-xl p-6">
+                <h2 class="text-lg font-bold mb-4 nix-font text-white flex items-center gap-2">
+                    <i class="fa-solid fa-chart-simple text-emerald-400"></i> Stats
+                </h2>
+                <div class="grid grid-cols-2 gap-3 mb-4">
+                    <div class="bg-slate-800/50 p-3 rounded-lg border border-slate-700/50">
+                        <div class="text-xs text-slate-400">Current ELO</div>
+                        <div id="stat-rating" class="text-2xl font-bold font-mono">1200</div>
+                    </div>
+                    <div class="bg-slate-800/50 p-3 rounded-lg border border-slate-700/50">
+                        <div class="text-xs text-slate-400">Peak ELO</div>
+                        <div id="stat-peak" class="text-2xl font-bold font-mono text-emerald-400">1200</div>
+                    </div>
+                </div>
+                <div class="bg-slate-800/50 p-3 rounded-lg border border-slate-700/50 mb-4">
+                    <div class="text-xs text-slate-400 mb-2 flex justify-between">
+                        <span>Title Progression</span>
+                        <span id="next-title-label" class="text-slate-500">Novice (1200)</span>
+                    </div>
+                    <div class="w-full bg-slate-900 rounded-full h-2 mb-1">
+                        <div id="title-progress" class="bg-gradient-to-r from-emerald-600 to-emerald-400 h-2 rounded-full transition-all duration-500" style="width: 10%"></div>
+                    </div>
+                    <div class="flex justify-between text-xs font-bold">
+                        <span id="current-title-label" class="text-emerald-400">Unrated</span>
+                    </div>
+                </div>
+                <div class="flex justify-between text-sm text-slate-300 bg-slate-900/40 rounded-lg p-2 border border-slate-700/30">
+                    <div class="flex items-center gap-1"><i class="fa-solid fa-check text-emerald-500 text-xs"></i> <span id="stat-w" class="font-bold">0</span></div>
+                    <div class="flex items-center gap-1"><i class="fa-solid fa-minus text-yellow-500 text-xs"></i> <span id="stat-d" class="font-bold">0</span></div>
+                    <div class="flex items-center gap-1"><i class="fa-solid fa-xmark text-red-500 text-xs"></i> <span id="stat-l" class="font-bold">0</span></div>
+                </div>
+            </div>
+
+            <!-- Matchmaking Controls -->
+            <div id="matchmaking-panel" class="glass-panel rounded-xl p-6">
+                <h2 class="text-lg font-bold mb-4 nix-font text-white flex items-center gap-2">
+                    <i class="fa-solid fa-server text-emerald-400"></i> Opponents
+                </h2>
+                <div class="grid grid-cols-1 gap-2 mb-5 max-h-[300px] overflow-y-auto pr-1">
+                    <button class="level-btn w-full text-left px-4 py-3 bg-slate-800/80 hover:bg-slate-700 border border-slate-600 rounded-lg flex justify-between items-center transition-all selected-level" data-level="1" data-elo="800">
+                        <span class="font-medium"><i class="fa-solid fa-dice text-slate-400 w-5"></i> Lvl 1: RandomBot</span>
+                        <span class="text-xs bg-slate-900 px-2 py-1 rounded font-mono text-slate-300">800</span>
+                    </button>
+                    <button class="level-btn w-full text-left px-4 py-3 bg-slate-800/80 hover:bg-slate-700 border border-slate-600 rounded-lg flex justify-between items-center transition-all" data-level="2" data-elo="1200">
+                        <span class="font-medium"><i class="fa-solid fa-baby text-emerald-400 w-5"></i> Lvl 2: Beginner</span>
+                        <span class="text-xs bg-slate-900 px-2 py-1 rounded font-mono text-slate-300">1200</span>
+                    </button>
+                    <button class="level-btn w-full text-left px-4 py-3 bg-slate-800/80 hover:bg-slate-700 border border-slate-600 rounded-lg flex justify-between items-center transition-all" data-level="3" data-elo="1600">
+                        <span class="font-medium"><i class="fa-solid fa-user-tie text-blue-400 w-5"></i> Lvl 3: Club Player</span>
+                        <span class="text-xs bg-slate-900 px-2 py-1 rounded font-mono text-slate-300">1600</span>
+                    </button>
+                    <button class="level-btn w-full text-left px-4 py-3 bg-slate-800/80 hover:bg-slate-700 border border-slate-600 rounded-lg flex justify-between items-center transition-all" data-level="4" data-elo="2100">
+                        <span class="font-medium"><i class="fa-solid fa-chess text-purple-400 w-5"></i> Lvl 4: Master</span>
+                        <span class="text-xs bg-slate-900 px-2 py-1 rounded font-mono text-slate-300">2100</span>
+                    </button>
+                    <button class="level-btn w-full text-left px-4 py-3 bg-slate-800/80 hover:bg-slate-700 border border-slate-600 rounded-lg flex justify-between items-center transition-all" data-level="5" data-elo="2600">
+                        <span class="font-medium text-yellow-400"><i class="fa-solid fa-crown w-5"></i> Lvl 5: Grandmaster</span>
+                        <span class="text-xs bg-yellow-900/50 text-yellow-400 border border-yellow-700/50 px-2 py-1 rounded font-mono">2600</span>
+                    </button>
+                </div>
+                <button id="start-game-btn" class="w-full bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white font-bold py-3.5 px-4 rounded-lg transition-all shadow-lg shadow-emerald-900/50 transform hover:-translate-y-0.5">
+                    Start Match <i class="fa-solid fa-play ml-2"></i>
+                </button>
+            </div>
+
+            <!-- Move History -->
+            <div id="game-panel" class="hidden glass-panel rounded-xl p-6 flex-grow flex flex-col">
+                <div class="flex justify-between items-center mb-4 border-b border-slate-700/50 pb-3">
+                    <h2 class="text-lg font-bold nix-font text-white flex items-center gap-2">
+                        <i class="fa-solid fa-list text-emerald-400"></i> Match Log
+                    </h2>
+                    <button id="resign-btn" class="text-xs bg-red-900/30 hover:bg-red-900/60 text-red-400 border border-red-800/50 px-3 py-1.5 rounded transition-colors font-bold">
+                        <i class="fa-solid fa-flag mr-1"></i> Resign
+                    </button>
+                </div>
+                
+                <!-- Headers -->
+                <div class="flex text-xs font-bold text-slate-500 mb-2 px-2 uppercase tracking-wider">
+                    <div class="w-12">#</div>
+                    <div class="w-24">White</div>
+                    <div class="w-24">Black</div>
+                </div>
+
+                <div class="bg-slate-900/80 rounded-lg p-3 flex-grow overflow-y-auto max-h-[300px] font-mono text-sm border border-slate-700/50" id="move-history">
+                    <!-- Moves appended here -->
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- Game Over Modal -->
+    <div id="game-over-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex justify-center items-center hidden z-50 px-4">
+        <div class="glass-panel border border-slate-600 rounded-2xl max-w-sm w-full p-8 shadow-2xl transform scale-95 transition-transform duration-300 relative overflow-hidden">
+            <!-- decorative background blob -->
+            <div class="absolute -top-10 -right-10 w-32 h-32 bg-emerald-500/10 rounded-full blur-2xl"></div>
+            
+            <h2 id="modal-title" class="text-3xl font-bold text-center mb-2">Game Over</h2>
+            <p id="modal-desc" class="text-center text-slate-400 mb-6 font-medium">You defeated NixBot!</p>
+            
+            <div class="bg-slate-900/80 rounded-xl p-5 mb-6 flex flex-col items-center border border-slate-700/50 relative z-10">
+                <div class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Rating Update</div>
+                <div class="flex items-center gap-4">
+                    <span id="modal-old-rating" class="text-xl text-slate-500 line-through font-mono">1200</span>
+                    <i class="fa-solid fa-arrow-right text-slate-600 text-lg"></i>
+                    <span id="modal-new-rating" class="text-4xl font-bold text-white font-mono">1225</span>
+                </div>
+                <div id="modal-diff" class="mt-3 text-sm font-bold text-emerald-400 bg-emerald-900/30 px-3 py-1 rounded-full">+25 ELO</div>
+            </div>
+
+            <div id="promotion-alert" class="hidden bg-gradient-to-r from-yellow-900/60 to-yellow-800/40 border border-yellow-700/50 text-yellow-400 p-4 rounded-xl mb-6 text-center text-sm font-bold shadow-lg shadow-yellow-900/20">
+                <div class="text-2xl mb-1"><i class="fa-solid fa-trophy"></i></div>
+                Title Promoted to <span id="promo-title" class="text-white">Novice</span>!
+            </div>
+
+            <button id="modal-close-btn" class="w-full bg-slate-700 hover:bg-slate-600 text-white font-bold py-3.5 px-4 rounded-xl transition-colors border border-slate-500 relative z-10">
+                Back to Menu
+            </button>
+        </div>
+    </div>
+
+    <script>
+        const PIECE_ICONS = {
+            'p': 'fa-chess-pawn', 'r': 'fa-chess-rook', 'n': 'fa-chess-knight',
+            'b': 'fa-chess-bishop', 'q': 'fa-chess-queen', 'k': 'fa-chess-king'
+        };
+
+        const TITLES = [
+            { max: 1199, name: "Unrated", short: "UR", color: "text-slate-400" },
+            { max: 1399, name: "Novice", short: "NOV", color: "text-emerald-400" },
+            { max: 1599, name: "Club Player", short: "CP", color: "text-blue-400" },
+            { max: 1899, name: "Candidate Master", short: "CM", color: "text-purple-400" },
+            { max: 2199, name: "FIDE Master", short: "FM", color: "text-pink-400" },
+            { max: 2499, name: "International Master", short: "IM", color: "text-orange-400" },
+            { max: 9999, name: "Grandmaster", short: "GM", color: "text-yellow-400" },
+        ];
+
+        let player = { rating: 1200, peak: 1200, wins: 0, losses: 0, draws: 0 };
+        let game = new Chess();
+        let selectedSquare = null;
+        let possibleMoves = [];
+        let botLevel = 1;
+        let botElo = 800;
+        let botName = "Lvl 1: RandomBot";
+        let isGameActive = false;
+        let lastMove = null;
+
+        const boardEl = document.getElementById('board');
+        const moveHistoryEl = document.getElementById('move-history');
+        const botStatusEl = document.getElementById('bot-status');
+        
+        // --- CHESS ENGINE LOGIC (TRUE ENGINE) ---
+        // Enhanced Piece Values
+        const pieceValues = { p: 100, n: 320, b: 330, r: 500, q: 900, k: 20000 };
+        
+        // Piece-Square Tables for strong positional play (Values from perspective of White)
+        // Fliped dynamically for Black.
+        const pawnTable = [
+            0,  0,  0,  0,  0,  0,  0,  0,
+            50, 50, 50, 50, 50, 50, 50, 50,
+            10, 10, 20, 30, 30, 20, 10, 10,
+            5,  5, 10, 25, 25, 10,  5,  5,
+            0,  0,  0, 20, 20,  0,  0,  0,
+            5, -5,-10,  0,  0,-10, -5,  5,
+            5, 10, 10,-20,-20, 10, 10,  5,
+            0,  0,  0,  0,  0,  0,  0,  0
+        ];
+        const knightTable = [
+            -50,-40,-30,-30,-30,-30,-40,-50,
+            -40,-20,  0,  0,  0,  0,-20,-40,
+            -30,  0, 10, 15, 15, 10,  0,-30,
+            -30,  5, 15, 20, 20, 15,  5,-30,
+            -30,  0, 15, 20, 20, 15,  0,-30,
+            -30,  5, 10, 15, 15, 10,  5,-30,
+            -40,-20,  0,  5,  5,  0,-20,-40,
+            -50,-40,-30,-30,-30,-30,-40,-50
+        ];
+        const bishopTable = [
+            -20,-10,-10,-10,-10,-10,-10,-20,
+            -10,  0,  0,  0,  0,  0,  0,-10,
+            -10,  0,  5, 10, 10,  5,  0,-10,
+            -10,  5,  5, 10, 10,  5,  5,-10,
+            -10,  0, 10, 10, 10, 10,  0,-10,
+            -10, 10, 10, 10, 10, 10, 10,-10,
+            -10,  5,  0,  0,  0,  0,  5,-10,
+            -20,-10,-10,-10,-10,-10,-10,-20
+        ];
+        const rookTable = [
+            0,  0,  0,  0,  0,  0,  0,  0,
+            5, 10, 10, 10, 10, 10, 10,  5,
+            -5,  0,  0,  0,  0,  0,  0, -5,
+            -5,  0,  0,  0,  0,  0,  0, -5,
+            -5,  0,  0,  0,  0,  0,  0, -5,
+            -5,  0,  0,  0,  0,  0,  0, -5,
+            -5,  0,  0,  0,  0,  0,  0, -5,
+            0,  0,  0,  5,  5,  0,  0,  0
+        ];
+        const queenTable = [
+            -20,-10,-10, -5, -5,-10,-10,-20,
+            -10,  0,  0,  0,  0,  0,  0,-10,
+            -10,  0,  5,  5,  5,  5,  0,-10,
+            -5,  0,  5,  5,  5,  5,  0, -5,
+            0,  0,  5,  5,  5,  5,  0, -5,
+            -10,  5,  5,  5,  5,  5,  0,-10,
+            -10,  0,  5,  0,  0,  0,  0,-10,
+            -20,-10,-10, -5, -5,-10,-10,-20
+        ];
+        const kingTable = [
+            -30,-40,-40,-50,-50,-40,-40,-30,
+            -30,-40,-40,-50,-50,-40,-40,-30,
+            -30,-40,-40,-50,-50,-40,-40,-30,
+            -30,-40,-40,-50,-50,-40,-40,-30,
+            -20,-30,-30,-40,-40,-30,-30,-20,
+            -10,-20,-20,-20,-20,-20,-20,-10,
+            20, 20,  0,  0,  0,  0, 20, 20,
+            20, 30, 10,  0,  0, 10, 30, 20
+        ];
+
+        function getPieceValue(piece, x, y) {
+            if (!piece) return 0;
+            let val = pieceValues[piece.type];
+            let flatIndex = (y * 8) + x;
+            if (piece.color === 'b') flatIndex = 63 - flatIndex; 
+            
+            if (piece.type === 'p') val += pawnTable[flatIndex];
+            else if (piece.type === 'n') val += knightTable[flatIndex];
+            else if (piece.type === 'b') val += bishopTable[flatIndex];
+            else if (piece.type === 'r') val += rookTable[flatIndex];
+            else if (piece.type === 'q') val += queenTable[flatIndex];
+            else if (piece.type === 'k') val += kingTable[flatIndex];
+            
+            return val;
+        }
+
+        function evaluateBoard(gameObj) {
+            let totalEvaluation = 0;
+            const board = gameObj.board();
+            for (let i = 0; i < 8; i++) {
+                for (let j = 0; j < 8; j++) {
+                    const piece = board[i][j];
+                    if (piece) {
+                        let score = getPieceValue(piece, j, i);
+                        totalEvaluation += piece.color === 'w' ? score : -score;
+                    }
+                }
+            }
+            return totalEvaluation;
+        }
+
+        // MVV-LVA Move Ordering (Most Valuable Victim - Least Valuable Attacker)
+        function orderMoves(moves) {
+            moves.sort((a, b) => {
+                let scoreA = 0; let scoreB = 0;
+                if (a.captured) scoreA = 10 * pieceValues[a.captured] - pieceValues[a.piece];
+                if (b.captured) scoreB = 10 * pieceValues[b.captured] - pieceValues[b.piece];
+                if (a.flags.includes('p')) scoreA += 900; // Promotions
+                if (b.flags.includes('p')) scoreB += 900;
+                return scoreB - scoreA;
+            });
+        }
+
+        // Quiescence Search (Searches capture chains to prevent horizon effect)
+        function quiesce(gameObj, alpha, beta, isMaximizingPlayer, qDepth) {
+            let stand_pat = evaluateBoard(gameObj);
+            if (qDepth === 0) return stand_pat;
+
+            if (isMaximizingPlayer) {
+                if (stand_pat >= beta) return beta;
+                if (alpha < stand_pat) alpha = stand_pat;
+            } else {
+                if (stand_pat <= alpha) return alpha;
+                if (beta > stand_pat) beta = stand_pat;
+            }
+
+            const moves = gameObj.moves({ verbose: true });
+            const captures = moves.filter(m => m.captured);
+            orderMoves(captures);
+
+            if (isMaximizingPlayer) {
+                for (let i = 0; i < captures.length; i++) {
+                    gameObj.move(captures[i]);
+                    let score = quiesce(gameObj, alpha, beta, !isMaximizingPlayer, qDepth - 1);
+                    gameObj.undo();
+                    if (score >= beta) return beta;
+                    if (score > alpha) alpha = score;
+                }
+                return alpha;
+            } else {
+                for (let i = 0; i < captures.length; i++) {
+                    gameObj.move(captures[i]);
+                    let score = quiesce(gameObj, alpha, beta, !isMaximizingPlayer, qDepth - 1);
+                    gameObj.undo();
+                    if (score <= alpha) return alpha;
+                    if (score < beta) beta = score;
+                }
+                return beta;
+            }
+        }
+
+        function minimax(gameObj, depth, alpha, beta, isMaximizingPlayer, useQuiescence) {
+            if (depth === 0) {
+                return useQuiescence ? quiesce(gameObj, alpha, beta, isMaximizingPlayer, 3) : evaluateBoard(gameObj);
+            }
+            if (gameObj.game_over()) {
+                if(gameObj.in_checkmate()) return isMaximizingPlayer ? -99999 : 99999;
+                return 0;
+            }
+
+            let moves = gameObj.moves({ verbose: true });
+            orderMoves(moves);
+
+            if (isMaximizingPlayer) {
+                let bestVal = -Infinity;
+                for (let i = 0; i < moves.length; i++) {
+                    gameObj.move(moves[i]);
+                    bestVal = Math.max(bestVal, minimax(gameObj, depth - 1, alpha, beta, !isMaximizingPlayer, useQuiescence));
+                    gameObj.undo();
+                    alpha = Math.max(alpha, bestVal);
+                    if (beta <= alpha) break;
+                }
+                return bestVal;
+            } else {
+                let bestVal = Infinity;
+                for (let i = 0; i < moves.length; i++) {
+                    gameObj.move(moves[i]);
+                    bestVal = Math.min(bestVal, minimax(gameObj, depth - 1, alpha, beta, !isMaximizingPlayer, useQuiescence));
+                    gameObj.undo();
+                    beta = Math.min(beta, bestVal);
+                    if (beta <= alpha) break;
+                }
+                return bestVal;
+            }
+        }
+
+        function getBestMove(gameObj, depth, useQuiescence) {
+            const moves = gameObj.moves({ verbose: true });
+            if (moves.length === 0) return null;
+
+            orderMoves(moves);
+            let bestMove = null;
+            let bestValue = Infinity; // Bot plays Black (Minimizing)
+
+            for (let i = 0; i < moves.length; i++) {
+                gameObj.move(moves[i]);
+                let boardValue = minimax(gameObj, depth - 1, -Infinity, Infinity, true, useQuiescence);
+                gameObj.undo();
+                
+                if (boardValue < bestValue) {
+                    bestValue = boardValue;
+                    bestMove = moves[i];
+                }
+            }
+            return bestMove || moves[0];
+        }
+
+        function triggerBotCalculation() {
+            if (game.game_over()) return;
+            
+            botStatusEl.innerHTML = `<div class="loader"></div> <span class="text-emerald-400">Calculating...</span>`;
+            isGameActive = false;
+
+            // Timeout allows UI to render player's move before JS blocks the thread with heavy calculations
+            setTimeout(() => {
+                const start = Date.now();
+                const possibleMoves = game.moves({ verbose: true });
+                let chosenMove = null;
+
+                if (botLevel === 1) {
+                    // Random (Lvl 1)
+                    chosenMove = possibleMoves[Math.floor(Math.random() * possibleMoves.length)];
+                } else if (botLevel === 2) {
+                    // Depth 2, No Quiesce (Lvl 2)
+                    chosenMove = getBestMove(game, 2, false);
+                } else if (botLevel === 3) {
+                    // Depth 3, No Quiesce (Lvl 3)
+                    chosenMove = getBestMove(game, 3, false);
+                } else if (botLevel === 4) {
+                    // Depth 3 + Quiesce (Lvl 4 Master)
+                    chosenMove = getBestMove(game, 3, true);
+                } else if (botLevel === 5) {
+                    // Depth 4 + Quiesce (Lvl 5 Grandmaster)
+                    chosenMove = getBestMove(game, 4, true);
+                }
+
+                if(!chosenMove && possibleMoves.length > 0) chosenMove = possibleMoves[0];
+
+                const timeTaken = Date.now() - start;
+                const minTime = botLevel > 2 ? 500 : 800; // Artificial delay for realism on fast levels
+                
+                setTimeout(() => {
+                    executeBotMove(chosenMove);
+                }, Math.max(0, minTime - timeTaken));
+
+            }, 50);
+        }
+
+        function executeBotMove(chosenMove) {
+            if (!chosenMove) return;
+            const moveResult = game.move({ from: chosenMove.from, to: chosenMove.to, promotion: 'q' });
+
+            if (moveResult) {
+                lastMove = { from: moveResult.from, to: moveResult.to };
+                playSound(moveResult.captured ? 'capture' : 'move');
+                updateMoveHistory(moveResult);
+                drawBoard();
+                
+                botStatusEl.innerHTML = '<span class="text-slate-400">Your Turn</span>';
+                isGameActive = true;
+                checkGameOver();
+            }
+        }
+
+        // --- UI AND INITIALIZATION ---
+        
+        function init() {
+            updateProfileUI();
+            setupLevelSelectors();
+            document.getElementById('start-game-btn').addEventListener('click', startNewGame);
+            document.getElementById('resign-btn').addEventListener('click', () => handleGameOver('resign'));
+            document.getElementById('modal-close-btn').addEventListener('click', () => {
+                document.getElementById('game-over-modal').classList.add('hidden');
+                document.getElementById('matchmaking-panel').classList.remove('hidden');
+                document.getElementById('game-panel').classList.add('hidden');
+                game = new Chess(); drawBoard();
+            });
+            drawBoard();
+        }
+
+        function setupLevelSelectors() {
+            const buttons = document.querySelectorAll('.level-btn');
+            buttons.forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    buttons.forEach(b => {
+                        b.classList.remove('border-emerald-500', 'bg-slate-700/80', 'selected-level');
+                        b.classList.add('border-slate-600', 'bg-slate-800/80');
+                    });
+                    const target = e.currentTarget;
+                    target.classList.remove('border-slate-600', 'bg-slate-800/80');
+                    target.classList.add('border-emerald-500', 'bg-slate-700/80', 'selected-level');
+                    botLevel = parseInt(target.dataset.level);
+                    botElo = parseInt(target.dataset.elo);
+                    botName = target.querySelector('span.font-medium').innerText.trim();
+                });
+            });
+            buttons[1].click(); // Select Lvl 2 by default
+        }
+
+        function getTitleData(rating) {
+            for (let t of TITLES) {
+                if (rating <= t.max) return t;
+            }
+            return TITLES[TITLES.length - 1];
+        }
+
+        function updateProfileUI() {
+            const currentTitle = getTitleData(player.rating);
+            
+            document.getElementById('stat-rating').innerText = player.rating;
+            document.getElementById('stat-peak').innerText = player.peak;
+            document.getElementById('stat-w').innerText = player.wins;
+            document.getElementById('stat-d').innerText = player.draws;
+            document.getElementById('stat-l').innerText = player.losses;
+            
+            document.getElementById('nav-rating').innerText = `Rating: ${player.rating}`;
+            document.getElementById('nav-title').innerText = currentTitle.name;
+            document.getElementById('nav-title').className = `text-xs uppercase tracking-wider font-bold ${currentTitle.color}`;
+            
+            document.getElementById('player-rating-badge').innerText = player.rating;
+            document.getElementById('player-title-badge').innerText = currentTitle.short;
+            document.getElementById('player-title-badge').className = `text-xs font-bold tracking-wider ml-1 ${currentTitle.color}`;
+
+            let prevMax = 0; let nextTitle = currentTitle;
+            for (let i = 0; i < TITLES.length; i++) {
+                if (player.rating <= TITLES[i].max) {
+                    prevMax = i > 0 ? TITLES[i-1].max + 1 : 0;
+                    nextTitle = i < TITLES.length - 1 ? TITLES[i+1] : TITLES[i];
+                    break;
+                }
+            }
+            
+            let range = currentTitle.max - prevMax;
+            let progress = range > 0 ? ((player.rating - prevMax) / range) * 100 : 100;
+            if(progress > 100) progress = 100;
+
+            document.getElementById('title-progress').style.width = `${progress}%`;
+            document.getElementById('current-title-label').innerText = currentTitle.name;
+            document.getElementById('current-title-label').className = currentTitle.color;
+            document.getElementById('next-title-label').innerText = currentTitle === nextTitle ? "Max Level" : `${nextTitle.name} (${currentTitle.max + 1})`;
+        }
+
+        function drawBoard() {
+            boardEl.innerHTML = '';
+            const board = game.board();
+            
+            for (let row = 0; row < 8; row++) {
+                for (let col = 0; col < 8; col++) {
+                    const squareId = String.fromCharCode(97 + col) + (8 - row);
+                    const isLight = (row + col) % 2 === 0;
+                    const piece = board[row][col];
+                    
+                    const div = document.createElement('div');
+                    div.className = `square ${isLight ? 'square-light' : 'square-dark'}`;
+                    div.dataset.square = squareId;
+                    
+                    if (selectedSquare === squareId) div.classList.add('selected');
+                    if (lastMove && (lastMove.from === squareId || lastMove.to === squareId)) div.classList.add('last-move');
+                    
+                    const isPossibleMove = possibleMoves.find(m => m.to === squareId);
+                    if (isPossibleMove) {
+                        if (piece) div.classList.add('possible-capture');
+                        else div.classList.add('possible-move');
+                    }
+
+                    // Render Coordinates
+                    if (col === 0) {
+                        const rank = document.createElement('span');
+                        rank.innerText = 8 - row;
+                        rank.className = `coord-rank ${isLight ? 'text-[#739552]' : 'text-[#ebecd0]'}`;
+                        div.appendChild(rank);
+                    }
+                    if (row === 7) {
+                        const file = document.createElement('span');
+                        file.innerText = String.fromCharCode(97 + col);
+                        file.className = `coord-file ${isLight ? 'text-[#739552]' : 'text-[#ebecd0]'}`;
+                        div.appendChild(file);
+                    }
+
+                    if (piece) {
+                        const icon = document.createElement('i');
+                        icon.className = `fa-solid ${PIECE_ICONS[piece.type]} ${piece.color === 'w' ? 'piece-white' : 'piece-black'}`;
+                        div.appendChild(icon);
+                    }
+
+                    div.addEventListener('click', () => handleSquareClick(squareId));
+                    boardEl.appendChild(div);
+                }
+            }
+        }
+
+        function handleSquareClick(squareId) {
+            if (!isGameActive) return;
+            if (game.turn() !== 'w') return; 
+
+            const pieceOnSquare = game.get(squareId);
+            const move = possibleMoves.find(m => m.to === squareId);
+            
+            if (move) {
+                attemptMove(move);
+                return;
+            }
+
+            if (pieceOnSquare && pieceOnSquare.color === 'w') {
+                selectedSquare = squareId;
+                possibleMoves = game.moves({ square: squareId, verbose: true });
+                drawBoard();
+            } else {
+                selectedSquare = null;
+                possibleMoves = [];
+                drawBoard();
+            }
+        }
+
+        function attemptMove(moveInfo) {
+            const move = game.move({ from: moveInfo.from, to: moveInfo.to, promotion: 'q' });
+            if (move) {
+                selectedSquare = null;
+                possibleMoves = [];
+                lastMove = { from: move.from, to: move.to };
+                playSound(move.captured ? 'capture' : 'move');
+                updateMoveHistory(move);
+                drawBoard();
+
+                if (checkGameOver()) return;
+                triggerBotCalculation();
+            }
+        }
+
+        function updateMoveHistory(move) {
+            const isWhite = move.color === 'w';
+            if (isWhite) {
+                const moveNum = Math.floor(game.history().length / 2) + 1;
+                const row = document.createElement('div');
+                row.className = "flex py-1.5 border-b border-slate-700/30 px-2 hover:bg-slate-800/50 transition-colors";
+                row.innerHTML = `<div class="w-12 text-slate-500">${moveNum}.</div><div class="w-24 font-bold text-emerald-400">${move.san}</div><div class="w-24 text-slate-500" id="black-move-${moveNum}">...</div>`;
+                moveHistoryEl.appendChild(row);
+                moveHistoryEl.scrollTop = moveHistoryEl.scrollHeight;
+            } else {
+                const moveNum = Math.floor(game.history().length / 2);
+                const el = document.getElementById(`black-move-${moveNum}`);
+                if (el) {
+                    el.innerText = move.san;
+                    el.classList.remove('text-slate-500');
+                    el.classList.add('text-slate-300');
+                }
+            }
+        }
+
+        function startNewGame() {
+            game = new Chess();
+            selectedSquare = null; possibleMoves = []; lastMove = null; isGameActive = true;
+            document.getElementById('opp-name').innerText = botName;
+            document.getElementById('opp-rating').innerText = botElo;
+            document.getElementById('matchmaking-panel').classList.add('hidden');
+            document.getElementById('game-panel').classList.remove('hidden');
+            moveHistoryEl.innerHTML = '';
+            botStatusEl.innerHTML = '<span class="text-slate-400">Your Turn</span>';
+            drawBoard();
+        }
+
+        function checkGameOver() {
+            if (game.game_over()) {
+                isGameActive = false;
+                playSound('end');
+                let result = 'draw';
+                if (game.in_checkmate()) result = game.turn() === 'w' ? 'loss' : 'win';
+                handleGameOver(result);
+                return true;
+            }
+            return false;
+        }
+
+        function handleGameOver(result) {
+            isGameActive = false;
+            botStatusEl.innerHTML = 'Match Finished';
+
+            let titleStr = "Game Over"; let descStr = ""; let scoreMultiplier = 0;
+
+            if (result === 'win') {
+                titleStr = "Victory!"; descStr = `You checkmated ${botName}!`;
+                scoreMultiplier = 1; player.wins++;
+                document.getElementById('modal-title').className = "text-3xl font-bold text-center mb-2 text-emerald-400 drop-shadow-[0_0_8px_rgba(16,185,129,0.5)]";
+            } else if (result === 'loss' || result === 'resign') {
+                titleStr = "Defeat"; descStr = result === 'resign' ? `You resigned against ${botName}.` : `You were checkmated by ${botName}.`;
+                scoreMultiplier = 0; player.losses++;
+                document.getElementById('modal-title').className = "text-3xl font-bold text-center mb-2 text-red-400 drop-shadow-[0_0_8px_rgba(248,113,113,0.5)]";
+            } else {
+                titleStr = "Draw"; descStr = "The game ended in a draw.";
+                scoreMultiplier = 0.5; player.draws++;
+                document.getElementById('modal-title').className = "text-3xl font-bold text-center mb-2 text-yellow-400 drop-shadow-[0_0_8px_rgba(250,204,21,0.5)]";
+            }
+
+            const oldRating = player.rating; const oldTitle = getTitleData(oldRating);
+            const diff = Math.round(32 * (scoreMultiplier - (1 / (1 + Math.pow(10, (botElo - player.rating) / 400)))));
+            player.rating = Math.max(100, player.rating + diff);
+            if (player.rating > player.peak) player.peak = player.rating;
+
+            const newTitle = getTitleData(player.rating);
+
+            document.getElementById('modal-title').innerText = titleStr;
+            document.getElementById('modal-desc').innerText = descStr;
+            document.getElementById('modal-old-rating').innerText = oldRating;
+            document.getElementById('modal-new-rating').innerText = player.rating;
+            
+            const diffEl = document.getElementById('modal-diff');
+            if (diff > 0) {
+                diffEl.innerText = `+${diff} ELO`; diffEl.className = "mt-3 text-sm font-bold text-emerald-400 bg-emerald-900/30 border border-emerald-700/50 px-3 py-1 rounded-full";
+            } else if (diff < 0) {
+                diffEl.innerText = `${diff} ELO`; diffEl.className = "mt-3 text-sm font-bold text-red-400 bg-red-900/30 border border-red-700/50 px-3 py-1 rounded-full";
+            } else {
+                diffEl.innerText = `±0 ELO`; diffEl.className = "mt-3 text-sm font-bold text-slate-400 bg-slate-800 border border-slate-600 px-3 py-1 rounded-full";
+            }
+
+            const promoAlert = document.getElementById('promotion-alert');
+            if (newTitle.max > oldTitle.max) {
+                promoAlert.classList.remove('hidden'); document.getElementById('promo-title').innerText = newTitle.name;
+            } else {
+                promoAlert.classList.add('hidden');
+            }
+
+            updateProfileUI();
+            setTimeout(() => { document.getElementById('game-over-modal').classList.remove('hidden'); }, 1000);
+        }
+
+        // --- AUDIO ENGINE ---
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        function playSound(type) {
+            if(audioCtx.state === 'suspended') audioCtx.resume();
+            const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            
+            if (type === 'move') {
+                osc.type = 'sine'; osc.frequency.setValueAtTime(300, audioCtx.currentTime); osc.frequency.exponentialRampToValueAtTime(500, audioCtx.currentTime + 0.1);
+                gain.gain.setValueAtTime(0.1, audioCtx.currentTime); gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+                osc.start(); osc.stop(audioCtx.currentTime + 0.1);
+            } else if (type === 'capture') {
+                osc.type = 'square'; osc.frequency.setValueAtTime(150, audioCtx.currentTime); osc.frequency.exponentialRampToValueAtTime(80, audioCtx.currentTime + 0.15);
+                gain.gain.setValueAtTime(0.15, audioCtx.currentTime); gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
+                osc.start(); osc.stop(audioCtx.currentTime + 0.15);
+            } else if (type === 'end') {
+                osc.type = 'triangle'; osc.frequency.setValueAtTime(200, audioCtx.currentTime); osc.frequency.exponentialRampToValueAtTime(400, audioCtx.currentTime + 0.3);
+                gain.gain.setValueAtTime(0.15, audioCtx.currentTime); gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+                osc.start(); osc.stop(audioCtx.currentTime + 0.3);
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>

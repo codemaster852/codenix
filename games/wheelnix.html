@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WheelNix | Create & Spin</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap');
+        
+        :root {
+            --primary: #6366f1;
+            --secondary: #ec4899;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0f172a;
+            color: #f8fafc;
+            overflow-x: hidden;
+        }
+
+        .wheel-container {
+            position: relative;
+            width: 100%;
+            max-width: 500px;
+            aspect-ratio: 1 / 1;
+            margin: 0 auto;
+        }
+
+        #wheel {
+            width: 100%;
+            height: 100%;
+            transition: transform 4s cubic-bezier(0.15, 0, 0.15, 1);
+            filter: drop-shadow(0 0 20px rgba(99, 102, 241, 0.2));
+        }
+
+        .pointer {
+            position: absolute;
+            top: -10px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 40px;
+            height: 50px;
+            z-index: 20;
+            filter: drop-shadow(0 4px 6px rgba(0,0,0,0.3));
+            transition: transform 0.1s ease;
+        }
+
+        /* Pointer "Click" animation */
+        .pointer.tick {
+            transform: translateX(-50%) rotate(-15deg);
+        }
+
+        .glass-card {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .winner-announcement {
+            animation: bounce 0.5s ease infinite alternate;
+            box-shadow: 0 0 40px rgba(236, 72, 153, 0.3);
+        }
+
+        @keyframes bounce {
+            from { transform: translateY(0); }
+            to { transform: translateY(-10px); }
+        }
+
+        /* Confetti particle style */
+        .confetti {
+            position: fixed;
+            width: 10px;
+            height: 10px;
+            z-index: 50;
+            pointer-events: none;
+        }
+
+        @keyframes fall {
+            to { transform: translateY(100vh) rotate(720deg); opacity: 0; }
+        }
+
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #1e293b;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #475569;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+
+    <div class="max-w-6xl mx-auto">
+        <!-- Header -->
+        <header class="flex justify-between items-center mb-12">
+            <div>
+                <h1 class="text-4xl font-extrabold tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-pink-500">
+                    WHEELNIX
+                </h1>
+                <p class="text-slate-400 text-sm">Design. Spin. Decide.</p>
+            </div>
+            <div class="flex gap-3">
+                <button id="audio-toggle" class="p-2 px-4 rounded-full bg-slate-800 hover:bg-slate-700 transition flex items-center">
+                    <i id="audio-icon" class="fas fa-volume-up mr-2"></i> Sound On
+                </button>
+                <button id="reset-btn" class="p-2 px-4 rounded-full bg-slate-800 hover:bg-slate-700 transition">
+                    <i class="fas fa-undo mr-2"></i> Reset
+                </button>
+            </div>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            <!-- Left: Controls -->
+            <div class="lg:col-span-4 space-y-6">
+                <section class="glass-card p-6 rounded-3xl">
+                    <h2 class="text-xl font-semibold mb-4 flex items-center">
+                        <i class="fas fa-list-ul mr-3 text-indigo-400"></i> Edit Options
+                    </h2>
+                    <div id="options-list" class="space-y-3 mb-4 max-h-[40vh] overflow-y-auto pr-2">
+                        <!-- Options will be injected here -->
+                    </div>
+                    <button id="add-option" class="w-full py-3 rounded-xl border-2 border-dashed border-slate-600 text-slate-400 hover:border-indigo-400 hover:text-indigo-400 transition flex items-center justify-center">
+                        <i class="fas fa-plus mr-2"></i> Add New Choice
+                    </button>
+                </section>
+
+                <section class="glass-card p-6 rounded-3xl">
+                    <h2 class="text-xl font-semibold mb-4 flex items-center">
+                        <i class="fas fa-history mr-3 text-pink-400"></i> History
+                    </h2>
+                    <div id="history-log" class="text-sm space-y-2 text-slate-400">
+                        <p class="italic">No spins yet...</p>
+                    </div>
+                </section>
+            </div>
+
+            <!-- Right: The Wheel -->
+            <div class="lg:col-span-8 flex flex-col items-center">
+                <div class="wheel-container mb-8">
+                    <!-- Pointer SVG -->
+                    <div id="pointer" class="pointer">
+                        <svg viewBox="0 0 40 50" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M20 50L40 0H0L20 50Z" fill="#ec4899"/>
+                            <path d="M20 40L30 5H10L20 40Z" fill="rgba(255,255,255,0.3)"/>
+                        </svg>
+                    </div>
+                    <!-- Wheel Canvas/SVG -->
+                    <svg id="wheel" viewBox="0 0 100 100"></svg>
+                </div>
+
+                <div class="flex flex-col items-center gap-6 w-full max-w-md">
+                    <button id="spin-btn" class="group relative w-full py-5 rounded-2xl bg-gradient-to-r from-indigo-600 to-pink-600 font-bold text-2xl shadow-xl shadow-indigo-500/40 hover:scale-105 active:scale-95 transition-all overflow-hidden">
+                        <span class="relative z-10">SPIN THE WHEEL</span>
+                        <div class="absolute inset-0 bg-white/10 translate-y-full group-hover:translate-y-0 transition-transform"></div>
+                    </button>
+
+                    <div id="winner-display" class="hidden text-center p-6 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 w-full">
+                        <p class="text-slate-400 uppercase tracking-widest text-xs mb-1">The Result is</p>
+                        <h3 id="winner-text" class="text-4xl font-black text-white drop-shadow-lg">Winner Name</h3>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notification system -->
+    <div id="toast" class="fixed bottom-8 left-1/2 -translate-x-1/2 px-6 py-3 rounded-full bg-slate-800 border border-slate-700 text-white shadow-2xl opacity-0 pointer-events-none transition-all duration-300 z-[100]">
+        Message here
+    </div>
+
+    <script>
+        // --- State Management ---
+        let options = [
+            { id: 1, text: "Coffee", color: "#6366f1" },
+            { id: 2, text: "Tea", color: "#ec4899" },
+            { id: 3, text: "Juice", color: "#f59e0b" },
+            { id: 4, text: "Water", color: "#10b981" },
+            { id: 5, text: "Soda", color: "#8b5cf6" }
+        ];
+        
+        let isSpinning = false;
+        let currentRotation = 0;
+        let audioEnabled = true;
+        const colors = ["#6366f1", "#ec4899", "#f59e0b", "#10b981", "#8b5cf6", "#ef4444", "#06b6d4"];
+
+        // --- Audio Engine ---
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        
+        function playTick() {
+            if (!audioEnabled) return;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(600, audioCtx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(100, audioCtx.currentTime + 0.05);
+            gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.05);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.05);
+        }
+
+        function playWinnerSound() {
+            if (!audioEnabled) return;
+            const notes = [523.25, 659.25, 783.99, 1046.50]; // C Major arpeggio
+            notes.forEach((freq, i) => {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(freq, audioCtx.currentTime + i * 0.1);
+                gain.gain.setValueAtTime(0.1, audioCtx.currentTime + i * 0.1);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + i * 0.1 + 0.4);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start(audioCtx.currentTime + i * 0.1);
+                osc.stop(audioCtx.currentTime + i * 0.1 + 0.5);
+            });
+        }
+
+        // --- DOM Elements ---
+        const wheelSvg = document.getElementById('wheel');
+        const pointerEl = document.getElementById('pointer');
+        const optionsContainer = document.getElementById('options-list');
+        const addBtn = document.getElementById('add-option');
+        const spinBtn = document.getElementById('spin-btn');
+        const winnerDisplay = document.getElementById('winner-display');
+        const winnerText = document.getElementById('winner-text');
+        const historyLog = document.getElementById('history-log');
+        const resetBtn = document.getElementById('reset-btn');
+        const audioToggle = document.getElementById('audio-toggle');
+        const audioIcon = document.getElementById('audio-icon');
+
+        // --- Core Functions ---
+
+        function drawWheel() {
+            wheelSvg.innerHTML = '';
+            const sliceAngle = 360 / options.length;
+            
+            options.forEach((opt, i) => {
+                const startAngle = i * sliceAngle;
+                const endAngle = startAngle + sliceAngle;
+                
+                const x1 = 50 + 50 * Math.cos(Math.PI * (startAngle - 90) / 180);
+                const y1 = 50 + 50 * Math.sin(Math.PI * (startAngle - 90) / 180);
+                const x2 = 50 + 50 * Math.cos(Math.PI * (endAngle - 90) / 180);
+                const y2 = 50 + 50 * Math.sin(Math.PI * (endAngle - 90) / 180);
+                
+                const largeArcFlag = sliceAngle > 180 ? 1 : 0;
+                const pathData = `M 50 50 L ${x1} ${y1} A 50 50 0 ${largeArcFlag} 1 ${x2} ${y2} Z`;
+                
+                const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+                path.setAttribute("d", pathData);
+                path.setAttribute("fill", opt.color);
+                path.setAttribute("stroke", "#0f172a");
+                path.setAttribute("stroke-width", "0.5");
+                wheelSvg.appendChild(path);
+
+                const textAngle = startAngle + sliceAngle / 2;
+                const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                const radius = 35;
+                const tx = 50 + radius * Math.cos(Math.PI * (textAngle - 90) / 180);
+                const ty = 50 + radius * Math.sin(Math.PI * (textAngle - 90) / 180);
+                
+                text.setAttribute("x", tx);
+                text.setAttribute("y", ty);
+                text.setAttribute("fill", "white");
+                text.setAttribute("font-size", options.length > 10 ? "2" : "3");
+                text.setAttribute("font-weight", "600");
+                text.setAttribute("text-anchor", "middle");
+                text.setAttribute("transform", `rotate(${textAngle}, ${tx}, ${ty})`);
+                text.textContent = opt.text.length > 12 ? opt.text.substring(0, 10) + '..' : opt.text;
+                wheelSvg.appendChild(text);
+            });
+
+            const center = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+            center.setAttribute("cx", "50");
+            center.setAttribute("cy", "50");
+            center.setAttribute("r", "5");
+            center.setAttribute("fill", "#1e293b");
+            center.setAttribute("stroke", "#475569");
+            center.setAttribute("stroke-width", "1");
+            wheelSvg.appendChild(center);
+        }
+
+        function createConfetti() {
+            for (let i = 0; i < 50; i++) {
+                const conf = document.createElement('div');
+                conf.className = 'confetti';
+                conf.style.left = Math.random() * 100 + 'vw';
+                conf.style.top = '-10px';
+                conf.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+                conf.style.animation = `fall ${Math.random() * 3 + 2}s linear forwards`;
+                conf.style.borderRadius = Math.random() > 0.5 ? '50%' : '2px';
+                document.body.appendChild(conf);
+                setTimeout(() => conf.remove(), 5000);
+            }
+        }
+
+        function renderOptions() {
+            optionsContainer.innerHTML = '';
+            options.forEach((opt) => {
+                const div = document.createElement('div');
+                div.className = "flex items-center gap-2 group animate-in fade-in slide-in-from-left-2";
+                div.innerHTML = `
+                    <div class="w-8 h-8 rounded-lg shrink-0" style="background: ${opt.color}"></div>
+                    <input type="text" value="${opt.text}" 
+                        class="bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-2 w-full focus:ring-1 focus:ring-indigo-500 outline-none transition"
+                        onchange="updateOption(${opt.id}, this.value)">
+                    <button onclick="removeOption(${opt.id})" class="text-slate-500 hover:text-red-400 p-2 opacity-0 group-hover:opacity-100 transition">
+                        <i class="fas fa-trash-alt"></i>
+                    </button>
+                `;
+                optionsContainer.appendChild(div);
+            });
+            drawWheel();
+        }
+
+        window.updateOption = (id, newText) => {
+            const opt = options.find(o => o.id === id);
+            if (opt) opt.text = newText;
+            drawWheel();
+        };
+
+        window.removeOption = (id) => {
+            if (options.length <= 2) {
+                showToast("Keep at least 2 options!");
+                return;
+            }
+            options = options.filter(o => o.id !== id);
+            renderOptions();
+        };
+
+        function addOption() {
+            const id = Date.now();
+            const color = colors[options.length % colors.length];
+            options.push({ id, text: `Choice ${options.length + 1}`, color });
+            renderOptions();
+            optionsContainer.scrollTop = optionsContainer.scrollHeight;
+        }
+
+        function spin() {
+            if (isSpinning) return;
+            if (options.length < 2) return;
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+
+            isSpinning = true;
+            winnerDisplay.classList.add('hidden');
+            
+            const extraSpins = 5 + Math.random() * 5;
+            const randomStop = Math.random() * 360;
+            const totalRotation = extraSpins * 360 + randomStop;
+            
+            const lastRotation = currentRotation;
+            currentRotation += totalRotation;
+            
+            wheelSvg.style.transform = `rotate(${currentRotation}deg)`;
+
+            // Handle audio/visual ticks during spin
+            const sliceSize = 360 / options.length;
+            let lastTickAt = lastRotation;
+
+            const checkTick = () => {
+                if (!isSpinning) return;
+                
+                // Get current computed style for rotation
+                const style = window.getComputedStyle(wheelSvg);
+                const matrix = new WebKitCSSMatrix(style.transform);
+                const angle = Math.atan2(matrix.b, matrix.a) * (180 / Math.PI);
+                const positiveAngle = angle < 0 ? angle + 360 : angle;
+                
+                // Track progress of the spin to trigger ticks
+                // (Simplified tick logic for visual feedback)
+                const currentRelAngle = (currentRotation - lastRotation) * (performance.now() % 4000 / 4000); 
+                // We use a simpler interval-based tick logic tied to the 4s duration
+            };
+
+            // Sound ticker simulation
+            let ticksPlayed = 0;
+            const totalSlices = Math.floor(totalRotation / sliceSize);
+            const startTime = performance.now();
+            const duration = 4000;
+
+            const tickInterval = setInterval(() => {
+                const elapsed = performance.now() - startTime;
+                if (elapsed > duration) {
+                    clearInterval(tickInterval);
+                    return;
+                }
+
+                // Cubic-bezier approximation for ticks
+                const t = elapsed / duration;
+                const progress = t * (2 - t); // simplified ease out
+                const currentTickCount = Math.floor(progress * totalSlices);
+                
+                if (currentTickCount > ticksPlayed) {
+                    playTick();
+                    pointerEl.classList.add('tick');
+                    setTimeout(() => pointerEl.classList.remove('tick'), 50);
+                    ticksPlayed = currentTickCount;
+                }
+            }, 10);
+
+            setTimeout(() => {
+                isSpinning = false;
+                const actualDegree = currentRotation % 360;
+                const winningIndex = Math.floor(((360 - (actualDegree % 360)) % 360) / sliceSize);
+                const winner = options[winningIndex];
+                announceWinner(winner);
+            }, 4000);
+        }
+
+        function announceWinner(winner) {
+            winnerText.innerText = winner.text;
+            winnerDisplay.classList.remove('hidden');
+            winnerDisplay.classList.add('winner-announcement');
+            
+            playWinnerSound();
+            createConfetti();
+
+            const logItem = document.createElement('div');
+            logItem.className = "flex justify-between border-b border-slate-800 pb-1 animate-in zoom-in";
+            logItem.innerHTML = `<span>${winner.text}</span> <span class="text-xs opacity-50">${new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>`;
+            
+            if (historyLog.querySelector('p')) historyLog.innerHTML = '';
+            historyLog.prepend(logItem);
+        }
+
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            toast.innerText = msg;
+            toast.classList.remove('opacity-0', 'pointer-events-none');
+            toast.classList.add('opacity-100', 'translate-y-[-10px]');
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'pointer-events-none');
+                toast.classList.remove('opacity-100', 'translate-y-[-10px]');
+            }, 3000);
+        }
+
+        // --- Event Listeners ---
+        addBtn.addEventListener('click', addOption);
+        spinBtn.addEventListener('click', spin);
+        resetBtn.addEventListener('click', () => {
+            if (confirm("Reset everything?")) location.reload();
+        });
+
+        audioToggle.addEventListener('click', () => {
+            audioEnabled = !audioEnabled;
+            audioIcon.className = audioEnabled ? 'fas fa-volume-up mr-2' : 'fas fa-volume-mute mr-2';
+            audioToggle.innerHTML = `<i class="${audioIcon.className}"></i> Sound ${audioEnabled ? 'On' : 'Off'}`;
+            if (audioEnabled && audioCtx.state === 'suspended') audioCtx.resume();
+        });
+
+        // Initialize
+        renderOptions();
+    </script>
+</body>
+</html>

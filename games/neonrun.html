@@ -1,0 +1,1218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Neon Dash - A Game by Codenix</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Outfit', sans-serif;
+            background-color: #060814;
+            user-select: none;
+            -webkit-user-select: none;
+            overflow: hidden;
+            touch-action: none;
+        }
+        canvas {
+            display: block;
+            touch-action: none;
+        }
+        /* Custom neon glowing animations */
+        .neon-glow-cyan {
+            text-shadow: 0 0 10px rgba(6, 182, 212, 0.8), 0 0 20px rgba(6, 182, 212, 0.4);
+        }
+        .neon-glow-pink {
+            text-shadow: 0 0 10px rgba(236, 72, 153, 0.8), 0 0 20px rgba(236, 72, 153, 0.4);
+        }
+        .neon-border {
+            box-shadow: 0 0 15px rgba(6, 182, 212, 0.5);
+        }
+        /* Pulse for menu */
+        @keyframes pulse-fast {
+            0%, 100% { transform: scale(1); opacity: 0.9; }
+            50% { transform: scale(1.05); opacity: 1; }
+        }
+        .pulse-btn {
+            animation: pulse-fast 1.5s infinite;
+        }
+    </style>
+</head>
+<body class="w-full h-screen flex flex-col items-center justify-center m-0 p-0 relative">
+
+    <!-- Loading Screen -->
+    <div id="loadingScreen" class="absolute inset-0 bg-[#04060f] flex flex-col items-center justify-center z-50 transition-opacity duration-1000">
+        <div class="relative flex flex-col items-center">
+            <!-- Loading Geometry Dash Cube Animation -->
+            <div id="loadingCube" class="w-16 h-16 bg-gradient-to-br from-cyan-400 to-blue-600 rounded-lg shadow-[0_0_30px_rgba(6,182,212,0.8)] mb-8 transition-all duration-500 transform border-2 border-white"></div>
+            
+            <h1 class="text-4xl md:text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-pink-500 to-yellow-400 tracking-wider mb-2 uppercase neon-glow-cyan">
+                Neon Dash
+            </h1>
+            <p class="text-gray-400 text-sm tracking-[0.3em] uppercase mt-2 font-semibold">
+                A game by <span class="text-pink-500 neon-glow-pink">codenix</span>
+            </p>
+            
+            <!-- Progress Bar Container -->
+            <div class="w-64 h-2 bg-gray-900 rounded-full overflow-hidden mt-8 border border-gray-800">
+                <div id="loadingProgress" class="h-full bg-gradient-to-r from-cyan-400 to-pink-500 w-0 transition-all duration-100"></div>
+            </div>
+            <p id="loadingPercent" class="text-cyan-400 text-xs mt-2 font-bold tracking-widest">0%</p>
+        </div>
+    </div>
+
+    <!-- Main Game UI Overlay -->
+    <div id="gameUI" class="absolute inset-0 z-10 pointer-events-none flex flex-col justify-between p-4 md:p-6 hidden">
+        <!-- Top HUD -->
+        <div class="flex justify-between items-start w-full">
+            <!-- Score & Progress Panel -->
+            <div class="flex flex-col gap-1 pointer-events-auto bg-[#0d1127]/80 backdrop-blur-md px-4 py-2 rounded-xl border border-cyan-500/20 shadow-lg">
+                <div class="text-xs text-cyan-400 uppercase tracking-widest font-bold">Score</div>
+                <div id="scoreVal" class="text-2xl md:text-3xl font-black text-white neon-glow-cyan">00000</div>
+                <div class="text-[10px] text-gray-400 font-semibold">Attempt <span id="attemptCount" class="text-pink-400">1</span></div>
+            </div>
+
+            <!-- Title & HighScore -->
+            <div class="hidden sm:flex flex-col items-center">
+                <div class="text-sm font-black text-cyan-400 uppercase tracking-widest neon-glow-cyan">NEON DASH</div>
+                <div class="text-[10px] text-pink-400 tracking-widest">BY CODENIX</div>
+            </div>
+
+            <!-- Best Score / Level Difficulty Tracker -->
+            <div class="flex flex-col items-end gap-1 pointer-events-auto bg-[#0d1127]/80 backdrop-blur-md px-4 py-2 rounded-xl border border-pink-500/20 shadow-lg">
+                <div class="text-xs text-pink-400 uppercase tracking-widest font-bold">Best Score</div>
+                <div id="bestScoreVal" class="text-2xl md:text-3xl font-black text-white neon-glow-pink">00000</div>
+                <div id="speedMultiplier" class="text-[10px] text-yellow-400 font-semibold tracking-wide">SPEED: 1.0x</div>
+            </div>
+        </div>
+
+        <!-- Center Prompt (Tapping/Key Tips) -->
+        <div id="tutorialText" class="self-center text-center max-w-xs md:max-w-md animate-pulse">
+            <p class="text-white text-base md:text-lg font-bold tracking-wide shadow-black drop-shadow-md">
+                TAP / CLICK / SPACE TO JUMP
+            </p>
+            <p class="text-cyan-400 text-xs md:text-sm font-semibold mt-1">
+                Hit mid-air <span class="text-yellow-400 font-bold">YELLOW ORBS</span> for double jumps!
+            </p>
+        </div>
+
+        <!-- Bottom Controls / Progress Bar -->
+        <div class="w-full flex flex-col items-center gap-2">
+            <!-- Progress Line (Difficulty/Distance) -->
+            <div class="w-full max-w-md bg-gray-950/60 backdrop-blur-sm h-1.5 rounded-full overflow-hidden border border-white/10 relative">
+                <div id="gameProgressBar" class="h-full bg-gradient-to-r from-cyan-400 via-purple-500 to-pink-500 w-0"></div>
+            </div>
+            <div class="flex justify-between w-full max-w-md px-1">
+                <span class="text-[10px] text-cyan-400 uppercase tracking-wider font-bold">Start</span>
+                <span id="difficultyText" class="text-[10px] text-yellow-400 uppercase tracking-wider font-extrabold animate-pulse">EASY</span>
+                <span class="text-[10px] text-pink-400 uppercase tracking-wider font-bold">Chaos</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Menu Overlay -->
+    <div id="menuOverlay" class="absolute inset-0 z-20 bg-black/60 backdrop-blur-sm flex flex-col items-center justify-center p-4 hidden">
+        <div class="bg-[#0b0e1f]/90 border-2 border-cyan-500/30 rounded-3xl p-6 md:p-8 max-w-md w-full text-center shadow-[0_0_50px_rgba(6,182,212,0.15)] transform transition-transform duration-300">
+            <h2 class="text-4xl md:text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-pink-500 uppercase tracking-wider mb-2 neon-glow-cyan">
+                NEON DASH
+            </h2>
+            <p class="text-xs text-gray-400 tracking-widest uppercase mb-8">
+                Created by <span class="text-white">codenix</span>
+            </p>
+
+            <div class="flex flex-col gap-4">
+                <button id="playBtn" class="pulse-btn w-full bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-extrabold py-4 px-6 rounded-2xl shadow-lg border border-cyan-300/30 transition-all duration-150 active:scale-95 text-lg uppercase tracking-widest flex items-center justify-center gap-2">
+                    <svg class="w-6 h-6 fill-current" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                    Start Dash
+                </button>
+                
+                <!-- Audio Toggle and Settings -->
+                <button id="soundToggle" class="w-full bg-[#161a35] hover:bg-[#20254a] text-cyan-400 font-bold py-3 px-6 rounded-xl border border-cyan-500/10 transition-all duration-150 flex items-center justify-center gap-2 text-sm">
+                    <span id="soundIcon">🔊</span> <span id="soundText">Music & SFX: On</span>
+                </button>
+            </div>
+
+            <!-- Stats & Records -->
+            <div class="mt-8 pt-6 border-t border-gray-800 flex justify-around text-center">
+                <div>
+                    <div class="text-[10px] text-gray-500 uppercase tracking-wider font-bold">Attempts</div>
+                    <div id="statsAttempts" class="text-lg font-bold text-white">0</div>
+                </div>
+                <div>
+                    <div class="text-[10px] text-gray-500 uppercase tracking-wider font-bold">High Score</div>
+                    <div id="statsBest" class="text-lg font-bold text-pink-500">0</div>
+                </div>
+                <div>
+                    <div class="text-[10px] text-gray-500 uppercase tracking-wider font-bold">Difficulty</div>
+                    <div class="text-lg font-bold text-yellow-500">INSANE</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Game Over Screen -->
+    <div id="gameOverOverlay" class="absolute inset-0 z-20 bg-red-950/40 backdrop-blur-xs flex flex-col items-center justify-center p-4 hidden">
+        <div class="bg-[#120710]/95 border-2 border-red-500/30 rounded-3xl p-6 md:p-8 max-w-sm w-full text-center shadow-[0_0_50px_rgba(239,68,68,0.2)]">
+            <h2 class="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-red-500 to-pink-500 uppercase tracking-wider mb-2">
+                CRASHED!
+            </h2>
+            <p id="gameOverProgress" class="text-sm text-yellow-400 font-semibold tracking-wider mb-6">Level: 14% Complete</p>
+
+            <div class="space-y-4 mb-6 bg-black/40 p-4 rounded-xl text-left border border-white/5">
+                <div class="flex justify-between items-center">
+                    <span class="text-xs text-gray-400 uppercase tracking-wider">Score Achieved:</span>
+                    <span id="goScore" class="text-lg font-bold text-white">0</span>
+                </div>
+                <div class="flex justify-between items-center">
+                    <span class="text-xs text-gray-400 uppercase tracking-wider">Attempts:</span>
+                    <span id="goAttempts" class="text-lg font-bold text-pink-500">1</span>
+                </div>
+            </div>
+
+            <button id="retryBtn" class="w-full bg-gradient-to-r from-red-500 to-pink-600 hover:from-red-400 hover:to-pink-500 text-white font-extrabold py-4 px-6 rounded-2xl shadow-lg border border-red-300/30 transition-all duration-150 active:scale-95 text-base uppercase tracking-widest flex items-center justify-center gap-2">
+                <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
+                Retry Dash
+            </button>
+        </div>
+    </div>
+
+    <!-- Audio Settings floating toggle (active while playing) -->
+    <button id="floatingMute" class="absolute bottom-4 right-4 z-30 bg-black/50 hover:bg-black/80 text-white p-3 rounded-full border border-white/10 hidden pointer-events-auto">
+        🔊
+    </button>
+
+    <!-- Canvas Game Container -->
+    <canvas id="gameCanvas" class="w-full h-full bg-[#050711]"></canvas>
+
+    <!-- JavaScript Game Logic -->
+    <script>
+        // Setup state variables
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        let audioCtx = null;
+        let isMuted = false;
+        let soundEnabled = true;
+        
+        // Game Engine Variables
+        let gameState = 'LOADING'; // LOADING, MENU, PLAYING, GAMEOVER
+        let lastTime = 0;
+        let score = 0;
+        let highScore = parseInt(localStorage.getItem('neondash_high') || '0');
+        let attempts = parseInt(localStorage.getItem('neondash_attempts') || '1');
+        
+        // Dynamic Difficulty scaling
+        let baseSpeed = 8;
+        let speedMultiplier = 1.0;
+        let scoreCounter = 0;
+        let maxSpeedMultiplier = 2.5;
+
+        // Player physics
+        const gravity = 0.95;
+        const player = {
+            x: 150,
+            y: 0,
+            width: 45,
+            height: 45,
+            vy: 0,
+            jumpForce: -16,
+            rotation: 0,
+            targetRotation: 0,
+            isGrounded: false,
+            color: '#06b6d4',
+            trail: [],
+            orbHoverActive: false,
+            dashPower: 0,
+            pulseScale: 1
+        };
+
+        // Environment, Obstacles, Particles
+        let obstacles = [];
+        let particles = [];
+        let backgroundStars = [];
+        let floorGridOffset = 0;
+        let gameTime = 0;
+        let nextObstacleSpawnTime = 0;
+        let minSpawnInterval = 60; // frames
+        let maxSpawnInterval = 120; // frames
+        let floorY = 0;
+        let screenShake = 0;
+
+        // Adaptive Dimensions for Responsive Canvas
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            floorY = canvas.height * 0.75;
+            if (gameState === 'MENU' || gameState === 'LOADING') {
+                player.y = floorY - player.height;
+                player.vy = 0;
+            }
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        // Stars for Parallax BG
+        function generateStars() {
+            backgroundStars = [];
+            for (let i = 0; i < 60; i++) {
+                backgroundStars.push({
+                    x: Math.random() * canvas.width,
+                    y: Math.random() * floorY,
+                    size: Math.random() * 2 + 1,
+                    speed: Math.random() * 0.5 + 0.1,
+                    brightness: Math.random()
+                });
+            }
+        }
+        generateStars();
+
+        // ------------------ WEB AUDIO API (DYNAMIC MUSIC AND SFX) ------------------
+        let synthInterval = null;
+        let synthTempo = 135; // BPM
+        let beatCount = 0;
+
+        function initAudio() {
+            if (audioCtx) return;
+            const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+            audioCtx = new AudioContextClass();
+            startSynthMusic();
+        }
+
+        function playSound(type) {
+            if (!soundEnabled || isMuted || !audioCtx) return;
+            
+            try {
+                if (audioCtx.state === 'suspended') {
+                    audioCtx.resume();
+                }
+
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+
+                const now = audioCtx.currentTime;
+
+                if (type === 'jump') {
+                    // Quick pitch sweep up
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(150, now);
+                    osc.frequency.exponentialRampToValueAtTime(600, now + 0.15);
+                    gain.gain.setValueAtTime(0.3, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.18);
+                    osc.start(now);
+                    osc.stop(now + 0.18);
+                } else if (type === 'crash') {
+                    // Hard explosion using noise simulation
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(120, now);
+                    osc.frequency.exponentialRampToValueAtTime(30, now + 0.5);
+                    gain.gain.setValueAtTime(0.8, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.6);
+                    osc.start(now);
+                    osc.stop(now + 0.6);
+                    
+                    // High-frequency crash hiss
+                    const oscHiss = audioCtx.createOscillator();
+                    const gainHiss = audioCtx.createGain();
+                    oscHiss.type = 'square';
+                    oscHiss.frequency.setValueAtTime(2000, now);
+                    oscHiss.frequency.exponentialRampToValueAtTime(100, now + 0.4);
+                    oscHiss.connect(gainHiss);
+                    gainHiss.connect(audioCtx.destination);
+                    gainHiss.gain.setValueAtTime(0.2, now);
+                    gainHiss.gain.exponentialRampToValueAtTime(0.01, now + 0.4);
+                    oscHiss.start(now);
+                    oscHiss.stop(now + 0.4);
+                } else if (type === 'orb') {
+                    // Sparkly sci-fi sound
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(500, now);
+                    osc.frequency.exponentialRampToValueAtTime(1600, now + 0.25);
+                    gain.gain.setValueAtTime(0.4, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.25);
+                    osc.start(now);
+                    osc.stop(now + 0.25);
+                } else if (type === 'pad') {
+                    // Wind up springy jump
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(200, now);
+                    osc.frequency.exponentialRampToValueAtTime(1000, now + 0.3);
+                    gain.gain.setValueAtTime(0.3, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.35);
+                    osc.start(now);
+                    osc.stop(now + 0.35);
+                }
+            } catch (e) {
+                console.error("Audio trigger error:", e);
+            }
+        }
+
+        // Procedural synth music loop
+        function startSynthMusic() {
+            if (synthInterval) clearInterval(synthInterval);
+            
+            const stepDuration = 60 / synthTempo / 2; // Eighth notes
+            let bassSequence = [55, 55, 65, 55, 73, 73, 65, 55]; // Bass frequencies A1, C2, D2...
+            let melodySequence = [220, 0, 261, 329, 0, 392, 349, 293];
+
+            let index = 0;
+            
+            synthInterval = setInterval(() => {
+                if (!soundEnabled || isMuted || gameState !== 'PLAYING') return;
+                
+                const now = audioCtx.currentTime;
+                
+                try {
+                    // Play Bass Synth Line
+                    const bassFreq = bassSequence[index % bassSequence.length];
+                    if (bassFreq > 0) {
+                        const osc = audioCtx.createOscillator();
+                        const gain = audioCtx.createGain();
+                        osc.type = 'sawtooth';
+                        osc.frequency.setValueAtTime(bassFreq, now);
+                        
+                        // Low pass filter to make it pump
+                        const filter = audioCtx.createBiquadFilter();
+                        filter.type = 'lowpass';
+                        filter.frequency.setValueAtTime(250, now);
+                        
+                        osc.connect(filter);
+                        filter.connect(gain);
+                        gain.connect(audioCtx.destination);
+                        
+                        gain.gain.setValueAtTime(0.12, now);
+                        gain.gain.exponentialRampToValueAtTime(0.01, now + stepDuration - 0.02);
+                        
+                        osc.start(now);
+                        osc.stop(now + stepDuration);
+                    }
+                    
+                    // Simple procedural beats on every odd step (snare & kick mock)
+                    if (index % 2 === 0) {
+                        // Kick kick
+                        const kickOsc = audioCtx.createOscillator();
+                        const kickGain = audioCtx.createGain();
+                        kickOsc.type = 'sine';
+                        kickOsc.frequency.setValueAtTime(150, now);
+                        kickOsc.frequency.exponentialRampToValueAtTime(40, now + 0.1);
+                        kickOsc.connect(kickGain);
+                        kickGain.connect(audioCtx.destination);
+                        kickGain.gain.setValueAtTime(0.4, now);
+                        kickGain.gain.exponentialRampToValueAtTime(0.01, now + 0.12);
+                        kickOsc.start(now);
+                        kickOsc.stop(now + 0.12);
+                    } else if (index % 4 === 2) {
+                        // Noise-like snare
+                        const snareOsc = audioCtx.createOscillator();
+                        const snareGain = audioCtx.createGain();
+                        snareOsc.type = 'triangle';
+                        snareOsc.frequency.setValueAtTime(300, now);
+                        snareOsc.connect(snareGain);
+                        snareGain.connect(audioCtx.destination);
+                        snareGain.gain.setValueAtTime(0.15, now);
+                        snareGain.gain.exponentialRampToValueAtTime(0.01, now + 0.08);
+                        snareOsc.start(now);
+                        snareOsc.stop(now + 0.08);
+                    }
+
+                    // Occasional melody notes
+                    if (index % 4 === 0 && Math.random() > 0.3) {
+                        const melFreq = melodySequence[Math.floor(Math.random() * melodySequence.length)];
+                        if (melFreq > 0) {
+                            const melOsc = audioCtx.createOscillator();
+                            const melGain = audioCtx.createGain();
+                            melOsc.type = 'square';
+                            melOsc.frequency.setValueAtTime(melFreq * speedMultiplier, now); // scale with speed!
+                            melOsc.connect(melGain);
+                            melGain.connect(audioCtx.destination);
+                            
+                            melGain.gain.setValueAtTime(0.05, now);
+                            melGain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+                            
+                            melOsc.start(now);
+                            melOsc.stop(now + 0.35);
+                        }
+                    }
+
+                    index++;
+                } catch(err) {
+                    // Suppress any active engine audio context dynamic errors
+                }
+            }, stepDuration * 1000);
+        }
+
+        // ------------------ LOADING SCREEN SEQUENCE ------------------
+        let progress = 0;
+        const loadInterval = setInterval(() => {
+            progress += Math.floor(Math.random() * 8) + 3;
+            if (progress >= 100) {
+                progress = 100;
+                clearInterval(loadInterval);
+                
+                // Hide loading screen, show menu
+                setTimeout(() => {
+                    const ls = document.getElementById('loadingScreen');
+                    ls.classList.add('opacity-0');
+                    setTimeout(() => ls.style.display = 'none', 1000);
+                    
+                    gameState = 'MENU';
+                    document.getElementById('menuOverlay').classList.remove('hidden');
+                    updateStatsDisplay();
+                }, 400);
+            }
+            
+            // Apply visual updates
+            document.getElementById('loadingProgress').style.width = `${progress}%`;
+            document.getElementById('loadingPercent').innerText = `${progress}%`;
+            
+            // Spin/hop loading icon
+            const cube = document.getElementById('loadingCube');
+            cube.style.transform = `rotate(${progress * 3.6}deg) scale(${1 + Math.sin(progress/5)*0.15})`;
+        }, 100);
+
+        // ------------------ GAME CONTROL HANDLERS ------------------
+        function triggerJump() {
+            if (gameState !== 'PLAYING') return;
+
+            // Check proximity to active jump orbs
+            let hitOrb = false;
+            obstacles.forEach(obs => {
+                if (obs.type === 'orb' && !obs.used) {
+                    const dist = Math.hypot((player.x + player.width/2) - obs.x, (player.y + player.height/2) - obs.y);
+                    if (dist < obs.radius + 60) {
+                        // Jump orb activated!
+                        obs.used = true;
+                        player.vy = player.jumpForce * 1.15; // Extra powerful orb jump
+                        player.isGrounded = false;
+                        player.targetRotation += 360; // Extra flip!
+                        playSound('orb');
+                        hitOrb = true;
+                        
+                        // Flash visual shockwave
+                        createOrbRingExplosion(obs.x, obs.y, '#eab308');
+                        spawnParticles(obs.x, obs.y, '#eab308', 12);
+                        
+                        screenShake = 12;
+                    }
+                }
+            });
+
+            if (hitOrb) return;
+
+            // Regular ground jump
+            if (player.isGrounded) {
+                player.vy = player.jumpForce;
+                player.isGrounded = false;
+                player.targetRotation += 180; // Geometry dash signature flip
+                playSound('jump');
+                
+                // Spawn dust particles on floor
+                spawnParticles(player.x, floorY, '#06b6d4', 8);
+            }
+        }
+
+        // Universal trigger inputs
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW') {
+                e.preventDefault();
+                if (gameState === 'PLAYING') triggerJump();
+            }
+        });
+
+        // Touch & Click Event Listener on entire canvas area
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            if (gameState === 'PLAYING') {
+                triggerJump();
+            }
+        }, { passive: false });
+
+        canvas.addEventListener('mousedown', (e) => {
+            if (gameState === 'PLAYING') {
+                triggerJump();
+            }
+        });
+
+        // Button Clicks
+        document.getElementById('playBtn').addEventListener('click', () => {
+            initAudio();
+            startGame();
+        });
+
+        document.getElementById('retryBtn').addEventListener('click', () => {
+            startGame();
+        });
+
+        // Mute / Sound toggle mechanisms
+        const soundToggle = document.getElementById('soundToggle');
+        const floatingMute = document.getElementById('floatingMute');
+
+        function toggleSoundState() {
+            soundEnabled = !soundEnabled;
+            const stateText = soundEnabled ? 'On' : 'Off';
+            const icon = soundEnabled ? '🔊' : '🔇';
+            
+            document.getElementById('soundIcon').innerText = icon;
+            document.getElementById('soundText').innerText = `Music & SFX: ${stateText}`;
+            floatingMute.innerText = icon;
+        }
+
+        soundToggle.addEventListener('click', toggleSoundState);
+        floatingMute.addEventListener('click', toggleSoundState);
+
+        // ------------------ GAME ENGINE LOGIC ------------------
+        function startGame() {
+            // Adjust overlay setups
+            document.getElementById('menuOverlay').classList.add('hidden');
+            document.getElementById('gameOverOverlay').classList.add('hidden');
+            document.getElementById('gameUI').classList.remove('hidden');
+            floatingMute.classList.remove('hidden');
+
+            // Reset scores, speed & parameters
+            score = 0;
+            speedMultiplier = 1.0;
+            scoreCounter = 0;
+            obstacles = [];
+            particles = [];
+            
+            player.x = 150;
+            player.y = floorY - player.height;
+            player.vy = 0;
+            player.rotation = 0;
+            player.targetRotation = 0;
+            player.isGrounded = true;
+            player.trail = [];
+            
+            attempts++;
+            localStorage.setItem('neondash_attempts', attempts);
+            
+            // Update attempt counters
+            document.getElementById('attemptCount').innerText = attempts;
+            document.getElementById('statsAttempts').innerText = attempts;
+
+            // Trigger synth music setup
+            gameState = 'PLAYING';
+            lastTime = performance.now();
+            nextObstacleSpawnTime = 30; // spawn first obstacle soon
+
+            // Screen glow flash
+            screenShake = 15;
+            spawnParticles(player.x, player.y + player.height/2, '#06b6d4', 20);
+        }
+
+        function updateStatsDisplay() {
+            document.getElementById('statsBest').innerText = highScore;
+            document.getElementById('statsAttempts').innerText = attempts;
+            document.getElementById('bestScoreVal').innerText = String(highScore).padStart(5, '0');
+        }
+
+        // ------------------ GENERATING HAZARDS & MAP CONTENT ------------------
+        function spawnObstacle() {
+            // Speed adaptive generator
+            const speed = baseSpeed * speedMultiplier;
+            const obstacleTypes = ['spike', 'double_spike', 'block', 'pit', 'orb_and_spike', 'boost_pad'];
+            
+            // Higher multiplier opens more dangerous layouts
+            let pool = ['spike', 'block', 'spike'];
+            if (speedMultiplier > 1.2) pool.push('double_spike', 'orb_and_spike');
+            if (speedMultiplier > 1.5) pool.push('boost_pad');
+            
+            const selected = pool[Math.floor(Math.random() * pool.length)];
+            const spawnX = canvas.width + 100;
+
+            if (selected === 'spike') {
+                obstacles.push({
+                    id: Math.random(),
+                    type: 'spike',
+                    x: spawnX,
+                    y: floorY - 38,
+                    width: 38,
+                    height: 38,
+                    color: '#ef4444' // Neon Red
+                });
+            } else if (selected === 'double_spike') {
+                obstacles.push({
+                    id: Math.random(),
+                    type: 'spike',
+                    x: spawnX,
+                    y: floorY - 38,
+                    width: 70, // extra wide double-spike
+                    height: 38,
+                    color: '#f43f5e'
+                });
+            } else if (selected === 'block') {
+                // Large step block
+                obstacles.push({
+                    id: Math.random(),
+                    type: 'block',
+                    x: spawnX,
+                    y: floorY - 50,
+                    width: 50,
+                    height: 50,
+                    color: '#3b82f6' // Blue block
+                });
+            } else if (selected === 'orb_and_spike') {
+                // A spike with a yellow double jump orb floating right above it
+                obstacles.push({
+                    id: Math.random(),
+                    type: 'spike',
+                    x: spawnX,
+                    y: floorY - 38,
+                    width: 38,
+                    height: 38,
+                    color: '#ef4444'
+                });
+                obstacles.push({
+                    id: Math.random(),
+                    type: 'orb',
+                    x: spawnX + 15,
+                    y: floorY - 120,
+                    radius: 20,
+                    used: false,
+                    color: '#eab308' // Yellow Orb
+                });
+            } else if (selected === 'boost_pad') {
+                // Automatically triggers vertical boost on touch
+                obstacles.push({
+                    id: Math.random(),
+                    type: 'pad',
+                    x: spawnX,
+                    y: floorY - 12,
+                    width: 45,
+                    height: 12,
+                    color: '#10b981' // Neon Green
+                });
+            }
+        }
+
+        // Particle Generators for Explosions/Trails
+        function spawnParticles(x, y, color, count) {
+            for (let i = 0; i < count; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const speed = Math.random() * 6 + 2;
+                particles.push({
+                    x: x,
+                    y: y,
+                    vx: Math.cos(angle) * speed,
+                    vy: Math.sin(angle) * speed,
+                    radius: Math.random() * 4 + 2,
+                    color: color,
+                    alpha: 1.0,
+                    decay: Math.random() * 0.03 + 0.015,
+                    rotation: Math.random() * Math.PI,
+                    rotSpeed: Math.random() * 0.1 - 0.05
+                });
+            }
+        }
+
+        function createOrbRingExplosion(x, y, color) {
+            for (let i = 0; i < 15; i++) {
+                const angle = (i / 15) * Math.PI * 2;
+                particles.push({
+                    x: x,
+                    y: y,
+                    vx: Math.cos(angle) * 8,
+                    vy: Math.sin(angle) * 8,
+                    radius: 3,
+                    color: color,
+                    alpha: 1.0,
+                    decay: 0.04
+                });
+            }
+        }
+
+        // ------------------ COLLISION MATH ------------------
+        function checkCollisionRect(p, r) {
+            return (p.x < r.x + r.width &&
+                    p.x + p.width > r.x &&
+                    p.y < r.y + r.height &&
+                    p.y + p.height > r.y);
+        }
+
+        function checkCollisionSpike(p, s) {
+            // Tighten hitbox slightly for fairer geometry dash style collisions
+            const shrinkWidth = s.width * 0.2;
+            const shrinkHeight = s.height * 0.15;
+            
+            const sx = s.x + shrinkWidth / 2;
+            const sy = s.y + shrinkHeight;
+            const sw = s.width - shrinkWidth;
+            const sh = s.height - shrinkHeight;
+
+            return (p.x < sx + sw &&
+                    p.x + p.width > sx &&
+                    p.y < sy + sh &&
+                    p.y + p.height > sy);
+        }
+
+        // ------------------ MAIN ENGINE LOOP ------------------
+        function gameLoop(time) {
+            const dt = (time - lastTime) / 16.666; // Normalized frame rate time step
+            lastTime = time;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Apply camera shake if any
+            ctx.save();
+            if (screenShake > 0) {
+                const shakeX = (Math.random() - 0.5) * screenShake;
+                const shakeY = (Math.random() - 0.5) * screenShake;
+                ctx.translate(shakeX, shakeY);
+                screenShake *= 0.9; // Decay shake
+                if (screenShake < 0.2) screenShake = 0;
+            }
+
+            if (gameState === 'PLAYING') {
+                updatePlaying(dt);
+            } else {
+                updateStatic(dt);
+            }
+
+            renderGame();
+            ctx.restore();
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        function updatePlaying(dt) {
+            gameTime += dt;
+            scoreCounter += dt;
+            
+            // Score tracking
+            score = Math.floor(scoreCounter / 5);
+            document.getElementById('scoreVal').innerText = String(score).padStart(5, '0');
+
+            // Set high score dynamic calculation
+            if (score > highScore) {
+                highScore = score;
+                localStorage.setItem('neondash_high', highScore);
+                document.getElementById('bestScoreVal').innerText = String(highScore).padStart(5, '0');
+            }
+
+            // Gradually increase difficulty over time
+            speedMultiplier = Math.min(maxSpeedMultiplier, 1.0 + (score / 1500));
+            document.getElementById('speedMultiplier').innerText = `SPEED: ${speedMultiplier.toFixed(1)}x`;
+            
+            // Progress Bar (capped level visual representing intensity)
+            const progressPct = Math.min(100, (score / 1000) * 100);
+            document.getElementById('gameProgressBar').style.width = `${progressPct}%`;
+            
+            let diffStr = "EASY";
+            let diffColor = "text-cyan-400";
+            if (speedMultiplier > 1.2) { diffStr = "NORMAL"; diffColor = "text-green-400"; }
+            if (speedMultiplier > 1.5) { diffStr = "HARD"; diffColor = "text-yellow-400"; }
+            if (speedMultiplier > 1.8) { diffStr = "DEMON"; diffColor = "text-pink-400 animate-pulse"; }
+            if (speedMultiplier >= 2.2) { diffStr = "CHAOS"; diffColor = "text-red-500 animate-bounce"; }
+            
+            const diffEl = document.getElementById('difficultyText');
+            diffEl.innerText = diffStr;
+            diffEl.className = `text-[10px] uppercase tracking-wider font-extrabold ${diffColor}`;
+
+            // Player physics - Gravity
+            player.vy += gravity * dt;
+            player.y += player.vy * dt;
+
+            // Rotation styling
+            if (!player.isGrounded) {
+                player.rotation += ((player.targetRotation - player.rotation) * 0.12) * dt;
+            } else {
+                // Snap rotation to nearest 90-deg angle when flat on ground
+                const nearest90 = Math.round(player.rotation / 90) * 90;
+                player.rotation += (nearest90 - player.rotation) * 0.25 * dt;
+            }
+
+            // Ground safety/collision checks
+            if (player.y >= floorY - player.height) {
+                player.y = floorY - player.height;
+                player.vy = 0;
+                if (!player.isGrounded) {
+                    player.isGrounded = true;
+                    // Mini landing impact screen shake
+                    screenShake = 1.5;
+                }
+            }
+
+            // Dynamic trail creation
+            if (Math.floor(gameTime) % 2 === 0) {
+                player.trail.push({
+                    x: player.x,
+                    y: player.y,
+                    rotation: player.rotation,
+                    alpha: 0.6
+                });
+            }
+            if (player.trail.length > 12) {
+                player.trail.shift();
+            }
+
+            // Update parallax backgrounds
+            backgroundStars.forEach(star => {
+                star.x -= star.speed * speedMultiplier * dt;
+                if (star.x < 0) star.x = canvas.width;
+            });
+
+            // Grid offsets for scrolling floor
+            floorGridOffset -= baseSpeed * speedMultiplier * dt;
+            if (floorGridOffset <= -40) {
+                floorGridOffset = 0;
+            }
+
+            // Obstacle spawning sequence
+            nextObstacleSpawnTime -= dt;
+            if (nextObstacleSpawnTime <= 0) {
+                spawnObstacle();
+                // Randomize next spawn gap based on current speed
+                const scaleGap = 1.0 / speedMultiplier;
+                const minVal = minSpawnInterval * scaleGap;
+                const maxVal = maxSpawnInterval * scaleGap;
+                nextObstacleSpawnTime = Math.random() * (maxVal - minVal) + minVal;
+            }
+
+            // Collision mechanics & moving obstacles
+            const speed = baseSpeed * speedMultiplier;
+            for (let i = obstacles.length - 1; i >= 0; i--) {
+                const obs = obstacles[i];
+                obs.x -= speed * dt;
+
+                // Cleanup out of bounds
+                if (obs.x < -150) {
+                    obstacles.splice(i, 1);
+                    continue;
+                }
+
+                // Check active collisions based on game type
+                if (obs.type === 'spike') {
+                    if (checkCollisionSpike(player, obs)) {
+                        triggerDeath();
+                    }
+                } else if (obs.type === 'block') {
+                    // Check top-landing collision vs sideways crash
+                    const checkBottom = player.y + player.height;
+                    const blockTop = obs.y;
+                    
+                    if (checkCollisionRect(player, obs)) {
+                        // If landing directly onto block from above
+                        if (player.vy > 0 && (checkBottom - player.vy * dt) <= blockTop + 12) {
+                            player.y = blockTop - player.height;
+                            player.vy = 0;
+                            player.isGrounded = true;
+                        } else {
+                            // Hit the side or bottom of solid blocks -> Immediate crash
+                            triggerDeath();
+                        }
+                    }
+                } else if (obs.type === 'pad') {
+                    if (checkCollisionRect(player, obs)) {
+                        // High speed automatic jump
+                        player.vy = player.jumpForce * 1.5;
+                        player.isGrounded = false;
+                        player.targetRotation += 360;
+                        playSound('pad');
+                        screenShake = 8;
+                        spawnParticles(obs.x, obs.y, '#10b981', 12);
+                    }
+                }
+            }
+
+            // Update particle physics
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const p = particles[i];
+                p.x += p.vx * dt;
+                p.y += p.vy * dt;
+                p.alpha -= p.decay * dt;
+                if (p.rotation !== undefined) {
+                    p.rotation += p.rotSpeed * dt;
+                }
+                if (p.alpha <= 0) {
+                    particles.splice(i, 1);
+                }
+            }
+        }
+
+        // Loop for Menu static screen physics (Just float/slide graphics elegantly)
+        function updateStatic(dt) {
+            // Keep background moving subtly
+            backgroundStars.forEach(star => {
+                star.x -= star.speed * 0.3 * dt;
+                if (star.x < 0) star.x = canvas.width;
+            });
+            floorGridOffset -= 1 * dt;
+            if (floorGridOffset <= -40) floorGridOffset = 0;
+            
+            // Cube floats gently on floor
+            player.isGrounded = true;
+            player.y = floorY - player.height;
+            player.rotation = 0;
+        }
+
+        // Trigger Death
+        function triggerDeath() {
+            gameState = 'GAMEOVER';
+            playSound('crash');
+            screenShake = 25;
+
+            // Explosion Particles
+            spawnParticles(player.x + player.width/2, player.y + player.height/2, '#ef4444', 35);
+            spawnParticles(player.x + player.width/2, player.y + player.height/2, '#eab308', 20);
+            spawnParticles(player.x + player.width/2, player.y + player.height/2, '#06b6d4', 15);
+
+            // Display UI Panels
+            document.getElementById('goScore').innerText = score;
+            document.getElementById('goAttempts').innerText = attempts;
+            
+            // Calculate and display completion progress percentage
+            const progressPct = Math.min(100, Math.floor((score / 1000) * 100));
+            document.getElementById('gameOverProgress').innerText = `DASH DEPTH: ${progressPct}% COMPLETE`;
+
+            document.getElementById('gameOverOverlay').classList.remove('hidden');
+            document.getElementById('gameUI').classList.add('hidden');
+            floatingMute.classList.add('hidden');
+            
+            updateStatsDisplay();
+        }
+
+        // ------------------ CANVAS DRAW ENGINE ------------------
+        function renderGame() {
+            // 1. Draw Background Space Gradients
+            const bgGrad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+            bgGrad.addColorStop(0, '#04060f');
+            bgGrad.addColorStop(1, '#0e122b');
+            ctx.fillStyle = bgGrad;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // 2. Stars rendering
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+            backgroundStars.forEach(star => {
+                ctx.globalAlpha = star.brightness;
+                ctx.beginPath();
+                ctx.arc(star.x, star.y, star.size, 0, Math.PI * 2);
+                ctx.fill();
+            });
+            ctx.globalAlpha = 1.0;
+
+            // 3. Draw Floor Neon Line & Grid Background
+            drawBackgroundGrid();
+
+            // 4. Draw Trails
+            player.trail.forEach((t, index) => {
+                ctx.save();
+                ctx.globalAlpha = (index / player.trail.length) * 0.3;
+                ctx.translate(t.x + player.width/2, t.y + player.height/2);
+                ctx.rotate(t.rotation * Math.PI / 180);
+                
+                // Cyan Glow boxes
+                ctx.fillStyle = '#06b6d4';
+                ctx.fillRect(-player.width/2, -player.height/2, player.width, player.height);
+                ctx.restore();
+            });
+            ctx.globalAlpha = 1.0;
+
+            // 5. Draw Obstacles (Spikes, blocks, orbs, pads)
+            obstacles.forEach(obs => {
+                ctx.save();
+                if (obs.type === 'spike') {
+                    // Draw Geometry Dash style spike
+                    ctx.shadowColor = obs.color;
+                    ctx.shadowBlur = 15;
+                    ctx.fillStyle = obs.color;
+                    
+                    // Main spike path
+                    ctx.beginPath();
+                    ctx.moveTo(obs.x, obs.y + obs.height);
+                    ctx.lineTo(obs.x + obs.width / 2, obs.y);
+                    ctx.lineTo(obs.x + obs.width, obs.y + obs.height);
+                    ctx.closePath();
+                    ctx.fill();
+
+                    // Inner neon detail
+                    ctx.fillStyle = '#ffffff';
+                    ctx.beginPath();
+                    ctx.moveTo(obs.x + obs.width * 0.3, obs.y + obs.height * 0.8);
+                    ctx.lineTo(obs.x + obs.width / 2, obs.y + obs.height * 0.3);
+                    ctx.lineTo(obs.x + obs.width * 0.7, obs.y + obs.height * 0.8);
+                    ctx.closePath();
+                    ctx.fill();
+
+                } else if (obs.type === 'block') {
+                    // Solid platform box
+                    ctx.shadowColor = obs.color;
+                    ctx.shadowBlur = 10;
+                    ctx.fillStyle = obs.color;
+                    ctx.strokeStyle = '#ffffff';
+                    ctx.lineWidth = 2;
+                    
+                    ctx.fillRect(obs.x, obs.y, obs.width, obs.height);
+                    ctx.strokeRect(obs.x, obs.y, obs.width, obs.height);
+
+                    // Cross X pattern inside block
+                    ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+                    ctx.beginPath();
+                    ctx.moveTo(obs.x, obs.y);
+                    ctx.lineTo(obs.x + obs.width, obs.y + obs.height);
+                    ctx.moveTo(obs.x + obs.width, obs.y);
+                    ctx.lineTo(obs.x, obs.y + obs.height);
+                    ctx.stroke();
+
+                } else if (obs.type === 'orb') {
+                    // Jump Ring/Orb
+                    if (!obs.used) {
+                        ctx.shadowColor = obs.color;
+                        ctx.shadowBlur = 15;
+                        
+                        // Outer glowing ring
+                        ctx.strokeStyle = obs.color;
+                        ctx.lineWidth = 4;
+                        ctx.beginPath();
+                        ctx.arc(obs.x, obs.y, obs.radius + Math.sin(gameTime * 0.15) * 3, 0, Math.PI * 2);
+                        ctx.stroke();
+
+                        // Inner pulse core
+                        ctx.fillStyle = '#ffffff';
+                        ctx.beginPath();
+                        ctx.arc(obs.x, obs.y, obs.radius * 0.6, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+
+                } else if (obs.type === 'pad') {
+                    // Floor launcher pad
+                    ctx.shadowColor = obs.color;
+                    ctx.shadowBlur = 12;
+                    ctx.fillStyle = obs.color;
+                    ctx.fillRect(obs.x, obs.y, obs.width, obs.height);
+
+                    // Yellow arrow inside boost pad
+                    ctx.fillStyle = '#ffffff';
+                    ctx.beginPath();
+                    ctx.moveTo(obs.x + obs.width/2, obs.y + 2);
+                    ctx.lineTo(obs.x + obs.width/2 - 12, obs.y + obs.height - 2);
+                    ctx.lineTo(obs.x + obs.width/2 + 12, obs.y + obs.height - 2);
+                    ctx.closePath();
+                    ctx.fill();
+                }
+                ctx.restore();
+            });
+
+            // 6. Draw Player (Cube with rotation and face graphics)
+            if (gameState !== 'GAMEOVER') {
+                ctx.save();
+                ctx.translate(player.x + player.width/2, player.y + player.height/2);
+                ctx.rotate(player.rotation * Math.PI / 180);
+
+                // Neon shadow/glow
+                ctx.shadowColor = player.color;
+                ctx.shadowBlur = 20;
+
+                // Base Outer body (Vibrant cyan/neon gradient)
+                const cubeGrad = ctx.createLinearGradient(-player.width/2, -player.height/2, player.width/2, player.height/2);
+                cubeGrad.addColorStop(0, '#00f2fe');
+                cubeGrad.addColorStop(1, '#4facfe');
+                
+                ctx.fillStyle = cubeGrad;
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 3;
+                
+                // Rounded corner cube representation
+                ctx.beginPath();
+                ctx.roundRect(-player.width/2, -player.height/2, player.width, player.height, 6);
+                ctx.fill();
+                ctx.stroke();
+
+                // Inner face pattern (Authentic Geometry Dash icon vibe)
+                ctx.shadowBlur = 0; // Turn off shadow blur inside the facial features
+                ctx.strokeStyle = '#050711';
+                ctx.lineWidth = 3.5;
+
+                // Eyes background panels
+                ctx.fillStyle = '#ffffff';
+                ctx.beginPath();
+                ctx.roundRect(-15, -15, 11, 11, 2);
+                ctx.roundRect(4, -15, 11, 11, 2);
+                ctx.fill();
+                ctx.stroke();
+
+                // Angry pupils
+                ctx.fillStyle = '#050711';
+                ctx.beginPath();
+                ctx.arc(-11, -8, 2.5, 0, Math.PI*2);
+                ctx.arc(8, -8, 2.5, 0, Math.PI*2);
+                ctx.fill();
+
+                // Classic cyber smirk mouth
+                ctx.strokeStyle = '#050711';
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.moveTo(-12, 8);
+                ctx.lineTo(12, 8);
+                ctx.stroke();
+
+                ctx.restore();
+            }
+
+            // 7. Draw Particles
+            particles.forEach(p => {
+                ctx.save();
+                ctx.globalAlpha = p.alpha;
+                ctx.fillStyle = p.color;
+                ctx.beginPath();
+                if (p.rotation !== undefined) {
+                    ctx.translate(p.x, p.y);
+                    ctx.rotate(p.rotation);
+                    ctx.fillRect(-p.radius, -p.radius, p.radius * 2, p.radius * 2);
+                } else {
+                    ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                ctx.restore();
+            });
+            ctx.globalAlpha = 1.0;
+        }
+
+        // Draw structural floor grid with lighting effect
+        function drawBackgroundGrid() {
+            // Neon floor glowing horizon
+            ctx.save();
+            ctx.shadowColor = '#d946ef';
+            ctx.shadowBlur = 20;
+            ctx.strokeStyle = '#ec4899';
+            ctx.lineWidth = 5;
+            
+            ctx.beginPath();
+            ctx.moveTo(0, floorY);
+            ctx.lineTo(canvas.width, floorY);
+            ctx.stroke();
+            ctx.restore();
+
+            // Scrolling structural grid columns on floor
+            ctx.strokeStyle = 'rgba(236, 72, 153, 0.2)';
+            ctx.lineWidth = 2;
+            const gridSpacing = 40;
+            for (let x = floorGridOffset; x < canvas.width; x += gridSpacing) {
+                ctx.beginPath();
+                ctx.moveTo(x, floorY);
+                // Perspective angle lines projecting forwards
+                ctx.lineTo(x - 50, canvas.height);
+                ctx.stroke();
+            }
+
+            // Horizontal perspective lines
+            let horizY = floorY;
+            let gap = 12;
+            while (horizY < canvas.height) {
+                ctx.beginPath();
+                ctx.moveTo(0, horizY);
+                ctx.lineTo(canvas.width, horizY);
+                ctx.stroke();
+                gap *= 1.4; // multiply gaps to simulate perspective depth
+                horizY += gap;
+            }
+        }
+
+        // Initialize and start animation loop
+        requestAnimationFrame(gameLoop);
+    </script>
+</body>
+</html>

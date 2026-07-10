@@ -1,0 +1,932 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Codenix Bubble Shooter</title>
+    <!-- Tailwind CSS for robust layout and styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Phosphor Icons for game interface elements -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Inter:wght@400;600;800&display=swap');
+        
+        body {
+            background-color: #05050a;
+            font-family: 'Inter', sans-serif;
+        }
+
+        .retro-font {
+            font-family: 'Press Start 2P', monospace;
+        }
+
+        /* Vector Neon Glowing Canvas Frame */
+        .arcade-canvas {
+            background-color: #070710;
+            border: 4px solid #a855f7;
+            box-shadow: 0 0 25px rgba(168, 85, 247, 0.45), inset 0 0 20px rgba(0, 0, 0, 0.9);
+            image-rendering: auto;
+        }
+
+        /* Customize scrollbars for premium look */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #05050a;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #a855f7;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body class="flex flex-col items-center justify-start min-h-screen p-4 overflow-y-auto select-none text-white">
+
+    <!-- Loading Splash Screen -->
+    <div id="loading" class="fixed inset-0 bg-zinc-950 z-50 flex flex-col items-center justify-center transition-opacity duration-1000">
+        <div class="relative flex flex-col items-center">
+            <!-- Brand Logo -->
+            <img src="https://scontent-hbe1-1.xx.fbcdn.net/v/t39.30808-6/718816493_122173678946952582_684043749236540884_n.jpg?stp=dst-jpg_tt6&cstp=mx1254x1254&ctp=s1254x1254&_nc_cat=105&ccb=1-7&_nc_sid=6ee11a&_nc_ohc=NyAhiEYLoB8Q7kNvwGODnCy&_nc_oc=AdqdVkG_VLNmSb8AnL8cFGXEKw1SUyQivNB9lXGNwFEpnhMd_XTTsYoIeL6jSWs6fi4&_nc_zt=23&_nc_ht=scontent-hbe1-1.xx&_nc_gid=NitylyVfvXU5I7nHDBYDTg&_nc_ss=7c2a8&oh=00_Af9Er0CMINn2Laf0DWkeVLYIeT4WjAlJZNNF6JsE0zR3cg&oe=6A2C7D41" 
+                 onerror="this.src='https://placehold.co/150x150/05050a/a855f7?text=Codenix'"
+                 class="w-28 h-28 rounded-full mb-6 border-4 border-purple-500 shadow-[0_0_20px_rgba(168,85,247,0.5)] animate-pulse"
+                 alt="Codenix Logo">
+            <!-- Game Title -->
+            <h1 class="retro-font text-xl text-purple-400 tracking-wider mb-2 animate-bounce">CODENIX BUBBLES</h1>
+            <p class="text-zinc-400 tracking-widest uppercase text-xs font-bold">by Codenix</p>
+            <!-- Loading Indicator -->
+            <div class="mt-8 flex gap-1">
+                <span class="w-3 h-3 bg-purple-400 rounded-full animate-ping"></span>
+                <span class="w-3 h-3 bg-purple-400 rounded-full animate-ping [animation-delay:0.2s]"></span>
+                <span class="w-3 h-3 bg-purple-400 rounded-full animate-ping [animation-delay:0.4s]"></span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Header Title -->
+    <div class="w-full max-w-md text-center mb-4 mt-2">
+        <h1 class="retro-font text-2xl text-purple-400 tracking-wider drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">BUBBLE POP</h1>
+        <p class="text-xs text-zinc-400 mt-1 uppercase font-bold tracking-widest">Codenix Vector Edition</p>
+    </div>
+
+    <!-- Score HUD Layout -->
+    <div class="w-full max-w-md bg-zinc-900/80 border-2 border-zinc-800 rounded-xl p-3 flex justify-between items-center mb-4 shadow-lg">
+        <div class="flex flex-col">
+            <span class="text-[10px] text-zinc-400 font-bold uppercase tracking-widest">Score</span>
+            <span id="score-val" class="retro-font text-base text-white">0000</span>
+        </div>
+        <div class="flex flex-col items-center">
+            <span class="text-[10px] text-zinc-400 font-bold uppercase tracking-widest mb-1">Miss limit</span>
+            <div id="misses-container" class="flex gap-1 text-rose-500 text-sm">
+                <!-- Misses remaining indicators -->
+            </div>
+        </div>
+        <div class="flex flex-col items-end">
+            <span class="text-[10px] text-zinc-400 font-bold uppercase tracking-widest">High Score</span>
+            <span id="high-score-val" class="retro-font text-base text-purple-400">0000</span>
+        </div>
+    </div>
+
+    <!-- Canvas Frame Container -->
+    <div class="relative w-full max-w-md flex justify-center">
+        <!-- 360px width * 480px height -->
+        <canvas id="gameCanvas" width="360" height="480" class="arcade-canvas w-full aspect-[3/4] rounded-xl"></canvas>
+
+        <!-- Start Screen Overlay -->
+        <div id="start-screen" class="absolute inset-0 bg-black/95 rounded-xl flex flex-col items-center justify-center p-6 z-10">
+            <div class="text-purple-400 text-6xl mb-4 animate-bounce">
+                <i class="ph-fill ph-crosshair"></i>
+            </div>
+            <h2 class="retro-font text-xs text-white text-center mb-6 leading-relaxed">MATCH 3 NEON BUBBLES!</h2>
+            <button onclick="startGame()" class="px-8 py-3 bg-purple-500 hover:bg-purple-400 text-black retro-font text-xs font-bold rounded-lg shadow-[0_4px_14px_rgba(168,85,247,0.4)] transition active:scale-95">
+                START TARGETING
+            </button>
+            <p class="text-[10px] text-zinc-500 mt-6 text-center leading-relaxed">
+                Aim with your mouse or drag directly on the screen. Let go to launch bubbles.
+            </p>
+        </div>
+
+        <!-- Game Over & Victory Overlay -->
+        <div id="game-over-screen" class="hidden absolute inset-0 bg-black/95 rounded-xl flex flex-col items-center justify-center p-6 z-20 animate-fade-in">
+            <h2 id="end-status-title" class="retro-font text-lg text-red-500 mb-2">MISSION OVER</h2>
+            <p class="text-xs text-zinc-400 mb-6 font-bold">TOTAL SCORE: <span id="final-score" class="text-white">0</span></p>
+            <button onclick="resetGame()" class="px-8 py-3 bg-purple-500 hover:bg-purple-400 text-black retro-font text-xs font-bold rounded-lg shadow-[0_4px_14px_rgba(168,85,247,0.4)] transition active:scale-95">
+                RE-ENGAGE BOARD
+            </button>
+        </div>
+    </div>
+
+    <!-- On-screen instructions and informational footer -->
+    <p class="text-[10px] text-zinc-500 mt-4 text-center max-w-xs leading-relaxed">
+        Pop cascading clusters of bubbles to cause floating rows to collapse! Works seamlessly across touchscreens.
+    </p>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreVal = document.getElementById('score-val');
+        const highScoreVal = document.getElementById('high-score-val');
+        const missesContainer = document.getElementById('misses-container');
+        const startScreen = document.getElementById('start-screen');
+        const gameOverScreen = document.getElementById('game-over-screen');
+        const endStatusTitle = document.getElementById('end-status-title');
+        const finalScoreText = document.getElementById('final-score');
+
+        // Hexagonal Grid parameters
+        const BUBBLE_RADIUS = 18;
+        const BUBBLE_DIAMETER = BUBBLE_RADIUS * 2;
+        const ROW_HEIGHT = Math.floor(BUBBLE_RADIUS * Math.sqrt(3)); // perfect hex grid nesting
+        const MAX_ROWS = 12; // grid capacity
+        const EVEN_COLUMNS = 10; // row % 2 === 0
+        const ODD_COLUMNS = 9;  // row % 2 === 1
+
+        // Colors palette
+        const BUBBLE_COLORS = [
+            { name: 'cyan', hex: '#06b6d4', glow: 'rgba(6,182,212,0.8)' },
+            { name: 'magenta', hex: '#d946ef', glow: 'rgba(217,70,239,0.8)' },
+            { name: 'green', hex: '#22c55e', glow: 'rgba(34,197,94,0.8)' },
+            { name: 'yellow', hex: '#eab308', glow: 'rgba(234,179,8,0.8)' },
+            { name: 'orange', hex: '#f97316', glow: 'rgba(249,115,22,0.8)' }
+        ];
+
+        // Game states
+        let score = 0;
+        let highScore = localStorage.getItem('codenix_bubbles_high') || 0;
+        let missesLeft = 5;
+        let gameActive = false;
+        let gameLoopId = null;
+        let grid = []; // 2D hex array
+        let particles = [];
+        let fallingBubbles = []; // holding dropped cluster animations
+
+        // Active launcher state
+        let shooter = {
+            x: canvas.width / 2,
+            y: canvas.height - 40,
+            angle: -Math.PI / 2,
+            isAiming: false
+        };
+
+        let currentBubble = null;
+        let nextBubble = null;
+        let activeProjectile = null; // moving projectile
+
+        // Web Audio engine
+        let audioCtx = null;
+
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+        }
+
+        function playTone(freq, type, duration, volume, slideToFreq = 0) {
+            if (!audioCtx) return;
+            try {
+                if (audioCtx.state === 'suspended') {
+                    audioCtx.resume();
+                }
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = type;
+                osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+                if (slideToFreq > 0) {
+                    osc.frequency.exponentialRampToValueAtTime(slideToFreq, audioCtx.currentTime + duration);
+                }
+                gain.gain.setValueAtTime(volume, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+                
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start();
+                osc.stop(audioCtx.currentTime + duration);
+            } catch(e) {}
+        }
+
+        function playShootSound() {
+            playTone(400, 'triangle', 0.15, 0.15, 800);
+        }
+
+        function playBounceSound() {
+            playTone(320, 'sine', 0.05, 0.1);
+        }
+
+        function playPopSound(chainCount) {
+            // Increase tone pitch sequentially to create a satisfying combination feel
+            const pitchMultiplier = Math.min(6, chainCount);
+            const freq = 300 + (pitchMultiplier * 80);
+            playTone(freq, 'sine', 0.15, 0.2, freq * 1.5);
+        }
+
+        function playDropSound() {
+            playTone(180, 'triangle', 0.35, 0.25, 40);
+        }
+
+        function playShiftDownSound() {
+            playTone(100, 'sawtooth', 0.4, 0.15, 30);
+        }
+
+        function playGameOverSound() {
+            playTone(150, 'sawtooth', 0.8, 0.35, 10);
+        }
+
+        // Initialize empty rows
+        function initGrid() {
+            grid = [];
+            for (let r = 0; r < MAX_ROWS; r++) {
+                grid[r] = [];
+                const cols = (r % 2 === 0) ? EVEN_COLUMNS : ODD_COLUMNS;
+                for (let c = 0; c < cols; c++) {
+                    grid[r][c] = null;
+                }
+            }
+        }
+
+        // Populates top rows with random vectors initially
+        function populateInitialGrid() {
+            for (let r = 0; r < 5; r++) {
+                const cols = (r % 2 === 0) ? EVEN_COLUMNS : ODD_COLUMNS;
+                for (let c = 0; c < cols; c++) {
+                    grid[r][c] = getRandomColorObject();
+                }
+            }
+        }
+
+        function getRandomColorObject() {
+            return BUBBLE_COLORS[Math.floor(Math.random() * BUBBLE_COLORS.length)];
+        }
+
+        // Get absolute center positions based on row and columns
+        function getBubbleCoords(row, col) {
+            const rowOffset = row % 2 === 0;
+            const xOffset = rowOffset ? BUBBLE_RADIUS : BUBBLE_RADIUS + (BUBBLE_RADIUS);
+            const x = col * BUBBLE_DIAMETER + xOffset;
+            const y = row * ROW_HEIGHT + BUBBLE_RADIUS + 10;
+            return { x, y };
+        }
+
+        function drawHUD() {
+            // Miss limits UI stars populate
+            missesContainer.innerHTML = '';
+            for (let i = 0; i < 5; i++) {
+                if (i < missesLeft) {
+                    missesContainer.innerHTML += '<i class="ph-fill ph-circle-dashed animate-pulse"></i>';
+                } else {
+                    missesContainer.innerHTML += '<i class="ph-bold ph-x text-zinc-700"></i>';
+                }
+            }
+        }
+
+        // Dynamic laser projectile targeting line
+        function drawAimLine() {
+            if (!shooter.isAiming || activeProjectile) return;
+
+            ctx.save();
+            ctx.strokeStyle = 'rgba(168, 85, 247, 0.25)';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([5, 8]);
+
+            let startX = shooter.x;
+            let startY = shooter.y;
+            let dx = Math.cos(shooter.angle);
+            let dy = Math.sin(shooter.angle);
+
+            // Simple ray casting bounce preview lines
+            ctx.beginPath();
+            ctx.moveTo(startX, startY);
+
+            // Limit laser projection reach
+            let length = 320;
+            let currentX = startX;
+            let currentY = startY;
+
+            for (let i = 0; i < length; i++) {
+                currentX += dx;
+                currentY += dy;
+
+                // Wall bounds reflections
+                if (currentX < BUBBLE_RADIUS) {
+                    currentX = BUBBLE_RADIUS;
+                    dx = -dx;
+                } else if (currentX > canvas.width - BUBBLE_RADIUS) {
+                    currentX = canvas.width - BUBBLE_RADIUS;
+                    dx = -dx;
+                }
+
+                // Snap check limits
+                if (currentY < 10) break;
+            }
+
+            ctx.lineTo(currentX, currentY);
+            ctx.stroke();
+            ctx.restore();
+        }
+
+        function createLauncherBubbles() {
+            if (!currentBubble) {
+                currentBubble = {
+                    color: getRandomColorObject(),
+                    x: shooter.x,
+                    y: shooter.y
+                };
+            }
+            if (!nextBubble) {
+                nextBubble = {
+                    color: getRandomColorObject(),
+                    x: shooter.x - 60,
+                    y: shooter.y + 15
+                };
+            }
+        }
+
+        function drawShooter() {
+            ctx.save();
+            ctx.translate(shooter.x, shooter.y);
+            ctx.rotate(shooter.angle + Math.PI / 2);
+
+            // Futuristic launching vector frame
+            ctx.strokeStyle = '#a855f7';
+            ctx.fillStyle = '#070710';
+            ctx.lineWidth = 3;
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = '#a855f7';
+
+            // Cannon design
+            ctx.beginPath();
+            ctx.rect(-8, -25, 16, 25);
+            ctx.arc(0, 0, 16, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+
+            ctx.restore();
+
+            // Next visual indicator capsule
+            ctx.save();
+            ctx.fillStyle = 'rgba(168, 85, 247, 0.05)';
+            ctx.strokeStyle = 'rgba(168, 85, 247, 0.2)';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.arc(shooter.x - 60, shooter.y + 15, 15, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+
+            // Render next bubble preview
+            if (nextBubble) {
+                drawNeonBubble(nextBubble.x, nextBubble.y, nextBubble.color, 11);
+            }
+
+            // Render current launch bubble
+            if (currentBubble && !activeProjectile) {
+                drawNeonBubble(currentBubble.x, currentBubble.y, currentBubble.color, BUBBLE_RADIUS);
+            }
+            ctx.restore();
+        }
+
+        function drawNeonBubble(x, y, colorObj, radius) {
+            ctx.save();
+            ctx.shadowBlur = 12;
+            ctx.shadowColor = colorObj.hex;
+
+            // Soft back radial gradients
+            let gradient = ctx.createRadialGradient(x - radius/3, y - radius/3, radius/10, x, y, radius);
+            gradient.addColorStop(0, '#ffffff');
+            gradient.addColorStop(0.2, colorObj.hex);
+            gradient.addColorStop(1, '#05050a');
+
+            ctx.fillStyle = gradient;
+            ctx.beginPath();
+            ctx.arc(x, y, radius, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Distinctive highlight shine
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.65)';
+            ctx.beginPath();
+            ctx.arc(x - radius/3, y - radius/3, radius/4, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        }
+
+        // Coordinate tracking
+        function handleAim(clientX, clientY) {
+            const rect = canvas.getBoundingClientRect();
+            const canvasX = (clientX - rect.left) * (canvas.width / rect.width);
+            const canvasY = (clientY - rect.top) * (canvas.height / rect.height);
+
+            // Compute angle targeting upper hemispheres
+            const dy = canvasY - shooter.y;
+            const dx = canvasX - shooter.x;
+            let angle = Math.atan2(dy, dx);
+
+            // Constraint angle rules so user doesn't aim downwards
+            const minAngle = -Math.PI + 0.15;
+            const maxAngle = -0.15;
+            shooter.angle = Math.max(minAngle, Math.min(maxAngle, angle));
+            shooter.isAiming = true;
+        }
+
+        function handleRelease() {
+            if (!shooter.isAiming || activeProjectile) return;
+            shooter.isAiming = false;
+
+            initAudio();
+            playShootSound();
+
+            // Spawn projectile
+            activeProjectile = {
+                x: shooter.x,
+                y: shooter.y,
+                vx: Math.cos(shooter.angle) * 9,
+                vy: Math.sin(shooter.angle) * 9,
+                color: currentBubble.color
+            };
+
+            // Switch waiting queues
+            currentBubble = {
+                color: nextBubble.color,
+                x: shooter.x,
+                y: shooter.y
+            };
+            nextBubble = {
+                color: getRandomColorObject(),
+                x: shooter.x - 60,
+                y: shooter.y + 15
+            };
+        }
+
+        // Mouse aiming controls listeners
+        canvas.addEventListener('mousemove', e => {
+            if (!gameActive) return;
+            handleAim(e.clientX, e.clientY);
+        });
+
+        canvas.addEventListener('mousedown', e => {
+            initAudio();
+            if (!gameActive) return;
+            handleAim(e.clientX, e.clientY);
+        });
+
+        canvas.addEventListener('mouseup', e => {
+            if (!gameActive) return;
+            handleRelease();
+        });
+
+        // Touch aiming swipe controls listeners
+        canvas.addEventListener('touchstart', e => {
+            initAudio();
+            if (!gameActive) return;
+            const touch = e.touches[0];
+            handleAim(touch.clientX, touch.clientY);
+            e.preventDefault();
+        }, { passive: false });
+
+        canvas.addEventListener('touchmove', e => {
+            if (!gameActive) return;
+            const touch = e.touches[0];
+            handleAim(touch.clientX, touch.clientY);
+            e.preventDefault();
+        }, { passive: false });
+
+        canvas.addEventListener('touchend', e => {
+            if (!gameActive) return;
+            handleRelease();
+            e.preventDefault();
+        }, { passive: false });
+
+        function updateProjectile() {
+            if (!activeProjectile) return;
+
+            activeProjectile.x += activeProjectile.vx;
+            activeProjectile.y += activeProjectile.vy;
+
+            // Bounce on left and right borders
+            if (activeProjectile.x < BUBBLE_RADIUS) {
+                activeProjectile.x = BUBBLE_RADIUS;
+                activeProjectile.vx = -activeProjectile.vx;
+                playBounceSound();
+            } else if (activeProjectile.x > canvas.width - BUBBLE_RADIUS) {
+                activeProjectile.x = canvas.width - BUBBLE_RADIUS;
+                activeProjectile.vx = -activeProjectile.vx;
+                playBounceSound();
+            }
+
+            // High boundary constraints or ceiling touch snaps
+            if (activeProjectile.y <= BUBBLE_RADIUS + 10) {
+                snapProjectileToGrid(activeProjectile);
+                activeProjectile = null;
+                return;
+            }
+
+            // Grid collision intersects logic
+            for (let r = 0; r < MAX_ROWS; r++) {
+                const cols = (r % 2 === 0) ? EVEN_COLUMNS : ODD_COLUMNS;
+                for (let c = 0; c < cols; c++) {
+                    if (grid[r] && grid[r][c] !== null && grid[r][c] !== undefined) {
+                        const cell = getBubbleCoords(r, c);
+                        const dist = Math.hypot(activeProjectile.x - cell.x, activeProjectile.y - cell.y);
+                        
+                        // Collision threshold (with slight absorption padding)
+                        if (dist < BUBBLE_DIAMETER * 0.85) {
+                            snapProjectileToGrid(activeProjectile);
+                            activeProjectile = null;
+                            return;
+                        }
+                    }
+                }
+            }
+        }
+
+        function snapProjectileToGrid(proj) {
+            let closestSlot = null;
+            let minDist = Infinity;
+
+            for (let r = 0; r < MAX_ROWS; r++) {
+                const cols = (r % 2 === 0) ? EVEN_COLUMNS : ODD_COLUMNS;
+                for (let c = 0; c < cols; c++) {
+                    if (!grid[r] || grid[r][c] === null || grid[r][c] === undefined) {
+                        const cell = getBubbleCoords(r, c);
+                        const dist = Math.hypot(proj.x - cell.x, proj.y - cell.y);
+                        if (dist < minDist) {
+                            minDist = dist;
+                            closestSlot = { row: r, col: c };
+                        }
+                    }
+                }
+            }
+
+            if (closestSlot) {
+                if (!grid[closestSlot.row]) {
+                    grid[closestSlot.row] = [];
+                }
+                grid[closestSlot.row][closestSlot.col] = proj.color;
+                
+                // Triggers structural cluster checks
+                handleMatches(closestSlot.row, closestSlot.col, proj.color);
+            }
+        }
+
+        // Retrieves adjacent hexagonal nodes based on grid row layout
+        function getNeighbors(row, col) {
+            const neighbors = [];
+            const isEven = row % 2 === 0;
+
+            // Offset shifts offsets patterns
+            const offsets = isEven ? [
+                { r: -1, c: -1 }, { r: -1, c: 0 },
+                { r: 0, c: -1 },                  { r: 0, c: 1 },
+                { r: 1, c: -1 },  { r: 1, c: 0 }
+            ] : [
+                { r: -1, c: 0 },  { r: -1, c: 1 },
+                { r: 0, c: -1 },                  { r: 0, c: 1 },
+                { r: 1, c: 0 },   { r: 1, c: 1 }
+            ];
+
+            offsets.forEach(off => {
+                const nr = row + off.r;
+                const nc = col + off.c;
+                if (nr >= 0 && nr < MAX_ROWS) {
+                    const maxCol = (nr % 2 === 0) ? EVEN_COLUMNS : ODD_COLUMNS;
+                    if (nc >= 0 && nc < maxCol) {
+                        neighbors.push({ row: nr, col: nc });
+                    }
+                }
+            });
+
+            return neighbors;
+        }
+
+        function handleMatches(startRow, startCol, colorObj) {
+            const cluster = [];
+            const queue = [{ row: startRow, col: startCol }];
+            const visited = Array.from({ length: MAX_ROWS }, () => []);
+
+            visited[startRow][startCol] = true;
+
+            // Standard Breadth First Search logic
+            while (queue.length > 0) {
+                const current = queue.shift();
+                cluster.push(current);
+
+                const adjacent = getNeighbors(current.row, current.col);
+                adjacent.forEach(adj => {
+                    if (!visited[adj.row][adj.col]) {
+                        const cellColor = grid[adj.row][adj.col];
+                        if (cellColor && cellColor.name === colorObj.name) {
+                            visited[adj.row][adj.col] = true;
+                            queue.push(adj);
+                        }
+                    }
+                });
+            }
+
+            if (cluster.length >= 3) {
+                // Popping sequence success
+                cluster.forEach(cell => {
+                    const coords = getBubbleCoords(cell.row, cell.col);
+                    createExplosion(coords.x, coords.y, grid[cell.row][cell.col].hex);
+                    grid[cell.row][cell.col] = null;
+                });
+
+                playPopSound(cluster.length);
+                updateScore(cluster.length * 10);
+
+                // Run connection checks to drop unsupported floaters
+                setTimeout(dropHangingBubbles, 80);
+            } else {
+                // Shot missed target goals -> reduce miss limits
+                missesLeft--;
+                if (missesLeft <= 0) {
+                    shiftBoardDown();
+                }
+                drawHUD();
+            }
+
+            checkGridLoses();
+        }
+
+        function dropHangingBubbles() {
+            const connected = Array.from({ length: MAX_ROWS }, () => []);
+            const queue = [];
+
+            // Initialize connection queue from top row (Row 0) ceiling
+            const evenCols = EVEN_COLUMNS;
+            for (let c = 0; c < evenCols; c++) {
+                if (grid[0] && grid[0][c] !== null && grid[0][c] !== undefined) {
+                    connected[0][c] = true;
+                    queue.push({ row: 0, col: c });
+                }
+            }
+
+            // Propagate connectivity checks down structures
+            while (queue.length > 0) {
+                const current = queue.shift();
+                const neighbors = getNeighbors(current.row, current.col);
+
+                neighbors.forEach(n => {
+                    if (grid[n.row] && grid[n.row][n.col] !== null && grid[n.row][n.col] !== undefined && !connected[n.row][n.col]) {
+                        connected[n.row][n.col] = true;
+                        queue.push(n);
+                    }
+                });
+            }
+
+            // Identify disconnected floaters
+            let droppedCount = 0;
+            for (let r = 0; r < MAX_ROWS; r++) {
+                const cols = (r % 2 === 0) ? EVEN_COLUMNS : ODD_COLUMNS;
+                for (let c = 0; c < cols; c++) {
+                    if (grid[r] && grid[r][c] !== null && grid[r][c] !== undefined && !connected[r][c]) {
+                        const coords = getBubbleCoords(r, c);
+                        
+                        // Push into falling animations lists
+                        fallingBubbles.push({
+                            x: coords.x,
+                            y: coords.y,
+                            vy: 2,
+                            color: grid[r][c],
+                            radius: BUBBLE_RADIUS
+                        });
+
+                        grid[r][c] = null;
+                        droppedCount++;
+                    }
+                }
+            }
+
+            if (droppedCount > 0) {
+                playDropSound();
+                // Double score reward cascade combos!
+                updateScore(droppedCount * 20);
+            }
+        }
+
+        function shiftBoardDown() {
+            playShiftDownSound();
+
+            // Shift current rows down with column-count stagger recalculations
+            for (let r = MAX_ROWS - 1; r > 0; r--) {
+                const targetCols = (r % 2 === 0) ? EVEN_COLUMNS : ODD_COLUMNS;
+                const sourceCols = ((r - 1) % 2 === 0) ? EVEN_COLUMNS : ODD_COLUMNS;
+                
+                grid[r] = [];
+                for (let c = 0; c < targetCols; c++) {
+                    // Stagger adaptation: safely transfer the bubble value if it exists in the source row, otherwise default to null
+                    grid[r][c] = (c < sourceCols) ? grid[r - 1][c] : null;
+                }
+            }
+
+            // Initialize new top row cleanly
+            grid[0] = [];
+            for (let c = 0; c < EVEN_COLUMNS; c++) {
+                grid[0][c] = getRandomColorObject();
+            }
+
+            // Shifted row shapes realignment checks
+            missesLeft = 5;
+            drawHUD();
+        }
+
+        // Check if rows have overflowed or grid has cleared
+        function checkGridLoses() {
+            // Check if bubbles reach bottom boundaries
+            if (grid[MAX_ROWS - 1]) {
+                for (let c = 0; c < grid[MAX_ROWS - 1].length; c++) {
+                    if (grid[MAX_ROWS - 1][c] !== null && grid[MAX_ROWS - 1][c] !== undefined) {
+                        endGame(false);
+                        return;
+                    }
+                }
+            }
+
+            // Check if level has been perfectly wiped clear
+            let boardEmpty = true;
+            for (let r = 0; r < MAX_ROWS; r++) {
+                const cols = (r % 2 === 0) ? EVEN_COLUMNS : ODD_COLUMNS;
+                for (let c = 0; c < cols; c++) {
+                    if (grid[r] && grid[r][c] !== null && grid[r][c] !== undefined) {
+                        boardEmpty = false;
+                        break;
+                    }
+                }
+            }
+
+            if (boardEmpty) {
+                // Populate fresh level automatically
+                populateInitialGrid();
+                updateScore(500); // Level clear bonus score!
+            }
+        }
+
+        function createExplosion(x, y, color) {
+            const count = Math.floor(Math.random() * 8) + 10;
+            for (let i = 0; i < count; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const speed = Math.random() * 3 + 2;
+                particles.push({
+                    x: x,
+                    y: y,
+                    vx: Math.cos(angle) * speed,
+                    vy: Math.sin(angle) * speed,
+                    color: color,
+                    alpha: 1.0,
+                    life: 30 + Math.random() * 15
+                });
+            }
+        }
+
+        function drawBackground() {
+            // Draw clean grid boundary frame
+            ctx.fillStyle = '#05050a';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Subtle background matrix star particles
+            ctx.fillStyle = '#1e1b4b';
+            for (let i = 0; i < 15; i++) {
+                const sx = (i * 123456) % canvas.width;
+                const sy = (i * 789101) % canvas.height;
+                ctx.fillRect(sx, sy, 2, 2);
+            }
+
+            // Hazard warning line at the bottom
+            ctx.strokeStyle = '#ef4444';
+            ctx.lineWidth = 1;
+            ctx.setLineDash([4, 4]);
+            ctx.beginPath();
+            ctx.moveTo(0, (MAX_ROWS - 1) * ROW_HEIGHT + BUBBLE_RADIUS + 10);
+            ctx.lineTo(canvas.width, (MAX_ROWS - 1) * ROW_HEIGHT + BUBBLE_RADIUS + 10);
+            ctx.stroke();
+            ctx.setLineDash([]);
+        }
+
+        function drawGrid() {
+            for (let r = 0; r < MAX_ROWS; r++) {
+                const cols = (r % 2 === 0) ? EVEN_COLUMNS : ODD_COLUMNS;
+                for (let c = 0; c < cols; c++) {
+                    if (grid[r]) {
+                        const bubble = grid[r][c];
+                        if (bubble !== null && bubble !== undefined) {
+                            const coords = getBubbleCoords(r, c);
+                            drawNeonBubble(coords.x, coords.y, bubble, BUBBLE_RADIUS);
+                        }
+                    }
+                }
+            }
+        }
+
+        function drawParticles() {
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const p = particles[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                p.vy += 0.05; // gravity pulls dust particles down
+                p.alpha -= 1.0 / p.life;
+
+                if (p.alpha <= 0) {
+                    particles.splice(i, 1);
+                    continue;
+                }
+
+                ctx.save();
+                ctx.globalAlpha = p.alpha;
+                ctx.fillStyle = p.color;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, 2.5, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
+        }
+
+        function drawFallingBubbles() {
+            for (let i = fallingBubbles.length - 1; i >= 0; i--) {
+                const fb = fallingBubbles[i];
+                fb.y += fb.vy;
+                fb.vy += 0.2; // faster drop rates acceleration
+
+                if (fb.y > canvas.height + BUBBLE_RADIUS) {
+                    fallingBubbles.splice(i, 1);
+                    continue;
+                }
+
+                drawNeonBubble(fb.x, fb.y, fb.color, fb.radius);
+            }
+        }
+
+        function updateScore(points) {
+            score += points;
+            scoreVal.textContent = score.toString().padStart(4, '0');
+            if (score > highScore) {
+                highScore = score;
+                highScoreVal.textContent = highScore.toString().padStart(4, '0');
+                localStorage.setItem('codenix_bubbles_high', highScore);
+            }
+        }
+
+        function runGameLoop() {
+            if (!gameActive) return;
+
+            drawBackground();
+            
+            // Draw grid and active projectile elements
+            drawGrid();
+            updateProjectile();
+            if (activeProjectile) {
+                drawNeonBubble(activeProjectile.x, activeProjectile.y, activeProjectile.color, BUBBLE_RADIUS);
+            }
+
+            // Draw extra visual layers
+            drawAimLine();
+            drawShooter();
+            drawFallingBubbles();
+            drawParticles();
+
+            gameLoopId = requestAnimationFrame(runGameLoop);
+        }
+
+        function startGame() {
+            initAudio();
+            startScreen.classList.add('hidden');
+            score = 0;
+            missesLeft = 5;
+            updateScore(0);
+            drawHUD();
+
+            initGrid();
+            populateInitialGrid();
+            createLauncherBubbles();
+
+            gameActive = true;
+            gameLoopId = requestAnimationFrame(runGameLoop);
+        }
+
+        function endGame(won) {
+            gameActive = false;
+            cancelAnimationFrame(gameLoopId);
+            playGameOverSound();
+
+            endStatusTitle.textContent = won ? "VICTORY ACHIEVED" : "GRID COLLAPSED";
+            endStatusTitle.className = won ? "retro-font text-lg text-green-400 mb-2" : "retro-font text-lg text-rose-500 mb-2";
+            finalScoreText.textContent = score;
+            gameOverScreen.classList.remove('hidden');
+        }
+
+        function resetGame() {
+            gameOverScreen.classList.add('hidden');
+            activeProjectile = null;
+            currentBubble = null;
+            nextBubble = null;
+            particles = [];
+            fallingBubbles = [];
+            startGame();
+        }
+
+        window.onload = () => {
+            highScoreVal.textContent = highScore.toString().padStart(4, '0');
+            // Smooth loading screen removal sequence
+            setTimeout(() => {
+                const loader = document.getElementById('loading');
+                loader.style.opacity = '0';
+                setTimeout(() => loader.remove(), 1000);
+            }, 1200);
+        };
+    </script>
+</body>
+</html>

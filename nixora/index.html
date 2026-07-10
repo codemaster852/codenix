@@ -1,0 +1,1114 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nixora - Premium Dify Client</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Tailwind CSS Config -->
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        nixora: {
+                            50: '#f5f3ff',
+                            100: '#ede9fe',
+                            200: '#ddd6fe',
+                            300: '#c4b5fd',
+                            400: '#a78bfa',
+                            500: '#8b5cf6',
+                            600: '#7c3aed',
+                            700: '#6d28d9',
+                            800: '#5b21b6',
+                            900: '#4c1d95',
+                            950: '#1e1b4b',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Inter Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .code-font {
+            font-family: 'Fira Code', monospace;
+        }
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(139, 92, 246, 0.2);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(139, 92, 246, 0.4);
+        }
+        /* Animated gradient background */
+        @keyframes gradient {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        .animate-gradient {
+            background-size: 200% 200%;
+            animation: gradient 15s ease infinite;
+        }
+    </style>
+</head>
+<body class="h-full bg-slate-950 text-slate-100 overflow-hidden flex flex-col">
+
+    <!-- Notification Toast System -->
+    <div id="toast-container" class="fixed top-5 right-5 z-50 flex flex-col gap-3 max-w-sm pointer-events-none"></div>
+
+    <!-- App Shell Container -->
+    <div class="flex h-full w-full overflow-hidden">
+        
+        <!-- SIDEBAR -->
+        <aside id="sidebar" class="fixed inset-y-0 left-0 z-40 w-80 transform -translate-x-full md:translate-x-0 transition-transform duration-300 ease-in-out bg-slate-900 border-r border-slate-800 flex flex-col">
+            <!-- Sidebar Header -->
+            <div class="p-4 border-b border-slate-800 flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-nixora-600 to-violet-500 flex items-center justify-center shadow-lg shadow-violet-900/30">
+                        <i data-lucide="cpu" class="w-5 h-5 text-white"></i>
+                    </div>
+                    <div>
+                        <h1 class="font-bold text-lg leading-tight tracking-tight text-white flex items-center gap-1.5">
+                            Nixora <span class="text-xs font-semibold px-1.5 py-0.5 rounded bg-nixora-500/20 text-nixora-300">Dify</span>
+                        </h1>
+                        <p class="text-xs text-slate-400">AI Studio Portal</p>
+                    </div>
+                </div>
+                <button onclick="toggleSidebar()" class="md:hidden text-slate-400 hover:text-white">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <!-- New Chat & Quick Settings -->
+            <div class="p-4 space-y-2">
+                <button onclick="createNewConversation()" class="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-nixora-600 to-violet-600 hover:from-nixora-500 hover:to-violet-500 text-white rounded-xl font-medium transition duration-200 shadow-lg shadow-violet-950/40 transform hover:-translate-y-0.5">
+                    <i data-lucide="plus-circle" class="w-5 h-5"></i>
+                    New Conversation
+                </button>
+            </div>
+
+            <!-- Active Conversations List -->
+            <div class="flex-1 overflow-y-auto px-4 py-2 space-y-1.5" id="conversations-list">
+                <div class="text-xs font-semibold text-slate-500 uppercase tracking-wider px-2 py-1 flex items-center justify-between">
+                    <span>Active Sessions</span>
+                    <button onclick="loadConversations()" class="hover:text-nixora-400 transition" title="Refresh List">
+                        <i data-lucide="rotate-cw" class="w-3.5 h-3.5"></i>
+                    </button>
+                </div>
+                <!-- Skeleton Loader / Placeholder -->
+                <div id="conv-loading-spinner" class="hidden py-8 text-center text-slate-500 text-sm space-y-2">
+                    <div class="animate-spin inline-block w-5 h-5 border-[3px] border-current border-t-transparent text-nixora-500 rounded-full" role="status"></div>
+                    <p>Fetching active sessions...</p>
+                </div>
+                <div id="conversations-container" class="space-y-1">
+                    <!-- Dynamic conversations populate here -->
+                </div>
+            </div>
+
+            <!-- Sidebar Bottom Info & Key Manager -->
+            <div class="p-4 border-t border-slate-800 bg-slate-950/50 space-y-3">
+                <div class="flex items-center justify-between text-xs text-slate-400">
+                    <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> Connected to Dify</span>
+                </div>
+                
+                <!-- Display active Model Info from Endpoint -->
+                <div id="meta-app-info" class="p-2.5 rounded-lg bg-slate-900 border border-slate-800/80 space-y-1 text-xs">
+                    <div class="flex justify-between font-medium text-slate-300">
+                        <span id="meta-app-name">Nixora App Client</span>
+                        <span id="meta-app-mode" class="text-[10px] bg-slate-800 px-1.5 py-0.5 rounded text-nixora-300 uppercase">Chat</span>
+                    </div>
+                    <p id="meta-app-desc" class="text-[11px] text-slate-500 line-clamp-2">Standard application configurations active.</p>
+                </div>
+            </div>
+        </aside>
+
+        <!-- MAIN VIEW AREA -->
+        <main class="flex-1 flex flex-col h-full overflow-hidden bg-slate-950 md:ml-80 transition-all duration-300 relative">
+            
+            <!-- TOP NAVBAR -->
+            <header class="h-16 border-b border-slate-800 flex items-center justify-between px-4 md:px-6 bg-slate-900/50 backdrop-blur-md z-30">
+                <div class="flex items-center gap-3">
+                    <button onclick="toggleSidebar()" class="md:hidden p-1.5 rounded-lg text-slate-400 hover:text-white bg-slate-800">
+                        <i data-lucide="menu" class="w-5 h-5"></i>
+                    </button>
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <h2 id="current-chat-title" class="font-semibold text-white tracking-tight">Default Session</h2>
+                            <button id="rename-chat-btn" onclick="renameCurrentConversationPrompt()" class="text-slate-500 hover:text-nixora-400 transition" title="Rename Session">
+                                <i data-lucide="edit-2" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>
+                        <p class="text-xs text-slate-500 flex items-center gap-1">
+                            <span id="current-chat-status">Ready to collaborate</span>
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Action Toolbar -->
+                <div class="flex items-center gap-2">
+                    <!-- Clear Conversation History -->
+                    <button onclick="clearCurrentConversationUI()" class="p-2 text-slate-400 hover:text-rose-400 hover:bg-slate-800/80 rounded-lg transition" title="Clear Screen">
+                        <i data-lucide="trash-2" class="w-5 h-5"></i>
+                    </button>
+                </div>
+            </header>
+
+            <!-- MESSAGES CONTAINER -->
+            <div id="messages-scroller" class="flex-1 overflow-y-auto px-4 py-6 md:px-8 space-y-6">
+                
+                <!-- Nixora Greeting & Welcome Panel (Shows if no messages) -->
+                <div id="welcome-panel" class="max-w-2xl mx-auto py-12 px-6 rounded-2xl bg-gradient-to-b from-slate-900 to-slate-950 border border-slate-800 text-center space-y-6 my-auto shadow-xl">
+                    <div class="w-16 h-16 rounded-2xl bg-gradient-to-tr from-nixora-600 to-violet-500 flex items-center justify-center mx-auto shadow-lg shadow-violet-950/50">
+                        <i data-lucide="sparkles" class="w-8 h-8 text-white"></i>
+                    </div>
+                    <div class="space-y-2">
+                        <h3 class="text-xl font-bold text-white tracking-tight">Welcome to Nixora AI Studio</h3>
+                        <p id="welcome-opening-statement" class="text-slate-400 text-sm max-w-lg mx-auto">
+                            Interact with your custom model securely and instantly. Ready to test inputs, retrieve datasets, and view detailed reasoning parameters.
+                        </p>
+                    </div>
+
+                    <!-- Suggested Questions (Loaded from Parameters) -->
+                    <div class="space-y-3 pt-4">
+                        <h4 class="text-xs font-semibold text-slate-500 uppercase tracking-widest">Suggested Prompts</h4>
+                        <div id="suggested-prompts-container" class="grid grid-cols-1 gap-2.5 max-w-lg mx-auto">
+                            <button onclick="setQueryAndSubmit('What features are supported by this application?')" class="text-left text-xs bg-slate-900 hover:bg-slate-850 border border-slate-800/60 hover:border-nixora-500/50 p-3 rounded-xl text-slate-300 hover:text-white transition duration-150 flex items-center justify-between group">
+                                <span>What features are supported by this application?</span>
+                                <i data-lucide="arrow-right" class="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition text-nixora-400"></i>
+                            </button>
+                            <button onclick="setQueryAndSubmit('Explain how retrieve retriever resources work in Dify.')" class="text-left text-xs bg-slate-900 hover:bg-slate-850 border border-slate-800/60 hover:border-nixora-500/50 p-3 rounded-xl text-slate-300 hover:text-white transition duration-150 flex items-center justify-between group">
+                                <span>Explain how retrieve retriever resources work in Dify.</span>
+                                <i data-lucide="arrow-right" class="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition text-nixora-400"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Dynamically populated chat messages stream in here -->
+                <div id="messages-container" class="max-w-4xl mx-auto space-y-6"></div>
+            </div>
+
+            <!-- ATTACHED FILE PREVIEW OVERLAY -->
+            <div id="attached-file-preview" class="hidden max-w-4xl mx-auto w-full px-4 md:px-8">
+                <div class="bg-slate-900 border border-slate-800 p-3 rounded-t-xl flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <div class="p-2 bg-nixora-500/10 rounded-lg text-nixora-400">
+                            <i data-lucide="image" class="w-4 h-4"></i>
+                        </div>
+                        <div class="text-xs">
+                            <p class="font-semibold text-white truncate" id="file-preview-name">image.png</p>
+                            <p class="text-slate-500" id="file-preview-size">0 KB</p>
+                        </div>
+                    </div>
+                    <button onclick="clearAttachedFile()" class="p-1 text-slate-400 hover:text-rose-400 transition">
+                        <i data-lucide="trash-2" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- CHAT INPUT COMPONENT -->
+            <footer class="p-4 md:p-6 bg-gradient-to-t from-slate-950 to-slate-950/80 border-t border-slate-800/80">
+                <div class="max-w-4xl mx-auto relative">
+                    <form id="chat-form" onsubmit="handleChatSubmit(event)" class="relative flex items-end gap-2 bg-slate-900 border border-slate-800 rounded-2xl p-2.5 focus-within:border-nixora-500/50 transition shadow-2xl">
+                        
+                        <!-- File Upload Action Button -->
+                        <div class="flex items-center">
+                            <label for="image-upload" class="p-2.5 text-slate-400 hover:text-nixora-400 hover:bg-slate-800/60 rounded-xl cursor-pointer transition flex items-center justify-center" title="Attach PNG, JPG (Multimodal)">
+                                <i data-lucide="paperclip" class="w-5 h-5"></i>
+                            </label>
+                            <input type="file" id="image-upload" accept="image/png, image/jpeg, image/jpg, image/webp" class="hidden" onchange="handleImageFileSelected(event)">
+                        </div>
+
+                        <!-- Main Query Input -->
+                        <div class="flex-1 min-w-0">
+                            <textarea id="chat-textarea" rows="1" placeholder="Ask Nixora or type '/' for commands..." class="w-full bg-transparent border-0 focus:ring-0 text-slate-200 placeholder-slate-500 text-sm py-2 px-1 focus:outline-none resize-none max-h-36" onkeydown="handleTextareaKeydown(event)"></textarea>
+                        </div>
+
+                        <!-- Active Processing/Stop Button & Send Icon -->
+                        <div class="flex items-center gap-1.5">
+                            <button id="stream-stop-btn" type="button" onclick="stopActiveGeneration()" class="hidden p-2.5 text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 rounded-xl transition flex items-center justify-center" title="Stop Generating">
+                                <i data-lucide="octagon" class="w-5 h-5 animate-pulse"></i>
+                            </button>
+                            <button id="chat-submit-btn" type="submit" class="p-2.5 bg-nixora-600 hover:bg-nixora-500 text-white rounded-xl transition flex items-center justify-center disabled:opacity-50 disabled:hover:bg-nixora-600" title="Send Message">
+                                <i data-lucide="send-horizontal" class="w-5 h-5"></i>
+                            </button>
+                        </div>
+                    </form>
+                    <p class="text-center text-[10px] text-slate-500 mt-2">
+                        Utilizing Dify App API (Streaming Server-Sent Events). Active Key pre-configured for Dify platform.
+                    </p>
+                </div>
+            </footer>
+        </main>
+    </div>
+
+    <!-- MAIN JAVASCRIPT LOGIC -->
+    <script>
+        // Global App State Management - Preconfigured and locked in the backend
+        const appConfig = {
+            apiKey: 'app-6rM26tynlYQuuW8fGO7ZBHm3',
+            baseUrl: 'https://api.dify.ai/v1',
+            useProxy: false,
+            userId: 'user-' + Math.random().toString(36).substring(2, 11),
+            proxyUrl: 'https://cors-anywhere.herokuapp.com/'
+        };
+
+        let conversations = [];
+        let activeConversationId = null;
+        let activeTaskId = null;
+        let isGenerating = false;
+        let controller = null; // AbortController for cancel stream
+        let attachedFileId = null;
+        let attachedFileName = '';
+        let attachedFileSize = 0;
+
+        // Initialize App on DOM Ready
+        window.addEventListener('DOMContentLoaded', () => {
+            // Load icons
+            lucide.createIcons();
+
+            // Fire initial API configuration synchronization with Dify endpoints
+            initializeDifyPortal();
+        });
+
+        // Resolve Dify Target URL according to Proxies
+        function getEndpointUrl(path) {
+            let target = `${appConfig.baseUrl}${path}`;
+            if (appConfig.useProxy) {
+                target = `${appConfig.proxyUrl}${target}`;
+            }
+            return target;
+        }
+
+        // Initialize Dify App details & load configurations from server
+        async function initializeDifyPortal() {
+            showToast("Syncing with Dify platform...", "info");
+            
+            try {
+                // 1. Load general App Metadata
+                const infoRes = await fetch(getEndpointUrl('/info'), {
+                    headers: { 'Authorization': `Bearer ${appConfig.apiKey}` }
+                });
+                
+                if (infoRes.ok) {
+                    const infoData = await infoRes.json();
+                    document.getElementById('meta-app-name').innerText = infoData.name || "Dify Application";
+                    document.getElementById('meta-app-mode').innerText = infoData.mode || "Chat";
+                    document.getElementById('meta-app-desc').innerText = infoData.description || "Active interactive portal session.";
+                }
+
+                // 2. Load App Configuration Parameters
+                const paramRes = await fetch(getEndpointUrl('/parameters?user=' + appConfig.userId), {
+                    headers: { 'Authorization': `Bearer ${appConfig.apiKey}` }
+                });
+
+                if (paramRes.ok) {
+                    const paramData = await paramRes.json();
+                    if (paramData.opening_statement) {
+                        document.getElementById('welcome-opening-statement').innerText = paramData.opening_statement;
+                    }
+                    if (paramData.suggested_questions && paramData.suggested_questions.length > 0) {
+                        const sCont = document.getElementById('suggested-prompts-container');
+                        sCont.innerHTML = '';
+                        paramData.suggested_questions.forEach(q => {
+                            const btn = document.createElement('button');
+                            btn.className = "text-left text-xs bg-slate-900 hover:bg-slate-850 border border-slate-800/60 hover:border-nixora-500/50 p-3 rounded-xl text-slate-300 hover:text-white transition duration-150 flex items-center justify-between group";
+                            btn.innerHTML = `<span>${q}</span><i data-lucide="arrow-right" class="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition text-nixora-400"></i>`;
+                            btn.onclick = () => setQueryAndSubmit(q);
+                            sCont.appendChild(btn);
+                        });
+                        lucide.createIcons();
+                    }
+                }
+
+                // 3. Sync theme & icons
+                const siteRes = await fetch(getEndpointUrl('/site'), {
+                    headers: { 'Authorization': `Bearer ${appConfig.apiKey}` }
+                });
+                if (siteRes.ok) {
+                    const siteData = await siteRes.json();
+                    if (siteData.title) {
+                        document.getElementById('current-chat-title').innerText = siteData.title;
+                        document.title = `${siteData.title} - Nixora Client`;
+                    }
+                }
+
+                // Load Session History
+                await loadConversations();
+                showToast("Dify parameters linked successfully!", "success");
+
+            } catch (err) {
+                console.error("Connection failed", err);
+                showToast("Dify Connection issue. Please check network configurations.", "warning");
+                // Local simulation setup fallback
+                loadMockConversations();
+            }
+        }
+
+        // Toggle Sidebar visibility on mobile
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            sidebar.classList.toggle('-translate-x-full');
+        }
+
+        // Quick fill suggested queries
+        function setQueryAndSubmit(text) {
+            const textEl = document.getElementById('chat-textarea');
+            textEl.value = text;
+            textEl.style.height = 'auto';
+            textEl.style.height = (textEl.scrollHeight) + 'px';
+            document.getElementById('chat-submit-btn').click();
+        }
+
+        // Dynamic Textarea Sizing
+        const txtArea = document.getElementById('chat-textarea');
+        txtArea.addEventListener('input', function() {
+            this.style.height = 'auto';
+            this.style.height = (this.scrollHeight) + 'px';
+        });
+
+        function handleTextareaKeydown(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                document.getElementById('chat-submit-btn').click();
+            }
+        }
+
+        // Fetch Conversations history from Dify backend
+        async function loadConversations() {
+            const spinner = document.getElementById('conv-loading-spinner');
+            const container = document.getElementById('conversations-container');
+            spinner.classList.remove('hidden');
+            container.innerHTML = '';
+
+            try {
+                const res = await fetch(getEndpointUrl(`/conversations?user=${appConfig.userId}&limit=20`), {
+                    headers: { 'Authorization': `Bearer ${appConfig.apiKey}` }
+                });
+
+                spinner.classList.add('hidden');
+
+                if (res.ok) {
+                    const responseJson = await res.json();
+                    conversations = responseJson.data || [];
+                    renderConversationsList();
+                } else {
+                    loadMockConversations();
+                }
+            } catch (err) {
+                spinner.classList.add('hidden');
+                loadMockConversations();
+            }
+        }
+
+        // Load visual representations locally in case of networking issues
+        function loadMockConversations() {
+            conversations = [
+                { id: "10799fb8-64f7-4296-bbf7-b42bfbe0ae54", name: "Quickstart Session" },
+                { id: "hSIhXBhNe8X1d8Et", name: "Structured Variables Analysis" }
+            ];
+            renderConversationsList();
+        }
+
+        function renderConversationsList() {
+            const container = document.getElementById('conversations-container');
+            container.innerHTML = '';
+
+            if (conversations.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center py-6 text-slate-500 text-xs">
+                        <p>No active sessions.</p>
+                        <p class="mt-1">Click above to start!</p>
+                    </div>`;
+                return;
+            }
+
+            conversations.forEach(conv => {
+                const isActive = conv.id === activeConversationId;
+                const div = document.createElement('div');
+                div.className = `group flex items-center justify-between px-3 py-2.5 rounded-xl text-sm transition cursor-pointer ${
+                    isActive 
+                    ? 'bg-nixora-600 text-white font-medium shadow-md shadow-violet-950/40' 
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                }`;
+                
+                div.innerHTML = `
+                    <div class="flex items-center gap-2.5 min-w-0 flex-1" onclick="selectConversation('${conv.id}')">
+                        <i data-lucide="message-square" class="w-4 h-4 flex-shrink-0 ${isActive ? 'text-white' : 'text-slate-500 group-hover:text-nixora-400'}"></i>
+                        <span class="truncate block text-xs tracking-wide">${conv.name || 'Unnamed Conversation'}</span>
+                    </div>
+                    <button onclick="deleteConversation('${conv.id}', event)" class="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-slate-850 text-slate-500 hover:text-rose-400 transition" title="Delete Session">
+                        <i data-lucide="trash" class="w-3.5 h-3.5"></i>
+                    </button>
+                `;
+                container.appendChild(div);
+            });
+            lucide.createIcons();
+        }
+
+        // Active conversation select switcher
+        async function selectConversation(id) {
+            activeConversationId = id;
+            const activeConv = conversations.find(c => c.id === id);
+            document.getElementById('current-chat-title').innerText = activeConv ? activeConv.name : "Active Session";
+            document.getElementById('current-chat-status').innerText = "Streaming session parameters synced";
+            
+            // Clean view and show loading
+            clearCurrentConversationUI();
+            document.getElementById('welcome-panel').classList.add('hidden');
+            
+            renderConversationsList();
+            await fetchMessagesForConversation(id);
+        }
+
+        // Get past messages in this stream
+        async function fetchMessagesForConversation(convId) {
+            const messageContainer = document.getElementById('messages-container');
+            messageContainer.innerHTML = `
+                <div class="py-12 text-center text-slate-500 flex flex-col items-center gap-2">
+                    <div class="animate-spin inline-block w-6 h-6 border-[3px] border-current border-t-transparent text-nixora-500 rounded-full"></div>
+                    <span class="text-xs">Recompiling session messages...</span>
+                </div>`;
+
+            try {
+                const res = await fetch(getEndpointUrl(`/messages?user=${appConfig.userId}&conversation_id=${convId}&limit=20`), {
+                    headers: { 'Authorization': `Bearer ${appConfig.apiKey}` }
+                });
+
+                if (res.ok) {
+                    messageContainer.innerHTML = '';
+                    const responseJson = await res.json();
+                    const messages = responseJson.data || [];
+                    
+                    // Reverse because backend returns latest first
+                    messages.reverse().forEach(msg => {
+                        // Render User Query
+                        appendChatMessage('user', msg.query);
+                        // Render LLM Answer
+                        appendChatMessage('assistant', msg.answer, {
+                            id: msg.id,
+                            agentThoughts: msg.agent_thoughts,
+                            retrieverResources: msg.retriever_resources,
+                            feedback: msg.feedback
+                        });
+                    });
+                    
+                    scrollToBottom();
+                } else {
+                    messageContainer.innerHTML = `
+                        <div class="p-4 bg-slate-900 border border-slate-800 text-slate-400 text-xs text-center rounded-xl">
+                            Could not load message history from server. Starting clean session locally.
+                        </div>`;
+                }
+            } catch (err) {
+                console.error("History fetch error", err);
+                messageContainer.innerHTML = `
+                    <div class="p-4 bg-slate-900 border border-slate-800 text-slate-400 text-xs text-center rounded-xl">
+                        Network timeout. Continuing session locally.
+                    </div>`;
+            }
+        }
+
+        // Delete active Conversation
+        async function deleteConversation(id, event) {
+            if (event) event.stopPropagation();
+            if (!confirm("Are you sure you want to permanently delete this conversation history?")) return;
+
+            try {
+                const res = await fetch(getEndpointUrl(`/conversations/${id}`), {
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': `Bearer ${appConfig.apiKey}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ user: appConfig.userId })
+                });
+
+                if (res.ok) {
+                    showToast("Conversation deleted", "success");
+                    if (activeConversationId === id) {
+                        activeConversationId = null;
+                        document.getElementById('current-chat-title').innerText = "Default Session";
+                        document.getElementById('welcome-panel').classList.remove('hidden');
+                        clearCurrentConversationUI();
+                    }
+                    await loadConversations();
+                } else {
+                    showToast("Failed to delete conversation from server.", "error");
+                }
+            } catch (err) {
+                showToast("Connection issue. Could not reach server.", "error");
+            }
+        }
+
+        // Create new active Session
+        function createNewConversation() {
+            activeConversationId = null;
+            clearCurrentConversationUI();
+            document.getElementById('current-chat-title').innerText = "New Conversation";
+            document.getElementById('current-chat-status').innerText = "Ready to collaborate";
+            document.getElementById('welcome-panel').classList.remove('hidden');
+            renderConversationsList();
+            showToast("New clean session created", "info");
+        }
+
+        // Prompt visual Rename API
+        async function renameCurrentConversationPrompt() {
+            if (!activeConversationId) {
+                showToast("No active conversation to rename.", "info");
+                return;
+            }
+            const name = prompt("Enter a new name for this conversation:");
+            if (!name) return;
+
+            try {
+                const res = await fetch(getEndpointUrl(`/conversations/${activeConversationId}/name`), {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${appConfig.apiKey}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        name: name,
+                        auto_generate: false,
+                        user: appConfig.userId
+                    })
+                });
+
+                if (res.ok) {
+                    showToast("Session renamed", "success");
+                    document.getElementById('current-chat-title').innerText = name;
+                    await loadConversations();
+                } else {
+                    showToast("Failed to rename conversation.", "error");
+                }
+            } catch (err) {
+                showToast("Network restriction on rename parameter.", "error");
+            }
+        }
+
+        // Handle Image Attachment upload flow
+        async function handleImageFileSelected(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            showToast("Uploading attachment to Dify...", "info");
+            
+            // Show local preview state
+            document.getElementById('attached-file-preview').classList.remove('hidden');
+            document.getElementById('file-preview-name').innerText = file.name;
+            document.getElementById('file-preview-size').innerText = `${Math.round(file.size / 1024)} KB`;
+
+            // Prepare multipart form upload
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('user', appConfig.userId);
+
+            try {
+                const res = await fetch(getEndpointUrl('/files/upload'), {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${appConfig.apiKey}`
+                    },
+                    body: formData
+                });
+
+                if (res.ok) {
+                    const data = await res.json();
+                    attachedFileId = data.id;
+                    attachedFileName = data.name;
+                    attachedFileSize = data.size;
+                    showToast("Attachment processed successfully", "success");
+                } else {
+                    showToast("File upload failed. Vision support configuration inactive.", "error");
+                    clearAttachedFile();
+                }
+            } catch (err) {
+                console.error("Upload error", err);
+                showToast("Proxy block or limit on image files upload.", "error");
+                clearAttachedFile();
+            }
+        }
+
+        function clearAttachedFile() {
+            attachedFileId = null;
+            attachedFileName = '';
+            attachedFileSize = 0;
+            document.getElementById('image-upload').value = '';
+            document.getElementById('attached-file-preview').classList.add('hidden');
+        }
+
+        // Local state screen refresh
+        function clearCurrentConversationUI() {
+            document.getElementById('messages-container').innerHTML = '';
+            clearAttachedFile();
+        }
+
+        // Send feedback mechanism
+        async function sendResponseFeedback(messageId, rating, btnElement) {
+            try {
+                const res = await fetch(getEndpointUrl(`/messages/${messageId}/feedbacks`), {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${appConfig.apiKey}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        rating: rating,
+                        user: appConfig.userId,
+                        content: `User marked this response as ${rating}.`
+                    })
+                });
+
+                if (res.ok) {
+                    showToast(`Marked response as ${rating}`, "success");
+                    // Highlight the clicked feedback icon
+                    const parent = btnElement.parentElement;
+                    const thumbs = parent.querySelectorAll('button');
+                    thumbs.forEach(t => t.classList.remove('text-nixora-400', 'bg-nixora-500/10'));
+                    btnElement.classList.add('text-nixora-400', 'bg-nixora-500/10');
+                } else {
+                    showToast("Could not submit rating", "error");
+                }
+            } catch (err) {
+                showToast("Action restricted.", "error");
+            }
+        }
+
+        // Terminate Active Generation Stream
+        async function stopActiveGeneration() {
+            if (!activeTaskId) return;
+            showToast("Halting response stream...", "info");
+
+            try {
+                await fetch(getEndpointUrl(`/chat-messages/${activeTaskId}/stop`), {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${appConfig.apiKey}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ user: appConfig.userId })
+                });
+
+                if (controller) {
+                    controller.abort();
+                }
+                
+                finalizeGenerationState();
+                showToast("Generation stopped", "info");
+
+            } catch (err) {
+                console.error("Failed to stop", err);
+            }
+        }
+
+        function finalizeGenerationState() {
+            isGenerating = false;
+            activeTaskId = null;
+            document.getElementById('stream-stop-btn').classList.add('hidden');
+            document.getElementById('chat-submit-btn').removeAttribute('disabled');
+            document.getElementById('current-chat-status').innerText = "Ready to collaborate";
+        }
+
+        // Process message transmission
+        async function handleChatSubmit(event) {
+            if (event) event.preventDefault();
+
+            const textEl = document.getElementById('chat-textarea');
+            const query = textEl.value.trim();
+            if (!query && !attachedFileId) return;
+
+            if (isGenerating) return;
+
+            // Clear active entry states
+            textEl.value = '';
+            textEl.style.height = 'auto';
+            document.getElementById('welcome-panel').classList.add('hidden');
+
+            // Render local user message bubble
+            appendChatMessage('user', query, {
+                file: attachedFileId ? { name: attachedFileName, size: attachedFileSize } : null
+            });
+
+            // Set up stream loader element inside conversation
+            const streamMessageId = 'stream-' + Math.random().toString(36).substring(2, 11);
+            const wrapper = appendChatMessage('assistant', '', { id: streamMessageId, isStreamingPlaceholder: true });
+            
+            const thoughtContainer = wrapper.querySelector('.agent-thought-container');
+            const textContainer = wrapper.querySelector('.markdown-body');
+            const metricsContainer = wrapper.querySelector('.metrics-footer');
+
+            // Set streaming controls
+            isGenerating = true;
+            document.getElementById('stream-stop-btn').classList.remove('hidden');
+            document.getElementById('chat-submit-btn').setAttribute('disabled', 'true');
+            document.getElementById('current-chat-status').innerText = "Synthesizing answer...";
+
+            // Configure Dify payload
+            const payload = {
+                inputs: {},
+                query: query,
+                response_mode: "streaming",
+                conversation_id: activeConversationId || "",
+                user: appConfig.userId,
+                files: []
+            };
+
+            if (attachedFileId) {
+                payload.files.push({
+                    type: "image",
+                    transfer_method: "local_file",
+                    upload_file_id: attachedFileId
+                });
+                clearAttachedFile(); // Consumed
+            }
+
+            controller = new AbortController();
+            const signal = controller.signal;
+
+            try {
+                const response = await fetch(getEndpointUrl('/chat-messages'), {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${appConfig.apiKey}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(payload),
+                    signal: signal
+                });
+
+                if (!response.ok) {
+                    const errorJson = await response.json().catch(() => ({}));
+                    throw new Error(errorJson.message || `HTTP error! status: ${response.status}`);
+                }
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+                let compiledAnswer = '';
+
+                while (true) {
+                    const { value, done } = await reader.read();
+                    if (done) break;
+
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop(); // Keep half-processed text chunks in buffer
+
+                    for (const line of lines) {
+                        const cleanLine = line.trim();
+                        if (!cleanLine.startsWith('data:')) continue;
+
+                        const rawJson = cleanLine.substring(5).trim();
+                        if (!rawJson) continue;
+
+                        try {
+                            const parsed = JSON.parse(rawJson);
+                            
+                            // Check for active Task ID to register Cancel abilities
+                            if (parsed.task_id && !activeTaskId) {
+                                activeTaskId = parsed.task_id;
+                            }
+
+                            // Event: Stream Token
+                            if (parsed.event === 'message' || parsed.event === 'agent_message') {
+                                compiledAnswer += parsed.answer;
+                                textContainer.innerHTML = formatMarkdown(compiledAnswer);
+                                scrollToBottom();
+                            }
+
+                            // Event: Thinking / Tool calls tracking
+                            if (parsed.event === 'agent_thought') {
+                                if (parsed.thought || parsed.tool) {
+                                    renderThoughtSnippet(thoughtContainer, parsed);
+                                    scrollToBottom();
+                                }
+                            }
+
+                            // Event: Message Finished
+                            if (parsed.event === 'message_end') {
+                                if (!activeConversationId && parsed.conversation_id) {
+                                    activeConversationId = parsed.conversation_id;
+                                    loadConversations();
+                                }
+
+                                // Render metrics usage
+                                if (parsed.metadata && parsed.metadata.usage) {
+                                    const usage = parsed.metadata.usage;
+                                    metricsContainer.innerHTML = `
+                                        <div class="flex flex-wrap gap-2 text-[10px] text-slate-500 pt-2.5 border-t border-slate-800/60 font-mono">
+                                            <span>Tokens: ${usage.total_tokens || 0}</span>
+                                            <span>•</span>
+                                            <span>Latency: ${(usage.latency || 0).toFixed(2)}s</span>
+                                            <span>•</span>
+                                            <span>Mode: SSE Stream</span>
+                                        </div>
+                                    `;
+                                }
+
+                                // Attach real ID for upvote/downvote feedbacks
+                                if (parsed.message_id) {
+                                    wrapper.id = `msg-${parsed.message_id}`;
+                                    // Update feedback buttons click callbacks
+                                    const actionHeader = wrapper.querySelector('.action-header');
+                                    actionHeader.classList.remove('hidden');
+                                    actionHeader.querySelectorAll('button').forEach(btn => {
+                                        const rating = btn.dataset.rating;
+                                        btn.onclick = () => sendResponseFeedback(parsed.message_id, rating, btn);
+                                    });
+                                }
+                            }
+
+                            // Event: Errors raised by provider or limits
+                            if (parsed.event === 'error') {
+                                throw new Error(parsed.message || "An exception occurred inside Dify processor.");
+                            }
+
+                        } catch (e) {
+                            console.warn("JSON stream processing skip:", e);
+                        }
+                    }
+                }
+
+                finalizeGenerationState();
+
+            } catch (err) {
+                console.error("Streaming error", err);
+                textContainer.innerHTML = `
+                    <div class="p-3.5 bg-rose-500/10 border border-rose-500/20 text-rose-300 rounded-xl text-xs space-y-1">
+                        <p class="font-semibold flex items-center gap-1.5">
+                            <i data-lucide="shield-alert" class="w-4 h-4"></i>
+                            Stream interrupted
+                        </p>
+                        <p class="leading-relaxed">Error: ${err.message}. If this is a network block, please verify your API configuration parameter or enable the CORS Proxy in the settings panel.</p>
+                    </div>`;
+                finalizeGenerationState();
+            }
+        }
+
+        // Custom Stream Renderer for thoughts & steps
+        function renderThoughtSnippet(container, data) {
+            container.classList.remove('hidden');
+            let thoughtBlock = container.querySelector(`[data-thought-id="${data.id}"]`);
+            
+            if (!thoughtBlock) {
+                thoughtBlock = document.createElement('div');
+                thoughtBlock.className = "mb-2 text-xs bg-slate-950/80 border border-slate-800 rounded-xl overflow-hidden shadow-inner";
+                thoughtBlock.setAttribute('data-thought-id', data.id);
+                thoughtBlock.innerHTML = `
+                    <div class="px-3 py-2 border-b border-slate-800 flex items-center justify-between cursor-pointer" onclick="this.nextElementSibling.classList.toggle('hidden')">
+                        <div class="flex items-center gap-2">
+                            <span class="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse"></span>
+                            <span class="font-medium text-slate-300">Agent Processing ${data.position ? `(Step ${data.position})` : ''}</span>
+                        </div>
+                        <i data-lucide="chevron-down" class="w-3.5 h-3.5 text-slate-400"></i>
+                    </div>
+                    <div class="p-3 space-y-2 text-slate-400">
+                        <p class="thought-txt italic"></p>
+                        <div class="tool-use hidden">
+                            <p class="text-[10px] uppercase font-semibold text-nixora-400 tracking-wider flex items-center gap-1">
+                                <i data-lucide="terminal" class="w-3 h-3"></i> Tool Invoked: <span class="tool-name text-slate-300 text-xs"></span>
+                            </p>
+                            <pre class="tool-input mt-1.5 bg-slate-900 p-2 rounded-lg text-[10px] code-font overflow-x-auto text-slate-400 max-h-36"></pre>
+                        </div>
+                    </div>
+                `;
+                container.appendChild(thoughtBlock);
+                lucide.createIcons();
+            }
+
+            if (data.thought) {
+                thoughtBlock.querySelector('.thought-txt').innerText = data.thought;
+            }
+
+            if (data.tool) {
+                const toolBlock = thoughtBlock.querySelector('.tool-use');
+                toolBlock.classList.remove('hidden');
+                toolBlock.querySelector('.tool-name').innerText = data.tool;
+                if (data.tool_input) {
+                    try {
+                        const parsedObj = typeof data.tool_input === 'string' ? JSON.parse(data.tool_input) : data.tool_input;
+                        toolBlock.querySelector('.tool-input').innerText = JSON.stringify(parsedObj, null, 2);
+                    } catch (e) {
+                        toolBlock.querySelector('.tool-input').innerText = data.tool_input;
+                    }
+                }
+            }
+        }
+
+        // Render formatted components inside Message Scroller
+        function appendChatMessage(role, text, options = {}) {
+            const container = document.getElementById('messages-container');
+            const wrapper = document.createElement('div');
+            wrapper.className = `flex gap-4 md:gap-5 max-w-4xl w-full mx-auto p-4 md:p-5 rounded-2xl border transition-all ${
+                role === 'user'
+                ? 'bg-slate-900/40 border-slate-800/50 justify-end'
+                : 'bg-slate-900 border-slate-800 justify-start'
+            }`;
+
+            if (options.id) {
+                wrapper.id = `msg-${options.id}`;
+            }
+
+            const avatarHtml = role === 'user' 
+                ? `<div class="w-8 h-8 rounded-full bg-slate-750 flex items-center justify-center text-slate-300 text-xs font-semibold">U</div>`
+                : `<div class="w-8 h-8 rounded-full bg-gradient-to-tr from-nixora-600 to-violet-500 flex items-center justify-center text-white"><i data-lucide="cpu" class="w-4 h-4"></i></div>`;
+
+            if (role === 'user') {
+                wrapper.innerHTML = `
+                    <div class="flex-1 space-y-2 text-right">
+                        <p class="text-xs font-semibold text-slate-500 uppercase tracking-widest">You</p>
+                        <p class="text-slate-200 text-sm break-words whitespace-pre-wrap">${escapeHtml(text)}</p>
+                        ${options.file ? `
+                            <div class="inline-flex items-center gap-2 px-3 py-1.5 bg-slate-850 rounded-xl border border-slate-800 text-xs">
+                                <i data-lucide="image" class="w-3.5 h-3.5 text-nixora-400"></i>
+                                <span class="text-slate-300 font-medium">${options.file.name}</span>
+                            </div>
+                        ` : ''}
+                    </div>
+                    ${avatarHtml}
+                `;
+            } else {
+                wrapper.innerHTML = `
+                    ${avatarHtml}
+                    <div class="flex-1 space-y-3 min-w-0">
+                        <div class="flex items-center justify-between">
+                            <p class="text-xs font-semibold text-nixora-400 uppercase tracking-widest">Nixora Assistant</p>
+                            <!-- Feedback Actions Panel -->
+                            <div class="action-header flex items-center gap-1 ${options.isStreamingPlaceholder ? 'hidden' : ''}">
+                                <button data-rating="like" class="p-1 rounded hover:bg-slate-800 text-slate-500 hover:text-emerald-400 transition" title="Thumbs Up">
+                                    <i data-lucide="thumbs-up" class="w-3.5 h-3.5"></i>
+                                </button>
+                                <button data-rating="dislike" class="p-1 rounded hover:bg-slate-800 text-slate-500 hover:text-rose-400 transition" title="Thumbs Down">
+                                    <i data-lucide="thumbs-down" class="w-3.5 h-3.5"></i>
+                                </button>
+                                <button onclick="copyMessageText(this)" class="p-1 rounded hover:bg-slate-800 text-slate-500 hover:text-nixora-400 transition" title="Copy Text">
+                                    <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Thinking Process Container -->
+                        <div class="agent-thought-container hidden space-y-2"></div>
+
+                        <!-- Core Response Markdown body -->
+                        <div class="markdown-body text-slate-300 text-sm leading-relaxed whitespace-pre-line">${options.isStreamingPlaceholder ? '<span class="flex gap-1.5 items-center text-xs text-slate-500 animate-pulse"><span class="w-1.5 h-1.5 rounded-full bg-nixora-500 animate-bounce"></span> Formulating thoughts...</span>' : formatMarkdown(text)}</div>
+                        
+                        <!-- Usage Metrics Display -->
+                        <div class="metrics-footer"></div>
+                    </div>
+                `;
+            }
+
+            container.appendChild(wrapper);
+            lucide.createIcons();
+            scrollToBottom();
+            return wrapper;
+        }
+
+        // Custom Markdown formatter
+        function formatMarkdown(text) {
+            if (!text) return '';
+            // Basic secure escape
+            let formatted = escapeHtml(text);
+            
+            // Code Blocks formatting
+            formatted = formatted.replace(/```([\w-]*)\n([\s\S]*?)\n```/g, function(match, lang, code) {
+                return `<pre class="bg-slate-950 border border-slate-800/80 rounded-xl p-4 my-3 text-xs code-font overflow-x-auto text-indigo-300"><code class="block whitespace-pre">${code.trim()}</code></pre>`;
+            });
+
+            // Inline codes formatting
+            formatted = formatted.replace(/`([^`\n]+)`/g, '<code class="bg-slate-950 px-1.5 py-0.5 rounded text-indigo-300 code-font text-xs">$1</code>');
+
+            // Bold styling
+            formatted = formatted.replace(/\*\*([\s\S]*?)\*\*/g, '<strong class="font-bold text-white">$1</strong>');
+
+            // Bullet points
+            formatted = formatted.replace(/^\s*[-*+]\s+(.*)$/gm, '<li class="list-disc ml-5 pl-1 my-1 text-slate-300">$1</li>');
+
+            return formatted;
+        }
+
+        function escapeHtml(unsafe) {
+            return unsafe
+                 .replace(/&/g, "&amp;")
+                 .replace(/</g, "&lt;")
+                 .replace(/>/g, "&gt;")
+                 .replace(/"/g, "&quot;")
+                 .replace(/'/g, "&#039;");
+        }
+
+        // Helper clipboard copying command
+        function copyMessageText(btn) {
+            const messageBody = btn.closest('.flex-1').querySelector('.markdown-body');
+            const textToCopy = messageBody.innerText;
+            
+            // Copy standard executing mechanism for safe sandbox iframes
+            const textarea = document.createElement('textarea');
+            textarea.value = textToCopy;
+            document.body.appendChild(textarea);
+            textarea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textarea);
+
+            showToast("Copied to clipboard", "success");
+        }
+
+        function scrollToBottom() {
+            const scroller = document.getElementById('messages-scroller');
+            scroller.scrollTop = scroller.scrollHeight;
+        }
+
+        // Toast Messages Notifications
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = "flex items-center gap-3 p-4 rounded-xl border shadow-xl bg-slate-900 border-slate-800 pointer-events-auto transform translate-y-2 opacity-0 transition duration-300";
+            
+            const icons = {
+                success: '<i data-lucide="check-circle" class="w-5 h-5 text-emerald-400"></i>',
+                error: '<i data-lucide="x-circle" class="w-5 h-5 text-rose-400"></i>',
+                warning: '<i data-lucide="alert-triangle" class="w-5 h-5 text-amber-400"></i>',
+                info: '<i data-lucide="info" class="w-5 h-5 text-nixora-400"></i>'
+            };
+
+            toast.innerHTML = `
+                ${icons[type] || icons.info}
+                <div class="text-xs text-slate-200 font-medium">${message}</div>
+            `;
+
+            container.appendChild(toast);
+            lucide.createIcons();
+
+            // Trigger anim entry
+            setTimeout(() => {
+                toast.classList.remove('translate-y-2', 'opacity-0');
+            }, 10);
+
+            // Exit and remove
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-y-2');
+                setTimeout(() => toast.remove(), 300);
+            }, 4000);
+        }
+    </script>
+</body>
+</html>

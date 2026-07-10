@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Battleship by Codenix</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
+        body { font-family: 'Inter', sans-serif; background: #020617; color: white; }
+        .cell { aspect-ratio: 1; transition: all 0.2s; border: 1px solid #334155; }
+        .board-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 2px; }
+        .water { background: #0f172a; }
+        .ship { background: #475569; }
+        .hit { background: #ef4444 !important; }
+        .miss { background: #64748b !important; }
+        .sunk { background: #991b1b !important; }
+    </style>
+</head>
+<body class="flex flex-col items-center min-h-screen p-4">
+
+    <div id="overlay" class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-slate-950 transition-opacity duration-500">
+        <h1 class="text-6xl font-black text-indigo-500 mb-2 tracking-tighter">CODENIX</h1>
+        <h2 class="text-3xl font-black text-white mb-8 uppercase tracking-widest">Battleship</h2>
+        <button onclick="startGame()" class="px-10 py-4 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-full text-xl transition-all transform hover:scale-105">START MISSION</button>
+    </div>
+
+    <div class="w-full max-w-4xl space-y-8 mt-10">
+        <div class="text-center">
+            <div id="status" class="text-2xl font-black text-white mb-4">Prepare your fleet...</div>
+            <div id="turn-indicator" class="text-indigo-400 font-bold uppercase tracking-widest"></div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-12">
+            <div class="space-y-4">
+                <h3 class="text-indigo-400 font-bold text-sm uppercase tracking-widest text-center">Enemy Waters</h3>
+                <div id="enemyBoard" class="board-grid bg-slate-800 p-2 rounded-lg shadow-2xl"></div>
+            </div>
+            <div class="space-y-4">
+                <h3 class="text-indigo-400 font-bold text-sm uppercase tracking-widest text-center">Your Fleet</h3>
+                <div id="playerBoard" class="board-grid bg-slate-800 p-2 rounded-lg shadow-2xl"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const SIZE = 8;
+        const enemyBoardEl = document.getElementById('enemyBoard');
+        const playerBoardEl = document.getElementById('playerBoard');
+        const statusEl = document.getElementById('status');
+        const turnEl = document.getElementById('turn-indicator');
+        const overlay = document.getElementById('overlay');
+
+        let playerBoardData = [];
+        let enemyBoardData = [];
+        let gameActive = false;
+        let isPlayerTurn = true;
+
+        function createBoard(container, data, isPlayer) {
+            container.innerHTML = '';
+            for (let r = 0; r < SIZE; r++) {
+                for (let c = 0; c < SIZE; c++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'cell water';
+                    if (isPlayer && data[r][c].hasShip) cell.classList.add('ship');
+                    if (data[r][c].hit) cell.classList.add('hit');
+                    if (data[r][c].miss) cell.classList.add('miss');
+                    
+                    if (!isPlayer) {
+                        cell.classList.add('cursor-pointer');
+                        cell.onclick = () => handlePlayerAttack(r, c);
+                    }
+                    container.appendChild(cell);
+                }
+            }
+        }
+
+        function initData() {
+            playerBoardData = Array(SIZE).fill().map(() => Array(SIZE).fill().map(() => ({ hasShip: false, hit: false, miss: false })));
+            enemyBoardData = Array(SIZE).fill().map(() => Array(SIZE).fill().map(() => ({ hasShip: false, hit: false, miss: false })));
+            
+            placeShips(playerBoardData);
+            placeShips(enemyBoardData);
+        }
+
+        function placeShips(board) {
+            const shipSizes = [4, 3, 2, 2];
+            shipSizes.forEach(size => {
+                let placed = false;
+                while (!placed) {
+                    let r = Math.floor(Math.random() * SIZE);
+                    let c = Math.floor(Math.random() * SIZE);
+                    let vertical = Math.random() > 0.5;
+                    if (canPlace(board, r, c, size, vertical)) {
+                        for (let i = 0; i < size; i++) {
+                            let nr = vertical ? r + i : r;
+                            let nc = vertical ? c : c + i;
+                            board[nr][nc].hasShip = true;
+                        }
+                        placed = true;
+                    }
+                }
+            });
+        }
+
+        function canPlace(board, r, c, size, vertical) {
+            for (let i = 0; i < size; i++) {
+                let nr = vertical ? r + i : r;
+                let nc = vertical ? c : c + i;
+                if (nr >= SIZE || nc >= SIZE || board[nr][nc].hasShip) return false;
+            }
+            return true;
+        }
+
+        function handlePlayerAttack(r, c) {
+            if (!gameActive || !isPlayerTurn || enemyBoardData[r][c].hit || enemyBoardData[r][c].miss) return;
+
+            if (enemyBoardData[r][c].hasShip) {
+                enemyBoardData[r][c].hit = true;
+                statusEl.innerText = "DIRECT HIT!";
+            } else {
+                enemyBoardData[r][c].miss = true;
+                statusEl.innerText = "Missed!";
+            }
+            
+            createBoard(enemyBoardEl, enemyBoardData, false);
+            checkGameOver();
+            
+            if (gameActive) {
+                isPlayerTurn = false;
+                turnEl.innerText = "Enemy is thinking...";
+                setTimeout(handleEnemyAttack, 800);
+            }
+        }
+
+        function handleEnemyAttack() {
+            let r, c;
+            do {
+                r = Math.floor(Math.random() * SIZE);
+                c = Math.floor(Math.random() * SIZE);
+            } while (playerBoardData[r][c].hit || playerBoardData[r][c].miss);
+
+            if (playerBoardData[r][c].hasShip) {
+                playerBoardData[r][c].hit = true;
+                statusEl.innerText = "Nix hit your ship!";
+            } else {
+                playerBoardData[r][c].miss = true;
+                statusEl.innerText = "Nix missed!";
+            }
+            
+            createBoard(playerBoardEl, playerBoardData, true);
+            checkGameOver();
+            
+            if (gameActive) {
+                isPlayerTurn = true;
+                turnEl.innerText = "Your Turn";
+            }
+        }
+
+        function checkGameOver() {
+            const playerShipsLeft = playerBoardData.flat().some(cell => cell.hasShip && !cell.hit);
+            const enemyShipsLeft = enemyBoardData.flat().some(cell => cell.hasShip && !cell.hit);
+
+            if (!playerShipsLeft || !enemyShipsLeft) {
+                gameActive = false;
+                statusEl.innerText = !playerShipsLeft ? "DEFEAT! Your fleet is destroyed." : "VICTORY! Enemy fleet sunk.";
+                turnEl.innerText = "Game Over";
+            }
+        }
+
+        function startGame() {
+            overlay.style.opacity = 0;
+            setTimeout(() => overlay.style.display = 'none', 500);
+            initData();
+            createBoard(enemyBoardEl, enemyBoardData, false);
+            createBoard(playerBoardEl, playerBoardData, true);
+            gameActive = true;
+            isPlayerTurn = true;
+            statusEl.innerText = "Attack the enemy!";
+            turnEl.innerText = "Your Turn";
+        }
+    </script>
+</body>
+</html>

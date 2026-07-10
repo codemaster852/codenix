@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Othello by Codenix</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .board-grid {
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            gap: 4px;
+            background: #1e293b;
+            padding: 8px;
+            border-radius: 8px;
+        }
+        .cell {
+            position: relative;
+            background: #0f172a;
+            cursor: pointer;
+        }
+        .disc {
+            width: 85%;
+            height: 85%;
+            border-radius: 50%;
+            transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            transform: scale(0);
+        }
+        .disc.placed { transform: scale(1); }
+        .disc.black { background: #1f2937; box-shadow: inset 0 0 10px #000; }
+        .disc.white { background: #f8fafc; box-shadow: inset 0 0 10px #cbd5e1; }
+        
+        @keyframes pop { 0% { transform: scale(0.8); } 50% { transform: scale(1.2); } 100% { transform: scale(1); } }
+        .winner-pop { animation: pop 0.6s ease-out; }
+    </style>
+</head>
+<body class="bg-slate-950 min-h-screen flex flex-col items-center justify-center p-4">
+
+    <!-- Loading/Start Overlay -->
+    <div id="overlay" class="fixed inset-0 bg-slate-950 z-50 flex flex-col items-center justify-center transition-opacity duration-500">
+        <img src="https://scontent-hbe1-1.xx.fbcdn.net/v/t39.30808-6/718816493_122173678946952582_684043749236540884_n.jpg?stp=dst-jpg_tt6&cstp=mx1254x1254&ctp=s1254x1254&_nc_cat=105&ccb=1-7&_nc_sid=6ee11a&_nc_ohc=NyAhiEYLoB8Q7kNvwGODnCy&_nc_oc=AdqdVkG_VLNmSb8AnL8cFGXEKw1SUyQivNB9lXGNwFEpnhMd_XTTsYoIeL6jSWs6fi4&_nc_zt=23&_nc_ht=scontent-hbe1-1.xx&_nc_gid=NitylyVfvXU5I7nHDBYDTg&_nc_ss=7c2a8&oh=00_Af9Er0CMINn2Laf0DWkeVLYIeT4WjAlJZNNF6JsE0zR3cg&oe=6A2C7D41" 
+             alt="Codenix Logo" class="w-32 h-32 rounded-full mb-8 border-4 border-indigo-500 shadow-lg shadow-indigo-500/50">
+        <h1 class="text-white text-4xl font-bold mb-2">CODENIX</h1>
+        <p id="overlay-msg" class="text-indigo-400 tracking-widest mb-8">OTHELLO CHALLENGE</p>
+        <button id="start-btn" onclick="startGame()" class="px-8 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-full transition-transform hover:scale-105">
+            PLAY AGAINST NIX
+        </button>
+    </div>
+
+    <div class="w-full max-w-lg">
+        <div class="flex justify-between items-center mb-6 text-white">
+            <span class="text-sm font-bold tracking-widest text-indigo-400">CODENIX</span>
+            <div id="status" class="text-lg font-bold">Press Play to Start</div>
+        </div>
+        <div id="board" class="board-grid"></div>
+    </div>
+
+    <script>
+        const boardElement = document.getElementById('board');
+        const statusElement = document.getElementById('status');
+        const overlay = document.getElementById('overlay');
+        const overlayMsg = document.getElementById('overlay-msg');
+        const startBtn = document.getElementById('start-btn');
+        
+        let board = Array(8).fill().map(() => Array(8).fill(0));
+        let currentPlayer = 1;
+        let gameActive = false;
+
+        function createBoard() {
+            boardElement.innerHTML = '';
+            for (let r = 0; r < 8; r++) {
+                for (let c = 0; c < 8; c++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'cell aspect-square flex items-center justify-center';
+                    cell.onclick = () => makeMove(r, c);
+                    const disc = document.createElement('div');
+                    disc.className = 'disc';
+                    cell.appendChild(disc);
+                    boardElement.appendChild(cell);
+                }
+            }
+        }
+
+        function render() {
+            const cells = document.querySelectorAll('.cell');
+            board.flat().forEach((val, i) => {
+                const disc = cells[i].querySelector('.disc');
+                disc.className = 'disc ' + (val === 1 ? 'black placed' : val === 2 ? 'white placed' : '');
+            });
+        }
+
+        function isValidMove(r, c, player) {
+            if (board[r][c] !== 0) return false;
+            const opponent = player === 1 ? 2 : 1;
+            const directions = [[-1,-1], [-1,0], [-1,1], [0,-1], [0,1], [1,-1], [1,0], [1,1]];
+            
+            for (let [dr, dc] of directions) {
+                let nr = r + dr, nc = c + dc;
+                let foundOpponent = false;
+                while (nr >= 0 && nr < 8 && nc >= 0 && nc < 8 && board[nr][nc] === opponent) {
+                    nr += dr; nc += dc;
+                    foundOpponent = true;
+                }
+                if (foundOpponent && nr >= 0 && nr < 8 && nc >= 0 && nc < 8 && board[nr][nc] === player) return true;
+            }
+            return false;
+        }
+
+        function applyMove(r, c, player) {
+            board[r][c] = player;
+            const opponent = player === 1 ? 2 : 1;
+            const directions = [[-1,-1], [-1,0], [-1,1], [0,-1], [0,1], [1,-1], [1,0], [1,1]];
+            
+            for (let [dr, dc] of directions) {
+                let flips = [];
+                let nr = r + dr, nc = c + dc;
+                while (nr >= 0 && nr < 8 && nc >= 0 && nc < 8 && board[nr][nc] === opponent) {
+                    flips.push([nr, nc]);
+                    nr += dr; nc += dc;
+                }
+                if (nr >= 0 && nr < 8 && nc >= 0 && nc < 8 && board[nr][nc] === player) {
+                    flips.forEach(([fr, fc]) => board[fr][fc] = player);
+                }
+            }
+        }
+
+        function checkGameOver() {
+            const canMove = (p) => board.flat().some((_, i) => isValidMove(Math.floor(i/8), i%8, p));
+            if (!canMove(1) && !canMove(2)) {
+                gameActive = false;
+                let b = board.flat().filter(x => x === 1).length;
+                let w = board.flat().filter(x => x === 2).length;
+                showGameOver(b, w);
+            }
+        }
+
+        function showGameOver(b, w) {
+            overlay.style.display = 'flex';
+            overlay.classList.remove('opacity-0');
+            overlayMsg.innerHTML = `<span class="text-2xl">${b > w ? 'YOU WIN!' : b < w ? 'NIX WINS!' : 'DRAW!'}</span><br>Score: ${b} - ${w}`;
+            startBtn.innerText = "PLAY AGAIN";
+            statusElement.innerText = "Game Over";
+        }
+
+        function makeMove(r, c) {
+            if (!gameActive || currentPlayer !== 1 || !isValidMove(r, c, 1)) return;
+            
+            applyMove(r, c, 1);
+            render();
+            checkGameOver();
+            
+            if (gameActive) {
+                currentPlayer = 2;
+                statusElement.innerText = "Nix is thinking...";
+                setTimeout(nixMove, 800);
+            }
+        }
+
+        function nixMove() {
+            if (!gameActive) return;
+            let possibleMoves = [];
+            for(let r=0; r<8; r++) for(let c=0; c<8; c++) if(isValidMove(r, c, 2)) possibleMoves.push([r, c]);
+            
+            if (possibleMoves.length > 0) {
+                const [r, c] = possibleMoves[Math.floor(Math.random() * possibleMoves.length)];
+                applyMove(r, c, 2);
+                currentPlayer = 1;
+                statusElement.innerText = "Your Turn";
+            } else {
+                statusElement.innerText = "Nix passes turn";
+                currentPlayer = 1;
+            }
+            render();
+            checkGameOver();
+        }
+
+        function startGame() {
+            overlay.classList.add('opacity-0');
+            setTimeout(() => overlay.style.display = 'none', 500);
+            board = Array(8).fill().map(() => Array(8).fill(0));
+            board[3][3] = 2; board[4][4] = 2; board[3][4] = 1; board[4][3] = 1;
+            currentPlayer = 1;
+            gameActive = true;
+            statusElement.innerText = "Your Turn";
+            createBoard();
+            render();
+        }
+    </script>
+</body>
+</html>

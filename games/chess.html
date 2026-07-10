@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Grandmaster Chess Pro</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --sq-light: #ebecd0;
+            --sq-dark: #779556;
+            --accent: #6366f1;
+        }
+
+        body { 
+            font-family: 'Plus Jakarta Sans', sans-serif; 
+            background-color: #0f172a; 
+            color: #f8fafc;
+            overflow-x: hidden;
+            transition: background-color 0.3s ease;
+        }
+        
+        .chess-board {
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            grid-template-rows: repeat(8, 1fr);
+            border: 8px solid #1e293b;
+            aspect-ratio: 1 / 1;
+            width: 100%;
+            max-width: 600px;
+            user-select: none;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        .square {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+
+        .square.light { background-color: var(--sq-light); }
+        .square.dark { background-color: var(--sq-dark); }
+        
+        .square.last-move { background-color: rgba(255, 255, 0, 0.3) !important; }
+        .square.selected { background-color: rgba(99, 102, 241, 0.5) !important; }
+        
+        .square.valid-move::after {
+            content: '';
+            width: 20%;
+            height: 20%;
+            background: rgba(0, 0, 0, 0.15);
+            border-radius: 50%;
+        }
+
+        .square.valid-capture::after {
+            content: '';
+            width: 85%;
+            height: 85%;
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            border-radius: 50%;
+            position: absolute;
+        }
+
+        .piece {
+            width: 85%;
+            height: 85%;
+            z-index: 10;
+            transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            filter: drop-shadow(0 4px 3px rgb(0 0 0 / 0.2));
+        }
+
+        .piece:hover { transform: scale(1.1) translateY(-2px); }
+
+        .custom-scroll::-webkit-scrollbar { width: 6px; }
+        .custom-scroll::-webkit-scrollbar-track { background: #1e293b; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: #475569; border-radius: 10px; }
+
+        .modal-overlay {
+            background: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(8px);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+        
+        .modal-overlay.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .modal-content {
+            transform: scale(0.9) translateY(20px);
+            transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        .modal-overlay.active .modal-content {
+            transform: scale(1) translateY(0);
+        }
+
+        @media (max-width: 1024px) {
+            .main-layout { flex-direction: column; align-items: center; }
+            .side-panel { width: 100% !important; max-width: 600px; }
+        }
+    </style>
+</head>
+<body class="min-h-screen p-4 md:p-8">
+
+    <div class="max-w-7xl mx-auto">
+        <header class="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
+            <div>
+                <h1 class="text-3xl font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 to-cyan-400">
+                    Grandmaster Chess <span class="text-xs align-top font-normal text-slate-500 uppercase tracking-tighter">Pro</span>
+                </h1>
+                <div id="status-text" class="text-slate-400 font-medium">White's Turn</div>
+            </div>
+            
+            <div class="flex items-center gap-3">
+                <button onclick="toggleSettings(true)" class="flex items-center gap-2 px-5 py-2.5 bg-slate-800 hover:bg-slate-700 rounded-2xl font-bold text-sm transition-all border border-slate-700 group">
+                    <svg class="w-5 h-5 text-slate-400 group-hover:rotate-90 transition-transform duration-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                    Settings
+                </button>
+            </div>
+        </header>
+
+        <main class="main-layout flex flex-row gap-8 items-start">
+            <!-- Board Container -->
+            <div class="flex-1 w-full max-w-[600px]">
+                <div id="board" class="chess-board">
+                    <!-- Squares injected by JS -->
+                </div>
+
+                <div class="mt-8 flex justify-center gap-4">
+                    <button onclick="resetGame()" class="flex items-center gap-2 px-8 py-3 bg-slate-800 hover:bg-slate-700 rounded-xl font-bold text-sm transition-all border border-slate-700">
+                        New Game
+                    </button>
+                    <button onclick="undoMove()" class="flex items-center gap-2 px-8 py-3 bg-slate-800 hover:bg-slate-700 rounded-xl font-bold text-sm transition-all border border-slate-700">
+                        Undo
+                    </button>
+                </div>
+            </div>
+
+            <!-- Stats Panel -->
+            <div class="side-panel w-96 flex flex-col gap-6">
+                <div class="bg-slate-800/40 border border-slate-700/50 p-6 rounded-3xl flex flex-col h-[600px] backdrop-blur-sm">
+                    <div class="mb-6">
+                        <h2 class="text-lg font-bold mb-4 flex items-center gap-2">
+                            <span class="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span>
+                            Live Match Stats
+                        </h2>
+                        <div class="space-y-4">
+                            <div>
+                                <span class="text-[10px] uppercase font-black text-slate-500 tracking-widest block mb-2">Captured by Black</span>
+                                <div id="captured-black" class="flex flex-wrap gap-1 min-h-[24px]"></div>
+                            </div>
+                            <div>
+                                <span class="text-[10px] uppercase font-black text-slate-500 tracking-widest block mb-2">Captured by White</span>
+                                <div id="captured-white" class="flex flex-wrap gap-1 min-h-[24px]"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="flex-1 overflow-y-auto custom-scroll pr-2">
+                        <table class="w-full text-sm">
+                            <thead class="text-slate-500 sticky top-0 bg-[#162033] z-20">
+                                <tr class="text-left">
+                                    <th class="pb-2 font-bold w-12">#</th>
+                                    <th class="pb-2 font-bold">White</th>
+                                    <th class="pb-2 font-bold">Black</th>
+                                </tr>
+                            </thead>
+                            <tbody id="move-history-list" class="divide-y divide-slate-700/50"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <div id="settings-modal" class="modal-overlay fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div class="modal-content bg-slate-900 border border-slate-700 w-full max-w-md rounded-[2.5rem] shadow-2xl p-8 overflow-hidden relative">
+            <button onclick="toggleSettings(false)" class="absolute top-6 right-6 text-slate-500 hover:text-white transition-colors">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
+
+            <h2 class="text-2xl font-bold mb-8">Game Settings</h2>
+
+            <div class="space-y-8">
+                <!-- Difficulty -->
+                <div class="space-y-3">
+                    <label class="text-sm font-bold text-slate-400 uppercase tracking-wider">AI Difficulty</label>
+                    <select id="difficulty" onchange="updateDifficulty()" class="w-full bg-slate-800 text-white rounded-2xl px-5 py-3 outline-none border border-slate-700 cursor-pointer hover:border-indigo-500 transition-colors appearance-none">
+                        <option value="1">Novice (Depth 1)</option>
+                        <option value="2" selected>Intermediate (Depth 2)</option>
+                        <option value="3">Advanced (Depth 3)</option>
+                        <option value="4">Grandmaster (Depth 4)</option>
+                    </select>
+                </div>
+
+                <!-- Themes -->
+                <div class="space-y-3">
+                    <label class="text-sm font-bold text-slate-400 uppercase tracking-wider">Board Theme</label>
+                    <div class="grid grid-cols-4 gap-4">
+                        <button onclick="setTheme('emerald')" class="group relative aspect-square rounded-2xl border-4 border-slate-800 bg-emerald-600 hover:scale-105 transition-all overflow-hidden" title="Emerald">
+                            <span class="absolute inset-0 bg-white/20 opacity-0 group-hover:opacity-100 transition-opacity"></span>
+                        </button>
+                        <button onclick="setTheme('ocean')" class="group relative aspect-square rounded-2xl border-4 border-slate-800 bg-blue-600 hover:scale-105 transition-all overflow-hidden" title="Ocean">
+                            <span class="absolute inset-0 bg-white/20 opacity-0 group-hover:opacity-100 transition-opacity"></span>
+                        </button>
+                        <button onclick="setTheme('wood')" class="group relative aspect-square rounded-2xl border-4 border-slate-800 bg-amber-700 hover:scale-105 transition-all overflow-hidden" title="Wood">
+                            <span class="absolute inset-0 bg-white/20 opacity-0 group-hover:opacity-100 transition-opacity"></span>
+                        </button>
+                        <button onclick="setTheme('slate')" class="group relative aspect-square rounded-2xl border-4 border-slate-800 bg-slate-500 hover:scale-105 transition-all overflow-hidden" title="Slate">
+                            <span class="absolute inset-0 bg-white/20 opacity-0 group-hover:opacity-100 transition-opacity"></span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Piece Styles -->
+                <div class="space-y-3">
+                    <label class="text-sm font-bold text-slate-400 uppercase tracking-wider">Piece Style</label>
+                    <div class="flex p-1 bg-slate-800 rounded-2xl border border-slate-700">
+                        <button onclick="setPieceStyle('classic')" id="btn-piece-classic" class="flex-1 py-3 bg-slate-700 rounded-xl text-sm font-bold transition-all shadow-lg">Classic</button>
+                        <button onclick="setPieceStyle('modern')" id="btn-piece-modern" class="flex-1 py-3 text-slate-400 hover:text-white text-sm font-bold transition-all">Modern</button>
+                    </div>
+                </div>
+
+                <button onclick="toggleSettings(false)" class="w-full py-4 bg-indigo-600 hover:bg-indigo-500 rounded-2xl font-bold transition-all shadow-xl shadow-indigo-900/20 mt-4">
+                    Save & Close
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const game = new Chess();
+        const boardEl = document.getElementById('board');
+        const statusTextEl = document.getElementById('status-text');
+        const historyListEl = document.getElementById('move-history-list');
+        const modalEl = document.getElementById('settings-modal');
+        
+        let selectedSquare = null;
+        let aiDepth = 2;
+        let currentPieceStyle = 'classic';
+
+        const themes = {
+            emerald: { light: '#ebecd0', dark: '#779556' },
+            ocean: { light: '#e2e8f0', dark: '#3b82f6' },
+            wood: { light: '#fdf5e6', dark: '#b8860b' },
+            slate: { light: '#cbd5e1', dark: '#64748b' }
+        };
+
+        const pieceSets = {
+            classic: {
+                p: { w: 'https://upload.wikimedia.org/wikipedia/commons/4/45/Chess_plt45.svg', b: 'https://upload.wikimedia.org/wikipedia/commons/c/c7/Chess_pdt45.svg' },
+                r: { w: 'https://upload.wikimedia.org/wikipedia/commons/7/72/Chess_rlt45.svg', b: 'https://upload.wikimedia.org/wikipedia/commons/f/ff/Chess_rdt45.svg' },
+                n: { w: 'https://upload.wikimedia.org/wikipedia/commons/7/70/Chess_nlt45.svg', b: 'https://upload.wikimedia.org/wikipedia/commons/e/ef/Chess_ndt45.svg' },
+                b: { w: 'https://upload.wikimedia.org/wikipedia/commons/b/b1/Chess_blt45.svg', b: 'https://upload.wikimedia.org/wikipedia/commons/9/98/Chess_bdt45.svg' },
+                q: { w: 'https://upload.wikimedia.org/wikipedia/commons/1/15/Chess_qlt45.svg', b: 'https://upload.wikimedia.org/wikipedia/commons/4/47/Chess_qdt45.svg' },
+                k: { w: 'https://upload.wikimedia.org/wikipedia/commons/4/42/Chess_klt45.svg', b: 'https://upload.wikimedia.org/wikipedia/commons/f/f0/Chess_kdt45.svg' }
+            },
+            modern: {
+                p: { w: 'https://raw.githubusercontent.com/nmrugg/stockfish.js/master/example/img/chesspieces/wikipedia/wP.png', b: 'https://raw.githubusercontent.com/nmrugg/stockfish.js/master/example/img/chesspieces/wikipedia/bP.png' },
+                r: { w: 'https://raw.githubusercontent.com/nmrugg/stockfish.js/master/example/img/chesspieces/wikipedia/wR.png', b: 'https://raw.githubusercontent.com/nmrugg/stockfish.js/master/example/img/chesspieces/wikipedia/bR.png' },
+                n: { w: 'https://raw.githubusercontent.com/nmrugg/stockfish.js/master/example/img/chesspieces/wikipedia/wN.png', b: 'https://raw.githubusercontent.com/nmrugg/stockfish.js/master/example/img/chesspieces/wikipedia/bN.png' },
+                b: { w: 'https://raw.githubusercontent.com/nmrugg/stockfish.js/master/example/img/chesspieces/wikipedia/wB.png', b: 'https://raw.githubusercontent.com/nmrugg/stockfish.js/master/example/img/chesspieces/wikipedia/bB.png' },
+                q: { w: 'https://raw.githubusercontent.com/nmrugg/stockfish.js/master/example/img/chesspieces/wikipedia/wQ.png', b: 'https://raw.githubusercontent.com/nmrugg/stockfish.js/master/example/img/chesspieces/wikipedia/bQ.png' },
+                k: { w: 'https://raw.githubusercontent.com/nmrugg/stockfish.js/master/example/img/chesspieces/wikipedia/wK.png', b: 'https://raw.githubusercontent.com/nmrugg/stockfish.js/master/example/img/chesspieces/wikipedia/bK.png' }
+            }
+        };
+
+        const weights = { p: 10, n: 32, b: 33, r: 50, q: 90, k: 900 };
+
+        function toggleSettings(show) {
+            modalEl.classList.toggle('active', show);
+        }
+
+        function setPieceStyle(style) {
+            currentPieceStyle = style;
+            const classicBtn = document.getElementById('btn-piece-classic');
+            const modernBtn = document.getElementById('btn-piece-modern');
+            
+            if (style === 'classic') {
+                classicBtn.className = "flex-1 py-3 bg-slate-700 rounded-xl text-sm font-bold transition-all shadow-lg";
+                modernBtn.className = "flex-1 py-3 text-slate-400 hover:text-white text-sm font-bold transition-all";
+            } else {
+                modernBtn.className = "flex-1 py-3 bg-slate-700 rounded-xl text-sm font-bold transition-all shadow-lg";
+                classicBtn.className = "flex-1 py-3 text-slate-400 hover:text-white text-sm font-bold transition-all";
+            }
+            updateBoardDisplay();
+        }
+
+        // Close modal on escape or backdrop click
+        window.addEventListener('keydown', (e) => { if (e.key === 'Escape') toggleSettings(false); });
+        modalEl.addEventListener('click', (e) => { if (e.target === modalEl) toggleSettings(false); });
+
+        function evaluateBoard(gameInstance) {
+            let totalEvaluation = 0;
+            const board = gameInstance.board();
+            for (let i = 0; i < 8; i++) {
+                for (let j = 0; j < 8; j++) {
+                    const piece = board[i][j];
+                    if (piece) {
+                        const val = weights[piece.type];
+                        totalEvaluation += (piece.color === 'w' ? val : -val);
+                    }
+                }
+            }
+            return totalEvaluation;
+        }
+
+        function minimax(gameInstance, depth, alpha, beta, isMaximizing) {
+            if (depth === 0) return -evaluateBoard(gameInstance);
+            const moves = gameInstance.moves();
+            if (isMaximizing) {
+                let bestEval = -Infinity;
+                for (const move of moves) {
+                    gameInstance.move(move);
+                    bestEval = Math.max(bestEval, minimax(gameInstance, depth - 1, alpha, beta, false));
+                    gameInstance.undo();
+                    alpha = Math.max(alpha, bestEval);
+                    if (beta <= alpha) break;
+                }
+                return bestEval;
+            } else {
+                let bestEval = Infinity;
+                for (const move of moves) {
+                    gameInstance.move(move);
+                    bestEval = Math.min(bestEval, minimax(gameInstance, depth - 1, alpha, beta, true));
+                    gameInstance.undo();
+                    beta = Math.min(beta, bestEval);
+                    if (beta <= alpha) break;
+                }
+                return bestEval;
+            }
+        }
+
+        function getBestMove(gameInstance) {
+            const moves = gameInstance.moves();
+            if (moves.length === 0) return null;
+            let bestMove = null;
+            let bestValue = -Infinity;
+            if (aiDepth === 1) return moves[Math.floor(Math.random() * moves.length)];
+            for (const move of moves) {
+                gameInstance.move(move);
+                const boardValue = minimax(gameInstance, aiDepth - 1, -Infinity, Infinity, false);
+                gameInstance.undo();
+                if (boardValue > bestValue) {
+                    bestValue = boardValue;
+                    bestMove = move;
+                }
+            }
+            return bestMove;
+        }
+
+        function createBoard() {
+            boardEl.innerHTML = '';
+            for (let i = 0; i < 64; i++) {
+                const square = document.createElement('div');
+                const row = Math.floor(i / 8);
+                const col = i % 8;
+                const squareName = String.fromCharCode(97 + col) + (8 - row);
+                square.classList.add('square');
+                square.classList.add((row + col) % 2 === 0 ? 'light' : 'dark');
+                square.dataset.square = squareName;
+                square.onclick = () => onSquareClick(squareName);
+                boardEl.appendChild(square);
+            }
+            updateBoardDisplay();
+        }
+
+        function updateBoardDisplay() {
+            const squares = document.querySelectorAll('.square');
+            const boardState = game.board();
+            const lastMove = game.history({ verbose: true }).pop();
+
+            squares.forEach(sq => {
+                const pos = sq.dataset.square;
+                const row = 8 - parseInt(pos[1]);
+                const col = pos.charCodeAt(0) - 97;
+                const piece = boardState[row][col];
+                sq.innerHTML = '';
+                sq.classList.remove('selected', 'valid-move', 'valid-capture', 'last-move');
+                if (lastMove && (pos === lastMove.from || pos === lastMove.to)) sq.classList.add('last-move');
+                if (piece) {
+                    const img = document.createElement('img');
+                    img.src = pieceSets[currentPieceStyle][piece.type][piece.color];
+                    img.className = 'piece';
+                    sq.appendChild(img);
+                }
+            });
+            updateUI();
+        }
+
+        function onSquareClick(square) {
+            if (game.game_over() || game.turn() === 'b') return;
+            const moves = game.moves({ square: square, verbose: true });
+            if (selectedSquare) {
+                const move = game.move({ from: selectedSquare, to: square, promotion: 'q' });
+                if (move) {
+                    selectedSquare = null;
+                    updateBoardDisplay();
+                    setTimeout(makeAiMove, 400);
+                    return;
+                }
+            }
+            if (game.get(square) && game.get(square).color === 'w') {
+                selectedSquare = square;
+                updateBoardDisplay();
+                document.querySelector(`[data-square="${square}"]`).classList.add('selected');
+                moves.forEach(m => {
+                    const target = document.querySelector(`[data-square="${m.to}"]`);
+                    target.classList.add(m.flags.includes('c') ? 'valid-capture' : 'valid-move');
+                });
+            } else {
+                selectedSquare = null;
+                updateBoardDisplay();
+            }
+        }
+
+        function makeAiMove() {
+            if (game.game_over()) return;
+            const move = getBestMove(game);
+            game.move(move);
+            updateBoardDisplay();
+        }
+
+        function updateUI() {
+            const turn = game.turn() === 'w' ? 'White' : 'Black';
+            statusTextEl.innerText = game.in_checkmate() ? `Checkmate! ${turn === 'White' ? 'Black' : 'White'} Wins!` : 
+                                     game.in_draw() ? 'Match Draw!' : 
+                                     `${turn}'s Turn${game.in_check() ? ' (Check!)' : ''}`;
+            const history = game.history();
+            historyListEl.innerHTML = '';
+            for (let i = 0; i < history.length; i += 2) {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td class="py-2.5 text-slate-500 font-bold">${Math.floor(i/2) + 1}</td>
+                    <td class="py-2.5 text-white font-medium">${history[i]}</td>
+                    <td class="py-2.5 text-slate-400 font-medium">${history[i+1] || '—'}</td>
+                `;
+                historyListEl.appendChild(row);
+            }
+            const capW = document.getElementById('captured-white');
+            const capB = document.getElementById('captured-black');
+            capW.innerHTML = ''; capB.innerHTML = '';
+            game.history({verbose: true}).forEach(m => {
+                if (m.captured) {
+                    const img = document.createElement('img');
+                    img.src = pieceSets[currentPieceStyle][m.captured][m.color === 'w' ? 'b' : 'w'];
+                    img.className = 'w-5 h-5 opacity-80 hover:opacity-100 transition-opacity';
+                    (m.color === 'w' ? capW : capB).appendChild(img);
+                }
+            });
+        }
+
+        function setTheme(themeKey) {
+            const theme = themes[themeKey];
+            document.documentElement.style.setProperty('--sq-light', theme.light);
+            document.documentElement.style.setProperty('--sq-dark', theme.dark);
+        }
+
+        function updateDifficulty() {
+            aiDepth = parseInt(document.getElementById('difficulty').value);
+        }
+
+        function resetGame() {
+            game.reset();
+            selectedSquare = null;
+            updateBoardDisplay();
+        }
+
+        function undoMove() {
+            game.undo();
+            game.undo();
+            updateBoardDisplay();
+        }
+
+        window.onload = createBoard;
+    </script>
+</body>
+</html>

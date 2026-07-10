@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nix Notes - Organize Your Life</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .note-card {
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .note-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+        }
+        .completed {
+            text-decoration: line-through;
+            opacity: 0.6;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen text-gray-800">
+
+    <div class="max-w-4xl mx-auto p-4 md:p-8">
+        <header class="mb-8 flex items-center gap-4">
+            <img src="https://scontent.fcai19-5.fna.fbcdn.net/v/t39.30808-1/718816493_122173678946952582_684043749236540884_n.jpg?stp=c286.276.667.667a_dst-jpg_tt6&cstp=mx667x667&ctp=s160x160&_nc_cat=105&ccb=1-7&_nc_sid=2d3e12&_nc_ohc=i6fhbP4IkpUQ7kNvwFXNiU6&_nc_oc=Adq83Cw68RZiO6x5kqevL70DS7gRfX_jjZo2jmoRzo5zaws2oOU3F94cQfZEJiEJAY8&_nc_zt=24&_nc_ht=scontent.fcai19-5.fna&_nc_gid=3kAVDr5vHld4cMT62ToxBg&_nc_ss=7c2a8&oh=00_Af_YAEODQY2fqdhgcFYyrak7ETZpiSQWjqo6s2XrI49p1w&oe=6A3328F1" alt="Nix Notes Logo" class="w-16 h-16 rounded-full shadow-sm border border-gray-100">
+            <div>
+                <h1 class="text-4xl font-extrabold text-gray-900 tracking-tight">Nix Notes</h1>
+                <p class="text-gray-600 mt-1">Capture your thoughts, tasks, and ideas in one place.</p>
+            </div>
+        </header>
+
+        <section class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 mb-10">
+            <h2 class="text-lg font-semibold mb-4">Create New Note / Task</h2>
+            <div class="space-y-4">
+                <input type="text" id="noteTitle" placeholder="Title" class="w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none">
+                <textarea id="noteContent" placeholder="What's on your mind? (Task, reminder, note...)" class="w-full p-3 border border-gray-200 rounded-xl h-24 focus:ring-2 focus:ring-indigo-500 outline-none"></textarea>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <input type="text" id="noteLink" placeholder="Link URL (optional)" class="w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none">
+                    <input type="text" id="noteImage" placeholder="Image URL (optional)" class="w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none">
+                </div>
+                <button onclick="addNote()" class="w-full bg-indigo-600 text-white font-bold py-3 rounded-xl hover:bg-indigo-700 transition duration-200 shadow-md">Add Note</button>
+            </div>
+        </section>
+
+        <div class="flex gap-2 mb-6" id="filterContainer">
+            <button onclick="setFilter('all')" class="px-4 py-2 bg-indigo-100 text-indigo-700 rounded-full font-medium">All</button>
+            <button onclick="setFilter('active')" class="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-full font-medium">Active</button>
+            <button onclick="setFilter('completed')" class="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-full font-medium">Completed</button>
+        </div>
+
+        <div id="notesContainer" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-6">
+            <!-- Notes will be injected here via JavaScript -->
+        </div>
+    </div>
+
+    <script>
+        let notes = JSON.parse(localStorage.getItem('nix-notes')) || [];
+        let currentFilter = 'all';
+
+        function saveNotes() {
+            localStorage.setItem('nix-notes', JSON.stringify(notes));
+            renderNotes();
+        }
+
+        function setFilter(filter) {
+            currentFilter = filter;
+            document.querySelectorAll('#filterContainer button').forEach(btn => {
+                if (btn.innerText.toLowerCase() === filter) {
+                    btn.className = 'px-4 py-2 bg-indigo-100 text-indigo-700 rounded-full font-medium';
+                } else {
+                    btn.className = 'px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-full font-medium';
+                }
+            });
+            renderNotes();
+        }
+
+        function addNote() {
+            const title = document.getElementById('noteTitle').value;
+            const content = document.getElementById('noteContent').value;
+            const link = document.getElementById('noteLink').value;
+            const image = document.getElementById('noteImage').value;
+
+            if (!title) return alert('Please add a title!');
+
+            const newNote = {
+                id: Date.now(),
+                title,
+                content,
+                link,
+                image,
+                completed: false
+            };
+
+            notes.push(newNote);
+            saveNotes();
+
+            document.getElementById('noteTitle').value = '';
+            document.getElementById('noteContent').value = '';
+            document.getElementById('noteLink').value = '';
+            document.getElementById('noteImage').value = '';
+        }
+
+        function toggleComplete(id) {
+            notes = notes.map(n => n.id === id ? {...n, completed: !n.completed} : n);
+            saveNotes();
+        }
+
+        function deleteNote(id) {
+            notes = notes.filter(n => n.id !== id);
+            saveNotes();
+        }
+
+        function renderNotes() {
+            const container = document.getElementById('notesContainer');
+            container.innerHTML = '';
+
+            const filtered = notes.filter(n => {
+                if (currentFilter === 'active') return !n.completed;
+                if (currentFilter === 'completed') return n.completed;
+                return true;
+            });
+
+            filtered.forEach(note => {
+                const card = document.createElement('div');
+                card.className = `note-card bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col gap-3 ${note.completed ? 'opacity-75' : ''}`;
+                card.innerHTML = `
+                    ${note.image ? `<img src="${note.image}" class="w-full h-40 object-cover rounded-xl" onerror="this.style.display='none'">` : ''}
+                    <h3 class="text-xl font-bold ${note.completed ? 'completed' : ''}">${note.title}</h3>
+                    <p class="text-gray-600 flex-grow ${note.completed ? 'completed' : ''}">${note.content}</p>
+                    ${note.link ? `<a href="${note.link}" target="_blank" class="text-indigo-600 hover:underline text-sm font-medium">Visit Link →</a>` : ''}
+                    <div class="flex gap-2 pt-4 mt-auto border-t border-gray-100">
+                        <button onclick="toggleComplete(${note.id})" class="flex-1 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-sm font-medium transition">
+                            ${note.completed ? 'Undo' : 'Done'}
+                        </button>
+                        <button onclick="deleteNote(${note.id})" class="flex-1 py-2 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 text-sm font-medium transition">
+                            Delete
+                        </button>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        renderNotes();
+    </script>
+</body>
+</html>

@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tic-Tac-Toe by Codenix</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .cell { transition: all 0.2s ease; }
+        .board-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+            background: #1e293b;
+            padding: 16px;
+            border-radius: 16px;
+        }
+        .symbol { font-size: 3rem; font-weight: 900; }
+        .text-x { color: #6366f1; }
+        .text-o { color: #f43f5e; }
+    </style>
+</head>
+<body class="bg-slate-950 min-h-screen flex flex-col items-center justify-center p-4">
+
+    <div id="overlay" class="fixed inset-0 bg-slate-950 z-50 flex flex-col items-center justify-center transition-opacity duration-500">
+        <img src="https://scontent-hbe1-1.xx.fbcdn.net/v/t39.30808-6/718816493_122173678946952582_684043749236540884_n.jpg?stp=dst-jpg_tt6&cstp=mx1254x1254&ctp=s1254x1254&_nc_cat=105&ccb=1-7&_nc_sid=6ee11a&_nc_ohc=NyAhiEYLoB8Q7kNvwGODnCy&_nc_oc=AdqdVkG_VLNmSb8AnL8cFGXEKw1SUyQivNB9lXGNwFEpnhMd_XTTsYoIeL6jSWs6fi4&_nc_zt=23&_nc_ht=scontent-hbe1-1.xx&_nc_gid=NitylyVfvXU5I7nHDBYDTg&_nc_ss=7c2a8&oh=00_Af9Er0CMINn2Laf0DWkeVLYIeT4WjAlJZNNF6JsE0zR3cg&oe=6A2C7D41" 
+             alt="Codenix Logo" class="w-32 h-32 rounded-full mb-8 border-4 border-indigo-500 shadow-lg shadow-indigo-500/50">
+        <h1 class="text-white text-4xl font-bold mb-2">CODENIX</h1>
+        <p id="level-indicator" class="text-indigo-400 tracking-widest mb-8">AI LEVEL: 1 (NOVICE)</p>
+        <button onclick="startGame()" class="px-8 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-full transition-transform hover:scale-105">
+            PLAY AGAINST NIX
+        </button>
+    </div>
+
+    <div class="w-full max-w-sm">
+        <div class="flex justify-between items-center mb-6 text-white">
+            <span class="text-sm font-bold tracking-widest text-indigo-400">CODENIX</span>
+            <div id="status" class="text-lg font-bold">Press Play to Start</div>
+        </div>
+        <div id="board" class="board-grid shadow-2xl"></div>
+    </div>
+
+    <script>
+        const boardElement = document.getElementById('board');
+        const statusElement = document.getElementById('status');
+        const overlay = document.getElementById('overlay');
+        const levelIndicator = document.getElementById('level-indicator');
+        
+        let board = Array(9).fill(null);
+        let currentPlayer = 'X';
+        let gameActive = false;
+        let aiLevel = 1; // 1: Random, 2: Smart(Greedy), 3: Impossible(Minimax)
+
+        function createBoard() {
+            boardElement.innerHTML = '';
+            for (let i = 0; i < 9; i++) {
+                const cell = document.createElement('div');
+                cell.className = 'cell w-full aspect-square bg-slate-800 rounded-lg cursor-pointer flex items-center justify-center hover:bg-slate-700';
+                cell.onclick = () => makeMove(i);
+                boardElement.appendChild(cell);
+            }
+        }
+
+        function render() {
+            const cells = document.querySelectorAll('.cell');
+            board.forEach((val, i) => {
+                cells[i].innerHTML = val ? `<span class="symbol ${val === 'X' ? 'text-x' : 'text-o'}">${val}</span>` : '';
+            });
+        }
+
+        function checkWinner(currentBoard) {
+            const lines = [[0,1,2], [3,4,5], [6,7,8], [0,3,6], [1,4,7], [2,5,8], [0,4,8], [2,4,6]];
+            for (let [a, b, c] of lines) {
+                if (currentBoard[a] && currentBoard[a] === currentBoard[b] && currentBoard[a] === currentBoard[c]) return currentBoard[a];
+            }
+            return currentBoard.includes(null) ? null : 'Draw';
+        }
+
+        function minimax(tempBoard, isMaximizing) {
+            const winner = checkWinner(tempBoard);
+            if (winner === 'O') return 10;
+            if (winner === 'X') return -10;
+            if (winner === 'Draw') return 0;
+
+            if (isMaximizing) {
+                let bestScore = -Infinity;
+                for (let i = 0; i < 9; i++) {
+                    if (!tempBoard[i]) {
+                        tempBoard[i] = 'O';
+                        let score = minimax(tempBoard, false);
+                        tempBoard[i] = null;
+                        bestScore = Math.max(score, bestScore);
+                    }
+                }
+                return bestScore;
+            } else {
+                let bestScore = Infinity;
+                for (let i = 0; i < 9; i++) {
+                    if (!tempBoard[i]) {
+                        tempBoard[i] = 'X';
+                        let score = minimax(tempBoard, true);
+                        tempBoard[i] = null;
+                        bestScore = Math.min(score, bestScore);
+                    }
+                }
+                return bestScore;
+            }
+        }
+
+        function nixMove() {
+            if (!gameActive) return;
+            
+            let move;
+            const available = board.map((v, i) => v === null ? i : null).filter(v => v !== null);
+
+            // Level 1: Pure Random
+            if (aiLevel === 1) {
+                move = available[Math.floor(Math.random() * available.length)];
+            } 
+            // Level 2: Greedy (Blocks or wins if possible, otherwise random)
+            else if (aiLevel === 2) {
+                // Try to win
+                for (let i of available) {
+                    board[i] = 'O';
+                    if (checkWinner(board) === 'O') { move = i; board[i] = null; break; }
+                    board[i] = null;
+                }
+                // Try to block
+                if (move === undefined) {
+                    for (let i of available) {
+                        board[i] = 'X';
+                        if (checkWinner(board) === 'X') { move = i; board[i] = null; break; }
+                        board[i] = null;
+                    }
+                }
+                if (move === undefined) move = available[Math.floor(Math.random() * available.length)];
+            }
+            // Level 3: Minimax (Unbeatable)
+            else {
+                let bestScore = -Infinity;
+                for (let i = 0; i < 9; i++) {
+                    if (!board[i]) {
+                        board[i] = 'O';
+                        let score = minimax(board, false);
+                        board[i] = null;
+                        if (score > bestScore) { bestScore = score; move = i; }
+                    }
+                }
+            }
+            
+            board[move] = 'O';
+            render();
+            const winner = checkWinner(board);
+            if (winner) endGame(winner);
+            else { currentPlayer = 'X'; statusElement.innerText = "Your Turn"; }
+        }
+
+        function makeMove(index) {
+            if (!gameActive || board[index] || currentPlayer !== 'X') return;
+            board[index] = 'X';
+            render();
+            const winner = checkWinner(board);
+            if (winner) endGame(winner);
+            else { currentPlayer = 'O'; statusElement.innerText = "Nix is Thinking..."; setTimeout(nixMove, 600); }
+        }
+
+        function endGame(winner) {
+            gameActive = false;
+            statusElement.innerText = winner === 'Draw' ? "It's a Draw!" : `${winner === 'X' ? 'You' : 'Nix'} Wins!`;
+            if (winner === 'X') {
+                if (aiLevel < 3) aiLevel++;
+            }
+            setTimeout(() => {
+                overlay.style.display = 'flex';
+                overlay.classList.remove('opacity-0');
+                levelIndicator.innerText = `AI LEVEL: ${aiLevel} ${aiLevel === 1 ? '(NOVICE)' : aiLevel === 2 ? '(INTERMEDIATE)' : '(MASTER)'}`;
+            }, 800);
+        }
+
+        function startGame() {
+            overlay.classList.add('opacity-0');
+            setTimeout(() => overlay.style.display = 'none', 500);
+            board = Array(9).fill(null);
+            currentPlayer = 'X';
+            gameActive = true;
+            statusElement.innerText = "Your Turn";
+            createBoard();
+            render();
+        }
+
+        createBoard();
+    </script>
+</body>
+</html>

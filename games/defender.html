@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Galactic Defender by Codenix</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
+        body { font-family: 'Inter', sans-serif; background: #0f172a; touch-action: none; overflow: hidden; }
+        .game-canvas { image-rendering: pixelated; }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen">
+
+    <div id="overlay" class="absolute inset-0 z-50 flex flex-col items-center justify-center bg-slate-900 bg-opacity-95 transition-opacity duration-500">
+        <img src="https://scontent-hbe1-1.xx.fbcdn.net/v/t39.30808-6/718816493_122173678946952582_684043749236540884_n.jpg?stp=dst-jpg_tt6&cstp=mx1254x1254&ctp=s1254x1254&_nc_cat=105&ccb=1-7&_nc_sid=6ee11a&_nc_ohc=NyAhiEYLoB8Q7kNvwGODnCy&_nc_oc=AdqdVkG_VLNmSb8AnL8cFGXEKw1SUyQivNB9lXGNwFEpnhMd_XTTsYoIeL6jSWs6fi4&_nc_zt=23&_nc_ht=scontent-hbe1-1.xx&_nc_gid=NitylyVfvXU5I7nHDBYDTg&_nc_ss=7c2a8&oh=00_Af9Er0CMINn2Laf0DWkeVLYIeT4WjAlJZNNF6JsE0zR3cg&oe=6A2C7D41" 
+             alt="Codenix Logo" class="w-32 h-32 rounded-2xl shadow-2xl mb-6 border-4 border-indigo-500"
+             onerror="this.style.display='none'; document.getElementById('brand-text').classList.remove('hidden')">
+        
+        <h1 id="brand-text" class="hidden text-4xl font-black text-indigo-400 mb-2">CODENIX</h1>
+        <h2 class="text-5xl font-black text-white mb-8 tracking-tight">GALACTIC DEFENDER</h2>
+        
+        <button onclick="startGame()" class="px-8 py-4 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-full text-xl transition-all transform hover:scale-105 shadow-lg">
+            START MISSION
+        </button>
+    </div>
+
+    <div class="relative w-full max-w-lg p-4">
+        <div class="flex justify-between items-center mb-4 text-white">
+            <span class="text-sm font-bold tracking-widest text-indigo-400">CODENIX</span>
+            <div id="score" class="text-2xl font-black">Score: 0</div>
+        </div>
+        <canvas id="gameCanvas" class="w-full bg-slate-800 rounded-3xl shadow-2xl border-4 border-slate-700 game-canvas cursor-none"></canvas>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreElement = document.getElementById('score');
+        const overlay = document.getElementById('overlay');
+
+        let score = 0;
+        let gameRunning = false;
+        let frame = 0;
+        
+        const player = { x: 250, y: 450, w: 40, h: 40 };
+        let bullets = [];
+        let enemies = [];
+
+        function resize() {
+            const size = Math.min(window.innerWidth * 0.9, 500);
+            canvas.width = size;
+            canvas.height = size;
+            player.x = canvas.width / 2 - player.w / 2;
+            player.y = canvas.height - 60;
+        }
+
+        window.addEventListener('resize', resize);
+        resize();
+
+        // Control listeners
+        canvas.addEventListener('mousemove', e => {
+            const rect = canvas.getBoundingClientRect();
+            player.x = e.clientX - rect.left - player.w / 2;
+        });
+
+        canvas.addEventListener('click', () => {
+            if(gameRunning) bullets.push({ x: player.x + player.w/2 - 2, y: player.y, w: 4, h: 10 });
+        });
+
+        // Touch control
+        canvas.addEventListener('touchmove', e => {
+            const rect = canvas.getBoundingClientRect();
+            player.x = e.touches[0].clientX - rect.left - player.w / 2;
+            e.preventDefault();
+        }, {passive: false});
+
+        function startGame() {
+            overlay.classList.add('opacity-0');
+            setTimeout(() => overlay.style.display = 'none', 500);
+            score = 0;
+            enemies = [];
+            bullets = [];
+            gameRunning = true;
+            animate();
+        }
+
+        function animate() {
+            if (!gameRunning) return;
+            frame++;
+
+            // Spawn enemies
+            if (frame % 30 === 0) {
+                enemies.push({ x: Math.random() * (canvas.width - 30), y: -30, w: 30, h: 30 });
+            }
+
+            // Move bullets
+            bullets.forEach((b, i) => {
+                b.y -= 7;
+                if(b.y < 0) bullets.splice(i, 1);
+            });
+
+            // Move enemies
+            enemies.forEach((e, i) => {
+                e.y += 3;
+                if(e.y > canvas.height) {
+                    gameRunning = false;
+                    overlay.style.display = 'flex';
+                    overlay.classList.remove('opacity-0');
+                }
+                
+                // Collision
+                bullets.forEach((b, bi) => {
+                    if (b.x < e.x + e.w && b.x + b.w > e.x && b.y < e.y + e.h && b.y + b.h > e.y) {
+                        enemies.splice(i, 1);
+                        bullets.splice(bi, 1);
+                        score += 100;
+                        scoreElement.innerText = `Score: ${score}`;
+                    }
+                });
+            });
+
+            // Rendering
+            ctx.fillStyle = '#0f172a';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Draw player
+            ctx.fillStyle = '#6366f1';
+            ctx.fillRect(player.x, player.y, player.w, player.h);
+
+            // Draw bullets
+            ctx.fillStyle = '#fbbf24';
+            bullets.forEach(b => ctx.fillRect(b.x, b.y, b.w, b.h));
+
+            // Draw enemies
+            ctx.fillStyle = '#ef4444';
+            enemies.forEach(e => ctx.fillRect(e.x, e.y, e.w, e.h));
+
+            requestAnimationFrame(animate);
+        }
+    </script>
+</body>
+</html>
