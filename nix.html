@@ -36,7 +36,7 @@
 
     <!-- Custom CSS for custom styling, markdown code renders and scrollbars -->
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght=300;400;500;600;700;800&family=JetBrains+Mono:wght=400;500;700&display=swap');
         
         body {
             font-family: 'Inter', sans-serif;
@@ -65,7 +65,7 @@
 </head>
 <body class="h-full bg-slate-950 text-slate-100 overflow-hidden select-none">
 
-    <!-- AUTH GATE OVERLAY (Solved Image Lockup) -->
+    <!-- AUTH GATE OVERLAY -->
     <div id="authGate" class="fixed inset-0 z-[999] bg-slate-950 flex flex-col items-center justify-center p-6 text-center transition-all duration-500">
         <div class="relative mb-6">
             <div class="absolute inset-0 bg-blue-500/20 blur-2xl rounded-full"></div>
@@ -390,8 +390,19 @@
 
     <!-- MAIN WORKSPACE APPLICATION LOGIC -->
     <script>
-        // Default API Key
+        // Supabase Connection Credentials
+        const SUPABASE_URL = "https://rnlwrngfgvznndlekmrz.supabase.co";
+        const SUPABASE_KEY = "sb_publishable_mtI0_ZBvU_n5oRuqV58QHg_qJt3Gfyt";
+
+        // Global Key Fallback Configuration
         const FALLBACK_GEMINI_KEY = "AQ.Ab8RN6JHm5dbruU2i1vgjkEBx_R0ItXyhP4oz_1dUfo3hQTh_Q";
+        const ACTIVEPIECES_WEBHOOK_URL = "https://cloud.activepieces.com/api/v1/webhooks/Soc1ngypMFTot50sm0fx5/sync";
+
+        const MODELS = {
+            dale: { id: 'dale', name: 'Dale 1.1', color: 'text-amber-500' },
+            auralith: { id: 'auralith', name: 'Auralith', color: 'text-blue-500' },
+            woai: { id: 'woai', name: 'WoAI', color: 'text-purple-500' }
+        };
 
         // Global State
         let dbClient = null;
@@ -419,7 +430,7 @@
         window.onload = function() {
             lucide.createIcons();
             
-            // Set up fallback visual check trigger in case authentication redirection is restricted inside the preview iframe
+            // Fallback bypass trigger for locked preview sessions
             setTimeout(() => {
                 if (!currentUser && !bypassActive) {
                     authBypass.classList.remove('hidden');
@@ -437,7 +448,7 @@
             }
         };
 
-        // Check authentication profile on load
+        // Check user session using auth directly, bypassing profiles
         async function verifyUserSession() {
             if (!dbClient) return;
             try {
@@ -445,7 +456,7 @@
                 if (error || !session) {
                     attemptGatewayRedirect();
                 } else {
-                    currentUser = session.user;
+                    currentUser = session.user; // Verified directly through auth.users session
                     onAuthSuccess();
                 }
             } catch(e) {
@@ -456,7 +467,6 @@
 
         function attemptGatewayRedirect() {
             try {
-                // If nested inside an iframe sandbox, top navigation might fail and throw
                 window.location.href = "https://codenix-ai.vercel.app/Start/";
             } catch(e) {
                 console.warn("Standard top frame redirection blocked inside browser sandbox preview.");
@@ -467,7 +477,7 @@
         function bypassToDemo() {
             bypassActive = true;
             currentUser = {
-                id: 'demo-user-id',
+                id: '00000000-0000-0000-0000-000000000000', // Safe local placeholder user ID
                 email: 'sandbox-guest@codenix-ai.app'
             };
             document.getElementById('userProfileEmail').innerText = currentUser.email;
@@ -482,8 +492,8 @@
             // Display landing interface
             landingView.classList.remove('hidden');
             
-            // Load DB messages if available
-            if (currentUser && currentUser.id !== 'demo-user-id') {
+            // Load DB messages from tables mapped directly to user_id (linked to auth.users)
+            if (currentUser && !bypassActive) {
                 document.getElementById('userProfileEmail').innerText = currentUser.email;
                 fetchUserChatsFromDb();
             }
@@ -503,10 +513,8 @@
             const template = document.getElementById('composerTemplate');
             const targetContainer = isChatEmpty() ? document.getElementById('centeredComposerPlaceholder') : document.getElementById('bottomComposerPlaceholder');
             
-            // Re-draw composer elements safely inside the correct layout zone
             targetContainer.innerHTML = template.innerHTML;
             
-            // Re-apply focus and input handlers safely
             const composerInput = targetContainer.querySelector('#composerInput');
             if (composerInput) {
                 composerInput.focus();
@@ -519,7 +527,6 @@
             const textValue = textarea.value;
             const sendBtn = textarea.parentElement.querySelector('#sendBtn');
 
-            // Toggle Send button lighting active states
             if (textValue.trim().length > 0) {
                 sendBtn.classList.remove('bg-slate-800', 'text-slate-500');
                 sendBtn.classList.add('bg-blue-600', 'text-white', 'hover:bg-blue-500');
@@ -528,7 +535,6 @@
                 sendBtn.classList.add('bg-slate-800', 'text-slate-500');
             }
 
-            // Keyboard dispatch check
             if (event.key === 'Enter' && !event.shiftKey) {
                 event.preventDefault();
                 sendMessage();
@@ -544,7 +550,6 @@
             return !activeChatId || messages.length === 0;
         }
 
-        // --- STREAMING_CHUNK: Processing dispatch requests... ---
         // --- API DISPATCH DISPATCH ENGINE ---
         async function sendMessage() {
             if (isGenerating) return;
@@ -573,15 +578,12 @@
             messages.push(userMsg);
             saveMessageToDb(userMsg);
 
-            // Re-evaluate Layout transitions immediately
             transitionComposerAndDisplay();
             renderActiveMessages();
             
-            // Clean Text area fields
             currentTextarea.value = '';
             currentTextarea.style.height = '44px';
 
-            // Mark Generation status active
             isGenerating = true;
             renderGeneratingStatus(true);
 
@@ -706,7 +708,6 @@
             chatFlow.scrollTop = chatFlow.scrollHeight;
         }
 
-        // --- STREAMING_CHUNK: Formatting text rendering blocks... ---
         // --- CHAT MESSAGE & MARKDOWN RENDER COMPOSITIONS ---
         function renderActiveMessages() {
             const container = document.getElementById('messagesList');
@@ -744,7 +745,6 @@
         }
 
         function parseMarkdown(content) {
-            // Parses Markdown and outputs HTML blocks. Separates code segments.
             const blocks = content.split(/(```[\s\S]*?```)/g);
             return blocks.map(block => {
                 if (block.startsWith('```') && block.endsWith('```')) {
@@ -762,9 +762,8 @@
                     `;
                 }
                 
-                // Format Bold & Code phrases
                 let formatted = escapeHtml(block);
-                formatted = formatted.replace(/\*\*(.*?)\*\*/g, '<strong class="font-bold text-white">$1</strong>');
+                formatted = formatted.replace(/\*\*(.*?)\*\"/g, '<strong class="font-bold text-white">$1</strong>');
                 formatted = formatted.replace(/\*(.*?)\*/g, '<em class="italic text-slate-300">$1</em>');
                 formatted = formatted.replace(/`(.*?)`/g, '<code class="px-1.5 py-0.5 rounded bg-slate-800 text-blue-300 font-mono text-xs">$1</code>');
                 
@@ -792,11 +791,9 @@
             document.getElementById('headerModelName').innerText = MODELS[id].name;
             document.getElementById('headerModelIcon').innerHTML = `<i data-lucide="${MODELS[id].id === 'dale' ? 'zap' : MODELS[id].id === 'auralith' ? 'brain' : 'sparkles'}" class="w-4 h-4 ${MODELS[id].color}"></i>`;
             
-            // Checkmark UI resets
             ['dale', 'auralith', 'woai'].forEach(m => document.getElementById(`check-${m}`).classList.add('hidden'));
             document.getElementById(`check-${id}`).classList.remove('hidden');
 
-            // Hide prompts unless on auralith
             const promptBox = document.getElementById('systemPromptContainer');
             if (id === 'auralith') {
                 promptBox.classList.remove('hidden');
@@ -831,7 +828,6 @@
             document.getElementById('systemPromptText').value = convo.system_prompt || '';
             selectModel(currentModel);
 
-            // Fetch specific history messages
             fetchMessagesFromDb(convoId);
         }
 
@@ -859,7 +855,7 @@
             document.getElementById('settingsModal').classList.add('hidden');
         }
 
-        // --- DATABASE OPERATIONS ---
+        // --- DATABASE OPERATIONS (Linked directly to auth.users) ---
         async function fetchUserChatsFromDb() {
             if (!dbClient || !currentUser) return;
             try {
