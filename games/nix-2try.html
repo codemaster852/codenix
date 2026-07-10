@@ -1039,20 +1039,20 @@
                 // Append actions panel for assistant responses
                 let assistantPanelHtml = "";
                 if (msg.role === 'assistant') {
-                    const cleanEscapedText = encodeURIComponent(msg.content);
+                    // Use IDs instead of encoded content strings for safer DOM interactions
                     assistantPanelHtml = `
                         <div class="flex flex-wrap items-center gap-3 pt-4 border-t border-slate-850/60 text-xs text-slate-400 mt-4 select-none">
-                            <button onclick="listenToMessage(this, '${cleanEscapedText}')" class="flex items-center gap-1.5 bg-slate-850/40 hover:bg-slate-800 border border-slate-800/80 px-3 py-1.5 rounded-full transition-all hover:text-white animate-fade-in">
+                            <button onclick="handleListen('${msg.id}')" class="flex items-center gap-1.5 bg-slate-850/40 hover:bg-slate-800 border border-slate-800/80 px-3 py-1.5 rounded-full transition-all hover:text-white animate-fade-in">
                                 <i data-lucide="volume-2" class="w-3.5 h-3.5 text-blue-400"></i>
                                 <span class="listen-btn-text">Listen</span>
                             </button>
-                            <button onclick="copyEntireContent('${cleanEscapedText}', this)" class="flex items-center gap-1.5 bg-slate-850/40 hover:bg-slate-800 border border-slate-800/80 px-3 py-1.5 rounded-full transition-all hover:text-white">
+                            <button onclick="handleCopyMessage('${msg.id}')" class="flex items-center gap-1.5 bg-slate-850/40 hover:bg-slate-800 border border-slate-800/80 px-3 py-1.5 rounded-full transition-all hover:text-white">
                                 <i data-lucide="clipboard" class="w-3.5 h-3.5 text-purple-400"></i>
                                 <span>Copy Response</span>
                             </button>
                             <div class="h-4 w-px bg-slate-800"></div>
                             <div class="flex items-center gap-1 bg-slate-850/20 border border-slate-800/40 px-2.5 py-1 rounded-full text-[11px]">
-                                <span class="text-slate-500 mr-1.5">Rating (Beta):</span>
+                                <span class="text-slate-500 mr-1.5">Rating:</span>
                                 <button onclick="rateMessage(this, 'up')" class="hover:text-emerald-400 p-0.5 transition"><i data-lucide="thumbs-up" class="w-3 h-3"></i></button>
                                 <button onclick="rateMessage(this, 'down')" class="hover:text-rose-400 p-0.5 transition ml-1"><i data-lucide="thumbs-down" class="w-3 h-3"></i></button>
                             </div>
@@ -1106,59 +1106,42 @@
                         code: code
                     };
 
-                    const matchedLanguages = ['html', 'python', 'css', 'js', 'javascript'];
-                    const isMatchedLanguage = matchedLanguages.includes(rawLang);
+                    // Generic support for any language tag, with specialized styling for executable ones
+                    const executableLanguages = ['html', 'python', 'css', 'js', 'javascript'];
+                    const isExecutable = executableLanguages.includes(rawLang);
 
-                    // Render custom premium cards looking precisely like image_43f10b.png for specified languages
-                    if (isMatchedLanguage) {
-                        const displayTitle = rawLang === 'js' || rawLang === 'javascript' ? 'JavaScript' : rawLang.toUpperCase();
-                        
-                        return `
-                        <div class="my-6 rounded-3xl overflow-hidden border border-slate-200 bg-[#F8F9FA] shadow-md relative group select-text text-slate-800" id="${blockId}-card">
-                            <!-- Code Header -->
-                            <div class="flex items-center justify-between px-6 py-4 bg-[#F8F9FA] border-b border-slate-200">
-                                <div class="flex items-center gap-2">
-                                    <i data-lucide="file-code" class="w-5 h-5 text-slate-500"></i>
-                                    <span class="text-sm font-bold tracking-tight font-sans text-slate-700">${displayTitle}</span>
-                                </div>
-                                <div class="flex items-center gap-1.5">
-                                    <!-- Toggle formatting button -->
-                                    <button onclick="toggleCodeVisibility('${blockId}')" class="p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-200/60 rounded-full transition duration-250" title="Toggle Code Visibility">
-                                        <i data-lucide="code-2" class="w-4 h-4"></i>
-                                    </button>
-                                    <!-- Dynamic Execution Run button -->
+                    return `
+                    <div class="my-6 rounded-3xl overflow-hidden border border-slate-200 bg-[#F8F9FA] shadow-md relative group select-text text-slate-800" id="${blockId}-card">
+                        <!-- Code Header -->
+                        <div class="flex items-center justify-between px-6 py-4 bg-[#F8F9FA] border-b border-slate-200">
+                            <div class="flex items-center gap-2">
+                                <i data-lucide="file-code" class="w-5 h-5 text-slate-500"></i>
+                                <span class="text-sm font-bold tracking-tight font-sans text-slate-700">${rawLang.toUpperCase()}</span>
+                            </div>
+                            <div class="flex items-center gap-1.5">
+                                <button onclick="toggleCodeVisibility('${blockId}')" class="p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-200/60 rounded-full transition duration-250" title="Toggle Code Visibility">
+                                    <i data-lucide="code-2" class="w-4 h-4"></i>
+                                </button>
+                                ${isExecutable ? `
                                     <button onclick="runCodeSandbox('${blockId}')" class="p-2 text-slate-500 hover:text-emerald-600 hover:bg-emerald-100/50 rounded-full transition duration-250" title="Run Code">
                                         <i data-lucide="play" class="w-4 h-4"></i>
                                     </button>
-                                    <!-- Clipboard copy button -->
-                                    <button onclick="copyCodePayload('${blockId}', this)" class="p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-200/60 rounded-full transition duration-250" title="Copy Code">
-                                        <i data-lucide="files" class="w-4 h-4"></i>
-                                    </button>
-                                </div>
-                            </div>
-                            <!-- Code block content -->
-                            <div class="relative overflow-hidden transition-all duration-300 max-h-[380px]" id="${blockId}-editor">
-                                <pre class="p-6 overflow-x-auto text-[13px] font-mono leading-relaxed text-slate-700 bg-[#F8F9FA]"><code>${escapeHtml(code)}</code></pre>
-                            </div>
-                            <!-- Bottom floating scroll arrow indicator matching image_43f10b.png -->
-                            <div class="absolute bottom-[-16px] left-1/2 -translate-x-1/2 z-10">
-                                <button onclick="scrollOrExpandCode('${blockId}')" class="w-8 h-8 rounded-full bg-white hover:bg-slate-100 border border-slate-200 shadow-md flex items-center justify-center text-slate-500 transition-all hover:scale-110">
-                                    <i data-lucide="arrow-down" class="w-4 h-4"></i>
+                                ` : ''}
+                                <button onclick="handleCopyCode('${blockId}')" class="p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-200/60 rounded-full transition duration-250" title="Copy Code">
+                                    <i data-lucide="files" class="w-4 h-4"></i>
                                 </button>
                             </div>
                         </div>
-                        `;
-                    }
-
-                    // Fallback visual formatting for general block markdown parameters
-                    return `
-                        <div class="my-4 rounded-xl overflow-hidden border border-slate-800 bg-[#0f1016]">
-                            <div class="flex items-center justify-between px-4 py-2 bg-slate-900 border-b border-slate-800">
-                                <span class="text-xs font-mono text-slate-400">${rawLang}</span>
-                                <button onclick="copyToClipboard('${encodeURIComponent(code)}')" class="text-slate-500 hover:text-white text-xs transition">Copy Code</button>
-                            </div>
-                            <pre class="p-4 overflow-x-auto text-xs font-mono text-slate-300"><code>${escapeHtml(code)}</code></pre>
+                        <!-- Code block content -->
+                        <div class="relative overflow-hidden transition-all duration-300 max-h-[380px]" id="${blockId}-editor">
+                            <pre class="p-6 overflow-x-auto text-[13px] font-mono leading-relaxed text-slate-700 bg-[#F8F9FA]"><code>${escapeHtml(code)}</code></pre>
                         </div>
+                        <div class="absolute bottom-[-16px] left-1/2 -translate-x-1/2 z-10">
+                            <button onclick="scrollOrExpandCode('${blockId}')" class="w-8 h-8 rounded-full bg-white hover:bg-slate-100 border border-slate-200 shadow-md flex items-center justify-center text-slate-500 transition-all hover:scale-110">
+                                <i data-lucide="arrow-down" class="w-4 h-4"></i>
+                            </button>
+                        </div>
+                    </div>
                     `;
                 }
 
@@ -1360,78 +1343,72 @@
         }
 
         // --- TEXT TO SPEECH PLAYER SYSTEM ---
-        function listenToMessage(button, encodedText) {
-            const text = decodeURIComponent(encodedText);
-            const cleanText = text.replace(/[*_`#]/g, '').substring(0, 1000); // Sanitize markdown formatting tags
-            const btnText = button.querySelector('.listen-btn-text');
+        function handleListen(msgId) {
+            const msg = messages.find(m => m.id === msgId);
+            if (!msg) return;
+
+            const text = msg.content.replace(/[*_`#]/g, '').substring(0, 1000);
+            
+            // Find the button associated with this message
+            // Note: This assumes standard structure, might need adjustment if DOM moves
+            const btn = event.currentTarget;
+            const btnText = btn.querySelector('.listen-btn-text');
 
             if (window.speechSynthesis.speaking) {
                 window.speechSynthesis.cancel();
                 btnText.innerText = "Listen";
-                button.querySelector('i').setAttribute('data-lucide', 'volume-2');
+                btn.querySelector('i').setAttribute('data-lucide', 'volume-2');
                 lucide.createIcons();
                 return;
             }
 
             btnText.innerText = "Stop Playing";
-            button.querySelector('i').setAttribute('data-lucide', 'square');
+            btn.querySelector('i').setAttribute('data-lucide', 'square');
             lucide.createIcons();
 
-            // Setup public browser TTS instance parameters
-            const utterance = new SpeechSynthesisUtterance(cleanText);
+            const utterance = new SpeechSynthesisUtterance(text);
             utterance.onend = () => {
                 btnText.innerText = "Listen";
-                button.querySelector('i').setAttribute('data-lucide', 'volume-2');
+                btn.querySelector('i').setAttribute('data-lucide', 'volume-2');
                 lucide.createIcons();
             };
-            utterance.onerror = () => {
-                btnText.innerText = "Listen";
-                button.querySelector('i').setAttribute('data-lucide', 'volume-2');
-                lucide.createIcons();
-            };
-
             window.speechSynthesis.speak(utterance);
         }
 
-        // --- ENTIRE RESPONSE COPY FUNCTION ---
-        function copyEntireContent(encodedText, button) {
-            const text = decodeURIComponent(encodedText);
+        // --- COPY UTILS ---
+        function handleCopyMessage(msgId) {
+            const msg = messages.find(m => m.id === msgId);
+            if (!msg) return;
+            
+            copyToClipboard(msg.content);
+            showCopyFeedback(event.currentTarget, "Copied!");
+        }
+
+        function handleCopyCode(blockId) {
+            const block = codeBlockCache[blockId];
+            if (!block) return;
+            
+            copyToClipboard(block.code);
+            showCopyFeedback(event.currentTarget, "Code Copied!");
+        }
+
+        function showCopyFeedback(button, text) {
+            const span = button.querySelector('span');
+            const originalText = span ? span.innerText : "";
+            if (span) span.innerText = text;
+            
+            const originalClass = button.className;
+            button.className = button.className + " border-emerald-500/40 bg-emerald-500/5";
+            
+            setTimeout(() => {
+                if (span) span.innerText = originalText;
+                button.className = originalClass;
+            }, 2000);
+        }
+
+        function copyToClipboard(text) {
             const el = document.createElement('textarea');
             el.value = text;
-            document.body.appendChild(el);
-            el.select();
-            document.execCommand('copy');
-            document.body.removeChild(el);
-
-            if (button) {
-                const span = button.querySelector('span');
-                const originalText = span.innerText;
-                span.innerText = "Response Copied!";
-                button.classList.add('border-emerald-500/40', 'bg-emerald-500/5');
-                setTimeout(() => {
-                    span.innerText = originalText;
-                    button.classList.remove('border-emerald-500/40', 'bg-emerald-500/5');
-                }, 2000);
-            }
-        }
-
-        // --- ANSWER RATING FUNCTION ---
-        function rateMessage(button, direction) {
-            const container = button.parentElement;
-            const buttons = container.querySelectorAll('button');
-            buttons.forEach(b => b.classList.remove('text-emerald-400', 'text-rose-400', 'scale-110'));
-
-            if (direction === 'up') {
-                button.classList.add('text-emerald-400', 'scale-110');
-            } else {
-                button.classList.add('text-rose-400', 'scale-110');
-            }
-        }
-
-        function copyToClipboard(encodedText) {
-            const raw = decodeURIComponent(encodedText);
-            const el = document.createElement('textarea');
-            el.value = raw;
             document.body.appendChild(el);
             el.select();
             document.execCommand('copy');
