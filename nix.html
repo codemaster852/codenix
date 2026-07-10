@@ -34,7 +34,7 @@
         }
     </script>
 
-    <!-- Custom CSS for custom styling, markdown code renders and scrollbars -->
+    <!-- Custom CSS for premium styling, animations, and elements -->
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght=300;400;500;600;700;800&family=JetBrains+Mono:wght=400;500;700&display=swap');
         
@@ -217,9 +217,9 @@
             <!-- Sidebar Footer with Settings & Profile -->
             <div class="p-4 border-t border-slate-850 shrink-0 space-y-2">
                 <div class="px-3 py-1 flex items-center gap-2">
-                    <span id="dbStatusBadge" class="text-[10px] bg-amber-500/10 text-amber-400 px-2.5 py-1 rounded-full font-semibold border border-amber-500/20 flex items-center gap-1.5 w-full justify-center">
-                        <span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>
-                        <span>Isolated (Local Cache)</span>
+                    <span id="dbStatusBadge" class="text-[10px] bg-emerald-500/10 text-emerald-400 px-2.5 py-1 rounded-full font-semibold border border-emerald-500/20 flex items-center gap-1.5 w-full justify-center">
+                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                        <span>Connected to Workspace</span>
                     </span>
                 </div>
                 <button onclick="openSettings()" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-slate-400 hover:text-white hover:bg-slate-800/40 transition-all">
@@ -289,13 +289,19 @@
                 </div>
 
                 <!-- Right Header Actions -->
-                <div class="flex items-center gap-1">
+                <div class="flex items-center gap-1.5">
+                    <!-- WoAI Specific Image Generation Switch -->
+                    <div id="imageModeControl" class="hidden items-center gap-2 bg-slate-850 border border-slate-800/80 px-3 py-1.5 rounded-xl transition-all duration-300">
+                        <i data-lucide="wand" class="w-4 h-4 text-purple-400"></i>
+                        <span class="text-xs font-semibold text-slate-300">Image Generation Mode</span>
+                        <button onclick="toggleImageGenerationMode()" id="imageModeToggleBtn" class="w-8 h-4 rounded-full bg-slate-700 relative transition-all duration-300">
+                            <span class="absolute w-3.5 h-3.5 rounded-full bg-slate-400 left-0.5 top-0.5 transition-all duration-300"></span>
+                        </button>
+                    </div>
+
                     <button class="p-2 text-slate-400 hover:text-white hover:bg-slate-800/60 rounded-xl transition-colors hidden sm:flex items-center gap-2 text-xs">
                         <i data-lucide="globe" class="w-4 h-4"></i>
                         <span>Web Search</span>
-                    </button>
-                    <button class="p-2 text-slate-400 hover:text-white hover:bg-slate-800/60 rounded-xl transition-colors">
-                        <i data-lucide="share" class="w-4 h-4"></i>
                     </button>
                 </div>
             </header>
@@ -453,14 +459,14 @@
 
     <!-- MAIN WORKSPACE APPLICATION LOGIC -->
     <script>
-        // Injected Workspace credentials at runtime
+        // Injected Workspace credentials at runtime (Gemini API Key proxy integration)
         const apiKey = ""; 
 
         // Supabase Connection Credentials
         const SUPABASE_URL = "https://rnlwrngfgvznndlekmrz.supabase.co";
         const SUPABASE_KEY = "sb_publishable_mtI0_ZBvU_n5oRuqV58QHg_qJt3Gfyt";
 
-        // Global Fallback Key fallback
+        // Global Fallback Key
         const FALLBACK_GEMINI_KEY = "AQ.Ab8RN6JHm5dbruU2i1vgjkEBx_R0ItXyhP4oz_1dUfo3hQTh_Q";
         const ACTIVEPIECES_WEBHOOK_URL = "https://cloud.activepieces.com/api/v1/webhooks/Soc1ngypMFTot50sm0fx5/sync";
 
@@ -479,9 +485,10 @@
         let activeChatId = null;
         let currentModel = 'dale';
         let conversations = [];
-        let messages = [];
+        let messages = []; // Array of message objects: { role, content, attachments: [...] }
         let isGenerating = false;
-        let uploadedFiles = [];
+        let uploadedFiles = []; // Array of { id, name, size, type, progress, dataUrl, base64 }
+        let imageGenerationModeActive = false; // For WoAI puter txt2img
 
         // Voice state variables
         let isVoiceMode = false;
@@ -534,7 +541,7 @@
             if (dbStatusBadge) {
                 dbStatusBadge.innerHTML = `
                     <span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>
-                    <span>Sandbox Mode (Local Cache)</span>
+                    <span>Sandbox Offline Mode (Local Cache)</span>
                 `;
                 dbStatusBadge.className = "text-[10px] bg-amber-500/10 text-amber-400 px-2.5 py-1 rounded-full font-semibold border border-amber-500/20 flex items-center gap-1.5 w-full justify-center";
             }
@@ -616,6 +623,12 @@
             const composerInput = targetContainer.querySelector('#composerInput');
             if (composerInput) {
                 composerInput.focus();
+                // Set placeholder based on Mode
+                if (currentModel === 'woai' && imageGenerationModeActive) {
+                    composerInput.placeholder = "Describe the image you want to generate with WoAI GPT Image v2...";
+                } else {
+                    composerInput.placeholder = "Ask anything...";
+                }
             }
             renderFileShelf();
             lucide.createIcons();
@@ -669,7 +682,8 @@
                     size: file.size,
                     type: file.type,
                     progress: 0,
-                    dataUrl: null
+                    dataUrl: null,
+                    base64: null
                 };
                 
                 uploadedFiles.push(fileObj);
@@ -688,10 +702,13 @@
                     uploadedFiles[fileIdx].progress = prg;
                     if (prg >= 100) {
                         clearInterval(interval);
-                        // Save DataURL fallback if it is a readable image or simple file
                         const reader = new FileReader();
                         reader.onload = function(e) {
                             uploadedFiles[fileIdx].dataUrl = e.target.result;
+                            // Clean base64 extraction (stripping header for raw API transfers)
+                            const base64Content = e.target.result.split(',')[1];
+                            uploadedFiles[fileIdx].base64 = base64Content;
+                            
                             renderFileShelf();
                             updateSendBtnState();
                         };
@@ -740,7 +757,7 @@
             
             uploadedFiles.forEach(file => {
                 const node = document.createElement('div');
-                node.className = "flex items-center gap-2 bg-slate-800/80 border border-slate-700/50 rounded-xl p-2 pr-3 text-xs animate-in fade-in duration-200 shrink-0 select-none max-w-[200px]";
+                node.className = "flex items-center gap-2 bg-slate-850 border border-slate-700/50 rounded-xl p-2 pr-3 text-xs animate-in fade-in duration-200 shrink-0 select-none max-w-[200px]";
                 
                 const isImg = file.type.startsWith('image/');
                 const previewIcon = isImg && file.dataUrl 
@@ -775,14 +792,7 @@
             const text = currentTextarea.value.trim();
             if (!text && uploadedFiles.length === 0) return;
 
-            // Construct payload contents
-            let messageContent = text;
-            if (uploadedFiles.length > 0) {
-                const fileMentions = uploadedFiles.map(f => `[Uploaded Attachment: ${f.name} (${(f.size/1024).toFixed(1)} KB)]`).join('\n');
-                messageContent = `${messageContent}\n\n${fileMentions}`;
-            }
-
-            // Clean file shelf immediately on transition trigger
+            // Preserve file attachment copies for backend query execution
             const currentFiles = [...uploadedFiles];
             uploadedFiles = [];
             renderFileShelf();
@@ -800,8 +810,13 @@
                 saveConvoToDb(newConvo);
             }
 
-            // Append User Message to State
-            const userMsg = { role: 'user', content: messageContent };
+            // Append User Message object with attachments array to global stream
+            const userMsg = { 
+                id: generateId(),
+                role: 'user', 
+                content: text || `Uploaded file payload: ${currentFiles.map(f => f.name).join(', ')}`,
+                attachments: currentFiles 
+            };
             messages.push(userMsg);
             saveMessageToDb(userMsg);
 
@@ -816,20 +831,27 @@
 
             try {
                 let aiResponseText = "";
-                if (currentModel === 'dale') {
-                    aiResponseText = await executeDaleWebhook(messageContent);
-                } else if (currentModel === 'auralith') {
-                    aiResponseText = await executeAuralithGemini();
-                } else if (currentModel === 'woai') {
-                    aiResponseText = await executeWoaiPuter(messageContent);
+                
+                // If WoAI is selected and Image Generation Toggle is active:
+                if (currentModel === 'woai' && imageGenerationModeActive) {
+                    aiResponseText = await executeWoaiImageGeneration(text);
+                } else {
+                    // Standard text generation flows
+                    if (currentModel === 'dale') {
+                        aiResponseText = await executeDaleWebhook(userMsg.content, currentFiles);
+                    } else if (currentModel === 'auralith') {
+                        aiResponseText = await executeAuralithGemini(currentFiles);
+                    } else if (currentModel === 'woai') {
+                        aiResponseText = await executeWoaiPuter(userMsg.content, currentFiles);
+                    }
                 }
 
-                const aiMsg = { role: 'assistant', content: aiResponseText };
+                const aiMsg = { id: generateId(), role: 'assistant', content: aiResponseText, attachments: [] };
                 messages.push(aiMsg);
                 saveMessageToDb(aiMsg);
 
             } catch (err) {
-                messages.push({ role: 'system', content: `Execution failed: ${err.message}` });
+                messages.push({ id: generateId(), role: 'system', content: `Execution failed: ${err.message}`, attachments: [] });
             } finally {
                 isGenerating = false;
                 renderGeneratingStatus(false);
@@ -838,12 +860,21 @@
         }
 
         // --- MODEL DISPATCH EXECUTION ---
-        async function executeDaleWebhook(message) {
+        async function executeDaleWebhook(message, files) {
             try {
+                const payload = { message };
+                if (files && files.length > 0) {
+                    payload.files = files.map(f => ({
+                        name: f.name,
+                        mimeType: f.type,
+                        data: f.base64
+                    }));
+                }
+
                 const response = await fetch(ACTIVEPIECES_WEBHOOK_URL, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ message })
+                    body: JSON.stringify(payload)
                 });
                 if (!response.ok) throw new Error("Sync status request timed out or returned error status.");
                 const data = await response.json();
@@ -853,17 +884,54 @@
             }
         }
 
-        async function executeAuralithGemini() {
+        async function executeAuralithGemini(currentFiles) {
             const systemPrompt = document.getElementById('systemPromptText').value;
             const customKey = document.getElementById('customApiKey').value.trim();
             const activeKey = apiKey || customKey || FALLBACK_GEMINI_KEY;
             
             const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${activeKey}`;
 
-            const geminiContents = messages.map(m => ({
-                role: m.role === 'user' ? 'user' : 'model',
-                parts: [{ text: m.content }]
-            }));
+            // Build historical conversation payload mapping inlineData attachments properly
+            const geminiContents = messages.map(m => {
+                const parts = [];
+                if (m.content) {
+                    parts.push({ text: m.content });
+                }
+                
+                // If there are files linked to this message history, pass them as Base64 inline data blocks
+                if (m.attachments && m.attachments.length > 0) {
+                    m.attachments.forEach(file => {
+                        if (file.base64) {
+                            parts.push({
+                                inlineData: {
+                                    mimeType: file.type || "image/png",
+                                    data: file.base64
+                                }
+                            });
+                        }
+                    });
+                }
+
+                return {
+                    role: m.role === 'user' ? 'user' : 'model',
+                    parts: parts
+                };
+            });
+
+            // If we have fresh unsaved file attachments for the active prompt block
+            if (currentFiles && currentFiles.length > 0 && geminiContents.length > 0) {
+                const latestUserContent = geminiContents[geminiContents.length - 1];
+                currentFiles.forEach(file => {
+                    if (file.base64) {
+                        latestUserContent.parts.push({
+                            inlineData: {
+                                mimeType: file.type || "image/png",
+                                    data: file.base64
+                            }
+                        });
+                    }
+                });
+            }
 
             const payload = {
                 contents: geminiContents,
@@ -881,11 +949,17 @@
             return data.candidates?.[0]?.content?.parts?.[0]?.text || "Auralith could not parse contents.";
         }
 
-        async function executeWoaiPuter(message) {
+        async function executeWoaiPuter(message, files) {
             if (!window.puter) return "Puter system scripts missing context load triggers.";
             try {
-                // Resolved the 'thinking' block by capturing both Puter JS class structures
-                const response = await puter.ai.chat(message, { model: "gpt-5.4-nano" });
+                let response;
+                // If image files are uploaded, feed image URL or DataURL directly as input 2 parameters
+                const imageFile = files.find(f => f.type.startsWith('image/'));
+                if (imageFile && imageFile.dataUrl) {
+                    response = await puter.ai.chat(message, imageFile.dataUrl, { model: "gpt-5.4-nano" });
+                } else {
+                    response = await puter.ai.chat(message, { model: "gpt-5.4-nano" });
+                }
                 
                 let answer = "";
                 if (response) {
@@ -904,6 +978,21 @@
                 return answer || "Empty generation response from WoAI.";
             } catch(e) {
                 return `*Execution Exception (Puter WoAI):* ${e.message}`;
+            }
+        }
+
+        // --- PUTER IMAGE GENERATION EXECUTION (WOAI SPECIFIC) ---
+        async function executeWoaiImageGeneration(promptText) {
+            if (!window.puter) return "Puter context not found.";
+            try {
+                // Call raw Puter txt2img capabilities cleanly using the gpt-image-2 pipeline
+                const imageElement = await puter.ai.txt2img(promptText, { model: "gpt-image-2" });
+                if (imageElement && imageElement.src) {
+                    return `Generated premium workspace asset matching description: \n\n![Generated Image](${imageElement.src})`;
+                }
+                return "Failed to convert generated vector nodes to physical image element.";
+            } catch(e) {
+                return `*Image Generation Error (WoAI):* ${e.message}`;
             }
         }
 
@@ -960,10 +1049,40 @@
                 const row = document.createElement('div');
                 row.className = `flex gap-4 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`;
 
+                // Attachment markup to display files below the prompt cleanly
+                let attachmentMarkup = "";
+                if (msg.attachments && msg.attachments.length > 0) {
+                    attachmentMarkup = `<div class="flex flex-wrap gap-2 mt-2">`;
+                    msg.attachments.forEach(file => {
+                        const isImg = file.type?.startsWith('image/');
+                        if (isImg && file.dataUrl) {
+                            attachmentMarkup += `
+                                <div class="relative rounded-xl overflow-hidden border border-slate-700 max-w-[240px] group">
+                                    <img src="${file.dataUrl}" class="max-h-40 w-auto object-cover hover:scale-105 transition duration-300">
+                                </div>
+                            `;
+                        } else {
+                            attachmentMarkup += `
+                                <div class="flex items-center gap-2 bg-slate-850 border border-slate-700/50 rounded-xl p-2.5 text-xs select-none">
+                                    <i data-lucide="file-text" class="w-4 h-4 text-slate-400"></i>
+                                    <div>
+                                        <div class="font-semibold text-slate-200 truncate max-w-[120px]">${escapeHtml(file.name)}</div>
+                                        <div class="text-[9px] text-slate-500">${(file.size/1024).toFixed(1)} KB</div>
+                                    </div>
+                                </div>
+                            `;
+                        }
+                    });
+                    attachmentMarkup += `</div>`;
+                }
+
                 const innerHTML = msg.role === 'user' 
                     ? `
-                        <div class="max-w-[85%] bg-slate-800 text-slate-100 rounded-2xl px-5 py-3.5 shadow-sm text-sm md:text-base break-words">
-                            ${escapeHtml(msg.content)}
+                        <div class="max-w-[85%] flex flex-col items-end gap-1.5">
+                            <div class="bg-slate-800 text-slate-100 rounded-2xl px-5 py-3.5 shadow-sm text-sm md:text-base break-words text-left">
+                                ${escapeHtml(msg.content)}
+                            </div>
+                            ${attachmentMarkup}
                         </div>
                       `
                     : `
@@ -1003,6 +1122,23 @@
                             <pre class="p-4 overflow-x-auto text-xs font-mono text-slate-300"><code>${escapeHtml(code)}</code></pre>
                         </div>
                     `;
+                }
+
+                // Custom parsing for generated images (render directly in flow!)
+                const imgRegex = /!\[.*?\]\((.*?)\)/g;
+                if (imgRegex.test(block)) {
+                    return block.replace(imgRegex, (match, url) => {
+                        return `
+                            <div class="my-4 rounded-2xl overflow-hidden border border-slate-800 bg-slate-900/60 p-2.5 max-w-lg group relative">
+                                <img src="${url}" class="rounded-xl w-full h-auto max-h-96 object-cover hover:scale-[1.01] transition duration-300">
+                                <div class="absolute top-4 right-4 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                                    <a href="${url}" download="NixAI-Gen.png" target="_blank" class="p-2 bg-slate-950/80 backdrop-blur-md hover:bg-slate-900 text-white rounded-lg border border-slate-800 transition">
+                                        <i data-lucide="download" class="w-4 h-4"></i>
+                                    </a>
+                                </div>
+                            </div>
+                        `;
+                    });
                 }
                 
                 let formatted = escapeHtml(block);
@@ -1044,9 +1180,42 @@
                 promptBox.classList.add('hidden');
             }
 
+            // Display Image Toggle only when WoAI is selected
+            const imageModeControl = document.getElementById('imageModeControl');
+            if (id === 'woai') {
+                imageModeControl.classList.remove('hidden');
+                imageModeControl.classList.add('flex');
+            } else {
+                imageModeControl.classList.add('hidden');
+                imageModeControl.classList.remove('flex');
+                imageGenerationModeActive = false;
+                updateImageToggleBtnUI();
+            }
+
             document.getElementById('modelDropdown').classList.add('hidden');
             lucide.createIcons();
             renderComposer();
+        }
+
+        // Toggle WoAI Image generation modes
+        function toggleImageGenerationMode() {
+            imageGenerationModeActive = !imageGenerationModeActive;
+            updateImageToggleBtnUI();
+            renderComposer();
+        }
+
+        function updateImageToggleBtnUI() {
+            const btn = document.getElementById('imageModeToggleBtn');
+            const toggleDot = btn?.querySelector('span');
+            if (btn && toggleDot) {
+                if (imageGenerationModeActive) {
+                    btn.className = "w-8 h-4 rounded-full bg-purple-600 relative transition-all duration-300";
+                    toggleDot.className = "absolute w-3.5 h-3.5 rounded-full bg-white right-0.5 top-0.5 transition-all duration-300";
+                } else {
+                    btn.className = "w-8 h-4 rounded-full bg-slate-700 relative transition-all duration-300";
+                    toggleDot.className = "absolute w-3.5 h-3.5 rounded-full bg-slate-400 left-0.5 top-0.5 transition-all duration-300";
+                }
+            }
         }
 
         // --- REAL-TIME VOICE RECOGNITION AND AUDIO FEEDBACK ---
@@ -1068,17 +1237,19 @@
                     document.getElementById('voiceSpeechText').innerText = `"${resultText}"`;
                     document.getElementById('voiceStatus').innerText = "Processing...";
                     
-                    // Route voice transcript directly to active models
                     let aiVoiceResponse = "";
                     try {
                         if (currentModel === 'dale') {
-                            aiVoiceResponse = await executeDaleWebhook(resultText);
+                            aiVoiceResponse = await executeDaleWebhook(resultText, []);
                         } else if (currentModel === 'auralith') {
-                            // Inject voice request into conversational stream
-                            messages.push({ role: 'user', content: resultText });
-                            aiVoiceResponse = await executeAuralithGemini();
+                            messages.push({ role: 'user', content: resultText, attachments: [] });
+                            aiVoiceResponse = await executeAuralithGemini([]);
                         } else if (currentModel === 'woai') {
-                            aiVoiceResponse = await executeWoaiPuter(resultText);
+                            if (imageGenerationModeActive) {
+                                aiVoiceResponse = await executeWoaiImageGeneration(resultText);
+                            } else {
+                                aiVoiceResponse = await executeWoaiPuter(resultText, []);
+                            }
                         }
                         
                         speakResponse(aiVoiceResponse);
@@ -1093,7 +1264,6 @@
 
                 recognition.onend = () => {
                     if (isVoiceMode && !window.speechSynthesis.speaking) {
-                        // Restart listening automatically after synthesis completes
                         try { recognition.start(); } catch(e) {}
                     }
                 };
@@ -1111,7 +1281,6 @@
             
             if (isVoiceMode) {
                 overlay.classList.remove('hidden');
-                // Stop ongoing speech
                 window.speechSynthesis.cancel();
                 try { recognition.start(); } catch(e) {}
             } else {
@@ -1123,9 +1292,9 @@
 
         function speakResponse(text) {
             if (!window.speechSynthesis) return;
-            window.speechSynthesis.cancel(); // clear previous
+            window.speechSynthesis.cancel(); 
             
-            // Clean markdown tags for synthetic voice clarity
+            // Strip clean textual prompts 
             const cleanText = text.replace(/[*_`#]/g, '').substring(0, 300);
             
             document.getElementById('voiceStatus').innerText = "NixAI Speaking...";
@@ -1223,7 +1392,6 @@
 
         async function fetchMessagesFromDb(convoId) {
             if (dbMode === 'local' || !dbClient || bypassActive) {
-                // Read from local cache keys
                 const cachedMsgs = localStorage.getItem(`convo_msgs_${convoId}`);
                 messages = cachedMsgs ? JSON.parse(cachedMsgs) : [];
                 transitionComposerAndDisplay();
@@ -1241,10 +1409,11 @@
 
                 if (data) {
                     messages = data.map(m => ({
+                        id: m.id,
                         role: m.role,
-                        content: m.content
+                        content: m.content,
+                        attachments: m.metadata?.attachments || []
                     }));
-                    // Cache local copy
                     localStorage.setItem(`convo_msgs_${convoId}`, JSON.stringify(messages));
                 } else {
                     messages = [];
@@ -1281,10 +1450,11 @@
             if (dbMode === 'local' || !dbClient || bypassActive) return;
             try {
                 const { error } = await dbClient.from('messages').insert({
-                    id: generateId(),
+                    id: msg.id || generateId(),
                     conversation_id: activeChatId,
                     role: msg.role,
-                    content: msg.content
+                    content: msg.content,
+                    metadata: { attachments: msg.attachments || [] }
                 });
                 if (error) throw error;
             } catch(e) {
