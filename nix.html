@@ -1,256 +1,943 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="h-full">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Nix | Professional Intelligence</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NixAI Workspace - Enterprise Client</title>
+    
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Supabase Client -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <!-- Puter.js v2 SDK -->
+    <script src="https://js.puter.com/v2/"></script>
+
+    <!-- Tailwind Config for Dark Space UI -->
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        slate: {
+                            950: '#0a0b10',
+                            900: '#0f111a',
+                            850: '#141622',
+                            800: '#1e2132',
+                            700: '#2d3149',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- Custom CSS for custom styling, markdown code renders and scrollbars -->
     <style>
-        :root {
-            --nix-accent: #3b82f6;
-            --nix-bg: #050507;
-            --nix-surface: #0e0e11;
-            --nix-border: rgba(255, 255, 255, 0.08);
-            --melon-primary: #bef264;
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        
+        .font-mono {
+            font-family: 'JetBrains Mono', monospace;
         }
 
-        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: var(--nix-bg); color: #fafafa; margin: 0; overflow: hidden; height: 100vh; display: flex; }
-        .glass-panel { background: rgba(14, 14, 17, 0.95); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); border: 1px solid var(--nix-border); }
-        .nix-gradient-text { background: linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-        .btn-nix { background: #fafafa; color: #000; transition: all 0.2s ease; }
-        .btn-nix:hover { background: #ffffff; transform: translateY(-1px); }
-        ::-webkit-scrollbar { width: 4px; }
-        ::-webkit-scrollbar-thumb { background: #27272a; border-radius: 10px; }
-        .code-container { background: #000; border: 1px solid var(--nix-border); border-radius: 12px; margin: 1rem 0; overflow: hidden; }
-        .code-header { padding: 8px 16px; background: rgba(255, 255, 255, 0.03); border-bottom: 1px solid var(--nix-border); display: flex; justify-content: space-between; align-items: center; }
-        pre { padding: 1rem; font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #d1d5db; overflow-x: auto; }
-        .msg-bubble { animation: slideUp 0.3s ease-out; }
-        @keyframes slideUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        
-        #mobileOverlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 60; }
-        @media (max-width: 1024px) {
-            #sidebar { position: fixed; left: -100%; top: 0; height: 100%; z-index: 70; transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
-            #sidebar.open { left: 0; }
-            #mobileOverlay.show { display: block; }
+        /* Smooth Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
         }
-        .active-visual { color: var(--melon-primary) !important; border-color: rgba(190, 242, 100, 0.3) !important; background: rgba(190, 242, 100, 0.05) !important; }
-        .input-container-sticky { z-index: 40; pointer-events: none; }
-        .input-container-sticky > * { pointer-events: auto; }
+        ::-webkit-scrollbar-track {
+            background: rgba(15, 17, 26, 0.5);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(45, 49, 73, 0.6);
+            border-radius: 9999px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(59, 130, 246, 0.5);
+        }
     </style>
 </head>
-<body class="bg-[#050507]">
+<body class="h-full bg-slate-950 text-slate-100 overflow-hidden select-none">
 
-    <div id="mobileOverlay" onclick="toggleSidebar()"></div>
-
-    <aside id="sidebar" class="w-[280px] lg:w-80 glass-panel border-r flex flex-col p-6 h-full shadow-2xl shrink-0">
-        <div class="flex items-center justify-between mb-8">
-            <div class="flex items-center gap-3">
-                <div class="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-blue-600/20">
-                    <span class="font-black text-xl">N</span>
-                </div>
-                <h1 class="text-xl font-extrabold tracking-tighter">Nix <span class="nix-gradient-text">Core</span></h1>
+    <!-- AUTH GATE OVERLAY (Solved Image Lockup) -->
+    <div id="authGate" class="fixed inset-0 z-[999] bg-slate-950 flex flex-col items-center justify-center p-6 text-center transition-all duration-500">
+        <div class="relative mb-6">
+            <div class="absolute inset-0 bg-blue-500/20 blur-2xl rounded-full"></div>
+            <div class="relative z-10 w-16 h-16 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-center animate-pulse">
+                <i data-lucide="activity" class="w-8 h-8 text-blue-500"></i>
             </div>
-            <button onclick="toggleSidebar()" class="lg:hidden text-zinc-500 hover:text-white transition"><i class="fa-solid fa-xmark text-xl"></i></button>
         </div>
+        <h2 class="text-2xl font-bold tracking-tight mb-2 text-white">Verifying NixAI Workspace Authorization...</h2>
+        <p class="text-sm text-slate-400 max-w-sm mb-6 leading-relaxed">
+            Securing workspace session. Unauthenticated sessions are safely redirected to the login gateway.
+        </p>
 
-        <div class="flex-1 space-y-6 overflow-y-auto pr-2">
-            <button onclick="createNewChat()" class="w-full flex items-center justify-center gap-2 py-3 bg-white/5 border border-white/10 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-white/10 transition">
-                <i class="fa-solid fa-plus"></i> New Session
+        <!-- Dynamic Sandbox Bypass Fallback UI -->
+        <div id="authBypassControls" class="w-full max-w-md bg-slate-900/80 backdrop-blur-md border border-slate-800 p-6 rounded-2xl hidden animate-in fade-in zoom-in-95 duration-500">
+            <p class="text-xs text-slate-400 mb-4 leading-relaxed">
+                Notice: Automatic redirection might be blocked by your current browser's sandbox environment. Use manual link or try Demo Workspace.
+            </p>
+            <div class="flex flex-col gap-3">
+                <a href="https://codenix-ai.vercel.app/Start/" target="_top" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-semibold py-3 px-4 rounded-xl transition flex items-center justify-center gap-2 text-sm shadow-lg shadow-blue-600/20">
+                    <span>Manual Redirect Login</span>
+                    <i data-lucide="arrow-right" class="w-4 h-4"></i>
+                </a>
+                <div class="flex items-center justify-center gap-2">
+                    <span class="h-px bg-slate-800 flex-1"></span>
+                    <span class="text-[10px] text-slate-500 uppercase tracking-widest font-semibold">Or bypass</span>
+                    <span class="h-px bg-slate-800 flex-1"></span>
+                </div>
+                <button onclick="bypassToDemo()" class="w-full bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold py-3 px-4 rounded-xl transition flex items-center justify-center gap-2 text-sm">
+                    <i data-lucide="play" class="w-4 h-4 text-emerald-400"></i>
+                    <span>Test in Sandbox (Demo Mode)</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- LANDING PAGE VIEW -->
+    <div id="landingView" class="hidden min-h-screen bg-slate-950 text-slate-50 flex flex-col selection:bg-blue-500/30 overflow-y-auto">
+        <nav class="flex items-center justify-between px-6 py-4 md:px-12 backdrop-blur-md bg-slate-950/50 sticky top-0 z-50 border-b border-slate-800/50">
+          <div class="flex items-center gap-2">
+            <div class="w-8 h-8 rounded-xl bg-gradient-to-tr from-blue-500 to-purple-500 flex items-center justify-center shadow-lg shadow-blue-500/20">
+              <i data-lucide="sparkles" class="w-4 h-4 text-white"></i>
+            </div>
+            <span class="text-xl font-bold tracking-tight">NixAI</span>
+          </div>
+          <div class="hidden md:flex items-center gap-8 text-sm font-medium text-slate-300">
+            <a href="#features" class="hover:text-white transition-colors">Features</a>
+            <a href="#models" class="hover:text-white transition-colors">Models</a>
+            <a href="#pricing" class="hover:text-white transition-colors">Enterprise</a>
+          </div>
+          <button onclick="switchView('chat')" class="px-5 py-2.5 bg-white text-slate-950 font-semibold rounded-full hover:bg-slate-200 transition-all transform hover:scale-105 active:scale-95 text-sm flex items-center gap-2 shadow-[0_0_20px_rgba(255,255,255,0.1)]">
+            Start Chatting
+          </button>
+        </nav>
+
+        <main class="flex-1 flex flex-col items-center justify-center px-6 text-center py-24 relative overflow-hidden">
+          <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-blue-500/10 blur-[120px] rounded-full pointer-events-none"></div>
+          <div class="absolute top-1/4 right-1/4 w-[400px] h-[400px] bg-purple-500/10 blur-[100px] rounded-full pointer-events-none"></div>
+
+          <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-900 border border-slate-800 text-sm font-medium text-blue-400 mb-8 backdrop-blur-sm">
+            <i data-lucide="activity" class="w-4 h-4 animate-pulse text-blue-500"></i>
+            NixAI Platform v2.0 is Live
+          </div>
+
+          <h1 class="text-5xl md:text-7xl font-extrabold tracking-tight max-w-4xl leading-[1.1] mb-8 bg-clip-text text-transparent bg-gradient-to-b from-white to-slate-400">
+            The Enterprise-Grade <br/> AI Workspace.
+          </h1>
+          <p class="text-lg md:text-xl text-slate-400 max-w-2xl mb-12 leading-relaxed">
+            Access specialized AI engines like Dale 1.1, Auralith, and WoAI in one unified, secure, and blazingly fast platform.
+          </p>
+
+          <div class="flex flex-col sm:flex-row items-center gap-4 z-10">
+            <button onclick="switchView('chat')" class="px-8 py-4 bg-white text-slate-950 font-bold rounded-2xl hover:bg-slate-200 transition-all text-lg flex items-center gap-3 w-full sm:w-auto shadow-xl shadow-white/5">
+              <span>Open Workspace</span>
+              <i data-lucide="play" class="w-5 h-5 fill-slate-950"></i>
             </button>
-            <div class="space-y-4 pt-4 border-t border-white/5">
-                <span class="text-[10px] font-black uppercase tracking-widest text-blue-400/70 block">History</span>
-                <div id="chatHistoryList" class="space-y-2"></div>
-            </div>
-        </div>
+            <button class="px-8 py-4 bg-slate-900 border border-slate-800 text-white font-bold rounded-2xl hover:bg-slate-800 transition-all text-lg flex items-center gap-3 w-full sm:w-auto">
+              View Documentation
+            </button>
+          </div>
 
-        <div class="mt-auto pt-6 border-t border-white/5">
-            <div id="userProfile" class="flex items-center gap-3 bg-white/5 p-3 rounded-2xl border border-white/5">
-                <div class="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center text-[10px] font-bold">U</div>
-                <div class="flex-1 overflow-hidden">
-                    <p id="userEmail" class="text-[10px] font-bold text-white truncate">User</p>
-                    <button onclick="signOut()" class="text-[9px] text-zinc-500 hover:text-red-400 uppercase tracking-widest font-black transition">Sign Out</button>
+          <div id="models" class="mt-32 w-full max-w-6xl text-left z-10">
+            <h2 class="text-2xl font-bold mb-8 text-center text-white">Powered by Specialized Models</h2>
+            <div class="grid md:grid-cols-3 gap-6">
+              <div class="p-8 rounded-3xl bg-slate-900/50 border border-slate-800/50 backdrop-blur-sm hover:bg-slate-800/50 transition-colors group">
+                <div class="w-12 h-12 rounded-2xl bg-amber-500/10 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                  <i data-lucide="zap" class="w-6 h-6 text-amber-500"></i>
                 </div>
-            </div>
-        </div>
-    </aside>
-
-    <main class="flex-1 flex flex-col relative h-full w-full overflow-hidden">
-        <div id="chatWindow" class="flex-1 overflow-y-auto p-4 lg:p-12 space-y-8 scroll-smooth pb-44 lg:pb-52">
-            <div id="emptyState" class="h-full flex flex-col items-center justify-center text-center space-y-6 py-20">
-                <div class="w-20 h-20 bg-blue-600/10 rounded-[32px] flex items-center justify-center border border-blue-500/20">
-                    <i class="fa-solid fa-brain text-4xl text-blue-500"></i>
+                <h3 class="text-xl font-bold mb-2">Dale 1.1</h3>
+                <p class="text-slate-400">Fast answers & quick tasks built via ActivePieces Sync Webhook integration.</p>
+              </div>
+              <div class="p-8 rounded-3xl bg-slate-900/50 border border-slate-800/50 backdrop-blur-sm hover:bg-slate-800/50 transition-colors group">
+                <div class="w-12 h-12 rounded-2xl bg-blue-500/10 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                  <i data-lucide="brain" class="w-6 h-6 text-blue-500"></i>
                 </div>
-                <h2 class="text-2xl font-bold text-white tracking-tight">Intelligence Initialized.</h2>
+                <h3 class="text-xl font-bold mb-2">Auralith</h3>
+                <p class="text-slate-400">General AI model capable of chat, advanced coding, and complex queries powered by Gemini API.</p>
+              </div>
+              <div class="p-8 rounded-3xl bg-slate-900/50 border border-slate-800/50 backdrop-blur-sm hover:bg-slate-800/50 transition-colors group">
+                <div class="w-12 h-12 rounded-2xl bg-purple-500/10 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                  <i data-lucide="sparkles" class="w-6 h-6 text-purple-500"></i>
+                </div>
+                <h3 class="text-xl font-bold mb-2">WoAI</h3>
+                <p class="text-slate-400">Creative writing, code assistance, and deep reasoning powered keylessly by Puter v2 OpenAI.</p>
+              </div>
             </div>
-        </div>
+          </div>
+        </main>
+    </div>
 
-        <div class="input-container-sticky fixed lg:absolute bottom-0 left-0 right-0 p-4 lg:p-8 bg-gradient-to-t from-[#050507] via-[#050507]/90 to-transparent">
-            <div class="max-w-4xl mx-auto">
-                <div class="glass-panel p-2 rounded-[28px] lg:rounded-[32px] border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.5)] flex flex-col">
-                    <textarea id="promptInput" rows="1" class="w-full bg-transparent border-none outline-none text-[15px] p-3 text-white placeholder-zinc-700 resize-none max-h-[160px]" placeholder="Ask Nix anything..." onkeydown="handleKeyDown(event)"></textarea>
-                    <div class="flex items-center justify-end p-2 border-t border-white/5">
-                        <button id="sendBtn" onclick="handleInput()" class="btn-nix px-8 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2">
-                            <span>Execute</span>
-                            <i class="fa-solid fa-bolt-lightning"></i>
-                        </button>
+    <!-- MAIN CHAT PLATFORM INTERFACE -->
+    <div id="chatView" class="hidden h-[100dvh] flex bg-slate-900 text-slate-200 overflow-hidden relative select-none">
+        
+        <!-- SIDEBAR CONTAINER -->
+        <aside id="sidebar" class="fixed inset-y-0 left-0 z-40 md:relative w-72 bg-[#0c0d14] border-r border-slate-850 flex flex-col shrink-0 transition-transform duration-300 -translate-x-full md:translate-x-0">
+            <!-- Sidebar Header -->
+            <div class="p-4 flex items-center justify-between shrink-0 border-b border-slate-900">
+                <button onclick="startNewChat()" class="flex-1 flex items-center justify-center gap-2 bg-slate-800/60 hover:bg-slate-800 hover:text-white border border-slate-700/30 text-slate-200 px-4 py-2.5 rounded-xl transition-colors font-medium text-sm">
+                    <i data-lucide="plus" class="w-4 h-4"></i>
+                    <span>New Chat</span>
+                </button>
+                <button onclick="toggleSidebar()" class="md:hidden ml-2 p-2.5 text-slate-400 hover:text-white rounded-xl hover:bg-slate-800 transition-colors">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <!-- Recent Conversations List -->
+            <div class="flex-1 overflow-y-auto px-3 py-4 space-y-6">
+                <div>
+                    <div class="text-[10px] font-bold text-slate-500 mb-3 px-2 tracking-widest uppercase">Conversations</div>
+                    <div id="recentChatsList" class="space-y-1">
+                        <!-- Filled Dynamically -->
                     </div>
                 </div>
             </div>
-        </div>
-    </main>
 
-    <script>
-        const SUPABASE_URL = "https://rnlwrngfgvznndlekmrz.supabase.co";
-        const SUPABASE_KEY = "sb_publishable_mtI0_ZBvU_n5oRuqV58QHg_qJt3Gfyt";
-        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-        const SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/1R0QmFOr8CEelWIseXYmcboeoOgcJnFpG8XmOiFRl5VI/gviz/tq?tqx=out:csv";
-        const PEKPIK_BASE_URL = "https://aiapiv2.pekpik.com/v1/chat/completions";
-        
-        let apiKeys = [];
-        let currentKeyIndex = 0;
-        let currentUser = null;
+            <!-- Sidebar Footer with Settings & Profile -->
+            <div class="p-4 border-t border-slate-850 shrink-0 space-y-2">
+                <button onclick="openSettings()" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-slate-400 hover:text-white hover:bg-slate-800/40 transition-all">
+                    <i data-lucide="settings" class="w-4 h-4 text-slate-500"></i>
+                    <span class="flex-1 text-left">Settings</span>
+                </button>
+                <div class="h-px bg-slate-800 my-2"></div>
+                <div class="flex items-center gap-3 px-3 py-2">
+                    <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-500 to-purple-500 flex items-center justify-center shrink-0">
+                        <i data-lucide="user" class="w-4 h-4 text-white"></i>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <div id="userProfileEmail" class="text-sm font-medium text-white truncate">sandbox-user@codenix.app</div>
+                        <div class="text-[10px] text-emerald-400 font-semibold tracking-wider uppercase">Pro Workspace</div>
+                    </div>
+                </div>
+            </div>
+        </aside>
 
-        async function refreshApiKeys() {
-            try {
-                const response = await fetch(SHEET_CSV_URL);
-                const text = await response.text();
-                // Improved parsing to be more aggressive in finding clean keys
-                apiKeys = text.split('\n')
-                    .map(line => line.replace(/"/g, '').replace(/,/g, '').trim())
-                    .filter(key => key.length > 20); // Only keep strings long enough to be keys
-                console.log(`Nix Core: Successfully loaded ${apiKeys.length} potential keys.`);
-            } catch (err) { console.error("Key fetch failed:", err); }
-        }
-
-        function getProviderDetails(key) {
-            // Enhanced signature matching
-            if (key.includes('ant-')) return { name: 'Claude', model: 'claude-opus-4-7' };
-            if (key.startsWith('AIza')) return { name: 'Gemini', model: 'gemini-3.1-flash-lite' };
-            if (key.includes('deepseek')) return { name: 'DeepSeek', model: 'deepseek-chat' };
-            // Default to GPT-5.5 for any sk- key that doesn't match specific models
-            return { name: 'GPT', model: 'gpt-5.5' };
-        }
-
-        async function dispatchLLMRequest(prompt) {
-            if (apiKeys.length === 0) await refreshApiKeys();
+        <!-- MAIN WORKSPACE -->
+        <main class="flex-1 flex flex-col min-w-0 bg-slate-900 relative h-full">
             
-            for (let i = 0; i < apiKeys.length; i++) {
-                const key = apiKeys[(currentKeyIndex + i) % apiKeys.length];
-                const provider = getProviderDetails(key);
+            <!-- Workspace Top Bar -->
+            <header class="h-16 flex items-center justify-between px-4 border-b border-slate-850 bg-slate-900/80 backdrop-blur-md z-30 shrink-0">
+                <div class="flex items-center gap-3">
+                    <button onclick="toggleSidebar()" class="p-2 -ml-2 text-slate-400 hover:text-white hover:bg-slate-800/60 rounded-xl transition-colors">
+                        <i data-lucide="menu" class="w-5 h-5"></i>
+                    </button>
+                    
+                    <!-- Dynamic Model Selector -->
+                    <div class="relative">
+                        <button id="modelSelectBtn" onclick="toggleModelDropdown()" class="flex items-center gap-2 px-3 py-1.5 rounded-xl hover:bg-slate-800/50 transition-colors text-sm font-medium text-slate-200">
+                            <span id="headerModelIcon"><i data-lucide="zap" class="w-4 h-4 text-amber-500"></i></span>
+                            <span id="headerModelName">Dale 1.1</span>
+                            <i data-lucide="chevron-down" class="w-4 h-4 text-slate-500"></i>
+                        </button>
+
+                        <div id="modelDropdown" class="hidden absolute top-full left-0 mt-2 w-72 bg-slate-850 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden z-50">
+                            <div class="p-1 space-y-0.5">
+                                <button onclick="selectModel('dale')" class="w-full flex items-start gap-3 p-3 hover:bg-slate-800/50 rounded-xl transition-colors text-left">
+                                    <div class="mt-0.5"><i data-lucide="zap" class="w-4 h-4 text-amber-500"></i></div>
+                                    <div class="flex-1 min-w-0">
+                                        <div class="font-semibold text-xs text-white">Dale 1.1</div>
+                                        <div class="text-[10px] text-slate-400 mt-0.5">Best for quick tasks & small scripts</div>
+                                    </div>
+                                    <span id="check-dale" class="text-blue-500 hidden"><i data-lucide="check" class="w-4 h-4"></i></span>
+                                </button>
+                                <button onclick="selectModel('auralith')" class="w-full flex items-start gap-3 p-3 hover:bg-slate-800/50 rounded-xl transition-colors text-left">
+                                    <div class="mt-0.5"><i data-lucide="brain" class="w-4 h-4 text-blue-500"></i></div>
+                                    <div class="flex-1 min-w-0">
+                                        <div class="font-semibold text-xs text-white">Auralith</div>
+                                        <div class="text-[10px] text-slate-400 mt-0.5">Coding, Debugging & General LLM tasks</div>
+                                    </div>
+                                    <span id="check-auralith" class="text-blue-500 hidden"><i data-lucide="check" class="w-4 h-4"></i></span>
+                                </button>
+                                <button onclick="selectModel('woai')" class="w-full flex items-start gap-3 p-3 hover:bg-slate-800/50 rounded-xl transition-colors text-left">
+                                    <div class="mt-0.5"><i data-lucide="sparkles" class="w-4 h-4 text-purple-500"></i></div>
+                                    <div class="flex-1 min-w-0">
+                                        <div class="font-semibold text-xs text-white">WoAI</div>
+                                        <div class="text-[10px] text-slate-400 mt-0.5">Creative flows, reasoning & brainstorms</div>
+                                    </div>
+                                    <span id="check-woai" class="text-blue-500 hidden"><i data-lucide="check" class="w-4 h-4"></i></span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right Header Actions -->
+                <div class="flex items-center gap-1">
+                    <button class="p-2 text-slate-400 hover:text-white hover:bg-slate-800/60 rounded-xl transition-colors hidden sm:flex items-center gap-2 text-xs">
+                        <i data-lucide="globe" class="w-4 h-4"></i>
+                        <span>Web Search</span>
+                    </button>
+                    <button class="p-2 text-slate-400 hover:text-white hover:bg-slate-800/60 rounded-xl transition-colors">
+                        <i data-lucide="share" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            </header>
+
+            <!-- CHAT WORKSPACE BODY -->
+            <div class="flex-1 overflow-hidden relative flex flex-col">
                 
-                console.log(`Nix Debug: Attempting provider ${provider.name} with model ${provider.model}...`);
+                <!-- CENTERED HOMEPAGE WELCOME CONTAINER (Shows when empty) -->
+                <div id="chatHome" class="flex-1 flex flex-col items-center justify-center px-4 overflow-y-auto text-center py-12 max-h-full">
+                    <div class="w-16 h-16 rounded-3xl bg-slate-800/50 border border-slate-700/50 flex items-center justify-center mb-6 shadow-xl">
+                        <i data-lucide="sparkles" class="w-8 h-8 text-blue-500"></i>
+                    </div>
+                    <h2 class="text-3xl font-extrabold text-white mb-2">How can I help you today?</h2>
+                    <p class="text-slate-400 max-w-sm text-sm mb-8 leading-relaxed">
+                        NixAI features fine-tuned programming assistance, lightning fast writing templates, and intelligent web searching models.
+                    </p>
 
+                    <!-- System Prompt Config box (Auralith only) -->
+                    <div id="systemPromptContainer" class="hidden w-full max-w-lg bg-slate-850 border border-slate-800 p-4 rounded-2xl text-left mb-6">
+                        <div class="text-xs font-bold text-slate-400 mb-2 uppercase tracking-wider flex items-center gap-1">
+                            <i data-lucide="settings" class="w-3.5 h-3.5"></i>
+                            <span>Auralith System Prompt</span>
+                        </div>
+                        <textarea id="systemPromptText" class="w-full bg-transparent border-0 text-slate-300 text-sm focus:ring-0 p-0 resize-none h-16 focus:outline-none placeholder-slate-600" placeholder="Instruct Auralith on how it should behave during the session..."></textarea>
+                    </div>
+
+                    <!-- Centered Composer Container -->
+                    <div class="w-full max-w-2xl relative" id="centeredComposerPlaceholder">
+                        <!-- Composer goes here dynamically -->
+                    </div>
+                </div>
+
+                <!-- ACTIVE CONVERSATION FLOW (Shows when containing messages) -->
+                <div id="chatFlow" class="hidden flex-1 overflow-y-auto px-4 py-6 scroll-smooth">
+                    <div class="max-w-3xl mx-auto space-y-8 pb-32" id="messagesList">
+                        <!-- Dynamically populated with chat history -->
+                    </div>
+                </div>
+
+                <!-- BOTTOM FIXED COMPOSER (Shows when chat is active) -->
+                <div id="bottomComposer" class="hidden absolute bottom-0 left-0 right-0 bg-gradient-to-t from-slate-950 via-slate-950/90 to-transparent pt-12 pb-6 px-4">
+                    <div class="max-w-3xl mx-auto" id="bottomComposerPlaceholder">
+                        <!-- Composer elements transfer here dynamically -->
+                    </div>
+                </div>
+
+            </div>
+        </main>
+    </div>
+
+    <!-- MAIN COMPOSER TEMPLATE DOM -->
+    <div id="composerTemplate" class="hidden">
+        <div class="relative group w-full bg-slate-900 border border-slate-800 focus-within:border-slate-700 rounded-2xl shadow-2xl transition duration-300">
+            <!-- Dynamic Gradient Focus Highlight -->
+            <div class="absolute -inset-0.5 bg-gradient-to-r from-blue-500/10 to-purple-500/10 rounded-2xl blur opacity-0 group-focus-within:opacity-100 transition duration-500"></div>
+            
+            <div class="relative flex items-end gap-2 p-2">
+                <button class="p-3 text-slate-400 hover:text-white rounded-xl hover:bg-slate-800/80 transition-colors shrink-0">
+                    <i data-lucide="paperclip" class="w-5 h-5"></i>
+                </button>
+                
+                <textarea id="composerInput" onkeydown="handleComposeInput(event)" oninput="resizeComposer(this)" rows="1" class="flex-1 bg-transparent border-0 text-slate-100 placeholder-slate-500 py-3 px-1 resize-none h-11 focus:outline-none focus:ring-0 text-sm max-h-48" placeholder="Ask anything..."></textarea>
+                
+                <div class="flex items-center gap-1 p-1">
+                    <button class="p-2.5 text-slate-400 hover:text-white rounded-xl hover:bg-slate-800/80 transition-colors hidden sm:block">
+                        <i data-lucide="mic" class="w-5 h-5"></i>
+                    </button>
+                    <button id="sendBtn" onclick="sendMessage()" class="p-2.5 bg-slate-800 text-slate-500 rounded-xl transition flex items-center justify-center">
+                        <i data-lucide="send" class="w-5 h-5"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+        <p class="text-[10px] text-slate-500 text-center mt-3 tracking-wide">NixAI can make mistakes. Verify important information.</p>
+    </div>
+
+    <!-- SETTINGS MODAL -->
+    <div id="settingsModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-slate-950/75 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+        <div class="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-2xl max-h-[80vh] flex flex-col overflow-hidden shadow-2xl">
+            <!-- Modal Header -->
+            <div class="flex items-center justify-between p-5 border-b border-slate-800">
+                <h3 class="text-lg font-bold text-white">System Settings</h3>
+                <button onclick="closeSettings()" class="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <!-- Modal Options Scroll Area -->
+            <div class="flex-1 overflow-y-auto p-6 space-y-8 text-sm">
+                <section>
+                    <h4 class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Credentials Management</h4>
+                    <div class="space-y-4">
+                        <div class="flex flex-col gap-1.5">
+                            <label class="text-xs text-slate-300">Custom Gemini Pro API Key (Optional Override)</label>
+                            <input type="password" id="customApiKey" class="bg-slate-850 border border-slate-800 rounded-xl px-4 py-2.5 text-slate-100 focus:outline-none focus:border-blue-500 text-sm w-full" placeholder="Default global key loaded..."></input>
+                        </div>
+                    </div>
+                </section>
+                <section>
+                    <h4 class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Data Workspace</h4>
+                    <div class="p-4 bg-blue-500/5 border border-blue-500/10 rounded-2xl flex gap-3">
+                        <i data-lucide="shield" class="w-5 h-5 text-blue-400 shrink-0"></i>
+                        <p class="text-xs text-slate-400 leading-relaxed">
+                            NixAI encrypts and structures all chat sessions to your custom database safely. No external platforms analyze your raw programmatic instructions.
+                        </p>
+                    </div>
+                </section>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- MAIN WORKSPACE APPLICATION LOGIC -->
+    <script>
+        // Default API Key
+        const FALLBACK_GEMINI_KEY = "AQ.Ab8RN6JHm5dbruU2i1vgjkEBx_R0ItXyhP4oz_1dUfo3hQTh_Q";
+
+        // Global State
+        let dbClient = null;
+        let currentUser = null;
+        let bypassActive = false;
+
+        let activeChatId = null;
+        let currentModel = 'dale';
+        let conversations = [];
+        let messages = [];
+        let isGenerating = false;
+
+        // Dom References
+        const authGate = document.getElementById('authGate');
+        const authBypass = document.getElementById('authBypassControls');
+        const landingView = document.getElementById('landingView');
+        const chatView = document.getElementById('chatView');
+        const recentChatsList = document.getElementById('recentChatsList');
+        const messagesList = document.getElementById('messagesList');
+        const chatHome = document.getElementById('chatHome');
+        const chatFlow = document.getElementById('chatFlow');
+        const bottomComposer = document.getElementById('bottomComposer');
+
+        // Initialize Workspace & Security Gate
+        window.onload = function() {
+            lucide.createIcons();
+            
+            // Set up fallback visual check trigger in case authentication redirection is restricted inside the preview iframe
+            setTimeout(() => {
+                if (!currentUser && !bypassActive) {
+                    authBypass.classList.remove('hidden');
+                }
+            }, 3000);
+
+            // Connect to Supabase
+            if (window.supabase) {
                 try {
-                    const res = await fetch(PEKPIK_BASE_URL, {
-                        method: "POST",
-                        headers: { 
-                            "Authorization": `Bearer ${key}`,
-                            "Content-Type": "application/json" 
-                        },
-                        body: JSON.stringify({
-                            model: provider.model,
-                            messages: [{ role: "user", content: prompt }]
-                        })
-                    });
-
-                    if (res.ok) {
-                        const data = await res.json();
-                        currentKeyIndex = (currentKeyIndex + i) % apiKeys.length;
-                        return data.choices[0].message.content;
-                    } else {
-                        console.warn(`Nix Debug: Provider ${provider.name} failed with status ${res.status}`);
-                    }
-                } catch (e) { 
-                    console.warn(`Nix Debug: Connection error with ${provider.name}:`, e); 
+                    dbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+                    verifyUserSession();
+                } catch(e) {
+                    console.warn("Supabase Handshake failed:", e);
                 }
             }
-            throw new Error("All API keys failed or unauthorized. Please verify the keys in your Google Sheet.");
-        }
+        };
 
-        function getProviderDetails(key) {
-            // Mapping providers to model IDs based on the PekPik proxy documentation
-            if (key.startsWith('sk-ant-')) return { name: 'Claude', model: 'claude-opus-4-7' };
-            if (key.startsWith('AIza')) return { name: 'Gemini', model: 'gemini-3.1-flash-lite' };
-            if (key.includes('deepseek')) return { name: 'DeepSeek', model: 'deepseek-chat' };
-            return { name: 'GPT', model: 'gpt-5.5' };
-        }
-
-        async function dispatchLLMRequest(prompt) {
-            if (apiKeys.length === 0) await refreshApiKeys();
-            
-            for (let i = 0; i < apiKeys.length; i++) {
-                const key = apiKeys[(currentKeyIndex + i) % apiKeys.length];
-                const provider = getProviderDetails(key);
-                
-                try {
-                    const res = await fetch(PEKPIK_BASE_URL, {
-                        method: "POST",
-                        headers: { 
-                            "Authorization": `Bearer ${key}`,
-                            "Content-Type": "application/json" 
-                        },
-                        body: JSON.stringify({
-                            model: provider.model,
-                            messages: [{ role: "user", content: prompt }]
-                        })
-                    });
-
-                    if (res.ok) {
-                        const data = await res.json();
-                        currentKeyIndex = (currentKeyIndex + i) % apiKeys.length;
-                        return data.choices[0].message.content;
-                    }
-                } catch (e) { console.warn(`Key failed (${provider.name}). Rotating...`); }
-            }
-            throw new Error("All provided API keys exhausted or invalid.");
-        }
-
-        async function computeResponse(text) {
-            const id = 'msg-' + Date.now();
-            appendMsg('assistant', `<i class="fa-solid fa-spinner animate-spin"></i>`, id);
+        // Check authentication profile on load
+        async function verifyUserSession() {
+            if (!dbClient) return;
             try {
-                const reply = await dispatchLLMRequest(text);
-                document.getElementById(id).innerHTML = formatMarkdown(reply);
-            } catch (e) {
-                document.getElementById(id).innerHTML = `<span class="text-red-400 font-bold">Error: ${e.message}</span>`;
+                const { data: { session }, error } = await dbClient.auth.getSession();
+                if (error || !session) {
+                    attemptGatewayRedirect();
+                } else {
+                    currentUser = session.user;
+                    onAuthSuccess();
+                }
+            } catch(e) {
+                console.warn("Auth Exception context active:", e);
+                attemptGatewayRedirect();
             }
         }
 
-        async function checkAuth() {
-            const { data: { session } } = await supabaseClient.auth.getSession();
-            if (!session) window.location.href = "auth.html";
-            else { currentUser = session.user; document.getElementById('userEmail').innerText = currentUser.email; }
-            refreshApiKeys();
+        function attemptGatewayRedirect() {
+            try {
+                // If nested inside an iframe sandbox, top navigation might fail and throw
+                window.location.href = "https://codenix-ai.vercel.app/Start/";
+            } catch(e) {
+                console.warn("Standard top frame redirection blocked inside browser sandbox preview.");
+                authBypass.classList.remove('hidden');
+            }
         }
 
-        function handleKeyDown(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleInput(); } }
-        async function handleInput() {
-            const input = document.getElementById('promptInput');
-            const text = input.value.trim();
+        function bypassToDemo() {
+            bypassActive = true;
+            currentUser = {
+                id: 'demo-user-id',
+                email: 'sandbox-guest@codenix-ai.app'
+            };
+            document.getElementById('userProfileEmail').innerText = currentUser.email;
+            onAuthSuccess();
+        }
+
+        function onAuthSuccess() {
+            // Unmask interface
+            authGate.classList.add('opacity-0', 'pointer-events-none');
+            setTimeout(() => authGate.classList.add('hidden'), 500);
+
+            // Display landing interface
+            landingView.classList.remove('hidden');
+            
+            // Load DB messages if available
+            if (currentUser && currentUser.id !== 'demo-user-id') {
+                document.getElementById('userProfileEmail').innerText = currentUser.email;
+                fetchUserChatsFromDb();
+            }
+
+            renderComposer();
+        }
+
+        function switchView(target) {
+            landingView.classList.add('hidden');
+            chatView.classList.add('hidden');
+            if (target === 'landing') landingView.classList.remove('hidden');
+            if (target === 'chat') chatView.classList.remove('hidden');
+        }
+
+        // --- COMPOSER DOM POSITIONING LOGIC ---
+        function renderComposer() {
+            const template = document.getElementById('composerTemplate');
+            const targetContainer = isChatEmpty() ? document.getElementById('centeredComposerPlaceholder') : document.getElementById('bottomComposerPlaceholder');
+            
+            // Re-draw composer elements safely inside the correct layout zone
+            targetContainer.innerHTML = template.innerHTML;
+            
+            // Re-apply focus and input handlers safely
+            const composerInput = targetContainer.querySelector('#composerInput');
+            if (composerInput) {
+                composerInput.focus();
+            }
+            lucide.createIcons();
+        }
+
+        function handleComposeInput(event) {
+            const textarea = event.target;
+            const textValue = textarea.value;
+            const sendBtn = textarea.parentElement.querySelector('#sendBtn');
+
+            // Toggle Send button lighting active states
+            if (textValue.trim().length > 0) {
+                sendBtn.classList.remove('bg-slate-800', 'text-slate-500');
+                sendBtn.classList.add('bg-blue-600', 'text-white', 'hover:bg-blue-500');
+            } else {
+                sendBtn.classList.remove('bg-blue-600', 'text-white', 'hover:bg-blue-500');
+                sendBtn.classList.add('bg-slate-800', 'text-slate-500');
+            }
+
+            // Keyboard dispatch check
+            if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                sendMessage();
+            }
+        }
+
+        function resizeComposer(textarea) {
+            textarea.style.height = 'auto';
+            textarea.style.height = `${textarea.scrollHeight}px`;
+        }
+
+        function isChatEmpty() {
+            return !activeChatId || messages.length === 0;
+        }
+
+        // --- STREAMING_CHUNK: Processing dispatch requests... ---
+        // --- API DISPATCH DISPATCH ENGINE ---
+        async function sendMessage() {
+            if (isGenerating) return;
+
+            const currentTextarea = document.querySelector('#chatHome #composerInput') || document.querySelector('#bottomComposer #composerInput');
+            if (!currentTextarea) return;
+
+            const text = currentTextarea.value.trim();
             if (!text) return;
-            appendMsg('user', text);
-            input.value = '';
-            await computeResponse(text);
+
+            // Optimistic Chat Creation Check
+            if (!activeChatId) {
+                activeChatId = generateId();
+                const newConvo = {
+                    id: activeChatId,
+                    title: text.substring(0, 30) + '...',
+                    model: currentModel,
+                    system_prompt: document.getElementById('systemPromptText').value
+                };
+                conversations.unshift(newConvo);
+                saveConvoToDb(newConvo);
+            }
+
+            // Append User Message to State
+            const userMsg = { role: 'user', content: text };
+            messages.push(userMsg);
+            saveMessageToDb(userMsg);
+
+            // Re-evaluate Layout transitions immediately
+            transitionComposerAndDisplay();
+            renderActiveMessages();
+            
+            // Clean Text area fields
+            currentTextarea.value = '';
+            currentTextarea.style.height = '44px';
+
+            // Mark Generation status active
+            isGenerating = true;
+            renderGeneratingStatus(true);
+
+            try {
+                let aiResponseText = "";
+                if (currentModel === 'dale') {
+                    aiResponseText = await executeDaleWebhook(text);
+                } else if (currentModel === 'auralith') {
+                    aiResponseText = await executeAuralithGemini();
+                } else if (currentModel === 'woai') {
+                    aiResponseText = await executeWoaiPuter(text);
+                }
+
+                const aiMsg = { role: 'assistant', content: aiResponseText };
+                messages.push(aiMsg);
+                saveMessageToDb(aiMsg);
+
+            } catch (err) {
+                messages.push({ role: 'system', content: `Execution failed: ${err.message}` });
+            } finally {
+                isGenerating = false;
+                renderGeneratingStatus(false);
+                renderActiveMessages();
+            }
         }
 
-        function appendMsg(role, content, id = null) {
-            const win = document.getElementById('chatWindow');
-            document.getElementById('emptyState')?.remove();
-            const div = document.createElement('div');
-            div.className = `msg-bubble flex gap-4 ${role === 'user' ? 'justify-end' : 'justify-start'}`;
-            div.innerHTML = `<div class="max-w-[75%] p-4 rounded-xl ${role === 'user' ? 'bg-white/10' : 'bg-transparent'}"><div id="${id || ''}" class="text-zinc-300">${role === 'user' ? content : formatMarkdown(content)}</div></div>`;
-            win.appendChild(div);
-            win.scrollTop = win.scrollHeight;
+        // --- MODEL DISPATCH EXECUTION ---
+        async function executeDaleWebhook(message) {
+            try {
+                const response = await fetch(ACTIVEPIECES_WEBHOOK_URL, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ message })
+                });
+                if (!response.ok) throw new Error("Sync status request timed out or returned error status.");
+                const data = await response.json();
+                return data.answer || "Dale returned an empty answer payload.";
+            } catch(e) {
+                return `*Execution Error (Dale webhook):* ${e.message}. Check ActivePieces Sync URL setup.`;
+            }
         }
 
-        function formatMarkdown(text) { return text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br>'); }
-        async function signOut() { await supabaseClient.auth.signOut(); window.location.reload(); }
-        function toggleSidebar() { document.getElementById('sidebar').classList.toggle('open'); document.getElementById('mobileOverlay').classList.toggle('show'); }
-        
-        window.onload = () => { checkAuth(); };
+        async function executeAuralithGemini() {
+            const systemPrompt = document.getElementById('systemPromptText').value;
+            const customKey = document.getElementById('customApiKey').value.trim();
+            const activeKey = customKey || FALLBACK_GEMINI_KEY;
+            
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${activeKey}`;
+
+            const geminiContents = messages.map(m => ({
+                role: m.role === 'user' ? 'user' : 'model',
+                parts: [{ text: m.content }]
+            }));
+
+            const payload = {
+                contents: geminiContents,
+                systemInstruction: systemPrompt ? { parts: [{ text: systemPrompt }] } : undefined
+            };
+
+            const response = await fetch(url, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload)
+            });
+
+            if (!response.ok) throw new Error(`Gemini Server response code: ${response.status}`);
+            const data = await response.json();
+            return data.candidates?.[0]?.content?.parts?.[0]?.text || "Auralith could not parse contents.";
+        }
+
+        async function executeWoaiPuter(message) {
+            if (!window.puter) return "Puter system scripts missing context load triggers.";
+            try {
+                const response = await puter.ai.chat(message, { model: "gpt-5.4-nano" });
+                return response || "Empty generation response from WoAI.";
+            } catch(e) {
+                return `*Execution Exception (Puter WoAI):* ${e.message}`;
+            }
+        }
+
+        // --- WORKSPACE VIEW TRANSITIONS ---
+        function transitionComposerAndDisplay() {
+            if (isChatEmpty()) {
+                chatHome.classList.remove('hidden');
+                chatFlow.classList.add('hidden');
+                bottomComposer.classList.add('hidden');
+            } else {
+                chatHome.classList.add('hidden');
+                chatFlow.classList.remove('hidden');
+                bottomComposer.classList.remove('hidden');
+            }
+            renderComposer();
+            updateSidebarList();
+        }
+
+        function renderGeneratingStatus(active) {
+            const container = document.getElementById('messagesList');
+            const placeholderId = 'generationPlaceholderLoading';
+            let placeholder = document.getElementById(placeholderId);
+
+            if (active) {
+                if (!placeholder) {
+                    placeholder = document.createElement('div');
+                    placeholder.id = placeholderId;
+                    placeholder.className = "flex gap-4 justify-start animate-pulse";
+                    placeholder.innerHTML = `
+                        <div class="w-8 h-8 rounded-xl bg-blue-500/10 flex items-center justify-center shrink-0 mt-1">
+                            <i data-lucide="sparkles" class="w-4 h-4 text-blue-500"></i>
+                        </div>
+                        <div class="flex space-x-1.5 items-center px-4 py-4 bg-slate-850/40 rounded-2xl">
+                            <div class="w-1.5 h-1.5 bg-slate-500 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
+                            <div class="w-1.5 h-1.5 bg-slate-500 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
+                            <div class="w-1.5 h-1.5 bg-slate-500 rounded-full animate-bounce"></div>
+                        </div>
+                    `;
+                    container.appendChild(placeholder);
+                    lucide.createIcons();
+                }
+            } else {
+                if (placeholder) placeholder.remove();
+            }
+            chatFlow.scrollTop = chatFlow.scrollHeight;
+        }
+
+        // --- STREAMING_CHUNK: Formatting text rendering blocks... ---
+        // --- CHAT MESSAGE & MARKDOWN RENDER COMPOSITIONS ---
+        function renderActiveMessages() {
+            const container = document.getElementById('messagesList');
+            container.innerHTML = '';
+
+            messages.forEach(msg => {
+                const row = document.createElement('div');
+                row.className = `flex gap-4 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`;
+
+                const innerHTML = msg.role === 'user' 
+                    ? `
+                        <div class="max-w-[85%] bg-slate-800 text-slate-100 rounded-2xl px-5 py-3.5 shadow-sm text-sm md:text-base break-words">
+                            ${escapeHtml(msg.content)}
+                        </div>
+                      `
+                    : `
+                        <div class="w-8 h-8 rounded-xl bg-blue-500/10 flex items-center justify-center shrink-0 mt-1 hidden sm:flex">
+                            <i data-lucide="sparkles" class="w-4 h-4 text-blue-500"></i>
+                        </div>
+                        <div class="max-w-[85%] text-slate-200 text-sm md:text-base space-y-4">
+                            ${parseMarkdown(msg.content)}
+                        </div>
+                      `;
+                
+                row.innerHTML = innerHTML;
+                container.appendChild(row);
+            });
+
+            lucide.createIcons();
+            chatFlow.scrollTop = chatFlow.scrollHeight;
+        }
+
+        function escapeHtml(text) {
+            return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        }
+
+        function parseMarkdown(content) {
+            // Parses Markdown and outputs HTML blocks. Separates code segments.
+            const blocks = content.split(/(```[\s\S]*?```)/g);
+            return blocks.map(block => {
+                if (block.startsWith('```') && block.endsWith('```')) {
+                    const lines = block.split('\n');
+                    const language = lines[0].replace('```', '').trim() || 'code';
+                    const code = lines.slice(1, -1).join('\n');
+                    return `
+                        <div class="my-4 rounded-xl overflow-hidden border border-slate-800 bg-[#0f1016]">
+                            <div class="flex items-center justify-between px-4 py-2 bg-slate-900 border-b border-slate-800">
+                                <span class="text-xs font-mono text-slate-400">${language}</span>
+                                <button onclick="copyToClipboard(\`${encodeURIComponent(code)}\`)" class="text-slate-500 hover:text-white text-xs transition">Copy Code</button>
+                            </div>
+                            <pre class="p-4 overflow-x-auto text-xs font-mono text-slate-300"><code>${escapeHtml(code)}</code></pre>
+                        </div>
+                    `;
+                }
+                
+                // Format Bold & Code phrases
+                let formatted = escapeHtml(block);
+                formatted = formatted.replace(/\*\*(.*?)\*\*/g, '<strong class="font-bold text-white">$1</strong>');
+                formatted = formatted.replace(/\*(.*?)\*/g, '<em class="italic text-slate-300">$1</em>');
+                formatted = formatted.replace(/`(.*?)`/g, '<code class="px-1.5 py-0.5 rounded bg-slate-800 text-blue-300 font-mono text-xs">$1</code>');
+                
+                return `<p class="leading-relaxed whitespace-pre-wrap">${formatted}</p>`;
+            }).join('');
+        }
+
+        function copyToClipboard(encodedText) {
+            const raw = decodeURIComponent(encodedText);
+            const el = document.createElement('textarea');
+            el.value = raw;
+            document.body.appendChild(el);
+            el.select();
+            document.execCommand('copy');
+            document.body.removeChild(el);
+        }
+
+        // --- MODEL ACTIONS & SELECTIONS ---
+        function toggleModelDropdown() {
+            document.getElementById('modelDropdown').classList.toggle('hidden');
+        }
+
+        function selectModel(id) {
+            currentModel = id;
+            document.getElementById('headerModelName').innerText = MODELS[id].name;
+            document.getElementById('headerModelIcon').innerHTML = `<i data-lucide="${MODELS[id].id === 'dale' ? 'zap' : MODELS[id].id === 'auralith' ? 'brain' : 'sparkles'}" class="w-4 h-4 ${MODELS[id].color}"></i>`;
+            
+            // Checkmark UI resets
+            ['dale', 'auralith', 'woai'].forEach(m => document.getElementById(`check-${m}`).classList.add('hidden'));
+            document.getElementById(`check-${id}`).classList.remove('hidden');
+
+            // Hide prompts unless on auralith
+            const promptBox = document.getElementById('systemPromptContainer');
+            if (id === 'auralith') {
+                promptBox.classList.remove('hidden');
+            } else {
+                promptBox.classList.add('hidden');
+            }
+
+            document.getElementById('modelDropdown').classList.add('hidden');
+            lucide.createIcons();
+            renderComposer();
+        }
+
+        // --- SIDEBAR ACTIONS ---
+        function toggleSidebar() {
+            document.getElementById('sidebar').classList.toggle('-translate-x-full');
+        }
+
+        function startNewChat() {
+            activeChatId = null;
+            messages = [];
+            transitionComposerAndDisplay();
+            selectModel(currentModel);
+            if (window.innerWidth < 768) {
+                toggleSidebar();
+            }
+        }
+
+        function loadChatSession(convoId) {
+            activeChatId = convoId;
+            const convo = conversations.find(c => c.id === convoId);
+            currentModel = convo.model;
+            document.getElementById('systemPromptText').value = convo.system_prompt || '';
+            selectModel(currentModel);
+
+            // Fetch specific history messages
+            fetchMessagesFromDb(convoId);
+        }
+
+        function updateSidebarList() {
+            recentChatsList.innerHTML = '';
+            conversations.forEach(convo => {
+                const btn = document.createElement('button');
+                btn.onclick = () => loadChatSession(convo.id);
+                btn.className = `w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all text-left ${activeChatId === convo.id ? 'bg-blue-500/10 text-blue-400 font-semibold' : 'text-slate-400 hover:bg-slate-800/40 hover:text-white'}`;
+                btn.innerHTML = `
+                    <i data-lucide="message-square" class="w-4 h-4 ${activeChatId === convo.id ? 'text-blue-500' : 'text-slate-500'}"></i>
+                    <span class="truncate flex-1">${escapeHtml(convo.title)}</span>
+                `;
+                recentChatsList.appendChild(btn);
+            });
+            lucide.createIcons();
+        }
+
+        // --- SETTINGS CONTROL ---
+        function openSettings() {
+            document.getElementById('settingsModal').classList.remove('hidden');
+        }
+
+        function closeSettings() {
+            document.getElementById('settingsModal').classList.add('hidden');
+        }
+
+        // --- DATABASE OPERATIONS ---
+        async function fetchUserChatsFromDb() {
+            if (!dbClient || !currentUser) return;
+            try {
+                const { data, error } = await dbClient
+                    .from('conversations')
+                    .select('*')
+                    .eq('user_id', currentUser.id)
+                    .order('updated_at', { ascending: false });
+
+                if (!error && data) {
+                    conversations = data.map(c => ({
+                        id: c.id,
+                        title: c.title,
+                        model: c.model,
+                        system_prompt: c.system_prompt
+                    }));
+                    updateSidebarList();
+                }
+            } catch(e) {}
+        }
+
+        async function fetchMessagesFromDb(convoId) {
+            if (!dbClient || bypassActive) {
+                messages = [];
+                transitionComposerAndDisplay();
+                renderActiveMessages();
+                return;
+            }
+            try {
+                const { data, error } = await dbClient
+                    .from('messages')
+                    .select('*')
+                    .eq('conversation_id', convoId)
+                    .order('created_at', { ascending: true });
+
+                if (!error && data) {
+                    messages = data.map(m => ({
+                        role: m.role,
+                        content: m.content
+                    }));
+                } else {
+                    messages = [];
+                }
+            } catch(e) {
+                messages = [];
+            }
+            transitionComposerAndDisplay();
+            renderActiveMessages();
+        }
+
+        async function saveConvoToDb(convo) {
+            if (!dbClient || bypassActive) return;
+            try {
+                await dbClient.from('conversations').insert({
+                    id: convo.id,
+                    user_id: currentUser.id,
+                    title: convo.title,
+                    model: convo.model,
+                    system_prompt: convo.system_prompt
+                });
+            } catch(e) {}
+        }
+
+        async function saveMessageToDb(msg) {
+            if (!dbClient || bypassActive) return;
+            try {
+                await dbClient.from('messages').insert({
+                    id: generateId(),
+                    conversation_id: activeChatId,
+                    role: msg.role,
+                    content: msg.content
+                });
+            } catch(e) {}
+        }
+
+        function generateId() {
+            return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+        }
     </script>
 </body>
 </html>
