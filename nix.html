@@ -61,6 +61,19 @@
         ::-webkit-scrollbar-thumb:hover {
             background: rgba(59, 130, 246, 0.5);
         }
+
+        /* Wave Animation for Speech Mode */
+        @keyframes wave {
+            0%, 100% { transform: scaleY(0.3); }
+            50% { transform: scaleY(1.3); }
+        }
+        .bar {
+            animation: wave 1.2s ease-in-out infinite;
+        }
+        .bar:nth-child(2) { animation-delay: 0.15s; }
+        .bar:nth-child(3) { animation-delay: 0.3s; }
+        .bar:nth-child(4) { animation-delay: 0.45s; }
+        .bar:nth-child(5) { animation-delay: 0.6s; }
     </style>
 </head>
 <body class="h-full bg-slate-950 text-slate-100 overflow-hidden select-none">
@@ -203,6 +216,12 @@
 
             <!-- Sidebar Footer with Settings & Profile -->
             <div class="p-4 border-t border-slate-850 shrink-0 space-y-2">
+                <div class="px-3 py-1 flex items-center gap-2">
+                    <span id="dbStatusBadge" class="text-[10px] bg-amber-500/10 text-amber-400 px-2.5 py-1 rounded-full font-semibold border border-amber-500/20 flex items-center gap-1.5 w-full justify-center">
+                        <span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>
+                        <span>Isolated (Local Cache)</span>
+                    </span>
+                </div>
                 <button onclick="openSettings()" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-slate-400 hover:text-white hover:bg-slate-800/40 transition-all">
                     <i data-lucide="settings" class="w-4 h-4 text-slate-500"></i>
                     <span class="flex-1 text-left">Settings</span>
@@ -295,7 +314,7 @@
                     </p>
 
                     <!-- System Prompt Config box (Auralith only) -->
-                    <div id="systemPromptContainer" class="hidden w-full max-w-lg bg-slate-850 border border-slate-800 p-4 rounded-2xl text-left mb-6">
+                    <div id="systemPromptContainer" class="hidden w-full max-w-lg bg-slate-850 border border-slate-800 p-4 rounded-2xl text-left mb-6 animate-in fade-in slide-in-from-bottom-2">
                         <div class="text-xs font-bold text-slate-400 mb-2 uppercase tracking-wider flex items-center gap-1">
                             <i data-lucide="settings" class="w-3.5 h-3.5"></i>
                             <span>Auralith System Prompt</span>
@@ -333,24 +352,68 @@
             <!-- Dynamic Gradient Focus Highlight -->
             <div class="absolute -inset-0.5 bg-gradient-to-r from-blue-500/10 to-purple-500/10 rounded-2xl blur opacity-0 group-focus-within:opacity-100 transition duration-500"></div>
             
-            <div class="relative flex items-end gap-2 p-2">
-                <button class="p-3 text-slate-400 hover:text-white rounded-xl hover:bg-slate-800/80 transition-colors shrink-0">
-                    <i data-lucide="paperclip" class="w-5 h-5"></i>
-                </button>
-                
-                <textarea id="composerInput" onkeydown="handleComposeInput(event)" oninput="resizeComposer(this)" rows="1" class="flex-1 bg-transparent border-0 text-slate-100 placeholder-slate-500 py-3 px-1 resize-none h-11 focus:outline-none focus:ring-0 text-sm max-h-48" placeholder="Ask anything..."></textarea>
-                
-                <div class="flex items-center gap-1 p-1">
-                    <button class="p-2.5 text-slate-400 hover:text-white rounded-xl hover:bg-slate-800/80 transition-colors hidden sm:block">
-                        <i data-lucide="mic" class="w-5 h-5"></i>
+            <div class="relative flex flex-col p-2">
+                <!-- File upload shelf inside composer -->
+                <div id="fileShelf" class="hidden flex-wrap gap-2 p-2 border-b border-slate-800/50 mb-1.5">
+                    <!-- Uploded file nodes append here -->
+                </div>
+
+                <div class="flex items-end gap-2">
+                    <button onclick="triggerFilePicker()" class="p-3 text-slate-400 hover:text-white rounded-xl hover:bg-slate-800/80 transition-colors shrink-0">
+                        <i data-lucide="paperclip" class="w-5 h-5"></i>
                     </button>
-                    <button id="sendBtn" onclick="sendMessage()" class="p-2.5 bg-slate-800 text-slate-500 rounded-xl transition flex items-center justify-center">
-                        <i data-lucide="send" class="w-5 h-5"></i>
-                    </button>
+                    <!-- Hidden input for file picker -->
+                    <input type="file" id="fileInput" class="hidden" onchange="handleFileSelect(this)" multiple>
+                    
+                    <textarea id="composerInput" onkeydown="handleComposeInput(event)" oninput="resizeComposer(this)" rows="1" class="flex-1 bg-transparent border-0 text-slate-100 placeholder-slate-500 py-3 px-1 resize-none h-11 focus:outline-none focus:ring-0 text-sm max-h-48" placeholder="Ask anything..."></textarea>
+                    
+                    <div class="flex items-center gap-1 p-1">
+                        <button onclick="toggleVoiceMode()" class="p-2.5 text-slate-400 hover:text-white rounded-xl hover:bg-slate-800/80 transition-colors">
+                            <i data-lucide="mic" class="w-5 h-5"></i>
+                        </button>
+                        <button id="sendBtn" onclick="sendMessage()" class="p-2.5 bg-slate-800 text-slate-500 rounded-xl transition flex items-center justify-center">
+                            <i data-lucide="send" class="w-5 h-5"></i>
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
         <p class="text-[10px] text-slate-500 text-center mt-3 tracking-wide">NixAI can make mistakes. Verify important information.</p>
+    </div>
+
+    <!-- VOICE EXPERIENCE OVERLAY -->
+    <div id="voiceOverlay" class="hidden fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-lg flex flex-col items-center justify-between p-8 text-center animate-in fade-in duration-300">
+        <div class="flex items-center justify-between w-full max-w-4xl">
+            <div class="flex items-center gap-2">
+                <i data-lucide="activity" class="text-blue-500 w-5 h-5"></i>
+                <span class="text-xs font-bold tracking-wider uppercase text-slate-400">NixVoice Stream</span>
+            </div>
+            <button onclick="toggleVoiceMode()" class="p-3 hover:bg-slate-900 rounded-full text-slate-400 hover:text-white transition-colors">
+                <i data-lucide="x" class="w-6 h-6"></i>
+            </button>
+        </div>
+
+        <div class="flex flex-col items-center justify-center gap-6">
+            <!-- Pulsing audio waveform state visualizer -->
+            <div class="flex items-end justify-center gap-1 h-24 mb-4">
+                <div class="bar w-2 bg-blue-500 rounded-full h-8"></div>
+                <div class="bar w-2 bg-blue-400 rounded-full h-16"></div>
+                <div class="bar w-2 bg-purple-500 rounded-full h-24"></div>
+                <div class="bar w-2 bg-purple-400 rounded-full h-12"></div>
+                <div class="bar w-2 bg-blue-500 rounded-full h-6"></div>
+            </div>
+            <h3 id="voiceStatus" class="text-2xl font-bold text-white">Listening...</h3>
+            <p id="voiceSpeechText" class="text-sm text-slate-400 max-w-md italic leading-relaxed">Speak clearly, NixAI is ready to process your voice input...</p>
+        </div>
+
+        <div class="flex items-center gap-4">
+            <button id="voiceMuteBtn" class="w-14 h-14 bg-slate-900 hover:bg-slate-800 rounded-full border border-slate-800 text-slate-400 hover:text-white flex items-center justify-center transition-all">
+                <i data-lucide="mic-off" class="w-6 h-6"></i>
+            </button>
+            <button onclick="toggleVoiceMode()" class="px-8 py-3 bg-red-600 hover:bg-red-500 text-white font-semibold rounded-full shadow-lg shadow-red-600/20 transition-all text-sm">
+                End Conversation
+            </button>
+        </div>
     </div>
 
     <!-- SETTINGS MODAL -->
@@ -390,11 +453,14 @@
 
     <!-- MAIN WORKSPACE APPLICATION LOGIC -->
     <script>
+        // Injected Workspace credentials at runtime
+        const apiKey = ""; 
+
         // Supabase Connection Credentials
         const SUPABASE_URL = "https://rnlwrngfgvznndlekmrz.supabase.co";
         const SUPABASE_KEY = "sb_publishable_mtI0_ZBvU_n5oRuqV58QHg_qJt3Gfyt";
 
-        // Global Key Fallback Configuration
+        // Global Fallback Key fallback
         const FALLBACK_GEMINI_KEY = "AQ.Ab8RN6JHm5dbruU2i1vgjkEBx_R0ItXyhP4oz_1dUfo3hQTh_Q";
         const ACTIVEPIECES_WEBHOOK_URL = "https://cloud.activepieces.com/api/v1/webhooks/Soc1ngypMFTot50sm0fx5/sync";
 
@@ -408,12 +474,19 @@
         let dbClient = null;
         let currentUser = null;
         let bypassActive = false;
+        let dbMode = 'db'; // 'db' or 'local'
 
         let activeChatId = null;
         let currentModel = 'dale';
         let conversations = [];
         let messages = [];
         let isGenerating = false;
+        let uploadedFiles = [];
+
+        // Voice state variables
+        let isVoiceMode = false;
+        let recognition = null;
+        let currentSpeechSynthUtterance = null;
 
         // Dom References
         const authGate = document.getElementById('authGate');
@@ -443,14 +516,36 @@
                     dbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
                     verifyUserSession();
                 } catch(e) {
-                    console.warn("Supabase Handshake failed:", e);
+                    console.warn("Supabase Handshake failed, defaulting to Local engine:", e);
+                    enableLocalCacheEngine();
                 }
+            } else {
+                enableLocalCacheEngine();
             }
+
+            // Initialize Speech Synthesis & Recognition context
+            initSpeechEngine();
         };
+
+        // Safely enable Local Mode if database operations fail (e.g. 403 Forbidden in iframe sandbox)
+        function enableLocalCacheEngine() {
+            dbMode = 'local';
+            const dbStatusBadge = document.getElementById('dbStatusBadge');
+            if (dbStatusBadge) {
+                dbStatusBadge.innerHTML = `
+                    <span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>
+                    <span>Sandbox Mode (Local Cache)</span>
+                `;
+                dbStatusBadge.className = "text-[10px] bg-amber-500/10 text-amber-400 px-2.5 py-1 rounded-full font-semibold border border-amber-500/20 flex items-center gap-1.5 w-full justify-center";
+            }
+        }
 
         // Check user session using auth directly, bypassing profiles
         async function verifyUserSession() {
-            if (!dbClient) return;
+            if (!dbClient) {
+                enableLocalCacheEngine();
+                return;
+            }
             try {
                 const { data: { session }, error } = await dbClient.auth.getSession();
                 if (error || !session) {
@@ -481,6 +576,7 @@
                 email: 'sandbox-guest@codenix-ai.app'
             };
             document.getElementById('userProfileEmail').innerText = currentUser.email;
+            enableLocalCacheEngine();
             onAuthSuccess();
         }
 
@@ -492,10 +588,11 @@
             // Display landing interface
             landingView.classList.remove('hidden');
             
-            // Load DB messages from tables mapped directly to user_id (linked to auth.users)
-            if (currentUser && !bypassActive) {
+            if (dbMode !== 'local' && currentUser && !bypassActive) {
                 document.getElementById('userProfileEmail').innerText = currentUser.email;
                 fetchUserChatsFromDb();
+            } else {
+                loadConversationsFromCache();
             }
 
             renderComposer();
@@ -511,7 +608,8 @@
         // --- COMPOSER DOM POSITIONING LOGIC ---
         function renderComposer() {
             const template = document.getElementById('composerTemplate');
-            const targetContainer = isChatEmpty() ? document.getElementById('centeredComposerPlaceholder') : document.getElementById('bottomComposerPlaceholder');
+            const isHome = isChatEmpty();
+            const targetContainer = isHome ? document.getElementById('centeredComposerPlaceholder') : document.getElementById('bottomComposerPlaceholder');
             
             targetContainer.innerHTML = template.innerHTML;
             
@@ -519,6 +617,7 @@
             if (composerInput) {
                 composerInput.focus();
             }
+            renderFileShelf();
             lucide.createIcons();
         }
 
@@ -527,7 +626,7 @@
             const textValue = textarea.value;
             const sendBtn = textarea.parentElement.querySelector('#sendBtn');
 
-            if (textValue.trim().length > 0) {
+            if (textValue.trim().length > 0 || uploadedFiles.length > 0) {
                 sendBtn.classList.remove('bg-slate-800', 'text-slate-500');
                 sendBtn.classList.add('bg-blue-600', 'text-white', 'hover:bg-blue-500');
             } else {
@@ -550,7 +649,123 @@
             return !activeChatId || messages.length === 0;
         }
 
-        // --- API DISPATCH DISPATCH ENGINE ---
+        // --- FILE UPLOAD LOGIC ---
+        function triggerFilePicker() {
+            const fileInput = document.getElementById('fileInput') || document.querySelector('#bottomComposer #fileInput') || document.querySelector('#centeredComposerPlaceholder #fileInput');
+            if (fileInput) {
+                fileInput.click();
+            }
+        }
+
+        function handleFileSelect(input) {
+            if (!input.files || input.files.length === 0) return;
+            
+            for (let i = 0; i < input.files.length; i++) {
+                const file = input.files[i];
+                const fileId = generateId();
+                const fileObj = {
+                    id: fileId,
+                    name: file.name,
+                    size: file.size,
+                    type: file.type,
+                    progress: 0,
+                    dataUrl: null
+                };
+                
+                uploadedFiles.push(fileObj);
+                renderFileShelf();
+                simulateProgressUpload(fileId, file);
+            }
+            input.value = '';
+        }
+
+        function simulateProgressUpload(id, file) {
+            let prg = 0;
+            const interval = setInterval(() => {
+                prg += 20;
+                const fileIdx = uploadedFiles.findIndex(f => f.id === id);
+                if (fileIdx !== -1) {
+                    uploadedFiles[fileIdx].progress = prg;
+                    if (prg >= 100) {
+                        clearInterval(interval);
+                        // Save DataURL fallback if it is a readable image or simple file
+                        const reader = new FileReader();
+                        reader.onload = function(e) {
+                            uploadedFiles[fileIdx].dataUrl = e.target.result;
+                            renderFileShelf();
+                            updateSendBtnState();
+                        };
+                        reader.readAsDataURL(file);
+                    } else {
+                        renderFileShelf();
+                    }
+                } else {
+                    clearInterval(interval);
+                }
+            }, 150);
+        }
+
+        function removeUploadedFile(id) {
+            uploadedFiles = uploadedFiles.filter(f => f.id !== id);
+            renderFileShelf();
+            updateSendBtnState();
+        }
+
+        function updateSendBtnState() {
+            const sendBtn = document.getElementById('sendBtn') || document.querySelector('#bottomComposer #sendBtn') || document.querySelector('#centeredComposerPlaceholder #sendBtn');
+            const textarea = document.getElementById('composerInput') || document.querySelector('#bottomComposer #composerInput') || document.querySelector('#centeredComposerPlaceholder #composerInput');
+            if (sendBtn) {
+                if ((textarea && textarea.value.trim().length > 0) || uploadedFiles.length > 0) {
+                    sendBtn.classList.remove('bg-slate-800', 'text-slate-500');
+                    sendBtn.classList.add('bg-blue-600', 'text-white', 'hover:bg-blue-500');
+                } else {
+                    sendBtn.classList.remove('bg-blue-600', 'text-white', 'hover:bg-blue-500');
+                    sendBtn.classList.add('bg-slate-800', 'text-slate-500');
+                }
+            }
+        }
+
+        function renderFileShelf() {
+            const shelf = document.getElementById('fileShelf') || document.querySelector('#bottomComposer #fileShelf') || document.querySelector('#centeredComposerPlaceholder #fileShelf');
+            if (!shelf) return;
+            
+            if (uploadedFiles.length === 0) {
+                shelf.classList.add('hidden');
+                shelf.innerHTML = '';
+                return;
+            }
+            
+            shelf.classList.remove('hidden');
+            shelf.innerHTML = '';
+            
+            uploadedFiles.forEach(file => {
+                const node = document.createElement('div');
+                node.className = "flex items-center gap-2 bg-slate-800/80 border border-slate-700/50 rounded-xl p-2 pr-3 text-xs animate-in fade-in duration-200 shrink-0 select-none max-w-[200px]";
+                
+                const isImg = file.type.startsWith('image/');
+                const previewIcon = isImg && file.dataUrl 
+                    ? `<img src="${file.dataUrl}" class="w-6 h-6 rounded-md object-cover">`
+                    : `<i data-lucide="file-text" class="w-4 h-4 text-slate-400"></i>`;
+                
+                node.innerHTML = `
+                    <div class="relative w-6 h-6 flex items-center justify-center shrink-0">
+                        ${previewIcon}
+                        ${file.progress < 100 ? `<div class="absolute inset-0 bg-slate-900/80 flex items-center justify-center text-[8px] font-bold text-blue-400 rounded-md">${file.progress}%</div>` : ''}
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <div class="text-[11px] font-semibold text-slate-200 truncate">${file.name}</div>
+                        <div class="text-[9px] text-slate-500">${(file.size / 1024).toFixed(1)} KB</div>
+                    </div>
+                    <button onclick="removeUploadedFile('${file.id}')" class="p-1 hover:bg-slate-700 text-slate-400 hover:text-white rounded-lg transition-colors">
+                        <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                    </button>
+                `;
+                shelf.appendChild(node);
+            });
+            lucide.createIcons();
+        }
+
+        // --- API DISPATCH ENGINE ---
         async function sendMessage() {
             if (isGenerating) return;
 
@@ -558,14 +773,26 @@
             if (!currentTextarea) return;
 
             const text = currentTextarea.value.trim();
-            if (!text) return;
+            if (!text && uploadedFiles.length === 0) return;
+
+            // Construct payload contents
+            let messageContent = text;
+            if (uploadedFiles.length > 0) {
+                const fileMentions = uploadedFiles.map(f => `[Uploaded Attachment: ${f.name} (${(f.size/1024).toFixed(1)} KB)]`).join('\n');
+                messageContent = `${messageContent}\n\n${fileMentions}`;
+            }
+
+            // Clean file shelf immediately on transition trigger
+            const currentFiles = [...uploadedFiles];
+            uploadedFiles = [];
+            renderFileShelf();
 
             // Optimistic Chat Creation Check
             if (!activeChatId) {
                 activeChatId = generateId();
                 const newConvo = {
                     id: activeChatId,
-                    title: text.substring(0, 30) + '...',
+                    title: text.substring(0, 30) || currentFiles[0]?.name || 'New Conversation',
                     model: currentModel,
                     system_prompt: document.getElementById('systemPromptText').value
                 };
@@ -574,7 +801,7 @@
             }
 
             // Append User Message to State
-            const userMsg = { role: 'user', content: text };
+            const userMsg = { role: 'user', content: messageContent };
             messages.push(userMsg);
             saveMessageToDb(userMsg);
 
@@ -590,11 +817,11 @@
             try {
                 let aiResponseText = "";
                 if (currentModel === 'dale') {
-                    aiResponseText = await executeDaleWebhook(text);
+                    aiResponseText = await executeDaleWebhook(messageContent);
                 } else if (currentModel === 'auralith') {
                     aiResponseText = await executeAuralithGemini();
                 } else if (currentModel === 'woai') {
-                    aiResponseText = await executeWoaiPuter(text);
+                    aiResponseText = await executeWoaiPuter(messageContent);
                 }
 
                 const aiMsg = { role: 'assistant', content: aiResponseText };
@@ -629,7 +856,7 @@
         async function executeAuralithGemini() {
             const systemPrompt = document.getElementById('systemPromptText').value;
             const customKey = document.getElementById('customApiKey').value.trim();
-            const activeKey = customKey || FALLBACK_GEMINI_KEY;
+            const activeKey = apiKey || customKey || FALLBACK_GEMINI_KEY;
             
             const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${activeKey}`;
 
@@ -657,8 +884,24 @@
         async function executeWoaiPuter(message) {
             if (!window.puter) return "Puter system scripts missing context load triggers.";
             try {
+                // Resolved the 'thinking' block by capturing both Puter JS class structures
                 const response = await puter.ai.chat(message, { model: "gpt-5.4-nano" });
-                return response || "Empty generation response from WoAI.";
+                
+                let answer = "";
+                if (response) {
+                    if (typeof response === 'string') {
+                        answer = response;
+                    } else if (response.text) {
+                        answer = response.text;
+                    } else if (response.message) {
+                        answer = typeof response.message === 'string' 
+                            ? response.message 
+                            : (response.message.content || JSON.stringify(response.message));
+                    } else {
+                        answer = JSON.stringify(response);
+                    }
+                }
+                return answer || "Empty generation response from WoAI.";
             } catch(e) {
                 return `*Execution Exception (Puter WoAI):* ${e.message}`;
             }
@@ -763,7 +1006,7 @@
                 }
                 
                 let formatted = escapeHtml(block);
-                formatted = formatted.replace(/\*\*(.*?)\*\"/g, '<strong class="font-bold text-white">$1</strong>');
+                formatted = formatted.replace(/\*\*(.*?)\*\*/g, '<strong class="font-bold text-white">$1</strong>');
                 formatted = formatted.replace(/\*(.*?)\*/g, '<em class="italic text-slate-300">$1</em>');
                 formatted = formatted.replace(/`(.*?)`/g, '<code class="px-1.5 py-0.5 rounded bg-slate-800 text-blue-300 font-mono text-xs">$1</code>');
                 
@@ -804,6 +1047,100 @@
             document.getElementById('modelDropdown').classList.add('hidden');
             lucide.createIcons();
             renderComposer();
+        }
+
+        // --- REAL-TIME VOICE RECOGNITION AND AUDIO FEEDBACK ---
+        function initSpeechEngine() {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (SpeechRecognition) {
+                recognition = new SpeechRecognition();
+                recognition.continuous = false;
+                recognition.interimResults = false;
+                recognition.lang = 'en-US';
+
+                recognition.onstart = () => {
+                    document.getElementById('voiceStatus').innerText = "Listening...";
+                    document.getElementById('voiceSpeechText').innerText = "Speak clearly, NixAI is listening...";
+                };
+
+                recognition.onresult = async (event) => {
+                    const resultText = event.results[0][0].transcript;
+                    document.getElementById('voiceSpeechText').innerText = `"${resultText}"`;
+                    document.getElementById('voiceStatus').innerText = "Processing...";
+                    
+                    // Route voice transcript directly to active models
+                    let aiVoiceResponse = "";
+                    try {
+                        if (currentModel === 'dale') {
+                            aiVoiceResponse = await executeDaleWebhook(resultText);
+                        } else if (currentModel === 'auralith') {
+                            // Inject voice request into conversational stream
+                            messages.push({ role: 'user', content: resultText });
+                            aiVoiceResponse = await executeAuralithGemini();
+                        } else if (currentModel === 'woai') {
+                            aiVoiceResponse = await executeWoaiPuter(resultText);
+                        }
+                        
+                        speakResponse(aiVoiceResponse);
+                    } catch(err) {
+                        speakResponse("I encountered an execution failure, please try again.");
+                    }
+                };
+
+                recognition.onerror = () => {
+                    document.getElementById('voiceStatus').innerText = "Mic Error or Inactive";
+                };
+
+                recognition.onend = () => {
+                    if (isVoiceMode && !window.speechSynthesis.speaking) {
+                        // Restart listening automatically after synthesis completes
+                        try { recognition.start(); } catch(e) {}
+                    }
+                };
+            }
+        }
+
+        function toggleVoiceMode() {
+            if (!recognition) {
+                alert("Speech recognition is not supported on this browser context.");
+                return;
+            }
+            
+            isVoiceMode = !isVoiceMode;
+            const overlay = document.getElementById('voiceOverlay');
+            
+            if (isVoiceMode) {
+                overlay.classList.remove('hidden');
+                // Stop ongoing speech
+                window.speechSynthesis.cancel();
+                try { recognition.start(); } catch(e) {}
+            } else {
+                overlay.classList.add('hidden');
+                window.speechSynthesis.cancel();
+                try { recognition.stop(); } catch(e) {}
+            }
+        }
+
+        function speakResponse(text) {
+            if (!window.speechSynthesis) return;
+            window.speechSynthesis.cancel(); // clear previous
+            
+            // Clean markdown tags for synthetic voice clarity
+            const cleanText = text.replace(/[*_`#]/g, '').substring(0, 300);
+            
+            document.getElementById('voiceStatus').innerText = "NixAI Speaking...";
+            document.getElementById('voiceSpeechText').innerText = cleanText;
+
+            currentSpeechSynthUtterance = new SpeechSynthesisUtterance(cleanText);
+            
+            currentSpeechSynthUtterance.onend = () => {
+                if (isVoiceMode) {
+                    document.getElementById('voiceStatus').innerText = "Listening...";
+                    try { recognition.start(); } catch(e) {}
+                }
+            };
+
+            window.speechSynthesis.speak(currentSpeechSynthUtterance);
         }
 
         // --- SIDEBAR ACTIONS ---
@@ -855,9 +1192,9 @@
             document.getElementById('settingsModal').classList.add('hidden');
         }
 
-        // --- DATABASE OPERATIONS (Linked directly to auth.users) ---
+        // --- DATABASE OPERATIONS ---
         async function fetchUserChatsFromDb() {
-            if (!dbClient || !currentUser) return;
+            if (dbMode === 'local' || !dbClient || !currentUser) return;
             try {
                 const { data, error } = await dbClient
                     .from('conversations')
@@ -865,7 +1202,9 @@
                     .eq('user_id', currentUser.id)
                     .order('updated_at', { ascending: false });
 
-                if (!error && data) {
+                if (error) throw error;
+
+                if (data) {
                     conversations = data.map(c => ({
                         id: c.id,
                         title: c.title,
@@ -873,13 +1212,20 @@
                         system_prompt: c.system_prompt
                     }));
                     updateSidebarList();
+                    saveConversationsToCache();
                 }
-            } catch(e) {}
+            } catch(e) {
+                console.warn("Database fallback triggered:", e.message);
+                enableLocalCacheEngine();
+                loadConversationsFromCache();
+            }
         }
 
         async function fetchMessagesFromDb(convoId) {
-            if (!dbClient || bypassActive) {
-                messages = [];
+            if (dbMode === 'local' || !dbClient || bypassActive) {
+                // Read from local cache keys
+                const cachedMsgs = localStorage.getItem(`convo_msgs_${convoId}`);
+                messages = cachedMsgs ? JSON.parse(cachedMsgs) : [];
                 transitionComposerAndDisplay();
                 renderActiveMessages();
                 return;
@@ -891,44 +1237,71 @@
                     .eq('conversation_id', convoId)
                     .order('created_at', { ascending: true });
 
-                if (!error && data) {
+                if (error) throw error;
+
+                if (data) {
                     messages = data.map(m => ({
                         role: m.role,
                         content: m.content
                     }));
+                    // Cache local copy
+                    localStorage.setItem(`convo_msgs_${convoId}`, JSON.stringify(messages));
                 } else {
                     messages = [];
                 }
             } catch(e) {
-                messages = [];
+                const cachedMsgs = localStorage.getItem(`convo_msgs_${convoId}`);
+                messages = cachedMsgs ? JSON.parse(cachedMsgs) : [];
             }
             transitionComposerAndDisplay();
             renderActiveMessages();
         }
 
         async function saveConvoToDb(convo) {
-            if (!dbClient || bypassActive) return;
+            saveConversationsToCache();
+            if (dbMode === 'local' || !dbClient || bypassActive) return;
             try {
-                await dbClient.from('conversations').insert({
+                const { error } = await dbClient.from('conversations').insert({
                     id: convo.id,
                     user_id: currentUser.id,
                     title: convo.title,
                     model: convo.model,
                     system_prompt: convo.system_prompt
                 });
-            } catch(e) {}
+                if (error) throw error;
+            } catch(e) {
+                console.warn("Could not save conversation to DB, cached locally:", e.message);
+            }
         }
 
         async function saveMessageToDb(msg) {
-            if (!dbClient || bypassActive) return;
+            if (activeChatId) {
+                localStorage.setItem(`convo_msgs_${activeChatId}`, JSON.stringify(messages));
+            }
+            if (dbMode === 'local' || !dbClient || bypassActive) return;
             try {
-                await dbClient.from('messages').insert({
+                const { error } = await dbClient.from('messages').insert({
                     id: generateId(),
                     conversation_id: activeChatId,
                     role: msg.role,
                     content: msg.content
                 });
-            } catch(e) {}
+                if (error) throw error;
+            } catch(e) {
+                console.warn("Could not save message to DB, cached locally:", e.message);
+            }
+        }
+
+        function saveConversationsToCache() {
+            localStorage.setItem('nix_conversations_index', JSON.stringify(conversations));
+        }
+
+        function loadConversationsFromCache() {
+            const cachedIndex = localStorage.getItem('nix_conversations_index');
+            if (cachedIndex) {
+                conversations = JSON.parse(cachedIndex);
+                updateSidebarList();
+            }
         }
 
         function generateId() {
