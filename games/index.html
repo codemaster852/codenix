@@ -11,13 +11,7 @@
         ::-webkit-scrollbar-track { background: #0f172a; }
         ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
         ::-webkit-scrollbar-thumb:hover { background: #475569; }
-        
-        .glass-panel {
-            background: rgba(30, 41, 59, 0.7);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
-            border: 1px solid rgba(255, 255, 255, 0.05);
-        }
+        .glass-panel { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.05); }
     </style>
 </head>
 <body class="bg-[#0b0f19] text-slate-100 min-h-screen flex flex-col font-sans overflow-x-hidden">
@@ -28,73 +22,41 @@
                 <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center shadow-lg shadow-indigo-500/20">
                     <i data-lucide="gamepad-2" class="w-6 h-6 text-white"></i>
                 </div>
-                <div>
-                    <h1 class="font-bold text-xl tracking-wide bg-gradient-to-r from-white via-slate-100 to-slate-400 bg-clip-text text-transparent">Games Center</h1>
-                </div>
+                <h1 class="font-bold text-xl tracking-wide bg-gradient-to-r from-white via-slate-100 to-slate-400 bg-clip-text text-transparent">Games Center</h1>
             </div>
             <div id="status-badge" class="flex items-center space-x-1 bg-amber-500/10 text-amber-400 text-xs px-2.5 py-1 rounded-full border border-amber-500/20">
-                <span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>
-                <span id="status-text">Loading Sheet...</span>
+                <span id="status-icon" class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>
+                <span id="status-text">Connecting...</span>
             </div>
         </div>
     </header>
 
     <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-grow w-full">
         <section id="games-section" class="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div id="filter-container" class="flex items-center space-x-1 overflow-x-auto pb-2 md:pb-0 scrollbar-none">
-                <!-- Filters are generated dynamically -->
+            <div id="filter-container" class="flex items-center space-x-1 overflow-x-auto pb-2 md:pb-0">
+                <!-- Filters injected dynamically -->
             </div>
             <div class="relative w-full md:w-80">
-                <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
-                    <i data-lucide="search" class="w-4 h-4"></i>
-                </span>
-                <input type="text" id="search-input" oninput="handleSearch()" placeholder="Search..." class="w-full bg-slate-900/80 border border-slate-800 rounded-xl pl-10 pr-4 py-2.5 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/40">
+                <input type="text" id="search-input" oninput="handleSearch()" placeholder="Search games..." class="w-full bg-slate-900/80 border border-slate-800 rounded-xl pl-4 pr-4 py-2.5 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/40">
             </div>
         </section>
 
         <section>
-            <div id="games-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                <div class="col-span-full py-16 text-center text-slate-500">
-                    <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500 mx-auto mb-4"></div>
-                    <p>Fetching all games...</p>
-                </div>
-            </div>
-            <div id="empty-state" class="hidden text-center py-16 bg-slate-900/30 rounded-2xl border border-dashed border-slate-800">
-                <h4 class="text-slate-300 font-semibold text-lg">No games found</h4>
+            <div id="games-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6"></div>
+            <div id="debug-info" class="hidden text-center py-16 bg-red-900/10 border border-red-900/30 rounded-2xl p-6">
+                <h4 class="text-red-400 font-bold mb-2">Data Load Issue</h4>
+                <p id="debug-text" class="text-sm text-slate-400"></p>
             </div>
         </section>
     </main>
 
-    <div id="player-modal" class="fixed inset-0 z-50 bg-[#070a13] hidden flex-col">
-        <header class="h-14 bg-slate-950 border-b border-slate-800 px-4 flex items-center justify-between">
-            <button onclick="closePlayer()" class="text-slate-400 hover:text-white"><i data-lucide="arrow-left" class="w-5 h-5"></i></button>
-            <h3 id="player-title" class="text-sm font-bold text-white">Game Title</h3>
-            <button onclick="closePlayer()" class="bg-red-500/10 text-red-400 px-3 py-1 rounded-lg text-xs">Exit</button>
-        </header>
-        <div class="flex-grow w-full relative bg-slate-950">
-            <div id="player-loader" class="absolute inset-0 z-10 flex items-center justify-center bg-[#070a13]">
-                <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-500"></div>
-            </div>
-            <iframe id="player-frame" class="w-full h-full border-0" allowfullscreen></iframe>
-        </div>
-    </div>
-
     <script>
         const SPREADSHEET_ID = '115NKXqTqsbgM0CmgokQY0JihjU8PO9Q4n-8kr1Baw6A';
-        // Added LIMIT 1000 to the query string to ensure all rows are returned
         const SHEET_URL = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:json&tq=SELECT%20*%20LIMIT%201000`;
 
         let allGames = [];
         let activeCategory = 'All';
         let searchQuery = '';
-
-        function parseGoogleDriveUrl(url) {
-            if (!url || !url.includes('drive.google.com')) return url;
-            const regExp = /\/file\/d\/([^\/]+)|\bid=([^\/&]+)/;
-            const matches = url.match(regExp);
-            if (matches) return `https://drive.google.com/thumbnail?id=${matches[1] || matches[2]}&sz=w1000`;
-            return url;
-        }
 
         async function fetchGamesSheet() {
             try {
@@ -103,36 +65,56 @@
                 const jsonText = rawText.substring(rawText.indexOf('(') + 1, rawText.lastIndexOf(')'));
                 const payload = JSON.parse(jsonText);
                 
+                if (!payload.table || !payload.table.rows) {
+                    throw new Error("No data found in spreadsheet. Ensure it is published to the web.");
+                }
+
                 const rows = payload.table.rows;
                 const fetchedList = [];
 
                 rows.forEach((row, idx) => {
-                    if (idx === 0 && row.c[0] && row.c[0].v === "Type") return;
-                    const type = row.c[0] ? String(row.c[0].v).trim() : 'Casual';
-                    const name = row.c[1] ? String(row.c[1].v).trim() : 'Unnamed';
-                    const photo = row.c[2] ? String(row.c[2].v).trim() : '';
-                    const link = row.c[3] ? String(row.c[3].v).trim() : '#';
-                    if (name && link !== '#') fetchedList.push({ type, name, photoUrl: parseGoogleDriveUrl(photo), link });
+                    // Try to extract columns safely (handles potential empty cells)
+                    const getCol = (i) => (row.c[i] && row.c[i].v !== null) ? String(row.c[i].v).trim() : '';
+                    
+                    const type = getCol(0) || 'Casual';
+                    const name = getCol(1);
+                    const photo = getCol(2);
+                    const link = getCol(3);
+
+                    // Skip the header row if it contains 'Type' or similar header text in column 0
+                    if (idx === 0 && type.toLowerCase() === 'type') return;
+                    if (name && link && link !== '#') {
+                        fetchedList.push({ type, name, photoUrl: parseGoogleDriveUrl(photo), link });
+                    }
                 });
 
                 allGames = fetchedList;
-                document.getElementById('status-text').textContent = `Online: ${allGames.length} Games loaded`;
+                document.getElementById('status-text').textContent = `${allGames.length} Games Loaded`;
+                document.getElementById('status-badge').className = "flex items-center space-x-1 bg-emerald-500/10 text-emerald-400 text-xs px-2.5 py-1 rounded-full border border-emerald-500/20";
+                
                 renderFilters();
                 renderCatalog();
             } catch (err) {
                 console.error(err);
-                document.getElementById('status-text').textContent = "Error loading";
+                document.getElementById('status-text').textContent = "Failed to load";
+                document.getElementById('debug-info').classList.remove('hidden');
+                document.getElementById('debug-text').textContent = `Error: ${err.message}. Ensure your sheet is public and correctly formatted.`;
             }
+        }
+
+        function parseGoogleDriveUrl(url) {
+            if (!url || !url.includes('drive.google.com')) return url;
+            const matches = url.match(/\/file\/d\/([^\/]+)|\bid=([^\/&]+)/);
+            return matches ? `https://drive.google.com/thumbnail?id=${matches[1] || matches[2]}&sz=w1000` : url;
         }
 
         function renderFilters() {
             const container = document.getElementById('filter-container');
             const categories = ['All', ...new Set(allGames.map(g => g.type))];
             container.innerHTML = '';
-            
             categories.forEach(cat => {
                 const btn = document.createElement('button');
-                btn.className = `filter-btn px-4 py-2 rounded-xl text-sm font-medium transition-all ${activeCategory === cat ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-white hover:bg-slate-800/50'}`;
+                btn.className = `px-4 py-2 rounded-xl text-sm font-medium transition-all ${activeCategory === cat ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`;
                 btn.textContent = cat;
                 btn.onclick = () => { activeCategory = cat; renderFilters(); renderCatalog(); };
                 container.appendChild(btn);
@@ -141,36 +123,22 @@
 
         function renderCatalog() {
             const grid = document.getElementById('games-grid');
-            const empty = document.getElementById('empty-state');
             grid.innerHTML = '';
-
-            const filtered = allGames.filter(g => {
-                const catMatch = (activeCategory === 'All' || g.type === activeCategory);
-                const searchMatch = g.name.toLowerCase().includes(searchQuery.toLowerCase());
-                return catMatch && searchMatch;
+            const filtered = allGames.filter(g => (activeCategory === 'All' || g.type === activeCategory) && g.name.toLowerCase().includes(searchQuery.toLowerCase()));
+            
+            filtered.forEach(game => {
+                const card = document.createElement('div');
+                card.className = "bg-slate-900/40 rounded-2xl border border-slate-800 p-4 hover:border-indigo-500/30 transition-all";
+                card.innerHTML = `
+                    <div class="aspect-video w-full overflow-hidden rounded-lg mb-4 bg-slate-950 flex items-center justify-center">
+                        <img src="${game.photoUrl}" onerror="this.src='https://placehold.co/400x200/1e293b/white?text=No+Img'" class="object-cover w-full h-full">
+                    </div>
+                    <h3 class="font-bold text-slate-100 line-clamp-1">${game.name}</h3>
+                    <p class="text-xs text-indigo-400 mt-1 uppercase tracking-wider">${game.type}</p>
+                    <a href="${game.link}" target="_blank" class="block w-full mt-4 bg-indigo-600 hover:bg-indigo-500 text-white text-center text-xs font-bold py-2 rounded-lg">Play</a>
+                `;
+                grid.appendChild(card);
             });
-
-            if (filtered.length === 0) {
-                grid.classList.add('hidden');
-                empty.classList.remove('hidden');
-            } else {
-                grid.classList.remove('hidden');
-                empty.classList.add('hidden');
-                filtered.forEach(game => {
-                    const card = document.createElement('div');
-                    card.className = "group bg-slate-900/40 rounded-2xl border border-slate-800 p-4 hover:border-indigo-500/30 transition-all";
-                    card.innerHTML = `
-                        <div class="aspect-video w-full overflow-hidden rounded-lg mb-4 bg-slate-950 flex items-center justify-center">
-                            <img src="${game.photoUrl}" onerror="this.src='https://placehold.co/400x200/1e293b/white?text=Game'" class="object-cover w-full h-full group-hover:scale-105 transition-transform duration-300">
-                        </div>
-                        <h3 class="font-bold text-slate-100 line-clamp-1">${game.name}</h3>
-                        <p class="text-xs text-indigo-400 mt-1 uppercase tracking-wider">${game.type}</p>
-                        <button onclick="playGame('${game.link}', '${game.name}')" class="w-full mt-4 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold py-2 rounded-lg">Play</button>
-                    `;
-                    grid.appendChild(card);
-                });
-            }
-            lucide.createIcons();
         }
 
         function handleSearch() {
@@ -178,22 +146,7 @@
             renderCatalog();
         }
 
-        function playGame(url, name) {
-            document.getElementById('player-title').textContent = name;
-            const frame = document.getElementById('player-frame');
-            frame.src = url;
-            document.getElementById('player-modal').classList.remove('hidden');
-            document.getElementById('player-modal').classList.add('flex');
-            frame.onload = () => document.getElementById('player-loader').style.display = 'none';
-        }
-
-        function closePlayer() {
-            document.getElementById('player-modal').classList.add('hidden');
-            document.getElementById('player-frame').src = '';
-            document.getElementById('player-loader').style.display = 'flex';
-        }
-
-        window.addEventListener('DOMContentLoaded', () => { lucide.createIcons(); fetchGamesSheet(); });
+        window.onload = () => { lucide.createIcons(); fetchGamesSheet(); };
     </script>
 </body>
 </html>
