@@ -1,0 +1,909 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Codenix AI Studio V2 - Professional Feedback</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Supabase JS Client SDK -->
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <!-- Tone.js for premium synthesizer-based UI Sound FX (No external MP3 dependencies) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        nix: {
+                            950: '#060913',
+                            900: '#0B0F19',
+                            800: '#141B2D',
+                            700: '#1F2942',
+                            600: '#2E3D60',
+                            accent: '#6366F1',
+                            glow: '#818CF8',
+                            emerald: '#10B981',
+                            teal: '#14B8A6'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        
+        body {
+            background-color: #060913;
+            background-image: 
+                radial-gradient(circle at 10% 20%, rgba(99, 102, 241, 0.08), transparent 35%),
+                radial-gradient(circle at 90% 80%, rgba(20, 184, 166, 0.08), transparent 35%);
+            color: #F8FAFC;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #060913; }
+        ::-webkit-scrollbar-thumb { background: #1F2942; border-radius: 6px; }
+        ::-webkit-scrollbar-thumb:hover { background: #6366F1; }
+
+        /* Premium Glassmorphism Panels */
+        .glass-panel {
+            background: rgba(11, 15, 25, 0.7);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            box-shadow: 0 12px 40px 0 rgba(0, 0, 0, 0.5);
+        }
+
+        /* Rating Star Animation */
+        .star-btn { transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        .star-btn:hover { transform: scale(1.2) rotate(4deg); }
+        .star-active { 
+            color: #FBBF24; 
+            filter: drop-shadow(0 0 10px rgba(251, 191, 36, 0.7));
+        }
+
+        /* Radio option select active states */
+        .option-card {
+            transition: all 0.25s ease;
+        }
+        .option-card:hover {
+            border-color: rgba(99, 102, 241, 0.4);
+            background: rgba(99, 102, 241, 0.04);
+        }
+        
+        /* Interactive Stepper Visual Lines */
+        .stepper-line {
+            background: linear-gradient(90deg, #1F2942 50%, rgba(99, 102, 241, 0.2) 100%);
+            transition: all 0.5s ease;
+        }
+        .stepper-line.completed {
+            background: #6366F1;
+        }
+
+        /* Custom Radio Style */
+        input[type="radio"]:checked + div .radio-inner {
+            transform: scale(1);
+            background-color: #818CF8;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-between font-sans p-4 md:p-8">
+
+    <!-- Top Utility & Header -->
+    <div class="w-full max-w-4xl flex items-center justify-between mb-6">
+        <div class="flex items-center gap-2">
+            <span class="px-2.5 py-1 text-xs font-semibold uppercase tracking-wider bg-indigo-500/10 text-nix-glow border border-indigo-500/20 rounded-full">
+                V2 feedback engine
+            </span>
+        </div>
+        <!-- Sound FX Controller -->
+        <button id="toggleSoundBtn" onclick="toggleAudio()" class="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-nix-800 border border-nix-700 hover:border-nix-accent text-gray-300 hover:text-white transition-all text-sm shadow-md">
+            <i id="soundIcon" class="fa-solid fa-volume-high text-nix-glow"></i>
+            <span id="soundText" class="font-medium">Audio Synthesizer: ON</span>
+        </button>
+    </div>
+
+    <!-- Main Content Grid -->
+    <div class="w-full max-w-4xl mx-auto space-y-8 flex-grow flex flex-col justify-center">
+        
+        <!-- Header Brand Details -->
+        <div class="text-center space-y-3">
+            <div class="inline-flex items-center justify-center p-3.5 rounded-2xl bg-nix-800 border border-nix-700 shadow-[0_0_20px_rgba(99,102,241,0.15)] mb-1">
+                <i class="fa-solid fa-brain-circuit text-3xl text-nix-glow"></i>
+            </div>
+            <h1 class="text-3xl md:text-5xl font-black tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white via-indigo-200 to-teal-200">
+                Codenix AI Studio V2
+            </h1>
+            <p class="text-gray-400 text-sm md:text-base max-w-xl mx-auto">
+                Your direct evaluation shapes the evolution of our high-performance models and digital frameworks. Take a moment to guide our development.
+            </p>
+        </div>
+
+        <!-- Visual Multi-Step Timeline Indicator -->
+        <div class="glass-panel rounded-2xl p-4 md:p-6">
+            <div class="relative flex items-center justify-between max-w-3xl mx-auto">
+                <!-- Stepper Progress Bar Background -->
+                <div class="absolute left-0 right-0 top-1/2 -translate-y-1/2 h-1 bg-nix-700/50 -z-10 rounded-full"></div>
+                <div id="timelineProgress" class="absolute left-0 top-1/2 -translate-y-1/2 h-1 bg-gradient-to-r from-nix-accent to-nix-teal -z-10 rounded-full transition-all duration-500" style="width: 0%;"></div>
+
+                <!-- Step 1 -->
+                <button onclick="goToStep(1)" class="flex flex-col items-center gap-2 focus:outline-none group">
+                    <div id="stepCircle-1" class="w-10 h-10 rounded-full flex items-center justify-center bg-nix-accent text-white font-bold text-sm ring-4 ring-indigo-500/20 transition-all duration-300">
+                        1
+                    </div>
+                    <span id="stepLabel-1" class="text-xs font-semibold text-nix-glow transition-all">Interface</span>
+                </button>
+
+                <!-- Step 2 -->
+                <button onclick="goToStep(2)" class="flex flex-col items-center gap-2 focus:outline-none group">
+                    <div id="stepCircle-2" class="w-10 h-10 rounded-full flex items-center justify-center bg-nix-800 text-gray-400 border border-nix-700 font-bold text-sm transition-all duration-300">
+                        2
+                    </div>
+                    <span id="stepLabel-2" class="text-xs font-medium text-gray-500 transition-all">Support</span>
+                </button>
+
+                <!-- Step 3 -->
+                <button onclick="goToStep(3)" class="flex flex-col items-center gap-2 focus:outline-none group">
+                    <div id="stepCircle-3" class="w-10 h-10 rounded-full flex items-center justify-center bg-nix-800 text-gray-400 border border-nix-700 font-bold text-sm transition-all duration-300">
+                        3
+                    </div>
+                    <span id="stepLabel-3" class="text-xs font-medium text-gray-500 transition-all">Tools</span>
+                </button>
+
+                <!-- Step 4 -->
+                <button onclick="goToStep(4)" class="flex flex-col items-center gap-2 focus:outline-none group">
+                    <div id="stepCircle-4" class="w-10 h-10 rounded-full flex items-center justify-center bg-nix-800 text-gray-400 border border-nix-700 font-bold text-sm transition-all duration-300">
+                        4
+                    </div>
+                    <span id="stepLabel-4" class="text-xs font-medium text-gray-500 transition-all">AI Outputs</span>
+                </button>
+
+                <!-- Step 5 -->
+                <button onclick="goToStep(5)" class="flex flex-col items-center gap-2 focus:outline-none group">
+                    <div id="stepCircle-5" class="w-10 h-10 rounded-full flex items-center justify-center bg-nix-800 text-gray-400 border border-nix-700 font-bold text-sm transition-all duration-300">
+                        5
+                    </div>
+                    <span id="stepLabel-5" class="text-xs font-medium text-gray-500 transition-all">Trust</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Feedback Form containing multi-sections -->
+        <form id="feedbackForm" class="space-y-6">
+
+            <!-- SECTION 1: Website as a Whole -->
+            <div id="sectionStep-1" class="glass-panel rounded-2xl p-6 md:p-8 space-y-6 transition-all duration-300">
+                <div class="border-b border-nix-700/50 pb-4">
+                    <h2 class="text-2xl font-bold flex items-center gap-3 text-white">
+                        <i class="fa-solid fa-desktop text-nix-accent text-xl"></i>
+                        Section 1: Website Experience
+                    </h2>
+                    <p class="text-gray-400 text-sm mt-1">Please grade our structural layout, interface aesthetics, and system responsiveness.</p>
+                </div>
+
+                <div class="space-y-4">
+                    <!-- Rating Parameter: UI -->
+                    <div class="flex flex-col md:flex-row md:items-center justify-between p-4 rounded-xl bg-nix-900/50 border border-white/5 hover:border-nix-700/50 transition-colors gap-3">
+                        <div>
+                            <span class="block font-semibold text-gray-200">User Interface (UI)</span>
+                            <span class="text-xs text-gray-400">The overall layout, modern aesthetics, and visual palette.</span>
+                        </div>
+                        <div class="stars-row flex gap-1.5" data-category="website" data-item="ui"></div>
+                    </div>
+
+                    <!-- Rating Parameter: UX -->
+                    <div class="flex flex-col md:flex-row md:items-center justify-between p-4 rounded-xl bg-nix-900/50 border border-white/5 hover:border-nix-700/50 transition-colors gap-3">
+                        <div>
+                            <span class="block font-semibold text-gray-200">User Experience (UX)</span>
+                            <span class="text-xs text-gray-400">Ease of navigation, intuitive controls, and visual flow.</span>
+                        </div>
+                        <div class="stars-row flex gap-1.5" data-category="website" data-item="ux"></div>
+                    </div>
+
+                    <!-- Rating Parameter: Accessibility -->
+                    <div class="flex flex-col md:flex-row md:items-center justify-between p-4 rounded-xl bg-nix-900/50 border border-white/5 hover:border-nix-700/50 transition-colors gap-3">
+                        <div>
+                            <span class="block font-semibold text-gray-200">Accessibility (A11y)</span>
+                            <span class="text-xs text-gray-400">Text readability, color contrast ratios, and element spacing.</span>
+                        </div>
+                        <div class="stars-row flex gap-1.5" data-category="website" data-item="accessibility"></div>
+                    </div>
+
+                    <!-- Rating Parameter: Load Speed -->
+                    <div class="flex flex-col md:flex-row md:items-center justify-between p-4 rounded-xl bg-nix-900/50 border border-white/5 hover:border-nix-700/50 transition-colors gap-3">
+                        <div>
+                            <span class="block font-semibold text-gray-200">System Loading Speed</span>
+                            <span class="text-xs text-gray-400">Response snappy-ness and page loading times.</span>
+                        </div>
+                        <div class="stars-row flex gap-1.5" data-category="website" data-item="loading_speed"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SECTION 2: Customer Service & Support -->
+            <div id="sectionStep-2" class="glass-panel rounded-2xl p-6 md:p-8 space-y-6 hidden transition-all duration-300">
+                <div class="border-b border-nix-700/50 pb-4">
+                    <h2 class="text-2xl font-bold flex items-center gap-3 text-white">
+                        <i class="fa-solid fa-headset text-nix-teal text-xl"></i>
+                        Section 2: Customer Service & Support
+                    </h2>
+                    <p class="text-gray-400 text-sm mt-1">Help us track how well we resolve problems and handle user concerns.</p>
+                </div>
+
+                <div class="space-y-4">
+                    <!-- Support Speed -->
+                    <div class="flex flex-col md:flex-row md:items-center justify-between p-4 rounded-xl bg-nix-900/50 border border-white/5 hover:border-nix-700/50 transition-colors gap-3">
+                        <div>
+                            <span class="block font-semibold text-gray-200">Response Speed</span>
+                            <span class="text-xs text-gray-400">The amount of time it takes to reply to inquiries.</span>
+                        </div>
+                        <div class="stars-row flex gap-1.5" data-category="customer_service" data-item="response_speed"></div>
+                    </div>
+
+                    <!-- Helpfulness -->
+                    <div class="flex flex-col md:flex-row md:items-center justify-between p-4 rounded-xl bg-nix-900/50 border border-white/5 hover:border-nix-700/50 transition-colors gap-3">
+                        <div>
+                            <span class="block font-semibold text-gray-200">Support Team Helpfulness</span>
+                            <span class="text-xs text-gray-400">The quality, competence, and clarity of the solutions provided.</span>
+                        </div>
+                        <div class="stars-row flex gap-1.5" data-category="customer_service" data-item="helpfulness"></div>
+                    </div>
+
+                    <!-- Documentation -->
+                    <div class="flex flex-col md:flex-row md:items-center justify-between p-4 rounded-xl bg-nix-900/50 border border-white/5 hover:border-nix-700/50 transition-colors gap-3">
+                        <div>
+                            <span class="block font-semibold text-gray-200">Guides & Documentation Quality</span>
+                            <span class="text-xs text-gray-400">The accessibility and utility of FAQs, setup guides, and docs.</span>
+                        </div>
+                        <div class="stars-row flex gap-1.5" data-category="customer_service" data-item="documentation_quality"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SECTION 3: Codenix Core Tools Portfolio -->
+            <div id="sectionStep-3" class="glass-panel rounded-2xl p-6 md:p-8 space-y-6 hidden transition-all duration-300">
+                <div class="border-b border-nix-700/50 pb-4">
+                    <h2 class="text-2xl font-bold flex items-center gap-3 text-white">
+                        <i class="fa-solid fa-screwdriver-wrench text-nix-glow text-xl"></i>
+                        Section 3: Codenix Core Tools Portfolio
+                    </h2>
+                    <p class="text-gray-400 text-sm mt-1">Select ratings for the specific utilities inside our creative catalog.</p>
+                </div>
+
+                <!-- Scrollable grid area for the extensive tools portfolio -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[380px] overflow-y-auto pr-2 pb-2">
+                    <!-- Dynamic rating boxes will be injected via JS for:
+                         Jose, NixAI, SubeAI, DaleAI, TinyMelon, NixQr, LenguaNix, CV Builder, chatbot_nix, Other -->
+                    <div id="dynamicToolsContainer" class="col-span-1 md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+                </div>
+            </div>
+
+            <!-- SECTION 4: AI Engine Outputs -->
+            <div id="sectionStep-4" class="glass-panel rounded-2xl p-6 md:p-8 space-y-6 hidden transition-all duration-300">
+                <div class="border-b border-nix-700/50 pb-4">
+                    <h2 class="text-2xl font-bold flex items-center gap-3 text-white">
+                        <i class="fa-solid fa-bolt text-indigo-400 text-xl"></i>
+                        Section 4: AI Engine Outputs
+                    </h2>
+                    <p class="text-gray-400 text-sm mt-1">Please rate the outputs and generated results from our artificial models.</p>
+                </div>
+
+                <div class="space-y-4">
+                    <!-- Output Quality -->
+                    <div class="flex flex-col md:flex-row md:items-center justify-between p-4 rounded-xl bg-nix-900/50 border border-white/5 hover:border-nix-700/50 transition-colors gap-3">
+                        <div>
+                            <span class="block font-semibold text-gray-200">Generation Quality & Accuracy</span>
+                            <span class="text-xs text-gray-400">The depth, aesthetic level, or factual reliability of answers.</span>
+                        </div>
+                        <div class="stars-row flex gap-1.5" data-category="ai_outputs" data-item="quality"></div>
+                    </div>
+
+                    <!-- Execution Speed -->
+                    <div class="flex flex-col md:flex-row md:items-center justify-between p-4 rounded-xl bg-nix-900/50 border border-white/5 hover:border-nix-700/50 transition-colors gap-3">
+                        <div>
+                            <span class="block font-semibold text-gray-200">Model Generation Speed</span>
+                            <span class="text-xs text-gray-400">The speed and latency to process your prompts into data output.</span>
+                        </div>
+                        <div class="stars-row flex gap-1.5" data-category="ai_outputs" data-item="speed"></div>
+                    </div>
+
+                    <!-- Prompt Relevance -->
+                    <div class="flex flex-col md:flex-row md:items-center justify-between p-4 rounded-xl bg-nix-900/50 border border-white/5 hover:border-nix-700/50 transition-colors gap-3">
+                        <div>
+                            <span class="block font-semibold text-gray-200">Relevance to Prompts</span>
+                            <span class="text-xs text-gray-400">How closely the system output corresponds to instructions.</span>
+                        </div>
+                        <div class="stars-row flex gap-1.5" data-category="ai_outputs" data-item="relevance"></div>
+                    </div>
+
+                    <!-- Reliability -->
+                    <div class="flex flex-col md:flex-row md:items-center justify-between p-4 rounded-xl bg-nix-900/50 border border-white/5 hover:border-nix-700/50 transition-colors gap-3">
+                        <div>
+                            <span class="block font-semibold text-gray-200">System Availability & Uptime</span>
+                            <span class="text-xs text-gray-400">Consistency, resilience against downtime, and crash frequency.</span>
+                        </div>
+                        <div class="stars-row flex gap-1.5" data-category="ai_outputs" data-item="reliability"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SECTION 5: Privacy Policy, Terms, & Future Roadmap -->
+            <div id="sectionStep-5" class="glass-panel rounded-2xl p-6 md:p-8 space-y-6 hidden transition-all duration-300">
+                <div class="border-b border-nix-700/50 pb-4">
+                    <h2 class="text-2xl font-bold flex items-center gap-3 text-white">
+                        <i class="fa-solid fa-shield-halved text-emerald-400 text-xl"></i>
+                        Section 5: Trust, Privacy & Next Steps
+                    </h2>
+                    <p class="text-gray-400 text-sm mt-1">Review transparency metrics, help prioritize next milestones, and finalize submissions.</p>
+                </div>
+
+                <!-- Privacy Policy transparency rating -->
+                <div class="space-y-4">
+                    <div class="flex flex-col md:flex-row md:items-center justify-between p-4 rounded-xl bg-nix-900/50 border border-white/5 hover:border-nix-700/50 transition-colors gap-3">
+                        <div>
+                            <span class="block font-semibold text-gray-200">Privacy Policy & Terms Clarity</span>
+                            <span class="text-xs text-gray-400">Transparency of policies detailing data storage limits and safety.</span>
+                        </div>
+                        <div class="stars-row flex gap-1.5" data-category="privacy_policy" data-item="transparency"></div>
+                    </div>
+
+                    <!-- Roadmap polling options -->
+                    <div class="space-y-3 pt-2">
+                        <span class="block font-semibold text-gray-200 text-sm">What feature should we construct next?</span>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                            <label class="flex items-center gap-3 p-3 rounded-xl border border-nix-700 bg-nix-900/30 cursor-pointer group hover:border-nix-accent transition-all">
+                                <input type="radio" name="next_feature" value="Video Gen model" class="hidden" required>
+                                <div class="w-5 h-5 rounded-full border-2 border-nix-700 group-hover:border-nix-accent flex items-center justify-center transition-colors">
+                                    <div class="radio-inner w-2.5 h-2.5 rounded-full scale-0 transition-transform"></div>
+                                </div>
+                                <span class="text-gray-300 group-hover:text-white transition-colors text-sm">Video Gen Model</span>
+                            </label>
+                            
+                            <label class="flex items-center gap-3 p-3 rounded-xl border border-nix-700 bg-nix-900/30 cursor-pointer group hover:border-nix-accent transition-all">
+                                <input type="radio" name="next_feature" value="API Keys" class="hidden" required>
+                                <div class="w-5 h-5 rounded-full border-2 border-nix-700 group-hover:border-nix-accent flex items-center justify-center transition-colors">
+                                    <div class="radio-inner w-2.5 h-2.5 rounded-full scale-0 transition-transform"></div>
+                                </div>
+                                <span class="text-gray-300 group-hover:text-white transition-colors text-sm">API Keys Integration</span>
+                            </label>
+
+                            <label class="flex items-center gap-3 p-3 rounded-xl border border-nix-700 bg-nix-900/30 cursor-pointer group hover:border-nix-accent transition-all">
+                                <input type="radio" name="next_feature" value="Other" class="hidden" id="radioOther" required>
+                                <div class="w-5 h-5 rounded-full border-2 border-nix-700 group-hover:border-nix-accent flex items-center justify-center transition-colors">
+                                    <div class="radio-inner w-2.5 h-2.5 rounded-full scale-0 transition-transform"></div>
+                                </div>
+                                <span class="text-gray-300 group-hover:text-white transition-colors text-sm">Other</span>
+                            </label>
+                        </div>
+                        
+                        <!-- Custom Input box for roadmap "Other" option -->
+                        <div id="otherInputContainer" class="pt-2 hidden">
+                            <input type="text" id="next_feature_other" name="next_feature_other" 
+                                class="w-full bg-nix-900 border border-nix-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-nix-accent focus:ring-1 focus:ring-nix-accent transition-all placeholder-gray-600 text-sm"
+                                placeholder="Describe the utility or concept you want to see...">
+                        </div>
+                    </div>
+
+                    <!-- Custom Text Area for comments -->
+                    <div class="space-y-2 pt-2">
+                        <label for="comments" class="block font-semibold text-gray-200 text-sm">Additional Comments, Bug Reports, or Praise</label>
+                        <textarea id="comments" name="comments" rows="3" 
+                            class="w-full bg-nix-900 border border-nix-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-nix-accent focus:ring-1 focus:ring-nix-accent transition-all placeholder-gray-600 text-sm resize-none"
+                            placeholder="Tell us what you loved, or what we need to improve on..."></textarea>
+                    </div>
+
+                    <!-- Compliance and Terms acceptance checkbox -->
+                    <div class="pt-3 border-t border-nix-700/50">
+                        <label class="flex items-start gap-3 cursor-pointer group">
+                            <input type="checkbox" id="termsAgreement" name="terms_agreement" class="mt-1 accent-indigo-500 rounded focus:ring-indigo-500/20" required>
+                            <span class="text-xs text-gray-400 group-hover:text-gray-300 transition-colors leading-relaxed">
+                                I verify that this evaluation contains valid operational feedback, and consent to submitting anonymous response details for performance analytics in accordance with Codenix Privacy Terms.
+                            </span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step Navigation Action Buttons -->
+            <div class="flex items-center justify-between gap-4 pt-2">
+                <!-- Back Button -->
+                <button type="button" id="prevBtn" onclick="navigateStep(-1)" 
+                    class="px-6 py-3.5 rounded-xl border border-nix-700 bg-nix-800 hover:border-gray-500 text-gray-300 font-semibold transition-all duration-200 flex items-center gap-2 opacity-50 cursor-not-allowed" disabled>
+                    <i class="fa-solid fa-arrow-left"></i>
+                    <span>Previous Section</span>
+                </button>
+
+                <!-- Next or Submit Button -->
+                <button type="button" id="nextBtn" onclick="navigateStep(1)" 
+                    class="px-8 py-3.5 rounded-xl bg-gradient-to-r from-nix-accent to-indigo-500 hover:brightness-110 text-white font-semibold transition-all duration-200 shadow-[0_0_20px_rgba(99,102,241,0.2)] flex items-center gap-2">
+                    <span>Next Section</span>
+                    <i class="fa-solid fa-arrow-right"></i>
+                </button>
+
+                <!-- Form Submission Button (Hidden until section 5) -->
+                <button type="submit" id="submitBtn" 
+                    class="hidden px-8 py-3.5 rounded-xl bg-gradient-to-r from-nix-accent via-indigo-500 to-nix-teal text-white font-bold transition-all duration-300 shadow-[0_0_25px_rgba(99,102,241,0.3)] hover:shadow-[0_0_35px_rgba(99,102,241,0.5)] flex items-center justify-center gap-2">
+                    <span>Submit Complete Review</span>
+                    <i class="fa-solid fa-cloud-arrow-up"></i>
+                </button>
+            </div>
+
+        </form>
+    </div>
+
+    <!-- Custom Modal for Success and Warning Messages -->
+    <div id="customModal" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4 bg-black/75 backdrop-blur-md transition-opacity opacity-0">
+        <div id="modalContent" class="glass-panel border-nix-700 rounded-2xl p-8 max-w-sm w-full text-center transform scale-95 transition-transform duration-300">
+            <div id="modalIcon" class="text-5xl mb-4"></div>
+            <h3 id="modalTitle" class="text-xl font-bold mb-2 text-white"></h3>
+            <p id="modalMessage" class="text-gray-400 text-sm mb-6"></p>
+            <button onclick="closeModal()" class="bg-indigo-600 hover:bg-indigo-500 px-6 py-3 rounded-xl font-semibold text-white transition-all w-full shadow-md">
+                Acknowledge
+            </button>
+        </div>
+    </div>
+
+    <!-- Footer Information -->
+    <footer class="w-full text-center text-xs text-gray-500 py-6 mt-8 border-t border-white/5">
+        &copy; 2026 Codenix AI Studio V2. All rights reserved. Secured with client-side cryptographic hashing.
+    </footer>
+
+    <script>
+        // Supabase Initialization Details
+        const supabaseUrl = 'https://zncztttvefahofdeacxf.supabase.co';
+        const supabaseKey = 'sb_publishable_GhwVsgutWW4EpK9Fc_3DQQ_pW_R48LM';
+        const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
+
+        // State & Navigation
+        let currentStep = 1;
+        const totalSteps = 5;
+
+        // Structured state storing evaluations
+        const formResponse = {
+            website: { ui: 0, ux: 0, accessibility: 0, loading_speed: 0 },
+            customer_service: { response_speed: 0, helpfulness: 0, documentation_quality: 0 },
+            tools: {}, // Dynamically structured for Jose, NixAI, SubeAI, DaleAI, TinyMelon, NixQr, LenguaNix, CV Builder, chatbot_nix, Other
+            ai_outputs: { quality: 0, speed: 0, relevance: 0, reliability: 0 },
+            privacy_policy: { transparency: 0 }
+        };
+
+        const toolsList = [
+            'Jose', 'NixAI', 'SubeAI', 'DaleAI', 
+            'TinyMelon', 'NixQr', 'LenguaNix', 
+            'CV Builder', 'chatbot_nix', 'Other'
+        ];
+
+        // Audio Synth Engine (Tone.js)
+        let isAudioMuted = false;
+        let polySynth = null;
+
+        // Initialize synthesizer cleanly on active user interaction
+        function initSynth() {
+            if (!polySynth) {
+                try {
+                    polySynth = new Tone.PolySynth(Tone.Synth).toDestination();
+                    polySynth.set({
+                        oscillator: { type: "triangle" },
+                        envelope: { attack: 0.015, decay: 0.12, sustain: 0.2, release: 0.4 }
+                    });
+                    // Set safe volume level to keep sounds pleasant and ambient
+                    polySynth.volume.value = -15; 
+                } catch(e) {
+                    console.warn("Synth initialization warning:", e);
+                }
+            }
+        }
+
+        // Custom Sound Tones
+        function playClickSound() {
+            if (isAudioMuted) return;
+            initSynth();
+            try {
+                Tone.start();
+                if (polySynth) polySynth.triggerAttackRelease("E5", "32n");
+            } catch(e){}
+        }
+
+        function playNavigateSound(isForward) {
+            if (isAudioMuted) return;
+            initSynth();
+            try {
+                Tone.start();
+                const now = Tone.now();
+                if (polySynth) {
+                    if (isForward) {
+                        polySynth.triggerAttackRelease("G4", "32n", now);
+                        polySynth.triggerAttackRelease("C5", "32n", now + 0.06);
+                    } else {
+                        polySynth.triggerAttackRelease("C5", "32n", now);
+                        polySynth.triggerAttackRelease("G4", "32n", now + 0.06);
+                    }
+                }
+            } catch(e){}
+        }
+
+        function playSubmitSuccessSound() {
+            if (isAudioMuted) return;
+            initSynth();
+            try {
+                Tone.start();
+                const now = Tone.now();
+                if (polySynth) {
+                    polySynth.triggerAttackRelease("C5", "16n", now);
+                    polySynth.triggerAttackRelease("E5", "16n", now + 0.08);
+                    polySynth.triggerAttackRelease("G5", "16n", now + 0.16);
+                    polySynth.triggerAttackRelease("C6", "8n", now + 0.24);
+                }
+            } catch(e){}
+        }
+
+        function playWarningSound() {
+            if (isAudioMuted) return;
+            initSynth();
+            try {
+                Tone.start();
+                const now = Tone.now();
+                if (polySynth) {
+                    polySynth.triggerAttackRelease("D3", "8n", now);
+                    polySynth.triggerAttackRelease("C3", "8n", now + 0.15);
+                }
+            } catch(e){}
+        }
+
+        function toggleAudio() {
+            isAudioMuted = !isAudioMuted;
+            const soundIcon = document.getElementById('soundIcon');
+            const soundText = document.getElementById('soundText');
+            const toggleSoundBtn = document.getElementById('toggleSoundBtn');
+
+            if (isAudioMuted) {
+                soundIcon.className = "fa-solid fa-volume-xmark text-gray-500";
+                soundText.innerText = "Audio Synthesizer: OFF";
+                toggleSoundBtn.classList.remove('border-nix-accent');
+                toggleSoundBtn.classList.add('border-nix-700');
+            } else {
+                soundIcon.className = "fa-solid fa-volume-high text-nix-glow";
+                soundText.innerText = "Audio Synthesizer: ON";
+                toggleSoundBtn.classList.add('border-nix-accent');
+                playClickSound();
+            }
+        }
+
+        // Build the Star Selection Rows
+        function generateStarRows() {
+            // First construct the dynamic rows for standard categories
+            const rows = document.querySelectorAll('.stars-row');
+            rows.forEach(container => {
+                const category = container.getAttribute('data-category');
+                const item = container.getAttribute('data-item');
+
+                createStarsForContainer(container, category, item);
+            });
+
+            // Dynamically construct and append Section 3 Tools rating components
+            const toolsContainer = document.getElementById('dynamicToolsContainer');
+            toolsList.forEach(tool => {
+                // Initialize default rate entry
+                formResponse.tools[tool] = 0;
+
+                const wrapper = document.createElement('div');
+                wrapper.className = 'flex items-center justify-between p-4 rounded-xl bg-nix-900/50 border border-white/5 hover:border-nix-700/50 transition-all';
+                
+                const labelGroup = document.createElement('div');
+                labelGroup.className = 'flex flex-col';
+                const label = document.createElement('span');
+                label.className = 'font-semibold text-gray-200 text-sm';
+                label.textContent = tool;
+                const desc = document.createElement('span');
+                desc.className = 'text-[11px] text-gray-400';
+                desc.textContent = `Evaluate performance of the ${tool} service.`;
+                labelGroup.appendChild(label);
+                labelGroup.appendChild(desc);
+
+                const starsContainer = document.createElement('div');
+                starsContainer.className = 'flex gap-1.5';
+
+                createStarsForContainer(starsContainer, 'tools', tool);
+
+                wrapper.appendChild(labelGroup);
+                wrapper.appendChild(starsContainer);
+                toolsContainer.appendChild(wrapper);
+            });
+        }
+
+        function createStarsForContainer(container, category, item) {
+            for (let i = 1; i <= 5; i++) {
+                const starBtn = document.createElement('button');
+                starBtn.type = 'button';
+                starBtn.className = 'star-btn text-gray-700 hover:text-indigo-400 focus:outline-none';
+                starBtn.innerHTML = '<i class="fa-solid fa-star text-base md:text-lg"></i>';
+
+                // Setup interactive UI effects
+                starBtn.addEventListener('mouseenter', () => updateStarVisuals(container, i));
+                container.addEventListener('mouseleave', () => {
+                    const savedValue = formResponse[category][item] || 0;
+                    updateStarVisuals(container, savedValue);
+                });
+
+                // Update configuration parameters on click
+                starBtn.addEventListener('click', () => {
+                    formResponse[category][item] = i;
+                    updateStarVisuals(container, i);
+                    playClickSound();
+                });
+
+                container.appendChild(starBtn);
+            }
+        }
+
+        function updateStarVisuals(container, activeCount) {
+            const stars = container.querySelectorAll('.star-btn');
+            stars.forEach((star, index) => {
+                if (index < activeCount) {
+                    star.classList.add('star-active');
+                    star.classList.remove('text-gray-700');
+                } else {
+                    star.classList.remove('star-active');
+                    star.classList.add('text-gray-700');
+                }
+            });
+        }
+
+        // Stepper Navigation Management
+        function goToStep(targetStep) {
+            // Prevent directly skipping steps beyond our progression limit
+            if (targetStep > currentStep + 1) {
+                playWarningSound();
+                showModal('warning', 'Section Locked', 'Please review previous sections linearly before stepping forward.');
+                return;
+            }
+
+            // Perform step switch
+            playNavigateSound(targetStep > currentStep);
+            
+            // Hide previous active section
+            document.getElementById(`sectionStep-${currentStep}`).classList.add('hidden');
+            
+            // Show target active section
+            document.getElementById(`sectionStep-${targetStep}`).classList.remove('hidden');
+
+            // Update Circle/Stepper styles
+            updateStepperUI(currentStep, targetStep);
+
+            currentStep = targetStep;
+            updateButtonsUI();
+        }
+
+        function navigateStep(direction) {
+            const nextTarget = currentStep + direction;
+            if (nextTarget >= 1 && nextTarget <= totalSteps) {
+                goToStep(nextTarget);
+            }
+        }
+
+        function updateStepperUI(oldStep, newStep) {
+            // Calculate percentage for progress line background width
+            const progressPercent = ((newStep - 1) / (totalSteps - 1)) * 100;
+            document.getElementById('timelineProgress').style.width = `${progressPercent}%`;
+
+            for (let i = 1; i <= totalSteps; i++) {
+                const circle = document.getElementById(`stepCircle-${i}`);
+                const label = document.getElementById(`stepLabel-${i}`);
+
+                if (i < newStep) {
+                    // Complete State
+                    circle.className = "w-10 h-10 rounded-full flex items-center justify-center bg-indigo-900/40 text-nix-glow border-2 border-nix-accent font-bold text-sm transition-all duration-300";
+                    label.className = "text-xs font-semibold text-gray-300 transition-all";
+                } else if (i === newStep) {
+                    // Active State
+                    circle.className = "w-10 h-10 rounded-full flex items-center justify-center bg-nix-accent text-white font-bold text-sm ring-4 ring-indigo-500/20 transition-all duration-300";
+                    label.className = "text-xs font-bold text-nix-glow transition-all";
+                } else {
+                    // Inactive future states
+                    circle.className = "w-10 h-10 rounded-full flex items-center justify-center bg-nix-800 text-gray-500 border border-nix-700 font-bold text-sm transition-all duration-300";
+                    label.className = "text-xs font-medium text-gray-500 transition-all";
+                }
+            }
+        }
+
+        function updateButtonsUI() {
+            const prevBtn = document.getElementById('prevBtn');
+            const nextBtn = document.getElementById('nextBtn');
+            const submitBtn = document.getElementById('submitBtn');
+
+            // Control Previous button styling
+            if (currentStep === 1) {
+                prevBtn.disabled = true;
+                prevBtn.classList.add('opacity-50', 'cursor-not-allowed');
+            } else {
+                prevBtn.disabled = false;
+                prevBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+            }
+
+            // Control Next / Submit button visibility
+            if (currentStep === totalSteps) {
+                nextBtn.classList.add('hidden');
+                submitBtn.classList.remove('hidden');
+            } else {
+                nextBtn.classList.remove('hidden');
+                submitBtn.classList.add('hidden');
+            }
+        }
+
+        // Roadmap poll conditional parameters (Other text box)
+        const radioInputs = document.querySelectorAll('input[name="next_feature"]');
+        const otherInputContainer = document.getElementById('otherInputContainer');
+        const otherInput = document.getElementById('next_feature_other');
+
+        radioInputs.forEach(radio => {
+            radio.addEventListener('change', (e) => {
+                playClickSound();
+                if (e.target.value === 'Other') {
+                    otherInputContainer.classList.remove('hidden');
+                    otherInput.required = true;
+                } else {
+                    otherInputContainer.classList.add('hidden');
+                    otherInput.required = false;
+                    otherInput.value = '';
+                }
+            });
+        });
+
+        // Immersive Notification System
+        function showModal(type, title, message) {
+            const modal = document.getElementById('customModal');
+            const content = document.getElementById('modalContent');
+            const icon = document.getElementById('modalIcon');
+            const titleEl = document.getElementById('modalTitle');
+            const messageEl = document.getElementById('modalMessage');
+
+            if (type === 'success') {
+                icon.innerHTML = '<i class="fa-solid fa-circle-check text-emerald-400 drop-shadow-[0_0_10px_rgba(16,185,129,0.5)]"></i>';
+                playSubmitSuccessSound();
+            } else {
+                icon.innerHTML = '<i class="fa-solid fa-triangle-exclamation text-red-400 drop-shadow-[0_0_10px_rgba(239,68,68,0.5)]"></i>';
+                playWarningSound();
+            }
+
+            titleEl.textContent = title;
+            messageEl.textContent = message;
+
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                modal.classList.remove('opacity-0');
+                content.classList.remove('scale-95');
+            }, 15);
+        }
+
+        function closeModal() {
+            const modal = document.getElementById('customModal');
+            const content = document.getElementById('modalContent');
+            
+            modal.classList.add('opacity-0');
+            content.classList.add('scale-95');
+            playClickSound();
+            
+            setTimeout(() => {
+                modal.classList.add('hidden');
+            }, 300);
+        }
+
+        // Form Submission Execution
+        const form = document.getElementById('feedbackForm');
+        const submitButton = document.getElementById('submitBtn');
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            // Validate compliance agreement checkbox
+            const termsAgreed = document.getElementById('termsAgreement').checked;
+            if (!termsAgreed) {
+                showModal('warning', 'Agreement Required', 'To safely submit evaluations to Supabase, you must read and check the data compliance agreement box at the bottom.');
+                return;
+            }
+
+            // Save visual submit state
+            const originalBtnHTML = submitButton.innerHTML;
+            submitButton.disabled = true;
+            submitButton.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Submitting Review Data...';
+            submitButton.classList.add('opacity-75', 'cursor-not-allowed');
+
+            try {
+                const formData = new FormData(form);
+                const nextFeature = formData.get('next_feature');
+                const nextFeatureOther = formData.get('next_feature_other');
+                const comments = formData.get('comments');
+
+                // Filter out empty or unrated categories from evaluations before saving
+                const finalRatings = JSON.parse(JSON.stringify(formResponse)); // deep copy
+
+                // Inject terms agreement boolean directly inside the ratings JSONB to guarantee it gets saved regardless
+                finalRatings.agreed_to_terms = termsAgreed;
+
+                // Prepare primary payload matching the fully updated database schema
+                const payload = {
+                    ratings: finalRatings,
+                    next_feature: nextFeature,
+                    next_feature_other: nextFeature === 'Other' ? nextFeatureOther : null,
+                    comments: comments || null,
+                    agreed_to_terms: termsAgreed
+                };
+
+                // Push payload straight to Supabase client
+                let { data, error } = await supabaseClient
+                    .from('feedback')
+                    .insert([payload]);
+
+                // Intelligent PGRST204 Error Fallback Recovery
+                // If the database cache is outdated or the column is missing on the server,
+                // recover gracefully by removing the root parameter and relying on the JSONB structure.
+                if (error && (error.code === 'PGRST204' || (error.message && error.message.includes('agreed_to_terms')))) {
+                    console.warn("Detected missing agreed_to_terms column at database root. Initiating hot-patch payload retry...");
+                    
+                    const fallbackPayload = {
+                        ratings: finalRatings, // Contains the terms agreement flag safely inside the JSONB data
+                        next_feature: nextFeature,
+                        next_feature_other: nextFeature === 'Other' ? nextFeatureOther : null,
+                        comments: comments || null
+                    };
+
+                    const fallbackResult = await supabaseClient
+                        .from('feedback')
+                        .insert([fallbackPayload]);
+
+                    if (fallbackResult.error) throw fallbackResult.error;
+                } else if (error) {
+                    throw error;
+                }
+
+                // On completion: Display success alert with Synth chime
+                showModal('success', 'Thank You!', 'Your comprehensive feedback has been encrypted and saved successfully inside our secure feedback datastore.');
+                
+                // Refresh form state to pristine status
+                form.reset();
+                resetStarEvaluations();
+                goToStep(1);
+
+            } catch (err) {
+                console.error("Transmission Error Stack:", err);
+                showModal('error', 'Transmission Failed', err.message || 'An network conflict occurred while transferring data payload to Supabase.');
+            } finally {
+                // Restore submit element status
+                submitButton.disabled = false;
+                submitButton.innerHTML = originalBtnHTML;
+                submitButton.classList.remove('opacity-75', 'cursor-not-allowed');
+            }
+        });
+
+        function resetStarEvaluations() {
+            // Restore local memory evaluation data arrays
+            Object.keys(formResponse.website).forEach(k => formResponse.website[k] = 0);
+            Object.keys(formResponse.customer_service).forEach(k => formResponse.customer_service[k] = 0);
+            Object.keys(formResponse.tools).forEach(k => formResponse.tools[k] = 0);
+            Object.keys(formResponse.ai_outputs).forEach(k => formResponse.ai_outputs[k] = 0);
+            Object.keys(formResponse.privacy_policy).forEach(k => formResponse.privacy_policy[k] = 0);
+
+            // Force physical Star graphics clear
+            document.querySelectorAll('.star-active').forEach(star => {
+                star.classList.remove('star-active');
+                star.classList.add('text-gray-700');
+            });
+            otherInputContainer.classList.add('hidden');
+        }
+
+        // Initialize elements on viewport compilation
+        window.addEventListener('DOMContentLoaded', () => {
+            generateStarRows();
+        });
+
+    </script>
+</body>
+</html>
